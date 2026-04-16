@@ -963,10 +963,10 @@ function getPriceNum(p){
   return isNaN(n)?0:n;
 }
 function getPriceHTML(p){
-  const price=p.priceDisplay||p.price+' د.أ'||p.price;
+  const price=(p.price||0)+' دينار أردني';
   if(p.oldPrice){
-    const disc=Math.round((1-getPriceNum(p)/p.oldPrice)*100);
-    const oldDisplay=p.oldPriceDisplay||p.oldPrice+' د.أ';
+    const disc=Math.round((1-p.price/p.oldPrice)*100);
+    const oldDisplay=p.oldPrice+' دينار أردني';
     return `<div class="card-price"><span class="card-price-old">${oldDisplay}</span><span class="card-discount-badge">-${disc}%</span>${price}</div>`;
   }
   return `<div class="card-price">${price}</div>`;
