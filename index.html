@@ -1210,7 +1210,6 @@ async function confirmOrder(){
   toast('🎉 تم استلام طلبك!');
   setTimeout(()=>notifyAdminWA(order),1500);
 }
-}
 function checkoutWA(){
   if(!cart.length){toast('السلة فاضية!');return;}
   const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
