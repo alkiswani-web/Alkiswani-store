@@ -1149,12 +1149,12 @@ function renderCartDrawer(){
         <div class="cart-item-price">${getPriceNum(item)} دينار أردني</div>
         ${item.writingText?`<div class="cart-writing-note">✍️ كتابة: ${item.writingText}</div>`:''}
         <div class="cart-item-qty">
-          <button class="qty-btn" onclick="changeQty('${item.id}','${item.writingText||''}', -1)">−</button>
+          <button class="qty-btn" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="changeQty(this.dataset.id,this.dataset.wt,-1)">−</button>
           <span class="qty-num">${item.qty}</span>
-          <button class="qty-btn" onclick="changeQty('${item.id}','${item.writingText||''}', 1)">+</button>
+          <button class="qty-btn" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="changeQty(this.dataset.id,this.dataset.wt,1)">+</button>
         </div>
       </div>
-      <button class="cart-item-remove" onclick="removeCart('${item.id}','${item.writingText||''}')">✕</button>
+      <button class="cart-item-remove" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="removeCart(this.dataset.id,this.dataset.wt)">✕</button>
     </div>
   `).join('');
   footer.style.display='block';
@@ -1170,13 +1170,16 @@ function renderCartDrawer(){
   }
 }
 function changeQty(id,wt,d){
-  const item=cart.find(x=>x.id===id&&x.writingText===wt);
+  const item=cart.find(x=>String(x.id)===String(id)&&(x.writingText||'')===(wt||''));
   if(!item)return;
-  item.qty+=d;
-  if(item.qty<=0)cart=cart.filter(x=>!(x.id===id&&x.writingText===wt));
+  item.qty+=parseInt(d);
+  if(item.qty<=0)cart=cart.filter(x=>x!==item);
   save('ak_cart',cart);updateCartCount();renderCartDrawer();
 }
-function removeCart(id,wt){cart=cart.filter(x=>!(x.id===id&&x.writingText===wt));save('ak_cart',cart);updateCartCount();renderCartDrawer();}
+function removeCart(id,wt){
+  cart=cart.filter(x=>!(String(x.id)===String(id)&&(x.writingText||'')===(wt||'')));
+  save('ak_cart',cart);updateCartCount();renderCartDrawer();
+}
 function clearCart(){cart=[];save('ak_cart',cart);updateCartCount();}
 
 // ===== CHECKOUT =====
