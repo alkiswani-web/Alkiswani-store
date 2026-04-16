@@ -957,19 +957,19 @@ const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 function getCatEmoji(c){return{'أشجار الزينة':'🌳','الخشبيات':'🪵','براويز التخرج':'🎓','مباخر':'🕯️','طقوم الضيافة':'☕','مناظر تعليق':'🖼️'}[c]||'📦';}
 function getPriceNum(p){
-  // p can be a product object or a price string
-  if(typeof p==='object') return p.price||0;
+  if(typeof p==='object') return parseFloat(p.price)||0;
   const n=parseFloat(String(p).replace(/[^\d.]/g,''));
   return isNaN(n)?0:n;
 }
 function getPriceHTML(p){
-  const price=(p.price||0)+' دينار أردني';
+  const priceNum=parseFloat(p.price)||0;
+  const priceText=priceNum+' دينار أردني';
   if(p.oldPrice){
-    const disc=Math.round((1-p.price/p.oldPrice)*100);
-    const oldDisplay=p.oldPrice+' دينار أردني';
-    return `<div class="card-price"><span class="card-price-old">${oldDisplay}</span><span class="card-discount-badge">-${disc}%</span>${price}</div>`;
+    const oldNum=parseFloat(p.oldPrice)||0;
+    const disc=oldNum>0?Math.round((1-priceNum/oldNum)*100):0;
+    return `<div class="card-price"><span class="card-price-old">${oldNum} دينار أردني</span><span class="card-discount-badge">-${disc}%</span>${priceText}</div>`;
   }
-  return `<div class="card-price">${price}</div>`;
+  return `<div class="card-price">${priceText}</div>`;
 }
 
 function getStars(p){
@@ -978,13 +978,6 @@ function getStars(p){
   const avg=reviews.reduce((s,r)=>s+r.stars,0)/reviews.length;
   const stars='⭐'.repeat(Math.round(avg));
   return `<div class="card-rating"><span class="stars">${stars}</span><span class="rating-count">(${reviews.length})</span><span onclick="openRatingModal('${p.id}')" style="font-size:0.72rem;color:var(--green-light);cursor:pointer;margin-right:6px;">+ أضف تقييم</span></div>`;
-}
-function getPriceHTML(p){
-  if(p.oldPrice){
-    const disc=Math.round((1-getPriceNum(p.price)/getPriceNum(p.oldPrice))*100);
-    return `<div class="card-price"><span class="card-price-old">${p.oldPrice}</span><span class="card-discount-badge">-${disc}%</span>${p.price}</div>`;
-  }
-  return `<div class="card-price">${p.price}</div>`;
 }
 function getCardHTML(p){
   return `
@@ -1106,7 +1099,7 @@ function renderCartDrawer(){
     </div>
   `).join('');
   footer.style.display='block';
-  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
   document.getElementById('cartTotal').textContent=total.toFixed(2)+' د.أ';
@@ -1131,11 +1124,11 @@ function clearCart(){cart=[];save('ak_cart',cart);updateCartCount();}
 function openCheckout(){
   closeCart();
   const summary=document.getElementById('orderSummary');
-  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
   summary.innerHTML=cart.map(i=>`
-    <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${(i.price||0)*i.qty} د.أ</span></div>
+    <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${(parseFloat(i.price)||0)*i.qty} د.أ</span></div>
     ${i.writingText?`<div class="order-item writing"><span>✍️ كتابة: ${i.writingText}</span></div>`:''}
   `).join('')+`
     <div class="order-item"><span>🚚 أجور التوصيل</span><span>${delivery} د.أ</span></div>
@@ -1171,7 +1164,7 @@ async function confirmOrder(){
   const address=document.getElementById('custAddress').value.trim();
   if(!name||!phone||!area||!address){toast('❌ يرجى تعبئة جميع الحقول');return;}
   toast('⏳ جاري تأكيد الطلب...');
-  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
   let earnedPts=0;
@@ -1212,7 +1205,7 @@ async function confirmOrder(){
 }
 function checkoutWA(){
   if(!cart.length){toast('السلة فاضية!');return;}
-  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
   const total=subtotal+2;
   let msg='🌿 *طلب جديد - الكسواني روزميري*\n\n';
   cart.forEach(i=>{msg+=`• ${i.name} × ${i.qty} — ${i.priceDisplay||i.price+' د.أ'}\n`;if(i.writingText)msg+=`  ✍️ كتابة: ${i.writingText}\n`;});
@@ -1450,9 +1443,21 @@ function resetForm(){
 async function delProduct(id){
   if(!confirm('حذف هذا المنتج؟'))return;
   toast('⏳ جاري الحذف...');
-  await db.collection('products').doc(String(id)).delete();
-  products=products.filter(p=>String(p.id)!==String(id));
-  await renderAdmin();toast('🗑️ تم الحذف');
+  try{
+    // Try to delete by the id field stored in document
+    const snap=await db.collection('products').get();
+    const docToDelete=snap.docs.find(d=>String(d.data().id)===String(id)||d.id===String(id));
+    if(docToDelete){
+      await docToDelete.ref.delete();
+      products=products.filter(p=>String(p.id)!==String(id));
+      await renderAdmin();
+      toast('🗑️ تم الحذف');
+    } else {
+      toast('❌ المنتج غير موجود');
+    }
+  }catch(e){
+    toast('❌ خطأ في الحذف: '+e.message);
+  }
 }
 
 function editProduct(id){
