@@ -722,25 +722,23 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 
 <div class="toast" id="toast"></div>
 
-<script type="module">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script>
 // ===== FIREBASE CONFIG =====
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-
 const firebaseConfig = {
   apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
   authDomain: "alkiswani-store.firebaseapp.com",
   projectId: "alkiswani-store",
   storageBucket: "alkiswani-store.firebasestorage.app",
   messagingSenderId: "60330492719",
-  appId: "1:60330492719:web:71e36dd5327db3e54017da",
-  measurementId: "G-YETEPH7B1G"
+  appId: "1:60330492719:web:71e36dd5327db3e54017da"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const storage = getStorage(app);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
 
 // ===== CONFIG =====
 const ADMIN_USER='alkiswani', ADMIN_PASS='rosemary2026', WA='962XXXXXXXX';
@@ -756,49 +754,49 @@ let writingChoice='no';
 
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
-  const snap=await getDocs(collection(db,'products'));
+  const snap=await db.collection('products').get();
   products=snap.docs.map(d=>({id:d.id,...d.data()}));
   renderStore();
 }
 
 async function loadCustomers(){
-  const snap=await getDocs(collection(db,'customers'));
+  const snap=await db.collection('customers').get();
   customers=snap.docs.map(d=>({id:d.id,...d.data()}));
 }
 
 async function loadPointsSettings(){
-  const snap=await getDoc(doc(db,'settings','points'));
-  if(snap.exists()) pointsSettings={...pointsSettings,...snap.data()};
+  const snap=await db.collection('settings').doc('points').get();
+  if(snap.exists) pointsSettings={...pointsSettings,...snap.data()};
 }
 
 async function saveProductToFirebase(product){
   const {id,...data}=product;
-  await setDoc(doc(db,'products',String(id)),data);
+  await db.collection('products').doc(String(id)).set(data,{merge:true});
 }
 
 async function deleteProductFromFirebase(id){
-  await deleteDoc(doc(db,'products',String(id)));
+  await db.collection('products').doc(String(id)).delete();
 }
 
 async function saveCustomerToFirebase(customer){
   const {id,...data}=customer;
-  await setDoc(doc(db,'customers',String(id)),data);
+  await db.collection('customers').doc(String(id)).set(data,{merge:true});
 }
 
 async function updateCustomerInFirebase(customer){
   const {id,...data}=customer;
-  await updateDoc(doc(db,'customers',String(id)),data);
+  await db.collection('customers').doc(String(id)).update(data);
 }
 
 async function savePointsToFirebase(settings){
-  await setDoc(doc(db,'settings','points'),settings);
+  await db.collection('settings').doc('points').set(settings,{merge:true});
 }
 
 async function uploadImageToFirebase(base64,id){
   try{
-    const storageRef=ref(storage,`products/${id}.jpg`);
-    await uploadString(storageRef,base64,'data_url');
-    return await getDownloadURL(storageRef);
+    const storageRef=storage.ref(`products/${id}.jpg`);
+    await storageRef.putString(base64,'data_url');
+    return await storageRef.getDownloadURL();
   }catch(e){return base64;}
 }
 
@@ -982,7 +980,7 @@ async function confirmOrder(){
     }
   }
   const order={id:Date.now(),name,phone,area,address,notes:document.getElementById('custNotes').value||'',items:cart.map(i=>({name:i.name,qty:i.qty,price:i.price,writing:i.writingText||''})),total:total>0?total.toFixed(2)+' د.أ':'حسب الطلب',date:new Date().toLocaleDateString('ar-JO'),status:'جديد'};
-  await setDoc(doc(db,'orders',String(order.id)),order);
+  await db.collection('orders').doc(String(order.id)).set(order);
   document.getElementById('checkoutBody').style.display='none';
   const sp=document.getElementById('successScreen');sp.classList.add('show');
   if(earnedPts>0){document.getElementById('earnedPoints').textContent=earnedPts;document.getElementById('successPoints').style.display='block';}
@@ -1089,7 +1087,7 @@ function switchAdminTab(tab){
 async function renderOrders(){
   const list=document.getElementById('ordersList');
   list.innerHTML='<div class="empty-msg">⏳ جاري التحميل...</div>';
-  const snap=await getDocs(collection(db,'orders'));
+  const snap=await db.collection('orders').get();
   const orders=snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
   document.getElementById('ordersCount').textContent=orders.length;
   if(!orders.length){list.innerHTML='<div class="empty-msg">ما في طلبات بعد</div>';return;}
@@ -1212,6 +1210,40 @@ async function init(){
   updateNavUser();
 }
 init();
+
+// Make functions global for onclick handlers
+window.openAuth=openAuth;
+window.closeAuth=closeAuth;
+window.openCart=openCart;
+window.closeCart=closeCart;
+window.filterProds=filterProds;
+window.handleAddToCart=handleAddToCart;
+window.selectWritingOpt=selectWritingOpt;
+window.closeWritingModal=closeWritingModal;
+window.confirmWritingAndAdd=confirmWritingAndAdd;
+window.changeQty=changeQty;
+window.removeCart=removeCart;
+window.openCheckout=openCheckout;
+window.closeCheckout=closeCheckout;
+window.checkoutWA=checkoutWA;
+window.applyDiscount=applyDiscount;
+window.confirmOrder=confirmOrder;
+window.switchAuthTab=switchAuthTab;
+window.doCustomerLogin=doCustomerLogin;
+window.doCustomerRegister=doCustomerRegister;
+window.openProfile=openProfile;
+window.closeProfile=closeProfile;
+window.logoutCustomer=logoutCustomer;
+window.openAdminLogin=openAdminLogin;
+window.closeAdminLogin=closeAdminLogin;
+window.doAdminLogin=doAdminLogin;
+window.openAdmin=openAdmin;
+window.closeAdmin=closeAdmin;
+window.switchAdminTab=switchAdminTab;
+window.addProduct=addProduct;
+window.delProduct=delProduct;
+window.prevImg=prevImg;
+window.savePointsSettings=savePointsSettings;
 </script>
 </body>
 </html>
