@@ -724,7 +724,6 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script>
 // ===== FIREBASE CONFIG =====
 const firebaseConfig = {
@@ -738,7 +737,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
 
 // ===== CONFIG =====
 const ADMIN_USER='alkiswani', ADMIN_PASS='rosemary2026', WA='962XXXXXXXX';
@@ -793,11 +791,8 @@ async function savePointsToFirebase(settings){
 }
 
 async function uploadImageToFirebase(base64,id){
-  try{
-    const storageRef=storage.ref(`products/${id}.jpg`);
-    await storageRef.putString(base64,'data_url');
-    return await storageRef.getDownloadURL();
-  }catch(e){return base64;}
+  // حفظ الصورة مباشرة كـ base64 بدون Storage
+  return base64;
 }
 
 // ===== SAVE CART LOCALLY =====
