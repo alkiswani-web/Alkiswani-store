@@ -736,12 +736,18 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
           <label class="toggle"><input type="checkbox" id="pWriting"><span class="toggle-slider"></span></label>
         </div>
         <div class="fg">
-          <label>صورة المنتج</label>
+          <label>صور المنتج (يمكن رفع أكثر من صورة)</label>
           <div class="img-drop" onclick="document.getElementById('pImg').click()">
-            <input type="file" id="pImg" accept="image/*" onchange="prevImg(this)">
-            <div id="upPh">📸<br><span style="font-size:0.82rem;color:#aaa;">اضغط لرفع صورة</span></div>
-            <img id="imgPrev" class="img-preview-box" alt="">
+            <input type="file" id="pImg" accept="image/*" multiple onchange="prevImgs(this)">
+            <div id="upPh">📸<br><span style="font-size:0.82rem;color:#aaa;">اضغط لرفع صورة أو أكثر</span></div>
           </div>
+          <div id="imgsPrevContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+        </div>
+        <div class="fg">
+          <label>الألوان المتاحة (اكتب كل لون واضغط Enter أو فاصلة)</label>
+          <input type="text" id="pColorsInput" placeholder="مثال: ذهبي، فضي، أسود" oninput="handleColorsInput(event)">
+          <div id="colorsTagsContainer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
+          <input type="hidden" id="pColors" value="">
         </div>
         <button class="btn-save-product" id="saveProductBtn" onclick="addProduct()">✅ إضافة المنتج</button>
         <button onclick="cancelEdit()" id="cancelEditBtn" style="display:none;width:100%;padding:12px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;cursor:pointer;margin-top:8px;">✕ إلغاء التعديل</button>
@@ -786,6 +792,52 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
           <div class="fg"><label>الحد الأدنى للاستبدال</label><input type="number" id="minPointsRedeem" placeholder="مثال: 200" min="0"></div>
         </div>
         <button class="btn-save-settings" onclick="savePointsSettings()">💾 حفظ الإعدادات</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PRODUCT PAGE MODAL ===== -->
+<div class="modal-overlay" id="productPageOverlay" style="z-index:650;align-items:flex-start;padding:0;">
+  <div class="modal" style="max-width:100%;width:100%;max-height:100vh;border-radius:0;margin:0;">
+    <div style="position:sticky;top:0;background:var(--green-dark);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;z-index:10;">
+      <button onclick="closeProductPage()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;">← رجوع</button>
+      <div style="font-family:'Amiri',serif;color:var(--gold);font-size:1rem;" id="ppTitle"></div>
+      <div style="width:60px;"></div>
+    </div>
+    <!-- Images Slider -->
+    <div style="position:relative;background:#000;overflow:hidden;" id="ppImagesContainer">
+      <div id="ppSlider" style="display:flex;transition:transform 0.3s;"></div>
+      <button onclick="slideImg(-1)" id="ppPrev" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">›</button>
+      <button onclick="slideImg(1)" id="ppNext" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">‹</button>
+      <div id="ppDots" style="position:absolute;bottom:10px;width:100%;display:flex;justify-content:center;gap:6px;"></div>
+    </div>
+    <!-- Thumbnails -->
+    <div id="ppThumbs" style="display:flex;gap:8px;padding:10px 16px;overflow-x:auto;background:#f8f8f8;"></div>
+    <!-- Product Info -->
+    <div style="padding:20px;">
+      <div id="ppCat" style="font-size:0.75rem;color:var(--green-light);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;"></div>
+      <div id="ppName" style="font-family:'Amiri',serif;font-size:1.6rem;color:var(--green-dark);margin-bottom:8px;"></div>
+      <div id="ppStars" style="margin-bottom:10px;"></div>
+      <div id="ppPrice" style="font-size:1.3rem;font-weight:700;color:var(--brown);margin-bottom:16px;"></div>
+      <div id="ppDesc" style="font-size:0.9rem;color:var(--text-mid);line-height:1.8;margin-bottom:20px;"></div>
+      <!-- Colors -->
+      <div id="ppColorsSection" style="display:none;margin-bottom:20px;">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">🎨 اختر اللون:</div>
+        <div id="ppColorsList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
+      <!-- Writing -->
+      <div id="ppWritingSection" style="display:none;margin-bottom:20px;">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--purple);margin-bottom:8px;">✍️ كتابة مخصصة (اختياري):</div>
+        <input type="text" id="ppWritingInput" placeholder="اكتب النص المطلوب نقشه..." style="width:100%;padding:11px 13px;border:1.5px solid var(--purple-light);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+      </div>
+      <!-- Add to cart -->
+      <button onclick="addToCartFromPage()" style="width:100%;padding:16px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all 0.3s;" onmouseover="this.style.background=var(--green-mid)" onmouseout="this.style.background=var(--green-dark)">🛒 أضف للسلة</button>
+      <!-- Reviews -->
+      <div style="margin-top:24px;">
+        <div style="font-family:'Amiri',serif;font-size:1.1rem;color:var(--green-dark);margin-bottom:12px;">⭐ التقييمات</div>
+        <div id="ppReviews"></div>
+        <button onclick="openRatingFromPage()" style="margin-top:12px;padding:10px 20px;background:transparent;border:1.5px solid var(--green-light);color:var(--green-dark);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;">+ أضف تقييمك</button>
       </div>
     </div>
   </div>
@@ -981,12 +1033,13 @@ function getStars(p){
 }
 function getCardHTML(p){
   return `
-    <div class="store-card">
+    <div class="store-card" onclick="openProductPage('${p.id}')" style="cursor:pointer;">
       <div class="store-card-img">
-        ${p.img?`<img src="${p.img}" alt="${p.name}">`:`<span>${p.emoji}</span>`}
+        ${p.images&&p.images.length?`<img src="${p.images[0]}" alt="${p.name}">`:p.img?`<img src="${p.img}" alt="${p.name}">`:`<span>${p.emoji}</span>`}
         <div class="card-badge-wrap">
           ${p.badge?`<div class="card-badge">${p.badge}</div>`:''}
           ${p.writing?`<div class="writing-badge">✍️ قابل للكتابة</div>`:''}
+          ${p.colors&&p.colors.length?`<div class="card-badge" style="background:var(--green-mid);">🎨 ${p.colors.length} ألوان</div>`:''}
         </div>
       </div>
       <div class="store-card-body">
@@ -996,7 +1049,7 @@ function getCardHTML(p){
         <div class="card-desc">${p.desc}</div>
         <div class="card-footer">
           ${getPriceHTML(p)}
-          <button class="btn-add-cart" id="btn-${p.id}" onclick="handleAddToCart('${p.id}')">🛒 أضف للسلة</button>
+          <button class="btn-add-cart" id="btn-${p.id}" onclick="event.stopPropagation();handleAddToCart('${p.id}')">🛒 أضف للسلة</button>
         </div>
       </div>
     </div>`;
@@ -1392,7 +1445,52 @@ async function savePointsSettings(){
   toast('✅ تم حفظ إعدادات النقاط!');
 }
 
-function prevImg(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const p=document.getElementById('imgPrev');p.src=e.target.result;p.style.display='block';document.getElementById('upPh').style.display='none';};r.readAsDataURL(f);}
+function prevImgs(input){
+  const files=Array.from(input.files);
+  const container=document.getElementById('imgsPrevContainer');
+  document.getElementById('upPh').textContent=`✅ ${files.length} صورة محددة`;
+  container.innerHTML='';
+  files.forEach((f,i)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=document.createElement('img');
+      img.src=e.target.result;
+      img.style.cssText='width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;';
+      container.appendChild(img);
+    };
+    r.readAsDataURL(f);
+  });
+}
+
+let currentColors=[];
+function handleColorsInput(e){
+  const val=e.target.value;
+  if(val.endsWith(',') || e.inputType==='insertLineBreak'){
+    const color=val.replace(',','').trim();
+    if(color) addColorTag(color);
+    e.target.value='';
+  }
+}
+function addColorTag(color){
+  if(!color||currentColors.includes(color))return;
+  currentColors.push(color);
+  renderColorTags();
+  document.getElementById('pColors').value=JSON.stringify(currentColors);
+}
+function removeColorTag(color){
+  currentColors=currentColors.filter(c=>c!==color);
+  renderColorTags();
+  document.getElementById('pColors').value=JSON.stringify(currentColors);
+}
+function renderColorTags(){
+  const c=document.getElementById('colorsTagsContainer');
+  c.innerHTML=currentColors.map(color=>`
+    <span style="background:var(--green-dark);color:#fff;padding:5px 12px;border-radius:20px;font-size:0.82rem;display:flex;align-items:center;gap:6px;">
+      ${color}
+      <span onclick="removeColorTag('${color}')" style="cursor:pointer;opacity:0.7;">✕</span>
+    </span>
+  `).join('');
+}
 
 async function addProduct(){
   const name=document.getElementById('pName').value.trim();
@@ -1402,7 +1500,9 @@ async function addProduct(){
   const desc=document.getElementById('pDesc').value.trim();
   const badge=document.getElementById('pBadge').value.trim();
   const writing=document.getElementById('pWriting').checked;
-  const imgFile=document.getElementById('pImg').files[0];
+  const imgFiles=Array.from(document.getElementById('pImg').files);
+  const colorsRaw=document.getElementById('pColors').value;
+  const colors=colorsRaw?JSON.parse(colorsRaw):currentColors;
   const editingId=document.getElementById('editingId').value;
   if(!name||!priceRaw||!cat||!desc){toast('❌ يرجى تعبئة جميع الحقول');return;}
   const price=parseFloat(priceRaw);
@@ -1410,19 +1510,25 @@ async function addProduct(){
   if(isNaN(price)){toast('❌ السعر لازم يكون رقم');return;}
   toast('⏳ جاري الحفظ...');
   const id=editingId||Date.now();
-  let imgUrl=editingId?products.find(p=>String(p.id)===String(editingId))?.img||'':'';
-  if(imgFile){
-    const r=new FileReader();
-    imgUrl=await new Promise(res=>{r.onload=async e=>{const url=await uploadImageToFirebase(e.target.result,id);res(url);};r.readAsDataURL(imgFile);});
-  }
   const existing=editingId?products.find(p=>String(p.id)===String(editingId)):null;
+  // Upload multiple images
+  let images=existing?.images||[];
+  if(imgFiles.length>0){
+    images=[];
+    for(const file of imgFiles){
+      const r=new FileReader();
+      const imgUrl=await new Promise(res=>{r.onload=async e=>{const url=await uploadImageToFirebase(e.target.result,id+'_'+Date.now());res(url);};r.readAsDataURL(file);});
+      images.push(imgUrl);
+    }
+  }
   const product={
-    id,name,
-    price:price,
-    priceDisplay:price+' د.أ',
-    oldPrice:oldPrice,
-    oldPriceDisplay:oldPrice?oldPrice+' د.أ':'',
-    cat,desc,badge,writing,img:imgUrl,emoji:getCatEmoji(cat),reviews:existing?.reviews||[]
+    id,name,price,oldPrice:oldPrice||null,
+    cat,desc,badge,writing,
+    images:images,
+    img:images[0]||existing?.img||'',
+    emoji:getCatEmoji(cat),
+    colors:colors,
+    reviews:existing?.reviews||[]
   };
   await db.collection('products').doc(String(id)).set(product,{merge:true});
   if(editingId){products=products.map(p=>String(p.id)===String(editingId)?product:p);}
@@ -1433,11 +1539,15 @@ async function addProduct(){
 }
 
 function resetForm(){
-  ['pName','pPrice','pOldPrice','pDesc','pBadge'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('pCat').value='';document.getElementById('pWriting').checked=false;
+  ['pName','pPrice','pOldPrice','pDesc','pBadge','pColorsInput'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pCat').value='';
+  document.getElementById('pWriting').checked=false;
   document.getElementById('pImg').value='';
-  document.getElementById('imgPrev').style.display='none';
-  document.getElementById('upPh').style.display='block';
+  document.getElementById('pColors').value='';
+  document.getElementById('imgsPrevContainer').innerHTML='';
+  document.getElementById('colorsTagsContainer').innerHTML='';
+  document.getElementById('upPh').textContent='📸\nاضغط لرفع صورة أو أكثر';
+  currentColors=[];
 }
 
 async function delProduct(id){
@@ -1572,6 +1682,82 @@ async function updateOrderStatus(orderId, newStatus){
   toast('✅ تم تحديث حالة الطلب');
   renderOrders();
 }
+
+// ===== PRODUCT PAGE =====
+let currentProductPage=null;
+let currentSlide=0;
+let selectedColor='';
+
+function openProductPage(id){
+  const p=products.find(x=>String(x.id)===String(id));
+  if(!p)return;
+  currentProductPage=p;
+  currentSlide=0;
+  selectedColor='';
+  document.getElementById('ppTitle').textContent=p.name;
+  document.getElementById('ppCat').textContent=p.cat;
+  document.getElementById('ppName').textContent=p.name;
+  document.getElementById('ppDesc').textContent=p.desc;
+  const priceNum=parseFloat(p.price)||0;
+  let priceHTML=`${priceNum} دينار أردني`;
+  if(p.oldPrice){const disc=Math.round((1-priceNum/p.oldPrice)*100);priceHTML=`<span style="text-decoration:line-through;color:#aaa;font-size:1rem;">${p.oldPrice} دينار أردني</span> <span style="background:#e53e3e;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.8rem;">-${disc}%</span><br>${priceNum} دينار أردني`;}
+  document.getElementById('ppPrice').innerHTML=priceHTML;
+  const reviews=p.reviews||[];
+  document.getElementById('ppStars').innerHTML=reviews.length?`<span style="color:#f6ad55;">${'⭐'.repeat(Math.round(reviews.reduce((s,r)=>s+r.stars,0)/reviews.length))}</span> <span style="color:#aaa;font-size:0.82rem;">(${reviews.length} تقييم)</span>`:'<span style="color:#aaa;font-size:0.82rem;">لا يوجد تقييمات بعد</span>';
+  const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
+  const slider=document.getElementById('ppSlider');
+  slider.innerHTML=images.length?images.map(img=>`<img src="${img}" style="width:100vw;max-width:100%;height:300px;object-fit:cover;flex-shrink:0;">`).join(''):`<div style="width:100vw;height:300px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;">${p.emoji}</div>`;
+  slider.style.transform='translateX(0)';
+  const dots=document.getElementById('ppDots');
+  dots.innerHTML=images.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;"></div>`).join('');
+  document.getElementById('ppPrev').style.display=images.length>1?'flex':'none';
+  document.getElementById('ppNext').style.display=images.length>1?'flex':'none';
+  const thumbs=document.getElementById('ppThumbs');
+  thumbs.innerHTML=images.map((img,i)=>`<img src="${img}" onclick="goToSlide(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;">`).join('');
+  thumbs.style.display=images.length>1?'flex':'none';
+  const colorsSection=document.getElementById('ppColorsSection');
+  if(p.colors&&p.colors.length){
+    colorsSection.style.display='block';
+    document.getElementById('ppColorsList').innerHTML=p.colors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:8px 18px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
+  } else { colorsSection.style.display='none'; }
+  document.getElementById('ppWritingSection').style.display=p.writing?'block':'none';
+  document.getElementById('ppWritingInput').value='';
+  const revEl=document.getElementById('ppReviews');
+  revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
+  document.getElementById('productPageOverlay').classList.add('open');
+  document.querySelector('#productPageOverlay .modal').scrollTop=0;
+}
+
+function closeProductPage(){document.getElementById('productPageOverlay').classList.remove('open');}
+function goToSlide(n){
+  const p=currentProductPage;
+  if(!p)return;
+  const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
+  currentSlide=Math.max(0,Math.min(n,images.length-1));
+  document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-100}vw)`;
+  document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===currentSlide?'#fff':'rgba(255,255,255,0.4)');
+  document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===currentSlide?'2px solid var(--green-dark)':'2px solid #e0e0e0');
+}
+function slideImg(dir){
+  const p=currentProductPage;
+  const images=p&&p.images&&p.images.length?p.images:p&&p.img?[p.img]:[];
+  goToSlide((currentSlide+dir+images.length)%images.length);
+}
+function selectColor(color,btn){
+  selectedColor=color;
+  document.querySelectorAll('#ppColorsList button').forEach(b=>{b.style.borderColor='#e0e0e0';b.style.background='#fff';b.style.color='inherit';});
+  btn.style.borderColor='var(--green-dark)';btn.style.background='var(--green-dark)';btn.style.color='#fff';
+}
+function addToCartFromPage(){
+  const p=currentProductPage;if(!p)return;
+  if(p.colors&&p.colors.length&&!selectedColor){toast('🎨 يرجى اختيار اللون أولاً');return;}
+  const writing=p.writing?document.getElementById('ppWritingInput').value.trim():'';
+  addToCartDirect(p,writing+(selectedColor?' - لون: '+selectedColor:''));
+  closeProductPage();
+  toast('✅ تمت الإضافة للسلة!');
+}
+function openRatingFromPage(){closeProductPage();setTimeout(()=>openRatingModal(currentProductPage?.id),300);}
+
 async function init(){
   await loadPointsSettings();
   await loadProducts();
@@ -1601,7 +1787,12 @@ window.openAdmin=openAdmin; window.closeAdmin=closeAdmin;
 window.switchAdminTab=switchAdminTab;
 window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
-window.prevImg=prevImg; window.savePointsSettings=savePointsSettings;
+window.openProductPage=openProductPage; window.closeProductPage=closeProductPage;
+window.goToSlide=goToSlide; window.slideImg=slideImg;
+window.selectColor=selectColor; window.addToCartFromPage=addToCartFromPage;
+window.openRatingFromPage=openRatingFromPage;
+window.handleColorsInput=handleColorsInput; window.removeColorTag=removeColorTag;
+window.prevImgs=prevImgs;
 window.openRatingModal=openRatingModal; window.closeRatingModal=closeRatingModal;
 window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
