@@ -943,7 +943,7 @@ let writingChoice='no';
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
   const snap=await db.collection('products').get();
-  products=snap.docs.map(d=>({id:d.id,...d.data()}));
+  products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
   renderStore();
 }
 
@@ -1009,12 +1009,18 @@ const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 function getCatEmoji(c){return{'أشجار الزينة':'🌳','الخشبيات':'🪵','براويز التخرج':'🎓','مباخر':'🕯️','طقوم الضيافة':'☕','مناظر تعليق':'🖼️'}[c]||'📦';}
 function getPriceNum(p){
-  if(typeof p==='object') return parseFloat(p.price)||0;
-  const n=parseFloat(String(p).replace(/[^\d.]/g,''));
-  return isNaN(n)?0:n;
+  // Handle product object or price value directly
+  const val = typeof p==='object' ? p.price : p;
+  // Extract number from any format: 15, "15", "15 د.أ", "15 دينار أردني"
+  const n = parseFloat(String(val).replace(/[^\d.]/g,''));
+  return isNaN(n) ? 0 : n;
+}
+function getPriceDisplay(p){
+  // Always show as clean number + دينار أردني
+  return getPriceNum(p) + ' دينار أردني';
 }
 function getPriceHTML(p){
-  const priceNum=parseFloat(p.price)||0;
+  const priceNum=getPriceNum(p);
   const priceText=priceNum+' دينار أردني';
   if(p.oldPrice){
     const oldNum=parseFloat(p.oldPrice)||0;
@@ -1140,7 +1146,7 @@ function renderCartDrawer(){
       <div class="cart-item-img">${item.img?`<img src="${item.img}" alt="">`:`<span>${item.emoji}</span>`}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${item.name}</div>
-        <div class="cart-item-price">${item.priceDisplay||item.price+' د.أ'}</div>
+        <div class="cart-item-price">${getPriceNum(item)} دينار أردني</div>
         ${item.writingText?`<div class="cart-writing-note">✍️ كتابة: ${item.writingText}</div>`:''}
         <div class="cart-item-qty">
           <button class="qty-btn" onclick="changeQty('${item.id}','${item.writingText||''}', -1)">−</button>
@@ -1152,10 +1158,10 @@ function renderCartDrawer(){
     </div>
   `).join('');
   footer.style.display='block';
-  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
-  document.getElementById('cartTotal').textContent=total.toFixed(2)+' د.أ';
+  document.getElementById('cartTotal').textContent=total.toFixed(2)+' دينار أردني';
   const pi=document.getElementById('cartPointsInfo');
   if(currentUser&&pointsSettings.enabled){
     const pts=Math.floor(subtotal*pointsSettings.perDinar);
@@ -1177,11 +1183,11 @@ function clearCart(){cart=[];save('ak_cart',cart);updateCartCount();}
 function openCheckout(){
   closeCart();
   const summary=document.getElementById('orderSummary');
-  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
   summary.innerHTML=cart.map(i=>`
-    <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${(parseFloat(i.price)||0)*i.qty} د.أ</span></div>
+    <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${getPriceNum(i)*i.qty} دينار أردني</span></div>
     ${i.writingText?`<div class="order-item writing"><span>✍️ كتابة: ${i.writingText}</span></div>`:''}
   `).join('')+`
     <div class="order-item"><span>🚚 أجور التوصيل</span><span>${delivery} د.أ</span></div>
@@ -1217,7 +1223,7 @@ async function confirmOrder(){
   const address=document.getElementById('custAddress').value.trim();
   if(!name||!phone||!area||!address){toast('❌ يرجى تعبئة جميع الحقول');return;}
   toast('⏳ جاري تأكيد الطلب...');
-  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
   let earnedPts=0;
@@ -1227,7 +1233,7 @@ async function confirmOrder(){
     if(cu){
       cu.points=(cu.points||0)+earnedPts;
       cu.orders=cu.orders||[];
-      cu.orders.push({id:'#'+Date.now().toString().slice(-6),items:cart.map(i=>i.name+' ×'+i.qty),total:total.toFixed(2)+' د.أ',date:new Date().toLocaleDateString('ar-JO')});
+      cu.orders.push({id:'#'+Date.now().toString().slice(-6),items:cart.map(i=>i.name+' ×'+i.qty),total:total.toFixed(2)+' دينار أردني',date:new Date().toLocaleDateString('ar-JO')});
       await updateCustomerInFirebase(cu);
       currentUser.points=cu.points;
       save('ak_currentUser',currentUser);
@@ -1239,9 +1245,9 @@ async function confirmOrder(){
     id:Date.now(),orderNum:'#'+orderNum,name,phone,area,address,
     notes:document.getElementById('custNotes').value||'',
     items:cart.map(i=>({name:i.name,qty:i.qty,price:i.price,priceDisplay:i.priceDisplay||i.price+' د.أ',writing:i.writingText||''})),
-    subtotal:subtotal.toFixed(2)+' د.أ',
+    subtotal:subtotal.toFixed(2)+' دينار أردني',
     delivery:delivery+' د.أ',
-    total:total.toFixed(2)+' د.أ',
+    total:total.toFixed(2)+' دينار أردني',
     date:new Date().toLocaleDateString('ar-JO'),
     status:'جديد'
   };
@@ -1258,11 +1264,11 @@ async function confirmOrder(){
 }
 function checkoutWA(){
   if(!cart.length){toast('السلة فاضية!');return;}
-  const subtotal=cart.map(i=>(parseFloat(i.price)||0)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const total=subtotal+2;
   let msg='🌿 *طلب جديد - الكسواني روزميري*\n\n';
   cart.forEach(i=>{msg+=`• ${i.name} × ${i.qty} — ${i.priceDisplay||i.price+' د.أ'}\n`;if(i.writingText)msg+=`  ✍️ كتابة: ${i.writingText}\n`;});
-  msg+=`\n🚚 أجور التوصيل: 2 د.أ\n💰 الإجمالي: ${total.toFixed(2)} د.أ\n\nأرجو التواصل لتأكيد الطلب والتوصيل 🙏`;
+  msg+=`\n🚚 أجور التوصيل: 2 دينار أردني\n💰 الإجمالي: ${total.toFixed(2)} د.أ\n\nأرجو التواصل لتأكيد الطلب والتوصيل 🙏`;
   window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
   closeCart();
 }
@@ -1373,7 +1379,7 @@ async function renderOrders(){
       </div>
       <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · 📞 ${o.phone} · 📍 ${o.area}</div>
       <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
-      <div style="font-size:0.82rem;color:var(--text-mid);">مجموع: ${o.subtotal||o.total} + توصيل: ${o.delivery||'2 د.أ'}</div>
+      <div style="font-size:0.82rem;color:var(--text-mid);">مجموع: ${o.subtotal||o.total} + توصيل: ${o.delivery||'2 دينار أردني'}</div>
       <div style="font-weight:700;color:var(--brown);">💰 الإجمالي: ${o.total}</div>
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
@@ -1530,9 +1536,11 @@ async function addProduct(){
     colors:colors,
     reviews:existing?.reviews||[]
   };
-  await db.collection('products').doc(String(id)).set(product,{merge:true});
-  if(editingId){products=products.map(p=>String(p.id)===String(editingId)?product:p);}
-  else{products.push(product);}
+  const docId=existing?._docId||String(id);
+  await db.collection('products').doc(docId).set(product,{merge:true});
+  product._docId=docId;
+  if(editingId){products=products.map(p=>String(p.id)===String(editingId)?{...product,_docId:docId}:p);}
+  else{products.push({...product,_docId:docId});}
   await renderAdmin();
   cancelEdit();
   toast(editingId?'✅ تم تعديل المنتج!':'✅ تم إضافة المنتج!');
@@ -1554,19 +1562,18 @@ async function delProduct(id){
   if(!confirm('حذف هذا المنتج؟'))return;
   toast('⏳ جاري الحذف...');
   try{
-    // Try to delete by the id field stored in document
-    const snap=await db.collection('products').get();
-    const docToDelete=snap.docs.find(d=>String(d.data().id)===String(id)||d.id===String(id));
-    if(docToDelete){
-      await docToDelete.ref.delete();
-      products=products.filter(p=>String(p.id)!==String(id));
-      await renderAdmin();
-      toast('🗑️ تم الحذف');
-    } else {
-      toast('❌ المنتج غير موجود');
-    }
+    const p=products.find(x=>String(x.id)===String(id)||String(x._docId)===String(id));
+    if(!p){toast('❌ المنتج غير موجود');return;}
+    // Use _docId (Firestore document ID) for deletion
+    const docId=p._docId||String(p.id);
+    await db.collection('products').doc(docId).delete();
+    products=products.filter(x=>x!==p);
+    renderStore();
+    await renderAdmin();
+    toast('🗑️ تم الحذف بنجاح');
   }catch(e){
-    toast('❌ خطأ في الحذف: '+e.message);
+    console.error(e);
+    toast('❌ خطأ: '+e.message);
   }
 }
 
