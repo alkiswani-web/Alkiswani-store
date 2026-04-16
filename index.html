@@ -674,7 +674,9 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
             <img id="imgPrev" class="img-preview-box" alt="">
           </div>
         </div>
-        <button class="btn-save-product" onclick="addProduct()">✅ إضافة المنتج</button>
+        <button class="btn-save-product" id="saveProductBtn" onclick="addProduct()">✅ إضافة المنتج</button>
+        <button onclick="cancelEdit()" id="cancelEditBtn" style="display:none;width:100%;padding:12px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;cursor:pointer;margin-top:8px;">✕ إلغاء التعديل</button>
+        <input type="hidden" id="editingId" value="">
       </div>
       <div class="products-mgmt">
         <h2>📦 المنتجات (<span id="pCount">0</span>)</h2>
@@ -1130,6 +1132,7 @@ async function renderAdmin(){
         <div class="prod-meta"><span>📂 ${p.cat}</span>${p.writing?`<span class="writing-tag">✍️ قابل للكتابة</span>`:''}</div>
       </div>
       <div class="prod-price">${p.price}</div>
+      <button class="btn-del" style="background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;" onclick="editProduct('${p.id}')">✏️</button>
       <button class="btn-del" onclick="delProduct('${p.id}')">🗑️</button>
     </div>
   `).join('');
@@ -1181,18 +1184,25 @@ async function addProduct(){
   const badge=document.getElementById('pBadge').value.trim();
   const writing=document.getElementById('pWriting').checked;
   const imgFile=document.getElementById('pImg').files[0];
+  const editingId=document.getElementById('editingId').value;
   if(!name||!price||!cat||!desc){toast('❌ يرجى تعبئة جميع الحقول');return;}
   toast('⏳ جاري الحفظ...');
-  const id=Date.now();
-  let imgUrl='';
+  const id=editingId||Date.now();
+  let imgUrl=editingId?products.find(p=>String(p.id)===String(editingId))?.img||'':'';
   if(imgFile){
     const r=new FileReader();
     imgUrl=await new Promise(res=>{r.onload=async e=>{const url=await uploadImageToFirebase(e.target.result,id);res(url);};r.readAsDataURL(imgFile);});
   }
   const product={id,name,price,cat,desc,badge,writing,img:imgUrl,emoji:getCatEmoji(cat)};
-  await saveProductToFirebase(product);
-  products.push(product);
-  renderAdmin();resetForm();toast('✅ تم إضافة المنتج!');
+  await db.collection('products').doc(String(id)).set(product,{merge:true});
+  if(editingId){
+    products=products.map(p=>String(p.id)===String(editingId)?product:p);
+  } else {
+    products.push(product);
+  }
+  await renderAdmin();
+  cancelEdit();
+  toast(editingId?'✅ تم تعديل المنتج!':'✅ تم إضافة المنتج!');
 }
 
 function resetForm(){
@@ -1205,9 +1215,40 @@ function resetForm(){
 
 async function delProduct(id){
   if(!confirm('حذف هذا المنتج؟'))return;
-  await deleteProductFromFirebase(id);
-  products=products.filter(p=>p.id!==id);
-  renderAdmin();toast('🗑️ تم الحذف');
+  toast('⏳ جاري الحذف...');
+  await db.collection('products').doc(String(id)).delete();
+  products=products.filter(p=>String(p.id)!==String(id));
+  await renderAdmin();toast('🗑️ تم الحذف');
+}
+
+function editProduct(id){
+  const p=products.find(x=>String(x.id)===String(id));
+  if(!p)return;
+  document.getElementById('pName').value=p.name||'';
+  document.getElementById('pPrice').value=p.price||'';
+  document.getElementById('pCat').value=p.cat||'';
+  document.getElementById('pDesc').value=p.desc||'';
+  document.getElementById('pBadge').value=p.badge||'';
+  document.getElementById('pWriting').checked=p.writing||false;
+  if(p.img){
+    document.getElementById('imgPrev').src=p.img;
+    document.getElementById('imgPrev').style.display='block';
+    document.getElementById('upPh').style.display='none';
+  }
+  document.getElementById('editingId').value=id;
+  document.getElementById('saveProductBtn').textContent='💾 حفظ التعديلات';
+  document.getElementById('cancelEditBtn').style.display='block';
+  document.querySelector('.form-card h2').textContent='✏️ تعديل المنتج';
+  window.scrollTo({top:0,behavior:'smooth'});
+  toast('✏️ عدّل البيانات واضغط حفظ');
+}
+
+function cancelEdit(){
+  resetForm();
+  document.getElementById('editingId').value='';
+  document.getElementById('saveProductBtn').textContent='✅ إضافة المنتج';
+  document.getElementById('cancelEditBtn').style.display='none';
+  document.querySelector('.form-card h2').textContent='➕ إضافة منتج جديد';
 }
 
 // ===== INIT =====
@@ -1250,6 +1291,8 @@ window.closeAdmin=closeAdmin;
 window.switchAdminTab=switchAdminTab;
 window.addProduct=addProduct;
 window.delProduct=delProduct;
+window.editProduct=editProduct;
+window.cancelEdit=cancelEdit;
 window.prevImg=prevImg;
 window.savePointsSettings=savePointsSettings;
 </script>
