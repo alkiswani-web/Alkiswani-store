@@ -700,10 +700,22 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
         <h2>➕ إضافة منتج جديد</h2>
         <div class="form-row">
           <div class="fg"><label>اسم المنتج *</label><input type="text" id="pName" placeholder="اسم المنتج"></div>
-          <div class="fg"><label>السعر *</label><input type="text" id="pPrice" placeholder="مثال: 25 د.أ"></div>
+          <div class="fg">
+            <label>السعر * (أرقام فقط)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" id="pPrice" placeholder="25" min="0" step="0.5" style="flex:1;">
+              <span style="color:var(--text-mid);font-size:0.9rem;white-space:nowrap;">د.أ</span>
+            </div>
+          </div>
         </div>
         <div class="form-row">
-          <div class="fg"><label>سعر قبل الخصم (اختياري)</label><input type="text" id="pOldPrice" placeholder="مثال: 35 د.أ"></div>
+          <div class="fg">
+            <label>سعر قبل الخصم (اختياري)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" id="pOldPrice" placeholder="35" min="0" step="0.5" style="flex:1;">
+              <span style="color:var(--text-mid);font-size:0.9rem;white-space:nowrap;">د.أ</span>
+            </div>
+          </div>
           <div class="fg"><label>وسم مميز</label><input type="text" id="pBadge" placeholder="مثال: الأكثر طلباً"></div>
         </div>
         <div class="form-row">
@@ -944,7 +956,21 @@ const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 // ===== UTILS =====
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 function getCatEmoji(c){return{'أشجار الزينة':'🌳','الخشبيات':'🪵','براويز التخرج':'🎓','مباخر':'🕯️','طقوم الضيافة':'☕','مناظر تعليق':'🖼️'}[c]||'📦';}
-function getPriceNum(p){const n=parseFloat(p.replace(/[^\d.]/g,''));return isNaN(n)?0:n;}
+function getPriceNum(p){
+  // p can be a product object or a price string
+  if(typeof p==='object') return p.price||0;
+  const n=parseFloat(String(p).replace(/[^\d.]/g,''));
+  return isNaN(n)?0:n;
+}
+function getPriceHTML(p){
+  const price=p.priceDisplay||p.price+' د.أ'||p.price;
+  if(p.oldPrice){
+    const disc=Math.round((1-getPriceNum(p)/p.oldPrice)*100);
+    const oldDisplay=p.oldPriceDisplay||p.oldPrice+' د.أ';
+    return `<div class="card-price"><span class="card-price-old">${oldDisplay}</span><span class="card-discount-badge">-${disc}%</span>${price}</div>`;
+  }
+  return `<div class="card-price">${price}</div>`;
+}
 
 function getStars(p){
   const reviews=p.reviews||[];
@@ -1068,24 +1094,25 @@ function renderCartDrawer(){
       <div class="cart-item-img">${item.img?`<img src="${item.img}" alt="">`:`<span>${item.emoji}</span>`}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${item.name}</div>
-        <div class="cart-item-price">${item.price}</div>
-        ${item.writingText?`<div class="cart-writing-note">✍️ نقش: ${item.writingText}</div>`:''}
+        <div class="cart-item-price">${item.priceDisplay||item.price+' د.أ'}</div>
+        ${item.writingText?`<div class="cart-writing-note">✍️ كتابة: ${item.writingText}</div>`:''}
         <div class="cart-item-qty">
-          <button class="qty-btn" onclick="changeQty(${item.id},'${item.writingText}',-1)">−</button>
+          <button class="qty-btn" onclick="changeQty('${item.id}','${item.writingText||''}', -1)">−</button>
           <span class="qty-num">${item.qty}</span>
-          <button class="qty-btn" onclick="changeQty(${item.id},'${item.writingText}',1)">+</button>
+          <button class="qty-btn" onclick="changeQty('${item.id}','${item.writingText||''}', 1)">+</button>
         </div>
       </div>
-      <button class="cart-item-remove" onclick="removeCart(${item.id},'${item.writingText}')">✕</button>
+      <button class="cart-item-remove" onclick="removeCart('${item.id}','${item.writingText||''}')">✕</button>
     </div>
   `).join('');
   footer.style.display='block';
-  const total=cart.map(i=>getPriceNum(i.price)*i.qty).reduce((a,b)=>a+b,0);
-  document.getElementById('cartTotal').textContent=total>0?total.toFixed(2)+' د.أ':'حسب الطلب';
-  // Points info
+  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const delivery=2;
+  const total=subtotal+delivery;
+  document.getElementById('cartTotal').textContent=total.toFixed(2)+' د.أ';
+  const pi=document.getElementById('cartPointsInfo');
   if(currentUser&&pointsSettings.enabled){
-    const pts=Math.floor(total*pointsSettings.perDinar);
-    const pi=document.getElementById('cartPointsInfo');
+    const pts=Math.floor(subtotal*pointsSettings.perDinar);
     document.getElementById('cartPointsText').textContent=`ستكسب ${pts} نقطة من هذا الطلب 🌟`;
     pi.classList.add('show');
   }
@@ -1104,11 +1131,16 @@ function clearCart(){cart=[];save('ak_cart',cart);updateCartCount();}
 function openCheckout(){
   closeCart();
   const summary=document.getElementById('orderSummary');
-  const total=cart.map(i=>getPriceNum(i.price)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const delivery=2;
+  const total=subtotal+delivery;
   summary.innerHTML=cart.map(i=>`
-    <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${i.price}</span></div>
-    ${i.writingText?`<div class="order-item writing"><span>✍️ نقش: ${i.writingText}</span></div>`:''}
-  `).join('')+`<div class="order-item"><span>الإجمالي</span><span>${total>0?total.toFixed(2)+' د.أ':'حسب الطلب'}</span></div>`;
+    <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${(i.price||0)*i.qty} د.أ</span></div>
+    ${i.writingText?`<div class="order-item writing"><span>✍️ كتابة: ${i.writingText}</span></div>`:''}
+  `).join('')+`
+    <div class="order-item"><span>🚚 أجور التوصيل</span><span>${delivery} د.أ</span></div>
+    <div class="order-item"><span>الإجمالي</span><span>${total.toFixed(2)} د.أ</span></div>
+  `;
   if(currentUser){
     document.getElementById('custName').value=currentUser.name||'';
     document.getElementById('custPhone').value=currentUser.phone||'';
@@ -1139,37 +1171,54 @@ async function confirmOrder(){
   const address=document.getElementById('custAddress').value.trim();
   if(!name||!phone||!area||!address){toast('❌ يرجى تعبئة جميع الحقول');return;}
   toast('⏳ جاري تأكيد الطلب...');
-  const total=cart.map(i=>getPriceNum(i.price)*i.qty).reduce((a,b)=>a+b,0);
+  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const delivery=2;
+  const total=subtotal+delivery;
   let earnedPts=0;
   if(currentUser&&pointsSettings.enabled){
-    earnedPts=Math.floor(total*pointsSettings.perDinar);
+    earnedPts=Math.floor(subtotal*pointsSettings.perDinar);
     const cu=customers.find(c=>c.phone===currentUser.phone);
     if(cu){
       cu.points=(cu.points||0)+earnedPts;
       cu.orders=cu.orders||[];
-      cu.orders.push({id:'#'+Date.now().toString().slice(-6),items:cart.map(i=>i.name+' ×'+i.qty),total:total>0?total.toFixed(2)+' د.أ':'حسب الطلب',date:new Date().toLocaleDateString('ar-JO')});
+      cu.orders.push({id:'#'+Date.now().toString().slice(-6),items:cart.map(i=>i.name+' ×'+i.qty),total:total.toFixed(2)+' د.أ',date:new Date().toLocaleDateString('ar-JO')});
       await updateCustomerInFirebase(cu);
       currentUser.points=cu.points;
       save('ak_currentUser',currentUser);
       updateNavUser();
     }
   }
-  const order={id:Date.now(),name,phone,area,address,notes:document.getElementById('custNotes').value||'',items:cart.map(i=>({name:i.name,qty:i.qty,price:i.price,writing:i.writingText||''})),total:total>0?total.toFixed(2)+' د.أ':'حسب الطلب',date:new Date().toLocaleDateString('ar-JO'),status:'جديد'};
+  const orderNum=Date.now().toString().slice(-6);
+  const order={
+    id:Date.now(),orderNum:'#'+orderNum,name,phone,area,address,
+    notes:document.getElementById('custNotes').value||'',
+    items:cart.map(i=>({name:i.name,qty:i.qty,price:i.price,priceDisplay:i.priceDisplay||i.price+' د.أ',writing:i.writingText||''})),
+    subtotal:subtotal.toFixed(2)+' د.أ',
+    delivery:delivery+' د.أ',
+    total:total.toFixed(2)+' د.أ',
+    date:new Date().toLocaleDateString('ar-JO'),
+    status:'جديد'
+  };
   await db.collection('orders').doc(String(order.id)).set(order);
+  // Show success with order number
   document.getElementById('checkoutBody').style.display='none';
-  const sp=document.getElementById('successScreen');sp.classList.add('show');
+  const sp=document.getElementById('successScreen');
+  sp.classList.add('show');
+  sp.querySelector('p').innerHTML=`رقم طلبك: <strong style="color:var(--green-dark);font-size:1.2rem;">${order.orderNum}</strong><br>احتفظ بهذا الرقم لمتابعة طلبك 📦<br><br>سنتواصل معك قريباً على رقم هاتفك لتأكيد التوصيل.`;
   if(earnedPts>0){document.getElementById('earnedPoints').textContent=earnedPts;document.getElementById('successPoints').style.display='block';}
   clearCart();
   toast('🎉 تم استلام طلبك!');
-  // إشعار الأدمن على واتساب
-  setTimeout(()=>notifyAdminWA(order), 1500);
+  setTimeout(()=>notifyAdminWA(order),1500);
+}
 }
 function checkoutWA(){
   if(!cart.length){toast('السلة فاضية!');return;}
+  const subtotal=cart.map(i=>(i.price||0)*i.qty).reduce((a,b)=>a+b,0);
+  const total=subtotal+2;
   let msg='🌿 *طلب جديد - الكسواني روزميري*\n\n';
-  cart.forEach(i=>{msg+=`• ${i.name} × ${i.qty} — ${i.price}\n`;if(i.writingText)msg+=`  ✍️ نقش: ${i.writingText}\n`;});
-  msg+='\nأرجو التواصل لتأكيد الطلب والتوصيل 🙏';
-  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`, '_blank');
+  cart.forEach(i=>{msg+=`• ${i.name} × ${i.qty} — ${i.priceDisplay||i.price+' د.أ'}\n`;if(i.writingText)msg+=`  ✍️ كتابة: ${i.writingText}\n`;});
+  msg+=`\n🚚 أجور التوصيل: 2 د.أ\n💰 الإجمالي: ${total.toFixed(2)} د.أ\n\nأرجو التواصل لتأكيد الطلب والتوصيل 🙏`;
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
   closeCart();
 }
 
@@ -1274,12 +1323,13 @@ async function renderOrders(){
   list.innerHTML=orders.map(o=>`
     <div class="prod-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
       <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:6px;">
-        <div style="font-weight:700;color:var(--green-dark);">طلب #${String(o.id).slice(-6)} · ${o.date}</div>
+        <div style="font-weight:700;color:var(--green-dark);">طلب ${o.orderNum||'#'+String(o.id).slice(-6)} · ${o.date}</div>
         <span style="background:${statusColors[o.status||'جديد']};color:${statusText[o.status||'جديد']};padding:3px 10px;border-radius:8px;font-size:0.78rem;font-weight:600;">${o.status||'جديد'}</span>
       </div>
       <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · 📞 ${o.phone} · 📍 ${o.area}</div>
       <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
-      <div style="font-weight:700;color:var(--brown);">💰 ${o.total}</div>
+      <div style="font-size:0.82rem;color:var(--text-mid);">مجموع: ${o.subtotal||o.total} + توصيل: ${o.delivery||'2 د.أ'}</div>
+      <div style="font-weight:700;color:var(--brown);">💰 الإجمالي: ${o.total}</div>
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
         <button onclick="updateOrderStatus('${o.id}','جديد')" style="padding:5px 10px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">📋 جديد</button>
@@ -1354,15 +1404,18 @@ function prevImg(input){const f=input.files[0];if(!f)return;const r=new FileRead
 
 async function addProduct(){
   const name=document.getElementById('pName').value.trim();
-  const price=document.getElementById('pPrice').value.trim();
-  const oldPrice=document.getElementById('pOldPrice').value.trim();
+  const priceRaw=document.getElementById('pPrice').value.trim();
+  const oldPriceRaw=document.getElementById('pOldPrice').value.trim();
   const cat=document.getElementById('pCat').value;
   const desc=document.getElementById('pDesc').value.trim();
   const badge=document.getElementById('pBadge').value.trim();
   const writing=document.getElementById('pWriting').checked;
   const imgFile=document.getElementById('pImg').files[0];
   const editingId=document.getElementById('editingId').value;
-  if(!name||!price||!cat||!desc){toast('❌ يرجى تعبئة جميع الحقول');return;}
+  if(!name||!priceRaw||!cat||!desc){toast('❌ يرجى تعبئة جميع الحقول');return;}
+  const price=parseFloat(priceRaw);
+  const oldPrice=oldPriceRaw?parseFloat(oldPriceRaw):null;
+  if(isNaN(price)){toast('❌ السعر لازم يكون رقم');return;}
   toast('⏳ جاري الحفظ...');
   const id=editingId||Date.now();
   let imgUrl=editingId?products.find(p=>String(p.id)===String(editingId))?.img||'':'';
@@ -1371,7 +1424,14 @@ async function addProduct(){
     imgUrl=await new Promise(res=>{r.onload=async e=>{const url=await uploadImageToFirebase(e.target.result,id);res(url);};r.readAsDataURL(imgFile);});
   }
   const existing=editingId?products.find(p=>String(p.id)===String(editingId)):null;
-  const product={id,name,price,oldPrice:oldPrice||'',cat,desc,badge,writing,img:imgUrl,emoji:getCatEmoji(cat),reviews:existing?.reviews||[]};
+  const product={
+    id,name,
+    price:price,
+    priceDisplay:price+' د.أ',
+    oldPrice:oldPrice,
+    oldPriceDisplay:oldPrice?oldPrice+' د.أ':'',
+    cat,desc,badge,writing,img:imgUrl,emoji:getCatEmoji(cat),reviews:existing?.reviews||[]
+  };
   await db.collection('products').doc(String(id)).set(product,{merge:true});
   if(editingId){products=products.map(p=>String(p.id)===String(editingId)?product:p);}
   else{products.push(product);}
@@ -1429,7 +1489,7 @@ function cancelEdit(){
 
 // ===== WHATSAPP NOTIFICATION =====
 function notifyAdminWA(order){
-  const msg=`🔔 *طلب جديد على المتجر!*\n\n👤 الاسم: ${order.name}\n📞 الهاتف: ${order.phone}\n📍 المنطقة: ${order.area}\n📦 المنتجات:\n${order.items.map(i=>`• ${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join('\n')}\n💰 الإجمالي: ${order.total}\n📝 ملاحظات: ${order.notes||'لا يوجد'}`;
+  const msg=`🔔 *طلب جديد - الكسواني روزميري*\n\nرقم الطلب: ${order.orderNum}\n\n👤 الاسم: ${order.name}\n📞 الهاتف: ${order.phone}\n📍 المنطقة: ${order.area}\n🏠 العنوان: ${order.address}\n\n📦 المنتجات:\n${order.items.map(i=>`• ${i.name} ×${i.qty} — ${i.priceDisplay||i.price+' د.أ'}${i.writing?' ✍️ '+i.writing:''}`).join('\n')}\n\n💰 المجموع الفرعي: ${order.subtotal}\n🚚 التوصيل: ${order.delivery}\n💵 الإجمالي: ${order.total}\n\n📝 ملاحظات: ${order.notes||'لا يوجد'}`;
   window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
