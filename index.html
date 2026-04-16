@@ -727,6 +727,46 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
+// Wait for DOM to be ready before assigning globals
+document.addEventListener('DOMContentLoaded', function() {
+  // Assign all functions to window after DOM loads
+  const assignGlobals = () => {
+    window.openAuth=openAuth;
+    window.closeAuth=closeAuth;
+    window.openCart=openCart;
+    window.closeCart=closeCart;
+    window.filterProds=filterProds;
+    window.handleAddToCart=handleAddToCart;
+    window.selectWritingOpt=selectWritingOpt;
+    window.closeWritingModal=closeWritingModal;
+    window.confirmWritingAndAdd=confirmWritingAndAdd;
+    window.changeQty=changeQty;
+    window.removeCart=removeCart;
+    window.openCheckout=openCheckout;
+    window.closeCheckout=closeCheckout;
+    window.checkoutWA=checkoutWA;
+    window.applyDiscount=applyDiscount;
+    window.confirmOrder=confirmOrder;
+    window.switchAuthTab=switchAuthTab;
+    window.doCustomerLogin=doCustomerLogin;
+    window.doCustomerRegister=doCustomerRegister;
+    window.openProfile=openProfile;
+    window.closeProfile=closeProfile;
+    window.logoutCustomer=logoutCustomer;
+    window.openAdminLogin=openAdminLogin;
+    window.closeAdminLogin=closeAdminLogin;
+    window.doAdminLogin=doAdminLogin;
+    window.openAdmin=openAdmin;
+    window.closeAdmin=closeAdmin;
+    window.switchAdminTab=switchAdminTab;
+    window.addProduct=addProduct;
+    window.delProduct=delProduct;
+    window.editProduct=editProduct;
+    window.cancelEdit=cancelEdit;
+    window.prevImg=prevImg;
+    window.savePointsSettings=savePointsSettings;
+    window.clearCart=clearCart;
+  };
 // ===== FIREBASE CONFIG =====
 const firebaseConfig = {
   apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
@@ -813,6 +853,9 @@ async function uploadImageToFirebase(base64,id){
 // ===== SAVE CART LOCALLY =====
 const saveCart=()=>localStorage.setItem('ak_cart',JSON.stringify(cart));
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+
+// ===== PRE-DECLARE GLOBALS (populated after function definitions) =====
+// These will be set at bottom of script
 
 // ===== UTILS =====
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
@@ -1258,43 +1301,11 @@ async function init(){
   updateCartCount();
   updateNavUser();
 }
+
+assignGlobals();
 init();
 
-// Make functions global for onclick handlers
-window.openAuth=openAuth;
-window.closeAuth=closeAuth;
-window.openCart=openCart;
-window.closeCart=closeCart;
-window.filterProds=filterProds;
-window.handleAddToCart=handleAddToCart;
-window.selectWritingOpt=selectWritingOpt;
-window.closeWritingModal=closeWritingModal;
-window.confirmWritingAndAdd=confirmWritingAndAdd;
-window.changeQty=changeQty;
-window.removeCart=removeCart;
-window.openCheckout=openCheckout;
-window.closeCheckout=closeCheckout;
-window.checkoutWA=checkoutWA;
-window.applyDiscount=applyDiscount;
-window.confirmOrder=confirmOrder;
-window.switchAuthTab=switchAuthTab;
-window.doCustomerLogin=doCustomerLogin;
-window.doCustomerRegister=doCustomerRegister;
-window.openProfile=openProfile;
-window.closeProfile=closeProfile;
-window.logoutCustomer=logoutCustomer;
-window.openAdminLogin=openAdminLogin;
-window.closeAdminLogin=closeAdminLogin;
-window.doAdminLogin=doAdminLogin;
-window.openAdmin=openAdmin;
-window.closeAdmin=closeAdmin;
-window.switchAdminTab=switchAdminTab;
-window.addProduct=addProduct;
-window.delProduct=delProduct;
-window.editProduct=editProduct;
-window.cancelEdit=cancelEdit;
-window.prevImg=prevImg;
-window.savePointsSettings=savePointsSettings;
+}); // end DOMContentLoaded
 </script>
 </body>
 </html>
