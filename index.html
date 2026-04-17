@@ -2077,12 +2077,11 @@ let selectedColor='';
 
 function openProductPage(id){
   const sid=String(id);
+  alert('بحث عن: '+sid+' | عدد المنتجات: '+products.length);
   const p=products.find(x=>x._docId===sid||String(x.id)===sid||x._docId===id||x.id===id);
   if(!p){
-    // Last resort: try loose comparison
-    const p2=products.find(x=>String(x._docId||x.id)==sid);
-    if(!p2){toast('⚠️ جاري التحميل، حاول مجدداً');return;}
-    return openProductPage(p2._docId||p2.id);
+    alert('ما لقيت: '+sid+' | IDs موجودة: '+products.map(x=>x._docId||x.id).join(', '));
+    return;
   }
   currentProductPage=p;
   currentSlide=0;
