@@ -1988,22 +1988,21 @@ function openProductPage(id){
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
   document.getElementById('productPageOverlay').classList.add('open');
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
-  // Build slider after modal is visible so offsetWidth is correct
   setTimeout(()=>{
     const container=document.getElementById('ppImagesContainer');
     const w=container.offsetWidth||window.innerWidth;
     const slider=document.getElementById('ppSlider');
+    // Set slider to exact pixel width * number of images
+    slider.style.width=(w*Math.max(images.length,1))+'px';
     slider.innerHTML=images.length
-      ?images.map(img=>`<img src="${img}" style="width:${w}px;min-width:${w}px;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`).join('')
-      :`<div style="width:${w}px;min-width:${w}px;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
+      ?images.map(img=>`<img src="${img}" style="width:${w}px;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`).join('')
+      :`<div style="width:${w}px;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;">${p.emoji}</div>`;
     slider.style.transform='translateX(0)';
     currentSlide=0;
-    // Update dots and thumbs
+    container.dataset.slideW=w;
     document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===0?'#fff':'rgba(255,255,255,0.4)');
     document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===0?'2px solid var(--green-dark)':'2px solid #e0e0e0');
-    // Store width for goToSlide
-    container.dataset.slideW=w;
-  },80);
+  },100);
 }
 
 function closeProductPage(){document.getElementById('productPageOverlay').classList.remove('open');}
