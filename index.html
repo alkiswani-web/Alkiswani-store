@@ -489,14 +489,14 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 <nav>
   <div class="nav-logo">الكسواني روزميري<span>Alkiswani Rosemary</span></div>
   <div class="nav-right">
-    <button onclick="openOrderStatus()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);padding:7px 12px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;transition:all 0.3s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">📦 تتبع طلبي</button>
     <div id="navUserChip" style="display:none;" class="user-chip" onclick="openProfile()">
       <span>👤</span>
       <span id="navUserName"></span>
       <span class="points-pill" id="navPoints">0 نقطة</span>
     </div>
     <button id="navLoginBtn" class="btn-nav-login" onclick="openAuth()">تسجيل الدخول</button>
-    <button class="btn-nav-cart" onclick="openCart()">🛒 <span id="cartCount">0</span></button>
+    <button onclick="openOrderStatus()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.15);padding:8px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📦 طلبي</button>
+    <button class="btn-nav-cart" onclick="openCart()" style="background:var(--gold);color:var(--green-dark);font-weight:700;padding:9px 16px;border-radius:10px;font-size:0.9rem;">🛒 <span id="cartCount">0</span></button>
   </div>
 </nav>
 
@@ -1629,7 +1629,7 @@ function updateNavUser(){
     chip.style.display='none';btn.style.display='block';
   }
 }
-function openProfile(){
+async function openProfile(){
   if(!currentUser)return;
   document.getElementById('profileName').textContent=currentUser.name;
   document.getElementById('profilePhone').textContent=currentUser.phone;
@@ -1638,16 +1638,28 @@ function openProfile(){
   if(pointsSettings.enabled&&(currentUser.points||0)>=pointsSettings.minRedeem){
     sub.textContent=`يمكنك استبدال نقاطك بخصم ${((currentUser.points||0)/pointsSettings.perDiscount).toFixed(2)} د.أ 🎁`;
   }
-  const orders=currentUser.orders||[];
-  const oh=document.getElementById('orderHistory');
-  oh.innerHTML=orders.length?orders.slice().reverse().map(o=>`
-    <div class="order-history-item">
-      <div class="ohi-head"><span class="ohi-id">طلب ${o.id} · ${o.date}</span><span class="ohi-status">مكتمل</span></div>
-      <div class="ohi-items">${o.items.join(' · ')}</div>
-      <div class="ohi-total">${o.total}</div>
-    </div>
-  `).join(''):`<div class="no-orders">ما في طلبات بعد 📦</div>`;
   document.getElementById('profileOverlay').classList.add('open');
+  // Load orders from Firebase directly
+  const oh=document.getElementById('orderHistory');
+  oh.innerHTML='<div style="text-align:center;color:#aaa;padding:16px;">⏳ جاري التحميل...</div>';
+  try{
+    const snap=await db.collection('orders').get();
+    const allOrders=snap.docs.map(d=>d.data());
+    const myOrders=allOrders.filter(o=>o.phone===currentUser.phone||o.name===currentUser.name);
+    myOrders.sort((a,b)=>b.id-a.id);
+    oh.innerHTML=myOrders.length?myOrders.map(o=>`
+      <div class="order-history-item">
+        <div class="ohi-head">
+          <span class="ohi-id">${o.orderNum||'طلب #'+String(o.id).slice(-6)} · ${o.date}</span>
+          <span class="ohi-status" style="background:${o.status==='تم التسليم'?'#dcfce7':'#fef9c3'};color:${o.status==='تم التسليم'?'#166534':'#854d0e'};padding:2px 8px;border-radius:8px;font-size:0.72rem;">${o.status||'جديد'}</span>
+        </div>
+        <div class="ohi-items">${(o.items||[]).map(i=>i.name+' ×'+i.qty).join(' · ')}</div>
+        <div class="ohi-total">${o.total}</div>
+      </div>
+    `).join(''):`<div class="no-orders">ما في طلبات بعد 📦</div>`;
+  }catch(e){
+    oh.innerHTML='<div class="no-orders">ما في طلبات بعد 📦</div>';
+  }
 }
 function closeProfile(){document.getElementById('profileOverlay').classList.remove('open');}
 
