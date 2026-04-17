@@ -186,38 +186,40 @@ nav{
 .btn-wm-confirm:hover{background:var(--green-mid);}
 
 /* ===== CART DRAWER ===== */
-.cart-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;opacity:0;pointer-events:none;transition:opacity 0.3s;}
-.cart-overlay.open{opacity:1;pointer-events:all;}
-.cart-drawer{position:fixed;left:0;top:0;bottom:0;width:100%;max-width:420px;background:#fff;z-index:501;transform:translateX(-100%);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;}
-.cart-drawer.open{transform:translateX(0);}
-.cart-header{background:var(--green-dark);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--gold);}
-.cart-header h2{font-family:'Amiri',serif;font-size:1.2rem;color:#fff;}
-.cart-close{background:rgba(255,255,255,0.1);color:#fff;border:none;width:34px;height:34px;border-radius:50%;font-size:1.1rem;cursor:pointer;}
-.cart-items{flex:1;overflow-y:auto;padding:18px;}
-.cart-empty{text-align:center;padding:50px 20px;color:#aaa;}
-.cart-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #f0f0f0;align-items:flex-start;}
-.cart-item-img{width:60px;height:60px;border-radius:8px;background:var(--cream-dark);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:1.8rem;}
+.cart-overlay{display:none;}
+.cart-drawer{position:fixed;inset:0;background:#f2f2f7;z-index:500;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;overflow:hidden;}
+.cart-drawer.open{transform:translateY(0);}
+.cart-header{background:var(--green-dark);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:2px solid var(--gold);}
+.cart-header h2{font-family:'Amiri',serif;font-size:1.15rem;color:#fff;flex:1;}
+.cart-close{background:rgba(255,255,255,0.15);color:#fff;border:none;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;flex-shrink:0;}
+.cart-items{flex:1;overflow-y:auto;padding:12px 14px;}
+.cart-empty{text-align:center;padding:80px 20px;color:#aaa;}
+.cart-item{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.cart-item-img{width:85px;height:85px;border-radius:12px;background:var(--cream-dark);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:2rem;}
 .cart-item-img img{width:100%;height:100%;object-fit:cover;}
 .cart-item-info{flex:1;min-width:0;}
-.cart-item-name{font-weight:700;font-size:0.9rem;color:var(--green-dark);}
-.cart-item-price{font-size:0.82rem;color:var(--brown);font-weight:600;margin-top:3px;}
-.cart-writing-note{font-size:0.75rem;color:var(--purple);margin-top:4px;background:rgba(107,70,193,0.06);padding:4px 8px;border-radius:6px;border-right:2px solid var(--purple);}
-.cart-item-qty{display:flex;align-items:center;gap:8px;margin-top:8px;}
-.qty-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e0e0e0;background:#fff;font-size:0.95rem;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;}
-.qty-btn:hover{border-color:var(--green-dark);background:var(--green-dark);color:#fff;}
-.qty-num{font-weight:700;font-size:0.9rem;min-width:18px;text-align:center;}
-.cart-item-remove{background:none;border:none;color:#ccc;cursor:pointer;font-size:1.1rem;padding:4px;transition:color 0.3s;margin-right:auto;}
+.cart-item-name{font-weight:700;font-size:0.92rem;color:var(--green-dark);margin-bottom:4px;line-height:1.4;}
+.cart-item-price{font-size:1rem;font-weight:700;color:var(--brown);margin-bottom:8px;}
+.cart-writing-note{font-size:0.75rem;color:var(--purple);margin-bottom:8px;background:rgba(107,70,193,0.06);padding:4px 8px;border-radius:6px;}
+.cart-item-qty{display:flex;align-items:center;gap:0;border:1.5px solid #e0e0e0;border-radius:8px;overflow:hidden;width:fit-content;}
+.qty-btn{width:34px;height:34px;border:none;background:#f8f8f8;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.qty-btn:active{background:#e8e8e8;}
+.qty-num{font-weight:700;font-size:0.95rem;min-width:38px;text-align:center;background:#fff;line-height:34px;}
+.cart-item-remove{background:none;border:none;color:#bbb;cursor:pointer;font-size:1.1rem;padding:4px;flex-shrink:0;}
 .cart-item-remove:hover{color:#e53e3e;}
-.cart-footer{padding:18px 22px;border-top:1px solid #f0f0f0;background:#fafafa;}
+.cart-footer{background:#fff;padding:16px 18px;border-top:1px solid #e8e8e8;flex-shrink:0;box-shadow:0 -4px 16px rgba(0,0,0,0.06);}
 .points-info{background:linear-gradient(135deg,rgba(107,70,193,0.08),rgba(107,70,193,0.04));border:1px solid rgba(107,70,193,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;color:var(--purple);display:none;}
 .points-info.show{display:flex;align-items:center;gap:8px;}
-.cart-total{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:12px;background:#fff;border-radius:10px;border:1px solid #f0f0f0;}
-.cart-total-label{font-size:0.95rem;font-weight:600;}
-.cart-total-price{font-size:1.2rem;font-weight:700;color:var(--brown);}
+.cart-total{background:var(--cream);border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.cart-summary-row{display:flex;justify-content:space-between;font-size:0.88rem;color:var(--text-mid);margin-bottom:6px;}
+.cart-summary-row.total-row{font-size:1.05rem;font-weight:700;color:var(--text-dark);padding-top:8px;border-top:1px solid #e0e0e0;margin-top:4px;}
+.cart-summary-row.total-row span:last-child{color:var(--brown);font-size:1.15rem;}
+.cart-total-label{display:none;}
+.cart-total-price{display:none;}
 .cart-actions{display:flex;flex-direction:column;gap:8px;}
-.btn-checkout-site{background:var(--green-dark);color:#fff;padding:13px;border-radius:10px;border:none;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.3s;width:100%;}
+.btn-checkout-site{background:var(--green-dark);color:#fff;padding:15px;border-radius:12px;border:none;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.3s;width:100%;}
 .btn-checkout-site:hover{background:var(--green-mid);}
-.btn-checkout-wa{background:#25D366;color:#fff;padding:13px;border-radius:10px;border:none;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.3s;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-checkout-wa{background:#25D366;color:#fff;padding:15px;border-radius:12px;border:none;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.3s;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;}
 .btn-checkout-wa:hover{background:#20bd5a;}
 
 /* ===== CHECKOUT MODAL ===== */
@@ -666,17 +668,11 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
   </div>
   <div class="cart-items" id="cartItems"></div>
   <div class="cart-footer" id="cartFooter" style="display:none;">
-    <div class="points-info" id="cartPointsInfo">
-      <span>🌟</span>
-      <span id="cartPointsText"></span>
-    </div>
-    <div class="cart-total">
-      <span class="cart-total-label">الإجمالي</span>
-      <span class="cart-total-price" id="cartTotal">0</span>
-    </div>
+    <div class="points-info" id="cartPointsInfo"><span>🌟</span><span id="cartPointsText"></span></div>
+    <div class="cart-total" id="cartTotal"></div>
     <div class="cart-actions">
-      <button class="btn-checkout-site" onclick="openCheckout()">✅ إتمام الطلب عبر الموقع</button>
-      <button class="btn-checkout-wa" onclick="checkoutWA()">📱 إرسال الطلب عبر واتساب</button>
+      <button class="btn-checkout-site" onclick="openCheckout()">✅ إتمام الطلب</button>
+      <button class="btn-checkout-wa" onclick="checkoutWA()">📱 واتساب</button>
     </div>
   </div>
 </div>
@@ -1385,32 +1381,40 @@ function closeCart(){document.getElementById('cartOverlay').classList.remove('op
 function renderCartDrawer(){
   const items=document.getElementById('cartItems');
   const footer=document.getElementById('cartFooter');
-  if(!cart.length){items.innerHTML=`<div class="cart-empty"><div style="font-size:3rem;margin-bottom:10px;">🛒</div>السلة فاضية</div>`;footer.style.display='none';return;}
+  if(!cart.length){
+    items.innerHTML=`<div class="cart-empty"><div style="font-size:4rem;margin-bottom:16px;">🛒</div><div style="font-size:1.1rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">سلتك فاضية</div><div style="font-size:0.88rem;color:#aaa;">أضف منتجات من المتجر</div></div>`;
+    footer.style.display='none';
+    return;
+  }
   items.innerHTML=cart.map(item=>`
     <div class="cart-item">
       <div class="cart-item-img">${item.img?`<img src="${item.img}" alt="">`:`<span>${item.emoji}</span>`}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${item.name}</div>
         <div class="cart-item-price">${getPriceNum(item)} دينار أردني</div>
-        ${item.writingText?`<div class="cart-writing-note">✍️ كتابة: ${item.writingText}</div>`:''}
+        ${item.writingText?`<div class="cart-writing-note">✍️ ${item.writingText}</div>`:''}
         <div class="cart-item-qty">
           <button class="qty-btn" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="changeQty(this.dataset.id,this.dataset.wt,-1)">−</button>
           <span class="qty-num">${item.qty}</span>
           <button class="qty-btn" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="changeQty(this.dataset.id,this.dataset.wt,1)">+</button>
         </div>
       </div>
-      <button class="cart-item-remove" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="removeCart(this.dataset.id,this.dataset.wt)">✕</button>
+      <button class="cart-item-remove" data-id="${item.id}" data-wt="${(item.writingText||'').replace(/"/g,'')}" onclick="removeCart(this.dataset.id,this.dataset.wt)">🗑️</button>
     </div>
   `).join('');
   footer.style.display='block';
   const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
   const total=subtotal+delivery;
-  document.getElementById('cartTotal').textContent=total.toFixed(2)+' دينار أردني';
+  document.getElementById('cartTotal').innerHTML=`
+    <div class="cart-summary-row"><span>المجموع الفرعي (${cart.reduce((a,i)=>a+i.qty,0)} منتج)</span><span>${subtotal.toFixed(2)} د.أ</span></div>
+    <div class="cart-summary-row"><span>🚚 أجور التوصيل</span><span>${delivery} د.أ</span></div>
+    <div class="cart-summary-row total-row"><span>الإجمالي</span><span>${total.toFixed(2)} دينار أردني</span></div>
+  `;
   const pi=document.getElementById('cartPointsInfo');
   if(currentUser&&pointsSettings.enabled){
     const pts=Math.floor(subtotal*pointsSettings.perDinar);
-    document.getElementById('cartPointsText').textContent=`ستكسب ${pts} نقطة من هذا الطلب 🌟`;
+    document.getElementById('cartPointsText').textContent=`ستكسب ${pts} نقطة 🌟`;
     pi.classList.add('show');
   }
 }
@@ -2491,4 +2495,3 @@ init();
 </script>
 </body>
 </html>
-
