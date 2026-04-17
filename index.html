@@ -407,9 +407,9 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .cust-phone{font-size:0.78rem;color:var(--text-mid);}
 .cust-points{background:rgba(107,70,193,0.1);color:var(--purple);padding:4px 10px;border-radius:8px;font-size:0.8rem;font-weight:700;white-space:nowrap;}
 
-#ppImagesContainer{overflow:hidden;width:100%;}
-#ppSlider{display:flex;transition:transform 0.35s ease;width:100%;}
-#ppSlider img, #ppSlider>div{width:100%;min-width:100%;flex-shrink:0;}
+#ppImagesContainer{overflow:hidden;width:100%;background:#fff;}
+#ppSlider{display:flex;transition:transform 0.35s ease;}
+#ppSlider img, #ppSlider>div{width:100vw;max-width:100%;min-width:100vw;flex-shrink:0;}
 .sp-notif{
   position:fixed;bottom:90px;left:16px;z-index:400;
   background:#fff;border-radius:14px;padding:12px 16px;
@@ -1750,8 +1750,10 @@ async function addProduct(){
       images.push(imgUrl);
     }
   }
+  const docId=existing?._docId||String(id);
+  const finalId=editingId?existing?.id||id:id;
   const product={
-    id,name,price,oldPrice:oldPrice||null,
+    id:finalId,name,price,oldPrice:oldPrice||null,
     cat,desc,badge,writing,
     images:images,
     img:images[0]||existing?.img||'',
@@ -1759,10 +1761,9 @@ async function addProduct(){
     colors:colors,
     reviews:existing?.reviews||[]
   };
-  const docId=existing?._docId||String(id);
-  await db.collection('products').doc(docId).set(product,{merge:true});
+  await db.collection('products').doc(docId).set(product);
   product._docId=docId;
-  if(editingId){products=products.map(p=>String(p.id)===String(editingId)?{...product,_docId:docId}:p);}
+  if(editingId){products=products.map(p=>String(p.id)===String(editingId)||p._docId===docId?{...product,_docId:docId}:p);}
   else{products.push({...product,_docId:docId});}
   await renderAdmin();
   cancelEdit();
@@ -1937,7 +1938,7 @@ function openProductPage(id){
   const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   const slider=document.getElementById('ppSlider');
   slider.style.transform='translateX(0)';
-  slider.innerHTML=images.length?images.map(img=>`<img src="${img}" style="width:100%;min-width:100%;height:380px;object-fit:cover;flex-shrink:0;">`).join(''):`<div style="width:100%;min-width:100%;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
+  slider.innerHTML=images.length?images.map(img=>`<img src="${img}" style="width:100vw;max-width:100%;min-width:100vw;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`).join(''):`<div style="width:100vw;min-width:100vw;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
   const dots=document.getElementById('ppDots');
   dots.innerHTML=images.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;"></div>`).join('');
   document.getElementById('ppPrev').style.display=images.length>1?'flex':'none';
@@ -1946,15 +1947,17 @@ function openProductPage(id){
   thumbs.innerHTML=images.map((img,i)=>`<img src="${img}" onclick="goToSlide(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;">`).join('');
   thumbs.style.display=images.length>1?'flex':'none';
   const colorsSection=document.getElementById('ppOptionsSection');
-  const hasColors=p.colors&&p.colors.length;
+  // Fix: colors might be stored as string or array
+  let pColors=p.colors||[];
+  if(typeof pColors==='string'){try{pColors=JSON.parse(pColors);}catch(e){pColors=pColors?[pColors]:[];}}
+  const hasColors=pColors&&pColors.length>0;
   const hasWriting=p.writing;
   if(hasColors||hasWriting){
     colorsSection.style.display='block';
-    // Show/hide tabs based on what's available
     document.getElementById('ppTabColorBtn').style.display=hasColors?'block':'none';
     document.getElementById('ppTabWriteBtn').style.display=hasWriting?'block':'none';
     if(hasColors){
-      document.getElementById('ppColorsList').innerHTML=p.colors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:9px 20px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
+      document.getElementById('ppColorsList').innerHTML=pColors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:9px 20px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
       switchPPTab('color');
     } else {
       switchPPTab('write');
@@ -1975,7 +1978,7 @@ function goToSlide(n){
   if(!p)return;
   const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   currentSlide=Math.max(0,Math.min(n,images.length-1));
-  document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-100}%)`;
+  document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-100}vw)`;
   document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===currentSlide?'#fff':'rgba(255,255,255,0.4)');
   document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===currentSlide?'2px solid var(--green-dark)':'2px solid #e0e0e0');
 }
