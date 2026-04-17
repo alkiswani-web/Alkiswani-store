@@ -2159,15 +2159,7 @@ function openProductPage(id){
   document.getElementById('ppStars').innerHTML=reviews.length?`<span style="color:#f6ad55;">${'⭐'.repeat(Math.round(reviews.reduce((s,r)=>s+r.stars,0)/reviews.length))}</span> <span style="color:#aaa;font-size:0.82rem;">(${reviews.length} تقييم)</span>`:'<span style="color:#aaa;font-size:0.82rem;">لا يوجد تقييمات بعد</span>';
   const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   const slider=document.getElementById('ppSlider');
-  slider.innerHTML='';
-  slider.style.transform='translateX(0)';
-  const dots=document.getElementById('ppDots');
-  dots.innerHTML=images.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;"></div>`).join('');
-  document.getElementById('ppPrev').style.display=images.length>1?'flex':'none';
-  document.getElementById('ppNext').style.display=images.length>1?'flex':'none';
-  const thumbs=document.getElementById('ppThumbs');
-  thumbs.innerHTML=images.map((img,i)=>`<img src="${img}" onclick="goToSlide(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;">`).join('');
-  thumbs.style.display=images.length>1?'flex':'none';
+  if(slider){slider.innerHTML='';}
   const colorsSection=document.getElementById('ppOptionsSection');
   // Fix: colors might be stored as string or array
   let pColors=p.colors||[];
