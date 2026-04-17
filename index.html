@@ -407,7 +407,52 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .cust-phone{font-size:0.78rem;color:var(--text-mid);}
 .cust-points{background:rgba(107,70,193,0.1);color:var(--purple);padding:4px 10px;border-radius:8px;font-size:0.8rem;font-weight:700;white-space:nowrap;}
 
-/* FLOAT WA */
+/* ===== SOCIAL PROOF NOTIFICATION ===== */
+.sp-notif{
+  position:fixed;bottom:90px;left:16px;z-index:400;
+  background:#fff;border-radius:14px;padding:12px 16px;
+  box-shadow:0 8px 30px rgba(0,0,0,0.12);
+  display:flex;align-items:center;gap:12px;
+  max-width:280px;width:calc(100% - 32px);
+  transform:translateX(-120%);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  border-right:3px solid var(--green-dark);
+}
+.sp-notif.show{transform:translateX(0);}
+.sp-notif-img{width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--cream-dark);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+.sp-notif-img img{width:100%;height:100%;object-fit:cover;border-radius:10px;}
+.sp-notif-text{flex:1;min-width:0;}
+.sp-notif-name{font-size:0.82rem;font-weight:700;color:var(--green-dark);}
+.sp-notif-product{font-size:0.75rem;color:var(--text-mid);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sp-notif-time{font-size:0.7rem;color:#aaa;margin-top:2px;}
+.sp-notif-close{background:none;border:none;color:#ccc;cursor:pointer;font-size:1rem;padding:0;flex-shrink:0;}
+
+/* ===== CUSTOMER PHOTOS ===== */
+.customer-photos-section{padding:50px 20px;background:var(--cream);}
+.customer-photos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;max-width:1100px;margin:0 auto;}
+.customer-photo-item{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1;cursor:pointer;}
+.customer-photo-item img{width:100%;height:100%;object-fit:cover;transition:transform 0.3s;}
+.customer-photo-item:hover img{transform:scale(1.05);}
+.customer-photo-overlay{position:absolute;inset:0;background:rgba(26,58,42,0);display:flex;align-items:flex-end;padding:8px;transition:background 0.3s;}
+.customer-photo-item:hover .customer-photo-overlay{background:rgba(26,58,42,0.5);}
+.customer-photo-name{color:#fff;font-size:0.75rem;font-weight:600;opacity:0;transition:opacity 0.3s;}
+.customer-photo-item:hover .customer-photo-name{opacity:1;}
+.upload-photo-btn{
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;
+  border:2px dashed rgba(74,140,92,0.4);border-radius:12px;aspect-ratio:1;
+  background:rgba(74,140,92,0.04);cursor:pointer;color:var(--green-light);
+  font-size:0.8rem;text-align:center;transition:all 0.3s;
+}
+.upload-photo-btn:hover{border-color:var(--green-dark);background:rgba(74,140,92,0.08);}
+
+/* Photo upload modal */
+.photo-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:650;opacity:0;pointer-events:none;transition:opacity 0.3s;display:flex;align-items:center;justify-content:center;padding:20px;}
+.photo-modal-overlay.open{opacity:1;pointer-events:all;}
+.photo-modal{background:#fff;border-radius:20px;width:100%;max-width:420px;overflow:hidden;transform:scale(0.9);transition:transform 0.3s;}
+.photo-modal-overlay.open .photo-modal{transform:scale(1);}
+.pm-header{background:var(--green-dark);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;}
+.pm-header h2{color:#fff;font-family:'Amiri',serif;font-size:1.1rem;}
+.pm-close{background:rgba(255,255,255,0.15);color:#fff;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem;}
+.pm-body{padding:22px;}
 .float-wa{position:fixed;bottom:22px;left:22px;background:#25D366;color:#fff;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;text-decoration:none;box-shadow:0 6px 20px rgba(37,211,102,0.4);z-index:300;transition:transform 0.3s;}
 .float-wa:hover{transform:scale(1.1);}
 
@@ -493,6 +538,57 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
     <a href="https://wa.me/962775665598?text=أهلاً 🌿" class="btn-whatsapp">📱 تواصل على واتساب</a>
   </div>
 </section>
+
+<!-- Customer Photos -->
+<section class="customer-photos-section" id="customerPhotosSection" style="display:none;">
+  <div class="section-header">
+    <div class="section-tag">زبائننا</div>
+    <h2 class="section-title">📸 صور من زبائننا</h2>
+    <div class="section-line"></div>
+    <p style="color:var(--text-mid);font-size:0.88rem;margin-top:10px;">شارك صورتك مع منتجنا واحصل على خصم 5%!</p>
+  </div>
+  <div class="customer-photos-grid" id="customerPhotosGrid">
+    <div class="upload-photo-btn" onclick="openPhotoModal()">
+      <span style="font-size:2rem;">📸</span>
+      <span>شارك صورتك</span>
+    </div>
+  </div>
+</section>
+
+<!-- Social Proof Notification -->
+<div class="sp-notif" id="spNotif">
+  <div class="sp-notif-img" id="spImg">🛒</div>
+  <div class="sp-notif-text">
+    <div class="sp-notif-name" id="spName"></div>
+    <div class="sp-notif-product" id="spProduct"></div>
+    <div class="sp-notif-time" id="spTime"></div>
+  </div>
+  <button class="sp-notif-close" onclick="document.getElementById('spNotif').classList.remove('show')">✕</button>
+</div>
+
+<!-- Customer Photo Upload Modal -->
+<div class="photo-modal-overlay" id="photoModalOverlay">
+  <div class="photo-modal">
+    <div class="pm-header">
+      <h2>📸 شارك صورتك</h2>
+      <button class="pm-close" onclick="closePhotoModal()">✕</button>
+    </div>
+    <div class="pm-body">
+      <p style="font-size:0.85rem;color:var(--text-mid);margin-bottom:16px;line-height:1.6;">شارك صورتك مع منتجنا وأنت بتستخدمه! سيتم مراجعتها ونشرها في قسم صور الزبائن 🌿</p>
+      <div class="fg"><label>اسمك *</label><input type="text" id="pmName" placeholder="اسمك أو لقبك"></div>
+      <div class="fg" style="margin-top:12px;"><label>المدينة</label><input type="text" id="pmCity" placeholder="مثال: عمان"></div>
+      <div class="fg" style="margin-top:12px;">
+        <label>صورتك مع المنتج *</label>
+        <div class="img-drop" onclick="document.getElementById('pmImg').click()" style="margin-top:6px;">
+          <input type="file" id="pmImg" accept="image/*" onchange="prevPhotoUpload(this)">
+          <div id="pmUpPh">📸<br><span style="font-size:0.82rem;color:#aaa;">اضغط لاختيار صورة</span></div>
+          <img id="pmImgPrev" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:none;margin-top:8px;" alt="">
+        </div>
+      </div>
+      <button onclick="submitCustomerPhoto()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:16px;transition:all 0.3s;">✅ إرسال الصورة</button>
+    </div>
+  </div>
+</div>
 
 <footer>
   <div class="footer-logo">الكسواني روزميري</div>
@@ -693,6 +789,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <button class="admin-tab-btn" onclick="switchAdminTab('customers')">👥 الزبائن</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('points')">🌟 إعدادات النقاط</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('discounts')">🎁 كودات الخصم</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('photos')">📸 صور الزبائن</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -826,6 +923,19 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
         <h2>🎁 الكودات الحالية</h2>
         <div id="discountsList"><div class="empty-msg">لا يوجد كودات بعد</div></div>
       </div>
+    </div>
+
+    <!-- PHOTOS TAB -->
+    <div class="admin-tab-content" id="tab-photos">
+      <div class="products-mgmt">
+        <h2>⏳ صور تنتظر الموافقة (<span id="pendingPhotosCount">0</span>)</h2>
+        <div id="pendingPhotosList"><div class="empty-msg">لا يوجد صور بعد</div></div>
+      </div>
+      <div class="products-mgmt" style="margin-top:20px;">
+        <h2>✅ الصور المنشورة (<span id="approvedPhotosCount">0</span>)</h2>
+        <div id="approvedPhotosList"><div class="empty-msg">لا يوجد صور منشورة</div></div>
+      </div>
+    </div>
     </div>
   </div>
 </div>
@@ -1461,6 +1571,7 @@ function switchAdminTab(tab){
   if(tab==='orders')renderOrders();
   if(tab==='points')loadPointsSettingsUI();
   if(tab==='discounts')renderDiscounts();
+  if(tab==='photos')renderPhotosAdmin();
 }
 
 async function renderOrders(){
@@ -1875,11 +1986,138 @@ if('serviceWorker' in navigator){
   });
 }
 
+// ===== SOCIAL PROOF NOTIFICATIONS =====
+const SP_NAMES=['محمد','أحمد','سارة','نور','خالد','ليلى','عمر','رنا','يوسف','هنا','علي','دانا'];
+const SP_CITIES=['عمان','الزرقاء','إربد','العقبة','السلط','مادبا'];
+let spTimer=null;
+
+function startSocialProof(){
+  if(!products.length) return;
+  const showNext=()=>{
+    const p=products[Math.floor(Math.random()*products.length)];
+    const name=SP_NAMES[Math.floor(Math.random()*SP_NAMES.length)];
+    const city=SP_CITIES[Math.floor(Math.random()*SP_CITIES.length)];
+    const mins=Math.floor(Math.random()*55)+2;
+    const notif=document.getElementById('spNotif');
+    const imgEl=document.getElementById('spImg');
+    document.getElementById('spName').textContent=name+' من '+city;
+    document.getElementById('spProduct').textContent='اشترى: '+p.name;
+    document.getElementById('spTime').textContent='منذ '+mins+' دقيقة';
+    if(p.images&&p.images[0]){imgEl.innerHTML=`<img src="${p.images[0]}" alt="">`;}
+    else if(p.img){imgEl.innerHTML=`<img src="${p.img}" alt="">`;}
+    else{imgEl.textContent=p.emoji;}
+    notif.classList.add('show');
+    setTimeout(()=>notif.classList.remove('show'),4500);
+    spTimer=setTimeout(showNext, Math.random()*25000+15000);
+  };
+  spTimer=setTimeout(showNext, 8000);
+}
+
+// ===== CUSTOMER PHOTOS =====
+function openPhotoModal(){document.getElementById('photoModalOverlay').classList.add('open');}
+function closePhotoModal(){document.getElementById('photoModalOverlay').classList.remove('open');}
+function prevPhotoUpload(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=document.getElementById('pmImgPrev');
+    img.src=e.target.result;img.style.display='block';
+    document.getElementById('pmUpPh').style.display='none';
+  };
+  r.readAsDataURL(f);
+}
+async function submitCustomerPhoto(){
+  const name=document.getElementById('pmName').value.trim();
+  const city=document.getElementById('pmCity').value.trim();
+  const file=document.getElementById('pmImg').files[0];
+  if(!name||!file){toast('❌ أدخل اسمك واختر صورة');return;}
+  toast('⏳ جاري الإرسال...');
+  const r=new FileReader();
+  r.onload=async e=>{
+    const imgData=await uploadImageToFirebase(e.target.result,'photo_'+Date.now());
+    await db.collection('customerPhotos').add({
+      name,city:city||'الأردن',img:imgData,
+      status:'pending',
+      date:new Date().toLocaleDateString('ar-JO')
+    });
+    closePhotoModal();
+    document.getElementById('pmName').value='';
+    document.getElementById('pmCity').value='';
+    document.getElementById('pmImg').value='';
+    document.getElementById('pmImgPrev').style.display='none';
+    document.getElementById('pmUpPh').style.display='block';
+    toast('✅ شكراً! سيتم مراجعة صورتك ونشرها قريباً 🌿');
+  };
+  r.readAsDataURL(file);
+}
+
+async function loadCustomerPhotos(){
+  const snap=await db.collection('customerPhotos').where('status','==','approved').get();
+  const photos=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const section=document.getElementById('customerPhotosSection');
+  const grid=document.getElementById('customerPhotosGrid');
+  if(photos.length>0||true){
+    section.style.display='block';
+    grid.innerHTML=`<div class="upload-photo-btn" onclick="openPhotoModal()">
+      <span style="font-size:2rem;">📸</span><span>شارك صورتك</span>
+    </div>`+photos.map(p=>`
+      <div class="customer-photo-item">
+        <img src="${p.img}" alt="${p.name}">
+        <div class="customer-photo-overlay">
+          <span class="customer-photo-name">${p.name} - ${p.city||'الأردن'}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+async function renderPhotosAdmin(){
+  const snap=await db.collection('customerPhotos').get();
+  const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const pending=all.filter(p=>p.status==='pending');
+  const approved=all.filter(p=>p.status==='approved');
+  document.getElementById('pendingPhotosCount').textContent=pending.length;
+  document.getElementById('approvedPhotosCount').textContent=approved.length;
+  const pendingEl=document.getElementById('pendingPhotosList');
+  const approvedEl=document.getElementById('approvedPhotosList');
+  const renderPhotoRow=(p,showApprove)=>`
+    <div class="prod-row" style="flex-direction:column;gap:8px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <img src="${p.img}" style="width:70px;height:70px;object-fit:cover;border-radius:10px;">
+        <div>
+          <div style="font-weight:700;">${p.name} · ${p.city||'الأردن'}</div>
+          <div style="font-size:0.78rem;color:#aaa;">${p.date||''}</div>
+        </div>
+        <div style="margin-right:auto;display:flex;gap:6px;">
+          ${showApprove?`<button onclick="approvePhoto('${p.id}')" style="padding:6px 12px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✅ نشر</button>`:''}
+          <button onclick="deletePhoto('${p.id}')" style="padding:6px 12px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">🗑️ حذف</button>
+        </div>
+      </div>
+    </div>`;
+  pendingEl.innerHTML=pending.length?pending.map(p=>renderPhotoRow(p,true)).join(''):'<div class="empty-msg">لا يوجد صور بعد</div>';
+  approvedEl.innerHTML=approved.length?approved.map(p=>renderPhotoRow(p,false)).join(''):'<div class="empty-msg">لا يوجد صور منشورة</div>';
+}
+async function approvePhoto(id){
+  await db.collection('customerPhotos').doc(id).update({status:'approved'});
+  toast('✅ تم نشر الصورة!');
+  renderPhotosAdmin();
+  loadCustomerPhotos();
+}
+async function deletePhoto(id){
+  if(!confirm('حذف هذه الصورة؟'))return;
+  await db.collection('customerPhotos').doc(id).delete();
+  toast('🗑️ تم الحذف');
+  renderPhotosAdmin();
+  loadCustomerPhotos();
+}
+
 async function init(){
   await loadPointsSettings();
   await loadProducts();
+  await loadCustomerPhotos();
   updateCartCount();
   updateNavUser();
+  startSocialProof();
 }
 
 // ===== GLOBALS =====
@@ -1915,6 +2153,9 @@ window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
 window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
+window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
+window.prevPhotoUpload=prevPhotoUpload; window.submitCustomerPhoto=submitCustomerPhoto;
+window.approvePhoto=approvePhoto; window.deletePhoto=deletePhoto;
 
 init();
 </script>
