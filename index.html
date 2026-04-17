@@ -98,7 +98,7 @@ nav{
 .store-card:hover{transform:translateY(-4px);box-shadow:0 20px 50px rgba(26,58,42,0.12);}
 .store-card-img{width:100%;height:210px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:4.5rem;color:rgba(255,255,255,0.2);position:relative;overflow:hidden;}
 .store-card-img img{width:100%;height:100%;object-fit:cover;}
-.card-badge-wrap{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;}
+.card-badge-wrap{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;pointer-events:none;z-index:2;}
 .card-badge{background:var(--gold);color:var(--green-dark);padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;}
 .writing-badge{background:linear-gradient(135deg,#6b46c1,#805ad5);color:#fff;padding:4px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;display:flex;align-items:center;gap:4px;animation:glow 2s infinite;}
 @keyframes glow{0%,100%{box-shadow:0 0 6px rgba(107,70,193,0.4)}50%{box-shadow:0 0 14px rgba(107,70,193,0.7)}}
@@ -411,15 +411,16 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 #ppSlider{display:flex;transition:transform 0.35s ease;}
 #ppSlider img{height:380px;object-fit:contain;background:#fff;flex-shrink:0;}
 .sp-notif{
-  position:fixed;bottom:90px;left:16px;z-index:400;
+  position:fixed;bottom:90px;left:16px;z-index:150;
   background:#fff;border-radius:14px;padding:12px 16px;
   box-shadow:0 8px 30px rgba(0,0,0,0.12);
   display:flex;align-items:center;gap:12px;
-  max-width:280px;width:calc(100% - 32px);
+  max-width:260px;width:auto;
   transform:translateX(-120%);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
   border-right:3px solid var(--green-dark);
+  pointer-events:none;
 }
-.sp-notif.show{transform:translateX(0);}
+.sp-notif.show{transform:translateX(0);pointer-events:all;}
 .sp-notif-img{width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--cream-dark);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
 .sp-notif-img img{width:100%;height:100%;object-fit:cover;border-radius:10px;}
 .sp-notif-text{flex:1;min-width:0;}
