@@ -591,10 +591,10 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
         <div class="form-field"><label>العنوان التفصيلي *</label><input type="text" id="custAddress" placeholder="الشارع، المنطقة..."></div>
         <div class="form-field"><label>ملاحظات</label><textarea id="custNotes" placeholder="أي طلب خاص..."></textarea></div>
       </div>
-      <div class="modal-section" id="discountSection" style="display:none;">
-        <h3>كود الخصم أو النقاط</h3>
+      <div class="modal-section" id="discountSection">
+        <h3>🎁 كود الخصم</h3>
         <div class="discount-row">
-          <input type="text" id="discountCode" placeholder="أدخل كود الخصم">
+          <input type="text" id="discountCode" placeholder="أدخل كود الخصم هنا">
           <button class="btn-apply-discount" onclick="applyDiscount()">تطبيق</button>
         </div>
         <div class="discount-result" id="discountResult"></div>
@@ -692,6 +692,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <button class="admin-tab-btn" onclick="switchAdminTab('orders')">🧾 الطلبات</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('customers')">👥 الزبائن</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('points')">🌟 إعدادات النقاط</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('discounts')">🎁 كودات الخصم</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -797,6 +798,33 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
           <div class="fg"><label>الحد الأدنى للاستبدال</label><input type="number" id="minPointsRedeem" placeholder="مثال: 200" min="0"></div>
         </div>
         <button class="btn-save-settings" onclick="savePointsSettings()">💾 حفظ الإعدادات</button>
+      </div>
+    </div>
+
+    <!-- DISCOUNTS TAB -->
+    <div class="admin-tab-content" id="tab-discounts">
+      <div class="form-card">
+        <h2>➕ إضافة كود خصم جديد</h2>
+        <div class="form-row">
+          <div class="fg"><label>الكود *</label><input type="text" id="dcCode" placeholder="مثال: WELCOME10" style="text-transform:uppercase;"></div>
+          <div class="fg">
+            <label>نوع الخصم *</label>
+            <select id="dcType">
+              <option value="percent">نسبة مئوية %</option>
+              <option value="fixed">مبلغ ثابت دينار أردني</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="fg"><label>قيمة الخصم *</label><input type="number" id="dcValue" placeholder="مثال: 10" min="1"></div>
+          <div class="fg"><label>الحد الأقصى للاستخدام</label><input type="number" id="dcLimit" placeholder="0 = غير محدود" min="0"></div>
+        </div>
+        <div class="fg"><label>تاريخ الانتهاء (اختياري)</label><input type="date" id="dcExpiry"></div>
+        <button class="btn-save-product" onclick="addDiscountCode()">✅ إضافة الكود</button>
+      </div>
+      <div class="products-mgmt">
+        <h2>🎁 الكودات الحالية</h2>
+        <div id="discountsList"><div class="empty-msg">لا يوجد كودات بعد</div></div>
       </div>
     </div>
   </div>
@@ -1190,6 +1218,9 @@ function clearCart(){cart=[];save('ak_cart',cart);updateCartCount();}
 // ===== CHECKOUT =====
 function openCheckout(){
   closeCart();
+  appliedDiscount=null;
+  document.getElementById('discountCode').value='';
+  document.getElementById('discountResult').style.display='none';
   const summary=document.getElementById('orderSummary');
   const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
@@ -1198,31 +1229,82 @@ function openCheckout(){
     <div class="order-item"><span>${i.name} × ${i.qty}</span><span>${getPriceNum(i)*i.qty} دينار أردني</span></div>
     ${i.writingText?`<div class="order-item writing"><span>✍️ كتابة: ${i.writingText}</span></div>`:''}
   `).join('')+`
-    <div class="order-item"><span>🚚 أجور التوصيل</span><span>${delivery} د.أ</span></div>
-    <div class="order-item"><span>الإجمالي</span><span>${total.toFixed(2)} د.أ</span></div>
+    <div class="order-item"><span>🚚 أجور التوصيل</span><span>${delivery} دينار أردني</span></div>
+    <div class="order-item"><span>الإجمالي قبل الخصم</span><span>${total.toFixed(2)} دينار أردني</span></div>
   `;
   if(currentUser){
     document.getElementById('custName').value=currentUser.name||'';
     document.getElementById('custPhone').value=currentUser.phone||'';
-    if(pointsSettings.enabled)document.getElementById('discountSection').style.display='block';
   }
   document.getElementById('checkoutBody').style.display='block';
   document.getElementById('successScreen').classList.remove('show');
   document.getElementById('checkoutOverlay').classList.add('open');
 }
 function closeCheckout(){document.getElementById('checkoutOverlay').classList.remove('open');}
+let appliedDiscount=null;
+
 function applyDiscount(){
-  const code=document.getElementById('discountCode').value.trim();
+  const code=document.getElementById('discountCode').value.trim().toUpperCase();
   const res=document.getElementById('discountResult');
-  if(!currentUser){res.className='discount-result err';res.textContent='❌ يرجى تسجيل الدخول أولاً';return;}
-  const pts=currentUser.points||0;
-  if(code==='POINTS'||code==='نقاطي'){
-    if(pts<pointsSettings.minRedeem){res.className='discount-result err';res.textContent=`❌ نقاطك (${pts}) أقل من الحد الأدنى (${pointsSettings.minRedeem})`;return;}
-    const discount=(pts/pointsSettings.perDiscount).toFixed(2);
-    res.className='discount-result ok';res.textContent=`✅ سيتم خصم ${discount} د.أ من نقاطك (${pts} نقطة)`;
-  } else {
-    res.className='discount-result err';res.textContent='❌ الكود غير صحيح';
-  }
+  if(!code){res.className='discount-result err';res.style.display='block';res.textContent='❌ أدخل الكود أولاً';return;}
+
+  db.collection('discounts').where('code','==',code).get().then(snap=>{
+    if(snap.empty){res.className='discount-result err';res.style.display='block';res.textContent='❌ الكود غير صحيح';appliedDiscount=null;return;}
+    const dc=snap.docs[0].data();
+    // Check expiry
+    if(dc.expiry&&new Date(dc.expiry)<new Date()){res.className='discount-result err';res.style.display='block';res.textContent='❌ هذا الكود منتهي الصلاحية';appliedDiscount=null;return;}
+    // Check limit
+    if(dc.limit>0&&(dc.usedCount||0)>=dc.limit){res.className='discount-result err';res.style.display='block';res.textContent='❌ هذا الكود وصل للحد الأقصى';appliedDiscount=null;return;}
+    // Valid!
+    appliedDiscount={...dc,docId:snap.docs[0].id};
+    const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
+    const discVal=dc.type==='percent'?subtotal*(dc.value/100):dc.value;
+    const after=Math.max(0,subtotal-discVal)+2;
+    res.className='discount-result ok';res.style.display='block';
+    res.textContent=`✅ كود "${code}" صالح! خصم ${dc.type==='percent'?dc.value+'%':dc.value+' دينار أردني'} — الإجمالي بعد الخصم: ${after.toFixed(2)} دينار أردني`;
+  }).catch(()=>{res.className='discount-result err';res.style.display='block';res.textContent='❌ خطأ في التحقق';});
+}
+
+// ===== DISCOUNT MANAGEMENT =====
+async function addDiscountCode(){
+  const code=document.getElementById('dcCode').value.trim().toUpperCase();
+  const type=document.getElementById('dcType').value;
+  const value=parseFloat(document.getElementById('dcValue').value);
+  const limit=parseInt(document.getElementById('dcLimit').value)||0;
+  const expiry=document.getElementById('dcExpiry').value;
+  if(!code||!value){toast('❌ أدخل الكود والقيمة');return;}
+  const dc={code,type,value,limit,expiry:expiry||'',usedCount:0,createdAt:new Date().toLocaleDateString('ar-JO')};
+  await db.collection('discounts').doc(code).set(dc);
+  toast('✅ تم إضافة الكود!');
+  document.getElementById('dcCode').value='';document.getElementById('dcValue').value='';document.getElementById('dcLimit').value='';document.getElementById('dcExpiry').value='';
+  renderDiscounts();
+}
+
+async function renderDiscounts(){
+  const list=document.getElementById('discountsList');
+  const snap=await db.collection('discounts').get();
+  if(snap.empty){list.innerHTML='<div class="empty-msg">لا يوجد كودات بعد</div>';return;}
+  list.innerHTML=snap.docs.map(d=>{
+    const dc=d.data();
+    return `<div class="prod-row">
+      <div class="prod-info">
+        <div class="prod-name" style="font-family:monospace;letter-spacing:2px;">${dc.code}</div>
+        <div class="prod-meta">
+          <span>${dc.type==='percent'?'خصم '+dc.value+'%':'خصم '+dc.value+' دينار أردني'}</span>
+          <span>استُخدم: ${dc.usedCount||0}${dc.limit>0?' / '+dc.limit:' (غير محدود)'}</span>
+          ${dc.expiry?`<span>ينتهي: ${dc.expiry}</span>`:''}
+        </div>
+      </div>
+      <button class="btn-del" onclick="deleteDiscount('${dc.code}')">🗑️</button>
+    </div>`;
+  }).join('');
+}
+
+async function deleteDiscount(code){
+  if(!confirm('حذف هذا الكود؟'))return;
+  await db.collection('discounts').doc(code).delete();
+  toast('🗑️ تم حذف الكود');
+  renderDiscounts();
 }
 async function confirmOrder(){
   const name=document.getElementById('custName').value.trim();
@@ -1233,7 +1315,16 @@ async function confirmOrder(){
   toast('⏳ جاري تأكيد الطلب...');
   const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
-  const total=subtotal+delivery;
+  // Apply discount
+  let discountVal=0;
+  let discountText='';
+  if(appliedDiscount){
+    discountVal=appliedDiscount.type==='percent'?subtotal*(appliedDiscount.value/100):appliedDiscount.value;
+    discountText=appliedDiscount.type==='percent'?appliedDiscount.value+'%':appliedDiscount.value+' دينار أردني';
+    // Update usage count
+    await db.collection('discounts').doc(appliedDiscount.docId).update({usedCount:(appliedDiscount.usedCount||0)+1});
+  }
+  const total=Math.max(0,subtotal-discountVal)+delivery;
   let earnedPts=0;
   if(currentUser&&pointsSettings.enabled){
     earnedPts=Math.floor(subtotal*pointsSettings.perDinar);
@@ -1252,20 +1343,21 @@ async function confirmOrder(){
   const order={
     id:Date.now(),orderNum:'#'+orderNum,name,phone,area,address,
     notes:document.getElementById('custNotes').value||'',
-    items:cart.map(i=>({name:i.name,qty:i.qty,price:i.price,priceDisplay:i.priceDisplay||i.price+' د.أ',writing:i.writingText||''})),
+    items:cart.map(i=>({name:i.name,qty:i.qty,price:getPriceNum(i),writing:i.writingText||''})),
     subtotal:subtotal.toFixed(2)+' دينار أردني',
-    delivery:delivery+' د.أ',
+    delivery:delivery+' دينار أردني',
+    discount:discountVal>0?discountText:'لا يوجد',
     total:total.toFixed(2)+' دينار أردني',
     date:new Date().toLocaleDateString('ar-JO'),
     status:'جديد'
   };
   await db.collection('orders').doc(String(order.id)).set(order);
-  // Show success with order number
   document.getElementById('checkoutBody').style.display='none';
   const sp=document.getElementById('successScreen');
   sp.classList.add('show');
   sp.querySelector('p').innerHTML=`رقم طلبك: <strong style="color:var(--green-dark);font-size:1.2rem;">${order.orderNum}</strong><br>احتفظ بهذا الرقم لمتابعة طلبك 📦<br><br>سنتواصل معك قريباً على رقم هاتفك لتأكيد التوصيل.`;
   if(earnedPts>0){document.getElementById('earnedPoints').textContent=earnedPts;document.getElementById('successPoints').style.display='block';}
+  appliedDiscount=null;
   clearCart();
   toast('🎉 تم استلام طلبك!');
   setTimeout(()=>notifyAdminWA(order),1500);
@@ -1368,6 +1460,7 @@ function switchAdminTab(tab){
   if(tab==='customers')renderCustomers();
   if(tab==='orders')renderOrders();
   if(tab==='points')loadPointsSettingsUI();
+  if(tab==='discounts')renderDiscounts();
 }
 
 async function renderOrders(){
@@ -1821,6 +1914,7 @@ window.openRatingModal=openRatingModal; window.closeRatingModal=closeRatingModal
 window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
+window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
 
 init();
 </script>
