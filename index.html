@@ -407,9 +407,10 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .cust-phone{font-size:0.78rem;color:var(--text-mid);}
 .cust-points{background:rgba(107,70,193,0.1);color:var(--purple);padding:4px 10px;border-radius:8px;font-size:0.8rem;font-weight:700;white-space:nowrap;}
 
-#ppImagesContainer{overflow:hidden;width:100%;background:#fff;}
-#ppSlider{display:flex;transition:transform 0.35s ease;}
-#ppSlider img{height:380px;object-fit:contain;background:#fff;flex-shrink:0;}
+#ppImagesContainer{overflow-x:scroll;scroll-snap-type:x mandatory;scroll-behavior:smooth;display:flex;width:100%;background:#fff;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+#ppImagesContainer::-webkit-scrollbar{display:none;}
+#ppSlider{display:contents;}
+#ppSlider img,#ppSlider video,#ppSlider>div{scroll-snap-align:start;flex-shrink:0;width:100vw;height:380px;object-fit:contain;background:#fff;}
 .sp-notif{
   position:fixed;bottom:90px;left:16px;z-index:150;
   background:#fff;border-radius:14px;padding:12px 16px;
@@ -1005,8 +1006,8 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <div style="width:60px;"></div>
     </div>
     <!-- Images Slider -->
-    <div style="position:relative;background:var(--cream-dark);overflow:hidden;" id="ppImagesContainer">
-      <div id="ppSlider" style="display:flex;transition:transform 0.35s ease;width:100%;"></div>
+    <div id="ppImagesContainer">
+      <div id="ppSlider"></div>
       <button onclick="slideImg(-1)" id="ppPrev" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">›</button>
       <button onclick="slideImg(1)" id="ppNext" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">‹</button>
       <div id="ppDots" style="position:absolute;bottom:10px;width:100%;display:flex;justify-content:center;gap:6px;"></div>
@@ -2157,26 +2158,27 @@ function openProductPage(id){
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
   setTimeout(()=>{
     const w=window.innerWidth;
-    const slider=document.getElementById('ppSlider');
     const container=document.getElementById('ppImagesContainer');
+    const slider=document.getElementById('ppSlider');
     container.dataset.slideW=w;
     // Build media items
     const mediaItems=[];
     if(p.video&&!getVideoEmbed(p.video)) mediaItems.push({type:'video',src:p.video});
     images.forEach(img=>mediaItems.push({type:'image',src:img}));
     if(!mediaItems.length) mediaItems.push({type:'emoji',src:p.emoji||'📦'});
-    slider.style.width=(w*mediaItems.length)+'px';
+    // Simple HTML - CSS handles sizing
     slider.innerHTML=mediaItems.map(item=>{
-      if(item.type==='video') return `<video src="${item.src}" controls playsinline style="width:${w}px;min-width:${w}px;height:380px;object-fit:contain;background:#000;flex-shrink:0;"></video>`;
-      if(item.type==='emoji') return `<div style="width:${w}px;min-width:${w}px;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${item.src}</div>`;
-      return `<img src="${item.src}" style="width:${w}px;min-width:${w}px;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`;
+      if(item.type==='video') return `<video src="${item.src}" controls playsinline></video>`;
+      if(item.type==='emoji') return `<div style="background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;">${item.src}</div>`;
+      return `<img src="${item.src}">`;
     }).join('');
-    slider.style.transform='translateX(0)';
+    // Scroll to start
+    container.scrollLeft=0;
     currentSlide=0;
     currentProductPage._mediaCount=mediaItems.length;
     // Dots
     const dots=document.getElementById('ppDots');
-    dots.innerHTML=mediaItems.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;"></div>`).join('');
+    dots.innerHTML=mediaItems.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;display:inline-block;"></div>`).join('');
     // Thumbs
     const thumbs=document.getElementById('ppThumbs');
     thumbs.innerHTML=mediaItems.map((item,i)=>
@@ -2187,25 +2189,27 @@ function openProductPage(id){
     thumbs.style.display=mediaItems.length>1?'flex':'none';
     document.getElementById('ppPrev').style.display=mediaItems.length>1?'flex':'none';
     document.getElementById('ppNext').style.display=mediaItems.length>1?'flex':'none';
+    // Update dots on scroll
+    container.onscroll=()=>{
+      const idx=Math.round(container.scrollLeft/w);
+      currentSlide=idx;
+      document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===idx?'#fff':'rgba(255,255,255,0.4)');
+      document.querySelectorAll('#ppThumbs img,#ppThumbs>div').forEach((t,i)=>t.style.border=i===idx?'2px solid var(--green-dark)':'2px solid #e0e0e0');
+    };
   },150);
   }catch(e){toast('خطأ: '+e.message);console.error(e);}
 }
 
 function closeProductPage(){document.getElementById('productPageOverlay').classList.remove('open');}
 function goToSlide(n){
-  const p=currentProductPage;
-  if(!p)return;
+  const p=currentProductPage;if(!p)return;
   const total=p._mediaCount||1;
   currentSlide=Math.max(0,Math.min(n,total-1));
-  const w=parseInt(document.getElementById('ppImagesContainer').dataset.slideW)||window.innerWidth;
-  document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-w}px)`;
-  document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===currentSlide?'#fff':'rgba(255,255,255,0.4)');
-  document.querySelectorAll('#ppThumbs img, #ppThumbs div').forEach((t,i)=>t.style.border=i===currentSlide?'2px solid var(--green-dark)':'2px solid #e0e0e0');
+  const container=document.getElementById('ppImagesContainer');
+  container.scrollTo({left:currentSlide*window.innerWidth,behavior:'smooth'});
 }
 function slideImg(dir){
-  const p=currentProductPage;
-  if(!p)return;
-  const total=p._mediaCount||(p.images&&p.images.length?p.images.length:1);
+  const total=currentProductPage?._mediaCount||1;
   goToSlide((currentSlide+dir+total)%total);
 }
 function switchVideoTab(tab){
@@ -2487,3 +2491,4 @@ init();
 </script>
 </body>
 </html>
+
