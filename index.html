@@ -868,11 +868,44 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
           <div id="imgsPrevContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
         <div class="fg">
+          <label>🎬 فيديو المنتج (اختياري)</label>
+          <div class="img-drop" onclick="document.getElementById('pVideo').click()" style="min-height:80px;">
+            <input type="file" id="pVideo" accept="video/*" onchange="prevVideo(this)">
+            <div id="vidPh">🎬<br><span style="font-size:0.82rem;color:#aaa;">اضغط لرفع فيديو قصير للمنتج</span></div>
+          </div>
+          <video id="vidPrev" style="display:none;width:100%;max-height:200px;border-radius:8px;margin-top:8px;" controls></video>
+          <div style="font-size:0.72rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;margin-top:6px;">💡 يُفضّل فيديو قصير 10-30 ثانية بحجم أقل من 20MB</div>
+        </div>
+        <div class="fg">
           <label>الألوان المتاحة (افصل بينها بفاصلة)</label>
           <input type="text" id="pColorsInput" placeholder="مثال: ذهبي، فضي، أسود" oninput="handleColorsInput(event)">
           <div style="font-size:0.75rem;color:#aaa;margin-top:4px;">اكتب الألوان مفصولة بفاصلة أو اضغط Enter بعد كل لون</div>
           <div id="colorsTagsContainer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
           <input type="hidden" id="pColors" value="">
+        </div>
+        <div class="fg">
+          <label>🎬 فيديو المنتج (اختياري)</label>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button type="button" onclick="switchVideoTab('upload')" id="vTabUpload" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--green-dark);background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">📤 رفع فيديو</button>
+            <button type="button" onclick="switchVideoTab('link')" id="vTabLink" style="flex:1;padding:8px;border-radius:8px;border:2px solid #e0e0e0;background:#fff;color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">🔗 رابط خارجي</button>
+          </div>
+          <div id="vUploadArea">
+            <div class="img-drop" onclick="document.getElementById('pVideo').click()" style="height:80px;">
+              <input type="file" id="pVideo" accept="video/*" onchange="prevVideo(this)">
+              <div id="vUpPh">🎬<br><span style="font-size:0.78rem;color:#aaa;">اضغط لرفع فيديو</span></div>
+            </div>
+            <div id="vPrevName" style="font-size:0.78rem;color:var(--green-dark);margin-top:4px;display:none;"></div>
+          </div>
+          <div id="vLinkArea" style="display:none;">
+            <input type="url" id="pVideoUrl" placeholder="https://youtube.com/... أو TikTok أو Instagram">
+          </div>
+          <div id="vExistingArea" style="display:none;margin-top:8px;">
+            <div style="font-size:0.78rem;color:var(--text-mid);margin-bottom:4px;">الفيديو الحالي:</div>
+            <div id="vExistingName" style="font-size:0.8rem;color:var(--green-dark);background:var(--cream);padding:6px 10px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;">
+              <span id="vExistingText"></span>
+              <button onclick="clearExistingVideo()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:0.9rem;">✕</button>
+            </div>
+          </div>
         </div>
         <button class="btn-save-product" id="saveProductBtn" onclick="addProduct()">✅ إضافة المنتج</button>
         <button onclick="cancelEdit()" id="cancelEditBtn" style="display:none;width:100%;padding:12px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;cursor:pointer;margin-top:8px;">✕ إلغاء التعديل</button>
@@ -986,6 +1019,11 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <div id="ppStars" style="margin-bottom:10px;"></div>
       <div id="ppPrice" style="font-size:1.3rem;font-weight:700;color:var(--brown);margin-bottom:16px;"></div>
       <div id="ppDesc" style="font-size:0.9rem;color:var(--text-mid);line-height:1.8;margin-bottom:20px;"></div>
+      <!-- Video -->
+      <div id="ppVideoSection" style="display:none;margin-bottom:20px;">
+        <div style="font-family:'Amiri',serif;font-size:1.1rem;color:var(--green-dark);margin-bottom:12px;">🎬 فيديو المنتج</div>
+        <div id="ppVideoContainer" style="border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/9;"></div>
+      </div>
       <!-- Colors + Writing Tabs -->
       <div id="ppOptionsSection" style="display:none;margin-bottom:20px;">
         <!-- Tab Buttons -->
@@ -1249,6 +1287,7 @@ function getCardHTML(p){
           ${p.badge?`<div class="card-badge">${p.badge}</div>`:''}
           ${p.writing?`<div class="writing-badge">✍️ قابل للكتابة</div>`:''}
           ${p.colors&&p.colors.length?`<div class="card-badge" style="background:var(--green-mid);">🎨 ${p.colors.length} ألوان</div>`:''}
+          ${p.video?`<div class="card-badge" style="background:#e53e3e;">🎬 فيديو</div>`:''}
         </div>
       </div>
       <div class="store-card-body">
@@ -1740,6 +1779,14 @@ function prevImgs(input){
   });
 }
 
+function prevVideo(input){
+  const f=input.files[0];if(!f)return;
+  const v=document.getElementById('vidPrev');
+  v.src=URL.createObjectURL(f);
+  v.style.display='block';
+  document.getElementById('vidPh').textContent='✅ فيديو محدد: '+f.name;
+}
+
 let currentColors=[];
 function handleColorsInput(e){
   const val=e.target.value;
@@ -1779,6 +1826,9 @@ async function addProduct(){
   const badge=document.getElementById('pBadge').value.trim();
   const writing=document.getElementById('pWriting').checked;
   const imgFiles=Array.from(document.getElementById('pImg').files);
+  const videoFile=document.getElementById('pVideo').files[0];
+  const videoUrl=document.getElementById('pVideoUrl')?.value.trim()||'';
+  const vidFile=document.getElementById('pVideo').files[0];
   const colorsRaw=document.getElementById('pColors').value;
   const colorsInput=document.getElementById('pColorsInput').value.trim();
   let colors=[];
@@ -1799,7 +1849,19 @@ async function addProduct(){
   // Find existing product by _docId or id
   const existing=editingId?products.find(p=>p._docId===editingId||String(p.id)===editingId):null;
   const id=existing?.id||editingId||Date.now();
-  // Upload multiple images
+  // Upload video if new file selected
+  let video=existing?.video||'';
+  if(videoFile){
+    toast('⏳ جاري رفع الفيديو...');
+    const videoRef=storage.ref('videos/prod_'+id+'_'+Date.now()+'.mp4');
+    const videoTask=await new Promise((res,rej)=>{
+      const t=videoRef.put(videoFile);
+      t.on('state_changed',null,rej,()=>t.snapshot.ref.getDownloadURL().then(res));
+    });
+    video=videoTask;
+  } else if(videoUrl){
+    video=videoUrl;
+  }
   let images=existing?.images||[];
   if(imgFiles.length>0){
     images=[];
@@ -1809,6 +1871,16 @@ async function addProduct(){
       images.push(imgUrl);
     }
   }
+  // Upload video if provided
+  let videoUrl=existing?.video||'';
+  if(vidFile){
+    toast('⏳ جاري رفع الفيديو...');
+    try{
+      const ref=storage.ref('products/video_'+id+'_'+Date.now()+'.mp4');
+      const task=await ref.put(vidFile);
+      videoUrl=await task.ref.getDownloadURL();
+    }catch(e){toast('⚠️ فشل رفع الفيديو، تم الحفظ بدون فيديو');videoUrl=existing?.video||'';}
+  }
   const docId=existing?._docId||String(id);
   const finalId=editingId?existing?.id||id:id;
   const product={
@@ -1816,8 +1888,10 @@ async function addProduct(){
     cat,desc,badge,writing,
     images:images,
     img:images[0]||existing?.img||'',
+    video:videoUrl,
     emoji:getCatEmoji(cat),
     colors:colors,
+    video:video||'',
     reviews:existing?.reviews||[]
   };
   await db.collection('products').doc(docId).set(product);
@@ -1831,13 +1905,20 @@ async function addProduct(){
 
 function resetForm(){
   ['pName','pPrice','pOldPrice','pDesc','pBadge','pColorsInput'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pVideo').value='';
+  if(document.getElementById('pVideoUrl')) document.getElementById('pVideoUrl').value='';
+  document.getElementById('vExistingArea').style.display='none';
+  document.getElementById('vPrevName').style.display='none';
   document.getElementById('pCat').value='';
   document.getElementById('pWriting').checked=false;
   document.getElementById('pImg').value='';
+  document.getElementById('pVideo').value='';
   document.getElementById('pColors').value='';
   document.getElementById('imgsPrevContainer').innerHTML='';
   document.getElementById('colorsTagsContainer').innerHTML='';
   document.getElementById('upPh').textContent='📸\nاضغط لرفع صورة أو أكثر';
+  document.getElementById('vidPrev').style.display='none';
+  document.getElementById('vidPh').innerHTML='🎬<br><span style="font-size:0.82rem;color:#aaa;">اضغط لرفع فيديو قصير للمنتج</span>';
   currentColors=[];
 }
 
@@ -1878,6 +1959,12 @@ function editProduct(id){
     prevContainer.innerHTML=imgs.map(img=>`<img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">`).join('');
     upPh.textContent=`✅ ${imgs.length} صورة محفوظة`;
   }
+  // Show existing video
+  if(p.video){
+    const v=document.getElementById('vidPrev');
+    v.src=p.video;v.style.display='block';
+    document.getElementById('vidPh').textContent='✅ فيديو محفوظ';
+  }
   // Show existing colors
   let pColors=p.colors||[];
   if(typeof pColors==='string'){try{pColors=JSON.parse(pColors);}catch(e){pColors=pColors?[pColors]:[];}}
@@ -1885,6 +1972,14 @@ function editProduct(id){
   document.getElementById('pColors').value=JSON.stringify(pColors);
   document.getElementById('pColorsInput').value='';
   renderColorTags();
+  document.getElementById('pVideo').value='';
+  if(document.getElementById('pVideoUrl')) document.getElementById('pVideoUrl').value='';
+  if(p.video){
+    document.getElementById('vExistingArea').style.display='block';
+    document.getElementById('vExistingText').textContent=p.video.includes('firebase')||p.video.includes('http')?'فيديو محفوظ ✅':p.video;
+  } else {
+    document.getElementById('vExistingArea').style.display='none';
+  }
   document.getElementById('editingId').value=String(p._docId||p.id);
   document.getElementById('saveProductBtn').textContent='💾 حفظ التعديلات';
   document.getElementById('cancelEditBtn').style.display='block';
@@ -2038,22 +2133,55 @@ function openProductPage(id){
   document.getElementById('ppWritingInput').value='';
   const revEl=document.getElementById('ppReviews');
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
-  document.getElementById('productPageOverlay').classList.add('open');
+  // Video
+  const videoSection=document.getElementById('ppVideoSection');
+  const videoContainer=document.getElementById('ppVideoContainer');
+  if(p.video){
+    videoSection.style.display='block';
+    const embedUrl=getVideoEmbed(p.video);
+    if(embedUrl){
+      videoContainer.innerHTML=`<iframe src="${embedUrl}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay"></iframe>`;
+    } else {
+      videoContainer.innerHTML=`<video src="${p.video}" controls style="width:100%;height:100%;"></video>`;
+    }
+  } else {
+    videoSection.style.display='none';
+    videoContainer.innerHTML='';
+  }
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
   setTimeout(()=>{
     const container=document.getElementById('ppImagesContainer');
     const w=container.offsetWidth||window.innerWidth;
     const slider=document.getElementById('ppSlider');
-    // Set slider to exact pixel width * number of images
-    slider.style.width=(w*Math.max(images.length,1))+'px';
-    slider.innerHTML=images.length
-      ?images.map(img=>`<img src="${img}" style="width:${w}px;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`).join('')
+    // Combine video (first) and images
+    const mediaItems=[];
+    if(p.video) mediaItems.push({type:'video',src:p.video});
+    images.forEach(img=>mediaItems.push({type:'image',src:img}));
+    const totalItems=mediaItems.length||1;
+    slider.style.width=(w*totalItems)+'px';
+    slider.innerHTML=mediaItems.length
+      ?mediaItems.map(item=>item.type==='video'
+        ?`<video src="${item.src}" controls playsinline style="width:${w}px;height:380px;object-fit:contain;background:#000;flex-shrink:0;"></video>`
+        :`<img src="${item.src}" style="width:${w}px;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`
+      ).join('')
       :`<div style="width:${w}px;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;">${p.emoji}</div>`;
     slider.style.transform='translateX(0)';
     currentSlide=0;
     container.dataset.slideW=w;
-    document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===0?'#fff':'rgba(255,255,255,0.4)');
-    document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===0?'2px solid var(--green-dark)':'2px solid #e0e0e0');
+    // Rebuild dots for media items
+    const dots=document.getElementById('ppDots');
+    dots.innerHTML=mediaItems.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;"></div>`).join('');
+    // Rebuild thumbnails
+    const thumbs=document.getElementById('ppThumbs');
+    thumbs.innerHTML=mediaItems.map((item,i)=>item.type==='video'
+      ?`<div onclick="goToSlide(${i})" style="width:60px;height:60px;background:#000;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;">🎬</div>`
+      :`<img src="${item.src}" onclick="goToSlide(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;">`
+    ).join('');
+    thumbs.style.display=mediaItems.length>1?'flex':'none';
+    document.getElementById('ppPrev').style.display=mediaItems.length>1?'flex':'none';
+    document.getElementById('ppNext').style.display=mediaItems.length>1?'flex':'none';
+    // Store for navigation
+    currentProductPage._mediaCount=mediaItems.length;
   },100);
 }
 
@@ -2061,19 +2189,63 @@ function closeProductPage(){document.getElementById('productPageOverlay').classL
 function goToSlide(n){
   const p=currentProductPage;
   if(!p)return;
-  const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
-  currentSlide=Math.max(0,Math.min(n,images.length-1));
+  const total=p._mediaCount||(p.images&&p.images.length?p.images.length:1);
+  currentSlide=Math.max(0,Math.min(n,total-1));
   const container=document.getElementById('ppImagesContainer');
   const w=parseInt(container.dataset.slideW)||container.offsetWidth||window.innerWidth;
   document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-w}px)`;
   document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===currentSlide?'#fff':'rgba(255,255,255,0.4)');
-  document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===currentSlide?'2px solid var(--green-dark)':'2px solid #e0e0e0');
+  document.querySelectorAll('#ppThumbs > *').forEach((t,i)=>t.style.border=i===currentSlide?'2px solid var(--green-dark)':'2px solid #e0e0e0');
 }
 function slideImg(dir){
   const p=currentProductPage;
-  const images=p&&p.images&&p.images.length?p.images:p&&p.img?[p.img]:[];
-  goToSlide((currentSlide+dir+images.length)%images.length);
+  if(!p)return;
+  const total=p._mediaCount||(p.images&&p.images.length?p.images.length:1);
+  goToSlide((currentSlide+dir+total)%total);
 }
+function switchVideoTab(tab){
+  const uploadArea=document.getElementById('vUploadArea');
+  const linkArea=document.getElementById('vLinkArea');
+  const uploadBtn=document.getElementById('vTabUpload');
+  const linkBtn=document.getElementById('vTabLink');
+  if(tab==='upload'){
+    uploadArea.style.display='block'; linkArea.style.display='none';
+    uploadBtn.style.background='var(--green-dark)'; uploadBtn.style.color='#fff'; uploadBtn.style.borderColor='var(--green-dark)';
+    linkBtn.style.background='#fff'; linkBtn.style.color='var(--text-mid)'; linkBtn.style.borderColor='#e0e0e0';
+  } else {
+    uploadArea.style.display='none'; linkArea.style.display='block';
+    linkBtn.style.background='var(--green-dark)'; linkBtn.style.color='#fff'; linkBtn.style.borderColor='var(--green-dark)';
+    uploadBtn.style.background='#fff'; uploadBtn.style.color='var(--text-mid)'; uploadBtn.style.borderColor='#e0e0e0';
+  }
+}
+function prevVideo(input){
+  const f=input.files[0];
+  if(!f)return;
+  const nameEl=document.getElementById('vPrevName');
+  nameEl.textContent='✅ '+f.name+' ('+Math.round(f.size/1024/1024*10)/10+' MB)';
+  nameEl.style.display='block';
+  document.getElementById('vUpPh').textContent='🎬 '+f.name;
+}
+function clearExistingVideo(){
+  document.getElementById('vExistingArea').style.display='none';
+  document.getElementById('vExistingText').textContent='';
+}
+
+function getVideoEmbed(url){
+  // YouTube
+  const yt=url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&\s?]+)/);
+  if(yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=0&rel=0`;
+  // TikTok
+  const tt=url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+  if(tt) return `https://www.tiktok.com/embed/v2/${tt[1]}`;
+  // Instagram Reels
+  if(url.includes('instagram.com/reel')||url.includes('instagram.com/p/')){
+    const ig=url.match(/instagram\.com\/(?:reel|p)\/([^/?]+)/);
+    if(ig) return `https://www.instagram.com/p/${ig[1]}/embed`;
+  }
+  return null; // direct video file
+}
+
 function switchPPTab(tab){
   const colorTab=document.getElementById('ppTabColor');
   const writeTab=document.getElementById('ppTabWrite');
@@ -2296,12 +2468,12 @@ window.goToSlide=goToSlide; window.slideImg=slideImg;
 window.selectColor=selectColor; window.switchPPTab=switchPPTab; window.addToCartFromPage=addToCartFromPage;
 window.openRatingFromPage=openRatingFromPage;
 window.handleColorsInput=handleColorsInput; window.removeColorTag=removeColorTag;
-window.prevImgs=prevImgs;
+window.prevImgs=prevImgs; window.prevVideo=prevVideo;
 window.openRatingModal=openRatingModal; window.closeRatingModal=closeRatingModal;
 window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
-window.closeWelcome=closeWelcome; window.useWelcomeCode=useWelcomeCode;
+window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearExistingVideo=clearExistingVideo;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
 window.prevPhotoUpload=prevPhotoUpload; window.submitCustomerPhoto=submitCustomerPhoto;
 window.approvePhoto=approvePhoto; window.deletePhoto=deletePhoto;
