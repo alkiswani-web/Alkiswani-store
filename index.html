@@ -2076,11 +2076,10 @@ let currentSlide=0;
 let selectedColor='';
 
 function openProductPage(id){
+  try{
   const sid=String(id);
-  const allIds=products.map(x=>'docId:'+x._docId+'|id:'+x.id).join('\n');
-  alert('بحث عن: '+sid+'\nالمنتجات:\n'+allIds);
   const p=products.find(x=>x._docId===sid||String(x.id)===sid);
-  if(!p){alert('ما لقيت المنتج!');return;}
+  if(!p){toast('⚠️ المنتج غير موجود');return;}
   currentProductPage=p;
   currentSlide=0;
   selectedColor='';
@@ -2142,6 +2141,7 @@ function openProductPage(id){
     videoSection.style.display='none';
     videoContainer.innerHTML='';
   }
+  document.getElementById('productPageOverlay').classList.add('open');
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
   setTimeout(()=>{
     const container=document.getElementById('ppImagesContainer');
@@ -2177,6 +2177,7 @@ function openProductPage(id){
     // Store for navigation
     currentProductPage._mediaCount=mediaItems.length;
   },100);
+  }catch(e){toast('خطأ: '+e.message);console.error(e);}
 }
 
 function closeProductPage(){document.getElementById('productPageOverlay').classList.remove('open');}
