@@ -2241,24 +2241,20 @@ async function deletePhoto(id){
 
 // ===== WELCOME POPUP =====
 function showWelcome(){
-  // Only show once per day
-  const last=localStorage.getItem('ak_welcome_shown');
-  const today=new Date().toDateString();
-  if(last===today) return;
+  // Only show once ever
+  if(localStorage.getItem('ak_welcome_shown')) return;
   setTimeout(()=>{
     document.getElementById('welcomeOverlay').classList.add('show');
   },1500);
 }
 function closeWelcome(){
   document.getElementById('welcomeOverlay').classList.remove('show');
-  localStorage.setItem('ak_welcome_shown',new Date().toDateString());
+  localStorage.setItem('ak_welcome_shown','1');
 }
 function useWelcomeCode(){
-  // Copy code to clipboard
   const code=document.getElementById('welcomeCode').textContent;
   navigator.clipboard?.writeText(code).catch(()=>{});
   closeWelcome();
-  // Scroll to products
   document.getElementById('products').scrollIntoView({behavior:'smooth'});
   toast('✅ تم نسخ الكود: '+code);
 }
