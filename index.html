@@ -1756,8 +1756,9 @@ async function addProduct(){
   const oldPrice=oldPriceRaw?parseFloat(oldPriceRaw):null;
   if(isNaN(price)){toast('❌ السعر لازم يكون رقم');return;}
   toast('⏳ جاري الحفظ...');
-  const id=editingId||Date.now();
-  const existing=editingId?products.find(p=>String(p.id)===String(editingId)):null;
+  // Find existing product by _docId or id
+  const existing=editingId?products.find(p=>p._docId===editingId||String(p.id)===editingId):null;
+  const id=existing?.id||editingId||Date.now();
   // Upload multiple images
   let images=existing?.images||[];
   if(imgFiles.length>0){
@@ -1820,8 +1821,8 @@ async function delProduct(id){
 }
 
 function editProduct(id){
-  const p=products.find(x=>String(x.id)===String(id));
-  if(!p)return;
+  const p=products.find(x=>String(x.id)===String(id)||x._docId===String(id));
+  if(!p){toast('❌ المنتج غير موجود');return;}
   document.getElementById('pName').value=p.name||'';
   document.getElementById('pPrice').value=p.price||'';
   document.getElementById('pOldPrice').value=p.oldPrice||'';
@@ -1829,16 +1830,27 @@ function editProduct(id){
   document.getElementById('pDesc').value=p.desc||'';
   document.getElementById('pBadge').value=p.badge||'';
   document.getElementById('pWriting').checked=p.writing||false;
-  if(p.img){
-    document.getElementById('imgPrev').src=p.img;
-    document.getElementById('imgPrev').style.display='block';
-    document.getElementById('upPh').style.display='none';
+  // Show existing images
+  const prevContainer=document.getElementById('imgsPrevContainer');
+  const upPh=document.getElementById('upPh');
+  const imgs=p.images&&p.images.length?p.images:p.img?[p.img]:[];
+  if(imgs.length){
+    prevContainer.innerHTML=imgs.map(img=>`<img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">`).join('');
+    upPh.textContent=`✅ ${imgs.length} صورة محفوظة`;
   }
-  document.getElementById('editingId').value=id;
+  // Show existing colors
+  let pColors=p.colors||[];
+  if(typeof pColors==='string'){try{pColors=JSON.parse(pColors);}catch(e){pColors=pColors?[pColors]:[];}}
+  currentColors=pColors;
+  document.getElementById('pColors').value=JSON.stringify(pColors);
+  document.getElementById('pColorsInput').value='';
+  renderColorTags();
+  document.getElementById('editingId').value=String(p._docId||p.id);
   document.getElementById('saveProductBtn').textContent='💾 حفظ التعديلات';
   document.getElementById('cancelEditBtn').style.display='block';
-  document.querySelector('.form-card h2').textContent='✏️ تعديل المنتج';
-  window.scrollTo({top:0,behavior:'smooth'});
+  document.querySelector('.form-card h2').textContent='✏️ تعديل المنتج: '+p.name;
+  // Scroll to top of admin modal
+  document.querySelector('#adminOverlay .admin-panel').scrollTo({top:0,behavior:'smooth'});
   toast('✏️ عدّل البيانات واضغط حفظ');
 }
 
