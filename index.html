@@ -1280,9 +1280,9 @@ function getStars(p){
   return `<div class="card-rating"><span class="stars">${stars}</span><span class="rating-count">(${reviews.length})</span><span onclick="openRatingModal('${p.id}')" style="font-size:0.72rem;color:var(--green-light);cursor:pointer;margin-right:6px;">+ أضف تقييم</span></div>`;
 }
 function getCardHTML(p){
-  const pid=p._docId||p.id;
+  const pid=p._docId||String(p.id);
   return `
-    <div class="store-card" onclick="openProductPage('${pid}')" style="cursor:pointer;">
+    <div class="store-card" data-pid="${pid}" onclick="openProductPage(this.dataset.pid)" style="cursor:pointer;">
       <div class="store-card-img">
         ${p.images&&p.images.length?`<img src="${p.images[0]}" alt="${p.name}">`:p.img?`<img src="${p.img}" alt="${p.name}">`:`<span>${p.emoji}</span>`}
         <div class="card-badge-wrap">
@@ -1299,7 +1299,7 @@ function getCardHTML(p){
         <div class="card-desc">${p.desc}</div>
         <div class="card-footer">
           ${getPriceHTML(p)}
-          <button class="btn-add-cart" id="btn-${pid}" onclick="event.stopPropagation();handleAddToCart('${pid}')">🛒 أضف للسلة</button>
+          <button class="btn-add-cart" data-pid="${pid}" onclick="event.stopPropagation();handleAddToCart(this.dataset.pid)">🛒 أضف للسلة</button>
         </div>
       </div>
     </div>`;
@@ -2076,8 +2076,14 @@ let currentSlide=0;
 let selectedColor='';
 
 function openProductPage(id){
-  const p=products.find(x=>x._docId===String(id)||String(x.id)===String(id));
-  if(!p){console.log('Product not found:',id,products.map(x=>x._docId||x.id));return;}
+  const sid=String(id);
+  const p=products.find(x=>x._docId===sid||String(x.id)===sid||x._docId===id||x.id===id);
+  if(!p){
+    // Last resort: try loose comparison
+    const p2=products.find(x=>String(x._docId||x.id)==sid);
+    if(!p2){toast('⚠️ جاري التحميل، حاول مجدداً');return;}
+    return openProductPage(p2._docId||p2.id);
+  }
   currentProductPage=p;
   currentSlide=0;
   selectedColor='';
