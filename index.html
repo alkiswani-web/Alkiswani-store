@@ -413,6 +413,17 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 #ppImagesContainer::-webkit-scrollbar{display:none;}
 #ppSlider{display:contents;}
 #ppSlider img,#ppSlider video,#ppSlider>div{scroll-snap-align:start;flex-shrink:0;width:100vw;height:380px;object-fit:contain;background:#fff;}
+
+/* ===== BOTTOM TAB BAR ===== */
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:var(--green-dark);display:flex;align-items:stretch;border-top:2px solid rgba(201,168,76,0.4);padding-bottom:env(safe-area-inset-bottom);}
+.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:rgba(255,255,255,0.6);font-family:'Tajawal',sans-serif;font-size:0.65rem;gap:3px;transition:all 0.2s;}
+.bottom-tab:active{background:rgba(255,255,255,0.1);}
+.bottom-tab .tab-icon{font-size:1.3rem;display:block;position:relative;}
+.bottom-tab.active,.bottom-tab.cart-tab{color:var(--gold);}
+.bottom-tab.cart-tab .tab-icon{background:var(--gold);color:var(--green-dark);width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-top:-18px;box-shadow:0 4px 16px rgba(201,168,76,0.5);border:3px solid var(--green-dark);}
+.cart-badge{position:absolute;top:-4px;right:-4px;background:#e53e3e;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
+body{padding-bottom:72px;}
+
 .sp-notif{
   position:fixed;bottom:90px;left:16px;z-index:150;
   background:#fff;border-radius:14px;padding:12px 16px;
@@ -498,8 +509,8 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <span class="points-pill" id="navPoints">0 نقطة</span>
     </div>
     <button id="navLoginBtn" class="btn-nav-login" onclick="openAuth()">تسجيل الدخول</button>
-    <button onclick="openOrderStatus()" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.15);padding:8px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📦 طلبي</button>
-    <button class="btn-nav-cart" onclick="openCart()" style="background:var(--gold);color:var(--green-dark);font-weight:700;padding:9px 16px;border-radius:10px;font-size:0.9rem;">🛒 <span id="cartCount">0</span></button>
+  </div>
+</nav>
   </div>
 </nav>
 
@@ -615,6 +626,33 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
   </div>
 </div>
 
+<!-- ===== BOTTOM TAB BAR ===== -->
+<div class="bottom-bar">
+  <button class="bottom-tab active" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+    <span class="tab-icon">🏠</span>
+    <span>الرئيسية</span>
+  </button>
+  <button class="bottom-tab" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">
+    <span class="tab-icon">🛍️</span>
+    <span>المنتجات</span>
+  </button>
+  <button class="bottom-tab cart-tab" onclick="openCart()">
+    <span class="tab-icon" style="position:relative;">
+      🛒
+      <span class="cart-badge" id="cartCount">0</span>
+    </span>
+    <span>السلة</span>
+  </button>
+  <button class="bottom-tab" onclick="openOrderStatus()">
+    <span class="tab-icon">📦</span>
+    <span>طلباتي</span>
+  </button>
+  <button class="bottom-tab" onclick="openAuth()">
+    <span class="tab-icon" id="bottomAuthIcon">👤</span>
+    <span id="bottomAuthText">حسابي</span>
+  </button>
+</div>
+
 <footer>
   <div class="footer-logo">الكسواني روزميري</div>
   <div style="font-size:0.75rem;color:rgba(255,255,255,0.2);letter-spacing:2px;">Woodcraft & Plants · Jordan</div>
@@ -622,7 +660,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
   <div class="footer-copy">© 2026 الكسواني روزميري</div>
 </footer>
 
-<a href="https://wa.me/962775665598" class="float-wa">📱</a>
+
 
 <!-- ===== WRITING OPTION MODAL ===== -->
 <div class="writing-modal-overlay" id="writingOverlay">
@@ -1017,11 +1055,6 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <div id="ppStars" style="margin-bottom:10px;"></div>
       <div id="ppPrice" style="font-size:1.3rem;font-weight:700;color:var(--brown);margin-bottom:16px;"></div>
       <div id="ppDesc" style="font-size:0.9rem;color:var(--text-mid);line-height:1.8;margin-bottom:20px;"></div>
-      <!-- Video -->
-      <div id="ppVideoSection" style="display:none;margin-bottom:20px;">
-        <div style="font-family:'Amiri',serif;font-size:1.1rem;color:var(--green-dark);margin-bottom:12px;">🎬 فيديو المنتج</div>
-        <div id="ppVideoContainer" style="border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/9;"></div>
-      </div>
       <!-- Colors + Writing Tabs -->
       <div id="ppOptionsSection" style="display:none;margin-bottom:20px;">
         <!-- Tab Buttons -->
@@ -1375,7 +1408,11 @@ function addToCartDirect(p,writingText){
 }
 
 // ===== CART =====
-function updateCartCount(){const t=cart.reduce((s,i)=>s+i.qty,0);document.getElementById('cartCount').textContent=t;}
+function updateCartCount(){
+  const t=cart.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('cartCount').textContent=t;
+  document.getElementById('cartCount').style.display=t>0?'flex':'none';
+}
 function openCart(){renderCartDrawer();document.getElementById('cartOverlay').classList.add('open');document.getElementById('cartDrawer').classList.add('open');}
 function closeCart(){document.getElementById('cartOverlay').classList.remove('open');document.getElementById('cartDrawer').classList.remove('open');}
 function renderCartDrawer(){
@@ -1626,12 +1663,21 @@ function logoutCustomer(){currentUser=null;localStorage.removeItem('ak_currentUs
 function updateNavUser(){
   const chip=document.getElementById('navUserChip');
   const btn=document.getElementById('navLoginBtn');
+  const bottomIcon=document.getElementById('bottomAuthIcon');
+  const bottomText=document.getElementById('bottomAuthText');
   if(currentUser){
     chip.style.display='flex';btn.style.display='none';
     document.getElementById('navUserName').textContent=currentUser.name.split(' ')[0];
     document.getElementById('navPoints').textContent=(currentUser.points||0)+' نقطة';
+    if(bottomIcon) bottomIcon.textContent='✅';
+    if(bottomText) bottomText.textContent=currentUser.name.split(' ')[0];
+    // Bottom auth tab opens profile
+    document.querySelector('.bottom-tab:last-child').onclick=openProfile;
   } else {
     chip.style.display='none';btn.style.display='block';
+    if(bottomIcon) bottomIcon.textContent='👤';
+    if(bottomText) bottomText.textContent='حسابي';
+    document.querySelector('.bottom-tab:last-child').onclick=openAuth;
   }
 }
 async function openProfile(){
@@ -2143,21 +2189,6 @@ function openProductPage(id){
   document.getElementById('ppWritingInput').value='';
   const revEl=document.getElementById('ppReviews');
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
-  // Video
-  const videoSection=document.getElementById('ppVideoSection');
-  const videoContainer=document.getElementById('ppVideoContainer');
-  if(p.video){
-    videoSection.style.display='block';
-    const embedUrl=getVideoEmbed(p.video);
-    if(embedUrl){
-      videoContainer.innerHTML=`<iframe src="${embedUrl}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay"></iframe>`;
-    } else {
-      videoContainer.innerHTML=`<video src="${p.video}" controls style="width:100%;height:100%;"></video>`;
-    }
-  } else {
-    videoSection.style.display='none';
-    videoContainer.innerHTML='';
-  }
   document.getElementById('productPageOverlay').classList.add('open');
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
   setTimeout(()=>{
@@ -2165,13 +2196,16 @@ function openProductPage(id){
     const container=document.getElementById('ppImagesContainer');
     const slider=document.getElementById('ppSlider');
     container.dataset.slideW=w;
-    // Build media items
+    // Video FIRST, then images
     const mediaItems=[];
-    if(p.video&&!getVideoEmbed(p.video)) mediaItems.push({type:'video',src:p.video});
+    if(p.video){
+      const embedUrl=getVideoEmbed(p.video);
+      mediaItems.push({type: embedUrl?'embed':'video', src: embedUrl||p.video});
+    }
     images.forEach(img=>mediaItems.push({type:'image',src:img}));
     if(!mediaItems.length) mediaItems.push({type:'emoji',src:p.emoji||'📦'});
-    // Simple HTML - CSS handles sizing
     slider.innerHTML=mediaItems.map(item=>{
+      if(item.type==='embed') return `<div style="scroll-snap-align:start;flex-shrink:0;width:100vw;height:380px;background:#000;"><iframe src="${item.src}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay"></iframe></div>`;
       if(item.type==='video') return `<video src="${item.src}" controls playsinline></video>`;
       if(item.type==='emoji') return `<div style="background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;">${item.src}</div>`;
       return `<img src="${item.src}">`;
