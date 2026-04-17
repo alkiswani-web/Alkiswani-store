@@ -1871,16 +1871,6 @@ async function addProduct(){
       images.push(imgUrl);
     }
   }
-  // Upload video if provided
-  let videoUrl=existing?.video||'';
-  if(vidFile){
-    toast('⏳ جاري رفع الفيديو...');
-    try{
-      const ref=storage.ref('products/video_'+id+'_'+Date.now()+'.mp4');
-      const task=await ref.put(vidFile);
-      videoUrl=await task.ref.getDownloadURL();
-    }catch(e){toast('⚠️ فشل رفع الفيديو، تم الحفظ بدون فيديو');videoUrl=existing?.video||'';}
-  }
   const docId=existing?._docId||String(id);
   const finalId=editingId?existing?.id||id:id;
   const product={
@@ -1888,10 +1878,9 @@ async function addProduct(){
     cat,desc,badge,writing,
     images:images,
     img:images[0]||existing?.img||'',
-    video:videoUrl,
+    video:video||'',
     emoji:getCatEmoji(cat),
     colors:colors,
-    video:video||'',
     reviews:existing?.reviews||[]
   };
   await db.collection('products').doc(docId).set(product);
