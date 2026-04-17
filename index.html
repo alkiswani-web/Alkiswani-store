@@ -409,7 +409,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 
 #ppImagesContainer{overflow:hidden;width:100%;background:#fff;}
 #ppSlider{display:flex;transition:transform 0.35s ease;}
-#ppSlider img, #ppSlider>div{width:100vw;max-width:100%;min-width:100vw;flex-shrink:0;}
+#ppSlider img{height:380px;object-fit:contain;background:#fff;flex-shrink:0;}
 .sp-notif{
   position:fixed;bottom:90px;left:16px;z-index:400;
   background:#fff;border-radius:14px;padding:12px 16px;
@@ -849,8 +849,9 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
           <div id="imgsPrevContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
         <div class="fg">
-          <label>الألوان المتاحة (اكتب كل لون واضغط Enter أو فاصلة)</label>
+          <label>الألوان المتاحة (افصل بينها بفاصلة)</label>
           <input type="text" id="pColorsInput" placeholder="مثال: ذهبي، فضي، أسود" oninput="handleColorsInput(event)">
+          <div style="font-size:0.75rem;color:#aaa;margin-top:4px;">اكتب الألوان مفصولة بفاصلة أو اضغط Enter بعد كل لون</div>
           <div id="colorsTagsContainer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
           <input type="hidden" id="pColors" value="">
         </div>
@@ -1731,7 +1732,16 @@ async function addProduct(){
   const writing=document.getElementById('pWriting').checked;
   const imgFiles=Array.from(document.getElementById('pImg').files);
   const colorsRaw=document.getElementById('pColors').value;
-  const colors=colorsRaw?JSON.parse(colorsRaw):currentColors;
+  const colorsInput=document.getElementById('pColorsInput').value.trim();
+  let colors=[];
+  if(colorsRaw){
+    try{colors=JSON.parse(colorsRaw);}catch(e){colors=currentColors;}
+  } else if(colorsInput){
+    // Parse comma-separated colors from input
+    colors=colorsInput.split(/[,،]/).map(c=>c.trim()).filter(c=>c);
+  } else {
+    colors=currentColors;
+  }
   const editingId=document.getElementById('editingId').value;
   if(!name||!priceRaw||!cat||!desc){toast('❌ يرجى تعبئة جميع الحقول');return;}
   const price=parseFloat(priceRaw);
@@ -1937,8 +1947,8 @@ function openProductPage(id){
   document.getElementById('ppStars').innerHTML=reviews.length?`<span style="color:#f6ad55;">${'⭐'.repeat(Math.round(reviews.reduce((s,r)=>s+r.stars,0)/reviews.length))}</span> <span style="color:#aaa;font-size:0.82rem;">(${reviews.length} تقييم)</span>`:'<span style="color:#aaa;font-size:0.82rem;">لا يوجد تقييمات بعد</span>';
   const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   const slider=document.getElementById('ppSlider');
+  slider.innerHTML='';
   slider.style.transform='translateX(0)';
-  slider.innerHTML=images.length?images.map(img=>`<img src="${img}" style="width:100vw;max-width:100%;min-width:100vw;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`).join(''):`<div style="width:100vw;min-width:100vw;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
   const dots=document.getElementById('ppDots');
   dots.innerHTML=images.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;"></div>`).join('');
   document.getElementById('ppPrev').style.display=images.length>1?'flex':'none';
@@ -1970,6 +1980,22 @@ function openProductPage(id){
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
   document.getElementById('productPageOverlay').classList.add('open');
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
+  // Build slider after modal is visible so offsetWidth is correct
+  setTimeout(()=>{
+    const container=document.getElementById('ppImagesContainer');
+    const w=container.offsetWidth||window.innerWidth;
+    const slider=document.getElementById('ppSlider');
+    slider.innerHTML=images.length
+      ?images.map(img=>`<img src="${img}" style="width:${w}px;min-width:${w}px;height:380px;object-fit:contain;background:#fff;flex-shrink:0;">`).join('')
+      :`<div style="width:${w}px;min-width:${w}px;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
+    slider.style.transform='translateX(0)';
+    currentSlide=0;
+    // Update dots and thumbs
+    document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===0?'#fff':'rgba(255,255,255,0.4)');
+    document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===0?'2px solid var(--green-dark)':'2px solid #e0e0e0');
+    // Store width for goToSlide
+    container.dataset.slideW=w;
+  },80);
 }
 
 function closeProductPage(){document.getElementById('productPageOverlay').classList.remove('open');}
@@ -1978,7 +2004,9 @@ function goToSlide(n){
   if(!p)return;
   const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   currentSlide=Math.max(0,Math.min(n,images.length-1));
-  document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-100}vw)`;
+  const container=document.getElementById('ppImagesContainer');
+  const w=parseInt(container.dataset.slideW)||container.offsetWidth||window.innerWidth;
+  document.getElementById('ppSlider').style.transform=`translateX(${currentSlide*-w}px)`;
   document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===currentSlide?'#fff':'rgba(255,255,255,0.4)');
   document.querySelectorAll('#ppThumbs img').forEach((t,i)=>t.style.border=i===currentSlide?'2px solid var(--green-dark)':'2px solid #e0e0e0');
 }
