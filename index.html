@@ -949,7 +949,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <div style="width:60px;"></div>
     </div>
     <!-- Images Slider -->
-    <div style="position:relative;background:#1a1a1a;overflow:hidden;" id="ppImagesContainer">
+    <div style="position:relative;background:var(--cream-dark);overflow:hidden;" id="ppImagesContainer">
       <div id="ppSlider" style="display:flex;transition:transform 0.35s ease;width:100%;"></div>
       <button onclick="slideImg(-1)" id="ppPrev" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">›</button>
       <button onclick="slideImg(1)" id="ppNext" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">‹</button>
@@ -964,18 +964,27 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
       <div id="ppStars" style="margin-bottom:10px;"></div>
       <div id="ppPrice" style="font-size:1.3rem;font-weight:700;color:var(--brown);margin-bottom:16px;"></div>
       <div id="ppDesc" style="font-size:0.9rem;color:var(--text-mid);line-height:1.8;margin-bottom:20px;"></div>
-      <!-- Colors -->
-      <div id="ppColorsSection" style="display:none;margin-bottom:20px;">
-        <div style="font-size:0.85rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">🎨 اختر اللون:</div>
-        <div id="ppColorsList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-      </div>
-      <!-- Writing -->
-      <div id="ppWritingSection" style="display:none;margin-bottom:20px;">
-        <div style="font-size:0.85rem;font-weight:700;color:var(--purple);margin-bottom:8px;">✍️ كتابة مخصصة (اختياري):</div>
-        <input type="text" id="ppWritingInput" placeholder="اكتب النص المطلوب نقشه..." style="width:100%;padding:11px 13px;border:1.5px solid var(--purple-light);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+      <!-- Colors + Writing Tabs -->
+      <div id="ppOptionsSection" style="display:none;margin-bottom:20px;">
+        <!-- Tab Buttons -->
+        <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid #e0e0e0;margin-bottom:14px;">
+          <button id="ppTabColorBtn" onclick="switchPPTab('color')" style="flex:1;padding:11px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;transition:all 0.3s;">🎨 اختر اللون</button>
+          <button id="ppTabWriteBtn" onclick="switchPPTab('write')" style="flex:1;padding:11px;border:none;background:#fff;color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;transition:all 0.3s;">✍️ كتابة مخصصة</button>
+        </div>
+        <!-- Colors Tab -->
+        <div id="ppTabColor">
+          <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:10px;">اختر اللون المناسب لمنتجك:</div>
+          <div id="ppColorsList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+        <!-- Writing Tab -->
+        <div id="ppTabWrite" style="display:none;">
+          <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:10px;">اكتب النص المطلوب نقشه على المنتج:</div>
+          <input type="text" id="ppWritingInput" placeholder="مثال: اسم، تاريخ، عبارة..." style="width:100%;padding:12px 14px;border:1.5px solid var(--purple-light);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+          <div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:8px 12px;border-radius:8px;margin-top:8px;">💡 سيتواصل معك فريقنا لتأكيد الخط المناسب</div>
+        </div>
       </div>
       <!-- Add to cart -->
-      <button onclick="addToCartFromPage()" style="width:100%;padding:16px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all 0.3s;" onmouseover="this.style.background=var(--green-mid)" onmouseout="this.style.background=var(--green-dark)">🛒 أضف للسلة</button>
+      <button onclick="addToCartFromPage()" style="width:100%;padding:16px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all 0.3s;">🛒 أضف للسلة</button>
       <!-- Reviews -->
       <div style="margin-top:24px;">
         <div style="font-family:'Amiri',serif;font-size:1.1rem;color:var(--green-dark);margin-bottom:12px;">⭐ التقييمات</div>
@@ -1926,7 +1935,7 @@ function openProductPage(id){
   const images=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   const slider=document.getElementById('ppSlider');
   const containerW=document.getElementById('ppImagesContainer').offsetWidth||window.innerWidth;
-  slider.innerHTML=images.length?images.map(img=>`<img src="${img}" style="width:${containerW}px;min-width:${containerW}px;height:auto;max-height:420px;object-fit:contain;flex-shrink:0;background:#111;">`).join(''):`<div style="width:${containerW}px;min-width:${containerW}px;height:320px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
+  slider.innerHTML=images.length?images.map(img=>`<img src="${img}" style="width:${containerW}px;min-width:${containerW}px;height:380px;object-fit:cover;flex-shrink:0;">`).join(''):`<div style="width:${containerW}px;min-width:${containerW}px;height:380px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;flex-shrink:0;">${p.emoji}</div>`;
   slider.style.transform='translateX(0)';
   const dots=document.getElementById('ppDots');
   dots.innerHTML=images.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;"></div>`).join('');
@@ -1935,12 +1944,23 @@ function openProductPage(id){
   const thumbs=document.getElementById('ppThumbs');
   thumbs.innerHTML=images.map((img,i)=>`<img src="${img}" onclick="goToSlide(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;">`).join('');
   thumbs.style.display=images.length>1?'flex':'none';
-  const colorsSection=document.getElementById('ppColorsSection');
-  if(p.colors&&p.colors.length){
+  const colorsSection=document.getElementById('ppOptionsSection');
+  const hasColors=p.colors&&p.colors.length;
+  const hasWriting=p.writing;
+  if(hasColors||hasWriting){
     colorsSection.style.display='block';
-    document.getElementById('ppColorsList').innerHTML=p.colors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:8px 18px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
-  } else { colorsSection.style.display='none'; }
-  document.getElementById('ppWritingSection').style.display=p.writing?'block':'none';
+    // Show/hide tabs based on what's available
+    document.getElementById('ppTabColorBtn').style.display=hasColors?'block':'none';
+    document.getElementById('ppTabWriteBtn').style.display=hasWriting?'block':'none';
+    if(hasColors){
+      document.getElementById('ppColorsList').innerHTML=p.colors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:9px 20px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
+      switchPPTab('color');
+    } else {
+      switchPPTab('write');
+    }
+  } else {
+    colorsSection.style.display='none';
+  }
   document.getElementById('ppWritingInput').value='';
   const revEl=document.getElementById('ppReviews');
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
@@ -1964,6 +1984,22 @@ function slideImg(dir){
   const images=p&&p.images&&p.images.length?p.images:p&&p.img?[p.img]:[];
   goToSlide((currentSlide+dir+images.length)%images.length);
 }
+function switchPPTab(tab){
+  const colorTab=document.getElementById('ppTabColor');
+  const writeTab=document.getElementById('ppTabWrite');
+  const colorBtn=document.getElementById('ppTabColorBtn');
+  const writeBtn=document.getElementById('ppTabWriteBtn');
+  if(tab==='color'){
+    colorTab.style.display='block';writeTab.style.display='none';
+    colorBtn.style.background='var(--green-dark)';colorBtn.style.color='#fff';
+    writeBtn.style.background='#fff';writeBtn.style.color='var(--text-mid)';
+  } else {
+    colorTab.style.display='none';writeTab.style.display='block';
+    writeBtn.style.background='var(--green-dark)';writeBtn.style.color='#fff';
+    colorBtn.style.background='#fff';colorBtn.style.color='var(--text-mid)';
+  }
+}
+
 function selectColor(color,btn){
   selectedColor=color;
   document.querySelectorAll('#ppColorsList button').forEach(b=>{b.style.borderColor='#e0e0e0';b.style.background='#fff';b.style.color='inherit';});
@@ -2146,7 +2182,7 @@ window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
 window.openProductPage=openProductPage; window.closeProductPage=closeProductPage;
 window.goToSlide=goToSlide; window.slideImg=slideImg;
-window.selectColor=selectColor; window.addToCartFromPage=addToCartFromPage;
+window.selectColor=selectColor; window.switchPPTab=switchPPTab; window.addToCartFromPage=addToCartFromPage;
 window.openRatingFromPage=openRatingFromPage;
 window.handleColorsInput=handleColorsInput; window.removeColorTag=removeColorTag;
 window.prevImgs=prevImgs;
