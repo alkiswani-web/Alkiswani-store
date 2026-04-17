@@ -1069,6 +1069,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script>
 // ===== FIREBASE CONFIG =====
 const firebaseConfig = {
@@ -1082,6 +1083,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 // ===== CONFIG =====
 const ADMIN_USER='alkiswani', ADMIN_PASS='rosemary2026', WA='962775665598';
@@ -1135,21 +1137,27 @@ async function savePointsToFirebase(settings){
   await db.collection('settings').doc('points').set(settings,{merge:true});
 }
 
-async function uploadImageToFirebase(base64,id){
-  // ضغط الصورة عشان تتناسب مع Firestore
-  return new Promise((resolve)=>{
-    const img=new Image();
-    img.onload=()=>{
-      const canvas=document.createElement('canvas');
-      const MAX=400;
-      let w=img.width, h=img.height;
-      if(w>h){if(w>MAX){h=h*(MAX/w);w=MAX;}}
-      else{if(h>MAX){w=w*(MAX/h);h=MAX;}}
-      canvas.width=w; canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      resolve(canvas.toDataURL('image/jpeg',0.6));
-    };
-    img.src=base64;
+async function uploadImageToFirebase(base64OrFile, id){
+  // Upload to Firebase Storage — full quality, no compression
+  return new Promise((resolve, reject)=>{
+    // Convert base64 to blob if needed
+    let blob;
+    if(typeof base64OrFile === 'string'){
+      const byteStr=atob(base64OrFile.split(',')[1]);
+      const mime=base64OrFile.split(',')[0].split(':')[1].split(';')[0];
+      const arr=new Uint8Array(byteStr.length);
+      for(let i=0;i<byteStr.length;i++) arr[i]=byteStr.charCodeAt(i);
+      blob=new Blob([arr],{type:mime});
+    } else {
+      blob=base64OrFile;
+    }
+    const ref=storage.ref('products/'+id+'_'+Date.now()+'.jpg');
+    const task=ref.put(blob);
+    task.on('state_changed',
+      null,
+      err=>{console.error('Upload error:',err); reject(err);},
+      ()=>task.snapshot.ref.getDownloadURL().then(url=>resolve(url))
+    );
   });
 }
 
@@ -1754,9 +1762,9 @@ async function addProduct(){
   let images=existing?.images||[];
   if(imgFiles.length>0){
     images=[];
+    toast('⏳ جاري رفع الصور...');
     for(const file of imgFiles){
-      const r=new FileReader();
-      const imgUrl=await new Promise(res=>{r.onload=async e=>{const url=await uploadImageToFirebase(e.target.result,id+'_'+Date.now());res(url);};r.readAsDataURL(file);});
+      const imgUrl=await uploadImageToFirebase(file, 'prod_'+id);
       images.push(imgUrl);
     }
   }
@@ -2101,11 +2109,10 @@ async function submitCustomerPhoto(){
   const file=document.getElementById('pmImg').files[0];
   if(!name||!file){toast('❌ أدخل اسمك واختر صورة');return;}
   toast('⏳ جاري الإرسال...');
-  const r=new FileReader();
-  r.onload=async e=>{
-    const imgData=await uploadImageToFirebase(e.target.result,'photo_'+Date.now());
+  try{
+    const imgUrl=await uploadImageToFirebase(file,'customer_'+Date.now());
     await db.collection('customerPhotos').add({
-      name,city:city||'الأردن',img:imgData,
+      name,city:city||'الأردن',img:imgUrl,
       status:'pending',
       date:new Date().toLocaleDateString('ar-JO')
     });
@@ -2116,8 +2123,9 @@ async function submitCustomerPhoto(){
     document.getElementById('pmImgPrev').style.display='none';
     document.getElementById('pmUpPh').style.display='block';
     toast('✅ شكراً! سيتم مراجعة صورتك ونشرها قريباً 🌿');
-  };
-  r.readAsDataURL(file);
+  }catch(e){
+    toast('❌ خطأ في الرفع: '+e.message);
+  }
 }
 
 async function loadCustomerPhotos(){
