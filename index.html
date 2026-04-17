@@ -1039,15 +1039,16 @@ body{padding-bottom:72px;}
       <div style="font-family:'Amiri',serif;color:var(--gold);font-size:1rem;" id="ppTitle"></div>
       <div style="width:60px;"></div>
     </div>
-    <!-- Images Slider -->
-    <div id="ppImagesContainer">
-      <div id="ppSlider"></div>
-      <button onclick="slideImg(-1)" id="ppPrev" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">›</button>
-      <button onclick="slideImg(1)" id="ppNext" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.8);border:none;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:none;">‹</button>
-      <div id="ppDots" style="position:absolute;bottom:10px;width:100%;display:flex;justify-content:center;gap:6px;"></div>
+    <!-- Video Section -->
+    <div id="ppVideoSection" style="display:none;background:#000;">
+      <div id="ppVideoContainer" style="width:100%;aspect-ratio:16/9;"></div>
     </div>
-    <!-- Thumbnails -->
-    <div id="ppThumbs" style="display:flex;gap:8px;padding:10px 16px;overflow-x:auto;background:#f8f8f8;"></div>
+    <!-- Images Grid (Temu style) -->
+    <div id="ppImagesGrid" style="padding:8px;background:#f2f2f7;display:none;">
+      <div id="ppImagesContainer" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+        <div id="ppSlider"></div>
+      </div>
+    </div>
     <!-- Product Info -->
     <div style="padding:20px;">
       <div id="ppCat" style="font-size:0.75rem;color:var(--green-light);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;"></div>
@@ -2191,65 +2192,54 @@ function openProductPage(id){
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
   document.getElementById('productPageOverlay').classList.add('open');
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
-  setTimeout(()=>{
-    const w=window.innerWidth;
-    const container=document.getElementById('ppImagesContainer');
-    const slider=document.getElementById('ppSlider');
-    container.dataset.slideW=w;
-    // Video FIRST, then images
-    const mediaItems=[];
-    if(p.video){
-      const embedUrl=getVideoEmbed(p.video);
-      mediaItems.push({type: embedUrl?'embed':'video', src: embedUrl||p.video});
+  // Video section
+  const videoSec=document.getElementById('ppVideoSection');
+  const videoCont=document.getElementById('ppVideoContainer');
+  if(p.video){
+    videoSec.style.display='block';
+    const embedUrl=getVideoEmbed(p.video);
+    if(embedUrl){
+      videoCont.innerHTML=`<iframe src="${embedUrl}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay"></iframe>`;
+    } else {
+      videoCont.innerHTML=`<video src="${p.video}" controls playsinline style="width:100%;height:100%;object-fit:contain;"></video>`;
     }
-    images.forEach(img=>mediaItems.push({type:'image',src:img}));
-    if(!mediaItems.length) mediaItems.push({type:'emoji',src:p.emoji||'📦'});
-    slider.innerHTML=mediaItems.map(item=>{
-      if(item.type==='embed') return `<div style="scroll-snap-align:start;flex-shrink:0;width:100vw;height:380px;background:#000;"><iframe src="${item.src}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay"></iframe></div>`;
-      if(item.type==='video') return `<video src="${item.src}" controls playsinline></video>`;
-      if(item.type==='emoji') return `<div style="background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:6rem;">${item.src}</div>`;
-      return `<img src="${item.src}">`;
-    }).join('');
+  } else {
+    videoSec.style.display='none';
+    videoCont.innerHTML='';
+  }
+  // Images grid (Temu style)
+  const grid=document.getElementById('ppImagesContainer');
+  const imagesGrid=document.getElementById('ppImagesGrid');
+  if(images.length>0){
+    imagesGrid.style.display='block';
+    grid.innerHTML=images.map((img,i)=>`
+      <div onclick="openFullImg('${img}')" style="border-radius:8px;overflow:hidden;aspect-ratio:1;background:#fff;cursor:zoom-in;${i===0&&images.length%2!==0?'grid-column:span 2;aspect-ratio:2/1;':''} ">
+        <img src="${img}" style="width:100%;height:100%;object-fit:cover;">
+      </div>
+    `).join('');
+  } else {
+    imagesGrid.style.display='none';
+  }
     // Scroll to start
     container.scrollLeft=0;
-    currentSlide=0;
-    currentProductPage._mediaCount=mediaItems.length;
-    // Dots
-    const dots=document.getElementById('ppDots');
-    dots.innerHTML=mediaItems.map((_,i)=>`<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};cursor:pointer;transition:all 0.3s;display:inline-block;"></div>`).join('');
-    // Thumbs
-    const thumbs=document.getElementById('ppThumbs');
-    thumbs.innerHTML=mediaItems.map((item,i)=>
-      item.type==='video'
-        ?`<div onclick="goToSlide(${i})" style="width:60px;height:60px;background:#000;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;">🎬</div>`
-        :`<img src="${item.src}" onclick="goToSlide(${i})" style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i===0?'var(--green-dark)':'#e0e0e0'};flex-shrink:0;">`
-    ).join('');
-    thumbs.style.display=mediaItems.length>1?'flex':'none';
-    document.getElementById('ppPrev').style.display=mediaItems.length>1?'flex':'none';
-    document.getElementById('ppNext').style.display=mediaItems.length>1?'flex':'none';
-    // Update dots on scroll
-    container.onscroll=()=>{
-      const idx=Math.round(container.scrollLeft/w);
-      currentSlide=idx;
-      document.querySelectorAll('#ppDots div').forEach((d,i)=>d.style.background=i===idx?'#fff':'rgba(255,255,255,0.4)');
-      document.querySelectorAll('#ppThumbs img,#ppThumbs>div').forEach((t,i)=>t.style.border=i===idx?'2px solid var(--green-dark)':'2px solid #e0e0e0');
-    };
-  },150);
   }catch(e){toast('خطأ: '+e.message);console.error(e);}
 }
 
-function closeProductPage(){document.getElementById('productPageOverlay').classList.remove('open');}
-function goToSlide(n){
-  const p=currentProductPage;if(!p)return;
-  const total=p._mediaCount||1;
-  currentSlide=Math.max(0,Math.min(n,total-1));
-  const container=document.getElementById('ppImagesContainer');
-  container.scrollTo({left:currentSlide*window.innerWidth,behavior:'smooth'});
+function closeProductPage(){
+  document.getElementById('productPageOverlay').classList.remove('open');
+  // Stop video on close
+  document.getElementById('ppVideoContainer').innerHTML='';
 }
-function slideImg(dir){
-  const total=currentProductPage?._mediaCount||1;
-  goToSlide((currentSlide+dir+total)%total);
+
+// Full image viewer
+function openFullImg(src){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:999;display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML=`<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;"><button onclick="this.parentElement.remove()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:1.2rem;cursor:pointer;">✕</button>`;
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  document.body.appendChild(ov);
 }
+window.openFullImg=openFullImg;
 function switchVideoTab(tab){
   const uploadArea=document.getElementById('vUploadArea');
   const linkArea=document.getElementById('vLinkArea');
