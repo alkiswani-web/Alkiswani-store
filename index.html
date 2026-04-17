@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a3a2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="الكسواني روزميري">
+<link rel="manifest" href="manifest.json">
 <title>الكسواني روزميري | خشبيات وأشجار زينة</title>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -1767,6 +1772,15 @@ function addToCartFromPage(){
   toast('✅ تمت الإضافة للسلة!');
 }
 function openRatingFromPage(){closeProductPage();setTimeout(()=>openRatingModal(currentProductPage?.id),300);}
+
+// ===== PWA =====
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js')
+      .then(()=>console.log('✅ PWA ready'))
+      .catch(e=>console.log('SW:',e));
+  });
+}
 
 async function init(){
   await loadPointsSettings();
