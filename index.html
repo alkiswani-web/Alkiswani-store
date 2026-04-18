@@ -683,6 +683,57 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 .toast.show{transform:translateY(0);opacity:1;}
 </style>
 
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
+    authDomain: "alkiswani-store.firebaseapp.com",
+    projectId: "alkiswani-store",
+    storageBucket: "alkiswani-store.firebasestorage.app",
+    messagingSenderId: "60330492719",
+    appId: "1:60330492719:web:71e36dd5327db3e54017da"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const messaging = getMessaging(app);
+
+  const VAPID_KEY = "BJseUfzVt2gWxHGUmlSk6xeEk6CYJsqry17dx1s9R14LI9Nkta9NES1dKrX1JHOWDhY6EUGdSAMglBSJpujn5lk";
+
+  async function initFCM() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+        if (token) {
+          console.log('FCM Token:', token);
+          // Save token to Firestore
+          if (typeof db !== 'undefined') {
+            await db.collection('fcm_tokens').doc(token).set({
+              token: token,
+              createdAt: new Date(),
+              userAgent: navigator.userAgent
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.log('FCM Error:', err);
+    }
+  }
+
+  // Show notification when app is open
+  onMessage(messaging, (payload) => {
+    const { title, body } = payload.notification;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/icon-192.png' });
+    }
+  });
+
+  // Init after page loads
+  window.addEventListener('load', () => setTimeout(initFCM, 2000));
+</script>
 </head>
 <body>
 
