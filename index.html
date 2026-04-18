@@ -682,35 +682,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 .toast{position:fixed;bottom:24px;right:24px;background:var(--green-dark);color:#fff;padding:12px 20px;border-radius:12px;font-size:0.85rem;z-index:9999;transform:translateY(70px);opacity:0;transition:all 0.35s;border-right:4px solid var(--gold);max-width:280px;}
 .toast.show{transform:translateY(0);opacity:1;}
 </style>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "814b9bfd-52d4-459c-a3ad-5c5d542114da",
-      safari_web_id: "web.onesignal.auto.814b9bfd-52d4-459c-a3ad-5c5d542114da",
-      notifyButton: { enable: false },
-      welcomeNotification: {
-        title: "الكسواني روزميري 🌿",
-        message: "شكراً لاشتراكك! ستصلك أحدث العروض والمنتجات الجديدة.",
-      },
-      promptOptions: {
-        slidedown: {
-          prompts: [{
-            type: "push",
-            autoPrompt: true,
-            delay: { pageViews: 1, timeDelay: 1 },
-            text: {
-              actionMessage: "🌿 اشترك لتصلك أحدث عروض الكسواني روزميري ومنتجاتنا الجديدة!",
-              acceptButton: "اشترك",
-              cancelButton: "لاحقاً",
-            },
-          }],
-        },
-      },
-    });
-  });
-</script>
+
 </head>
 <body>
 
@@ -3375,4 +3347,3 @@ init();
 </script>
 </body>
 </html>
-
