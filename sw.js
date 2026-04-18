@@ -1,5 +1,3 @@
-importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
-
 const CACHE = 'alkiswani-v1';
 const ASSETS = [
   '/Alkiswani-store/',
@@ -27,11 +25,10 @@ self.addEventListener('activate', e => {
 
 // Fetch - network first, fallback to cache
 self.addEventListener('fetch', e => {
-  // Skip Firebase & OneSignal requests - always go to network
+  // Skip Firebase requests - always go to network
   if(e.request.url.includes('firebase') || 
      e.request.url.includes('googleapis') ||
-     e.request.url.includes('firestore') ||
-     e.request.url.includes('onesignal')) {
+     e.request.url.includes('firestore')) {
     return;
   }
   
