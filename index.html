@@ -1216,6 +1216,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <button class="admin-tab-btn" onclick="switchAdminTab('points')">🌟 إعدادات النقاط</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('discounts')">🎁 كودات الخصم</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('photos')">📸 صور الزبائن</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('stats')">📊 الإحصائيات</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -1347,7 +1348,35 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <div id="ordersList"><div class="empty-msg">جاري التحميل...</div></div>
     </div>
 
-    <!-- CUSTOMERS TAB -->
+    
+    <!-- STATS TAB -->
+    <div class="admin-tab-content" id="tab-stats">
+      <h2 style="margin-bottom:16px;color:var(--green-dark);">📊 إحصائيات المبيعات</h2>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
+        <div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:1.8rem;font-weight:800;color:#166534;" id="stat-total">0</div>
+          <div style="font-size:0.8rem;color:#166534;">إجمالي المبيعات (د.أ)</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:1.8rem;font-weight:800;color:#1e40af;" id="stat-count">0</div>
+          <div style="font-size:0.8rem;color:#1e40af;">إجمالي الطلبات</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#fef9c3,#fef08a);border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:1.8rem;font-weight:800;color:#92400e;" id="stat-today">0</div>
+          <div style="font-size:0.8rem;color:#92400e;">طلبات اليوم</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#fce7f3,#fbcfe8);border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:1.8rem;font-weight:800;color:#9d174d;" id="stat-delivered">0</div>
+          <div style="font-size:0.8rem;color:#9d174d;">طلبات مسلّمة</div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <h3 style="margin-bottom:12px;font-size:0.95rem;color:var(--text-dark);">🏆 أكثر المنتجات مبيعاً</h3>
+        <div id="stat-top-products"><div class="empty-msg">جاري التحميل...</div></div>
+      </div>
+    </div>
+
+<!-- CUSTOMERS TAB -->
     <div class="admin-tab-content" id="tab-customers">
       <div class="customers-table">
         <h2>👥 الزبائن المسجلين (<span id="custCount">0</span>)</h2>
@@ -2332,6 +2361,7 @@ function switchAdminTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='customers')renderCustomers();
   if(tab==='orders')renderOrders();
+  if(tab==='stats')loadStats();
   if(tab==='points')loadPointsSettingsUI();
   if(tab==='discounts')renderDiscounts();
   if(tab==='photos')renderPhotosAdmin();
@@ -2814,6 +2844,46 @@ async function trackOrder(){
 }
 
 // ===== UPDATE ORDER STATUS (from admin) =====
+
+async function loadStats(){
+  try{
+    const snap = await db.collection('orders').get();
+    const orders = snap.docs.map(d=>({...d.data(),id:d.id}));
+    const today = new Date().toDateString();
+    
+    let total = 0, todayCount = 0, deliveredCount = 0;
+    const productSales = {};
+    
+    orders.forEach(o=>{
+      const amount = parseFloat((o.total||'0').toString().replace(/[^0-9.]/g,''))||0;
+      total += amount;
+      if(new Date(o.createdAt?.toDate?.() || o.date).toDateString()===today) todayCount++;
+      if(o.status==='تم التسليم') deliveredCount++;
+      (o.items||[]).forEach(item=>{
+        productSales[item.name]=(productSales[item.name]||0)+item.qty;
+      });
+    });
+    
+    document.getElementById('stat-total').textContent = total.toFixed(2);
+    document.getElementById('stat-count').textContent = orders.length;
+    document.getElementById('stat-today').textContent = todayCount;
+    document.getElementById('stat-delivered').textContent = deliveredCount;
+    
+    const topProducts = Object.entries(productSales).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const topEl = document.getElementById('stat-top-products');
+    if(topProducts.length){
+      topEl.innerHTML = topProducts.map(([name,qty],i)=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0;">
+          <span style="font-size:0.85rem;">${i+1}. ${name}</span>
+          <span style="font-weight:700;color:var(--green-dark);">${qty} مبيعة</span>
+        </div>
+      `).join('');
+    } else {
+      topEl.innerHTML = '<div class="empty-msg">لا توجد طلبات بعد</div>';
+    }
+  }catch(e){console.log('Stats error:',e);}
+}
+
 async function deleteOrder(orderId){
   if(!confirm('هل أنت متأكد من حذف هذا الطلب؟')) return;
   try{
