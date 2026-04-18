@@ -17,7 +17,68 @@
   --cream:#f7f3eb;--cream-dark:#ede8dc;
   --brown:#6b4c2a;--text-dark:#1a1a1a;--text-mid:#4a4a4a;
   --purple:#6b46c1;--purple-light:#805ad5;
+  --bg:#f7f3eb;--card-bg:#ffffff;--border:#e0e0e0;
 }
+body.dark-mode{
+  --cream:#0f1a14;--cream-dark:#162212;
+  --text-dark:#e8e8e8;--text-mid:#9a9a9a;
+  --bg:#0f1a14;--card-bg:#1c2d21;--border:#2a3d2e;
+  --brown:#d4956a;
+  background:#0f1a14;color:#e8e8e8;
+}
+body.dark-mode .store-card,
+body.dark-mode .cart-item,
+body.dark-mode .form-card,
+body.dark-mode .products-mgmt,
+body.dark-mode .customers-table,
+body.dark-mode .points-settings,
+body.dark-mode .order-history-item,
+body.dark-mode .prod-row,
+body.dark-mode .cust-row{background:#1c2d21!important;border-color:#2a3d2e!important;color:#e8e8e8!important;}
+body.dark-mode .store-card-body,
+body.dark-mode .card-name,
+body.dark-mode .card-desc{color:#e8e8e8!important;}
+body.dark-mode .filter-bar,
+body.dark-mode .store-products{background:#162212!important;}
+body.dark-mode .filter-btn{background:#1c2d21!important;color:#9a9a9a!important;border-color:#2a3d2e!important;}
+body.dark-mode .filter-btn.active{background:var(--green-dark)!important;color:#fff!important;}
+body.dark-mode .cart-drawer,
+body.dark-mode .cart-footer,
+body.dark-mode .cart-items{background:#0f1a14!important;}
+body.dark-mode .modal{background:#1c2d21!important;}
+body.dark-mode .modal-body{background:#1c2d21!important;}
+body.dark-mode .modal-section{background:#162212!important;border-radius:10px;padding:12px;}
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select{background:#162212!important;color:#e8e8e8!important;border-color:#2a3d2e!important;}
+body.dark-mode .bottom-bar{background:#0a1510!important;border-color:rgba(201,168,76,0.2)!important;}
+body.dark-mode .welcome-card,
+body.dark-mode .welcome-body,
+body.dark-mode .photo-modal,
+body.dark-mode .pm-body,
+body.dark-mode .rating-modal,
+body.dark-mode .writing-modal,
+body.dark-mode .wm-body{background:#1c2d21!important;color:#e8e8e8!important;}
+body.dark-mode .order-summary,
+body.dark-mode .cart-total{background:#162212!important;}
+body.dark-mode .cart-summary-row{color:#9a9a9a!important;}
+body.dark-mode .sp-notif{background:#1c2d21!important;color:#e8e8e8!important;}
+body.dark-mode .profile-modal{background:#1c2d21!important;}
+body.dark-mode section{background:#0f1a14;}
+body.dark-mode .customer-photos-section{background:#162212!important;}
+body.dark-mode .section-title,
+body.dark-mode .card-name,
+body.dark-mode .card-cat,
+body.dark-mode .card-desc,
+body.dark-mode .section-tag,
+body.dark-mode h2,h3{color:#e8e8e8!important;}
+body.dark-mode .store-card [style*="color:var(--green-dark)"],
+body.dark-mode [style*="color:var(--green-dark)"]{color:#6dbf82!important;}
+body.dark-mode .store-card{background:#1c2d21!important;border-color:#2a3d2e!important;}
+body.dark-mode .store-card-body div{color:#e8e8e8!important;}
+/* Categories cards */
+body.dark-mode section [style*="background:#fff"]{background:#1c2d21!important;border-color:#2a3d2e!important;}
+body.dark-mode section [style*="color:var(--green-dark)"]{color:#6dbf82!important;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Tajawal',sans-serif;background:var(--cream);color:var(--text-dark);}
 
@@ -510,14 +571,13 @@ body{padding-bottom:72px;}
 <nav>
   <div class="nav-logo">الكسواني روزميري<span>Alkiswani Rosemary</span></div>
   <div class="nav-right">
+    <button id="darkToggle" onclick="toggleDarkMode()" style="background:rgba(255,255,255,0.1);border:none;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">🌙</button>
     <div id="navUserChip" style="display:none;" class="user-chip" onclick="openProfile()">
       <span>👤</span>
       <span id="navUserName"></span>
       <span class="points-pill" id="navPoints">0 نقطة</span>
     </div>
     <button id="navLoginBtn" class="btn-nav-login" onclick="openAuth()">تسجيل الدخول</button>
-  </div>
-</nav>
   </div>
 </nav>
 
@@ -2768,7 +2828,21 @@ function useWelcomeCode(){
   toast('✅ تم نسخ الكود: '+code);
 }
 
+// ===== DARK MODE =====
+function toggleDarkMode(){
+  const isDark=document.body.classList.toggle('dark-mode');
+  localStorage.setItem('ak_dark',isDark?'1':'0');
+  document.getElementById('darkToggle').textContent=isDark?'☀️':'🌙';
+}
+function initDarkMode(){
+  if(localStorage.getItem('ak_dark')==='1'){
+    document.body.classList.add('dark-mode');
+    document.getElementById('darkToggle').textContent='☀️';
+  }
+}
+
 async function init(){
+  initDarkMode();
   await loadPointsSettings();
   await loadProducts();
   await loadCustomerPhotos();
@@ -2811,7 +2885,7 @@ window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
 window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearExistingVideo=clearExistingVideo;
-window.editCartItem=editCartItem; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
+window.toggleDarkMode=toggleDarkMode; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
 window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
 window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
