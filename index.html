@@ -992,7 +992,7 @@ body{padding-bottom:72px;}
     <!-- DISCOUNTS TAB -->
     <div class="admin-tab-content" id="tab-discounts">
       <div class="form-card">
-        <h2>➕ إضافة كود خصم جديد</h2>
+        <h2 id="dcFormTitle">➕ إضافة كود خصم جديد</h2>
         <div class="form-row">
           <div class="fg"><label>الكود *</label><input type="text" id="dcCode" placeholder="مثال: WELCOME10" style="text-transform:uppercase;"></div>
           <div class="fg">
@@ -1008,7 +1008,28 @@ body{padding-bottom:72px;}
           <div class="fg"><label>الحد الأقصى للاستخدام</label><input type="number" id="dcLimit" placeholder="0 = غير محدود" min="0"></div>
         </div>
         <div class="fg"><label>تاريخ الانتهاء (اختياري)</label><input type="date" id="dcExpiry"></div>
-        <button class="btn-save-product" onclick="addDiscountCode()">✅ إضافة الكود</button>
+        <!-- Product restriction -->
+        <div class="fg" style="margin-top:12px;">
+          <label>🎯 تطبيق الخصم على (اختياري)</label>
+          <select id="dcScope" onchange="toggleDcProducts(this.value)" style="margin-bottom:8px;">
+            <option value="all">كل المنتجات</option>
+            <option value="specific">منتجات محددة فقط</option>
+          </select>
+          <div id="dcProductsSelect" style="display:none;max-height:180px;overflow-y:auto;border:1.5px solid #e0e0e0;border-radius:10px;padding:8px;" id="dcProductsSelect">
+            <div style="font-size:0.78rem;color:#aaa;margin-bottom:6px;">اختر المنتجات التي يشملها الكود:</div>
+            <div id="dcProductsList"></div>
+          </div>
+        </div>
+        <!-- Welcome code toggle -->
+        <div class="toggle-row" style="margin-top:12px;">
+          <label>🎉 كود ترحيبي (يظهر برسالة الترحيب)</label>
+          <label class="toggle"><input type="checkbox" id="dcIsWelcome"><span class="toggle-slider"></span></label>
+        </div>
+        <input type="hidden" id="dcEditingCode" value="">
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn-save-product" id="dcSaveBtn" onclick="addDiscountCode()" style="flex:1;">✅ إضافة الكود</button>
+          <button id="dcCancelBtn" onclick="cancelDcEdit()" style="display:none;padding:12px 20px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;cursor:pointer;">✕ إلغاء</button>
+        </div>
       </div>
       <div class="products-mgmt">
         <h2>🎁 الكودات الحالية</h2>
@@ -1537,6 +1558,16 @@ function applyDiscount(){
     if(dc.expiry&&new Date(dc.expiry)<new Date()){res.className='discount-result err';res.style.display='block';res.textContent='❌ هذا الكود منتهي الصلاحية';appliedDiscount=null;return;}
     // Check limit
     if(dc.limit>0&&(dc.usedCount||0)>=dc.limit){res.className='discount-result err';res.style.display='block';res.textContent='❌ هذا الكود وصل للحد الأقصى';appliedDiscount=null;return;}
+    // Check product restriction
+    if(dc.scope==='specific'&&dc.products_allowed?.length){
+      const cartIds=cart.map(i=>String(i.id));
+      const hasMatch=dc.products_allowed.some(pid=>cartIds.includes(pid));
+      if(!hasMatch){
+        res.className='discount-result err';res.style.display='block';
+        res.textContent='❌ هذا الكود لا ينطبق على المنتجات في سلتك';
+        appliedDiscount=null;return;
+      }
+    }
     // Valid!
     appliedDiscount={...dc,docId:snap.docs[0].id};
     const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
@@ -1548,18 +1579,73 @@ function applyDiscount(){
 }
 
 // ===== DISCOUNT MANAGEMENT =====
+function toggleDcProducts(val){
+  document.getElementById('dcProductsSelect').style.display=val==='specific'?'block':'none';
+  if(val==='specific'){
+    document.getElementById('dcProductsList').innerHTML=products.map(p=>`
+      <label style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:0.85rem;">
+        <input type="checkbox" class="dc-prod-check" value="${p._docId||p.id}" style="width:16px;height:16px;">
+        ${p.name}
+      </label>
+    `).join('');
+  }
+}
+function getDcSelectedProducts(){
+  return Array.from(document.querySelectorAll('.dc-prod-check:checked')).map(c=>c.value);
+}
 async function addDiscountCode(){
   const code=document.getElementById('dcCode').value.trim().toUpperCase();
   const type=document.getElementById('dcType').value;
   const value=parseFloat(document.getElementById('dcValue').value);
   const limit=parseInt(document.getElementById('dcLimit').value)||0;
   const expiry=document.getElementById('dcExpiry').value;
+  const isWelcome=document.getElementById('dcIsWelcome').checked;
+  const scope=document.getElementById('dcScope').value;
+  const products_allowed=scope==='specific'?getDcSelectedProducts():[];
+  const editingCode=document.getElementById('dcEditingCode').value;
   if(!code||!value){toast('❌ أدخل الكود والقيمة');return;}
-  const dc={code,type,value,limit,expiry:expiry||'',usedCount:0,createdAt:new Date().toLocaleDateString('ar-JO')};
+  const dc={code,type,value,limit,expiry:expiry||'',createdAt:new Date().toLocaleDateString('ar-JO'),isWelcome,scope,products_allowed};
+  if(editingCode){
+    const existing=await db.collection('discounts').doc(editingCode).get();
+    dc.usedCount=existing.data()?.usedCount||0;
+    if(editingCode!==code) await db.collection('discounts').doc(editingCode).delete();
+  } else { dc.usedCount=0; }
   await db.collection('discounts').doc(code).set(dc);
-  toast('✅ تم إضافة الكود!');
-  document.getElementById('dcCode').value='';document.getElementById('dcValue').value='';document.getElementById('dcLimit').value='';document.getElementById('dcExpiry').value='';
+  if(isWelcome&&document.getElementById('welcomeCode')) document.getElementById('welcomeCode').textContent=code;
+  toast(editingCode?'✅ تم تعديل الكود!':'✅ تم إضافة الكود!');
+  cancelDcEdit();
   renderDiscounts();
+}
+function cancelDcEdit(){
+  ['dcCode','dcValue','dcLimit','dcExpiry'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('dcIsWelcome').checked=false;
+  document.getElementById('dcScope').value='all';
+  document.getElementById('dcProductsSelect').style.display='none';
+  document.getElementById('dcEditingCode').value='';
+  document.getElementById('dcFormTitle').textContent='➕ إضافة كود خصم جديد';
+  document.getElementById('dcSaveBtn').textContent='✅ إضافة الكود';
+  document.getElementById('dcCancelBtn').style.display='none';
+}
+async function editDiscount(code){
+  const snap=await db.collection('discounts').doc(code).get();
+  if(!snap.exists)return;
+  const dc=snap.data();
+  document.getElementById('dcCode').value=dc.code;
+  document.getElementById('dcType').value=dc.type;
+  document.getElementById('dcValue').value=dc.value;
+  document.getElementById('dcLimit').value=dc.limit||0;
+  document.getElementById('dcExpiry').value=dc.expiry||'';
+  document.getElementById('dcIsWelcome').checked=dc.isWelcome||false;
+  document.getElementById('dcScope').value=dc.scope||'all';
+  toggleDcProducts(dc.scope||'all');
+  if(dc.scope==='specific'&&dc.products_allowed?.length){
+    setTimeout(()=>{dc.products_allowed.forEach(pid=>{const cb=document.querySelector(`.dc-prod-check[value="${pid}"]`);if(cb)cb.checked=true;});},150);
+  }
+  document.getElementById('dcEditingCode').value=code;
+  document.getElementById('dcFormTitle').textContent='✏️ تعديل: '+code;
+  document.getElementById('dcSaveBtn').textContent='💾 حفظ التعديل';
+  document.getElementById('dcCancelBtn').style.display='block';
+  document.querySelector('#tab-discounts .form-card').scrollIntoView({behavior:'smooth'});
 }
 
 async function renderDiscounts(){
@@ -1569,15 +1655,19 @@ async function renderDiscounts(){
   list.innerHTML=snap.docs.map(d=>{
     const dc=d.data();
     return `<div class="prod-row">
-      <div class="prod-info">
-        <div class="prod-name" style="font-family:monospace;letter-spacing:2px;">${dc.code}</div>
+      <div class="prod-info" style="flex:1;">
+        <div class="prod-name" style="font-family:monospace;letter-spacing:2px;">${dc.code} ${dc.isWelcome?'🎉':''}</div>
         <div class="prod-meta">
           <span>${dc.type==='percent'?'خصم '+dc.value+'%':'خصم '+dc.value+' دينار أردني'}</span>
           <span>استُخدم: ${dc.usedCount||0}${dc.limit>0?' / '+dc.limit:' (غير محدود)'}</span>
+          ${dc.scope==='specific'?`<span style="color:var(--green-dark);">🎯 منتجات محددة</span>`:'<span>كل المنتجات</span>'}
           ${dc.expiry?`<span>ينتهي: ${dc.expiry}</span>`:''}
         </div>
       </div>
-      <button class="btn-del" onclick="deleteDiscount('${dc.code}')">🗑️</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-del" style="background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;" onclick="editDiscount('${dc.code}')">✏️</button>
+        <button class="btn-del" onclick="deleteDiscount('${dc.code}')">🗑️</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2594,6 +2684,8 @@ window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
 window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearExistingVideo=clearExistingVideo;
 window.editCartItem=editCartItem; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
+window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
+window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
 window.prevPhotoUpload=prevPhotoUpload; window.submitCustomerPhoto=submitCustomerPhoto;
 window.approvePhoto=approvePhoto; window.deletePhoto=deletePhoto;
