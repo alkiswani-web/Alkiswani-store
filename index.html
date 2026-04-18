@@ -3007,7 +3007,7 @@ function openRatingFromPage(){closeProductPage();setTimeout(()=>openRatingModal(
 // ===== PWA =====
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js')
+    navigator.serviceWorker.register('sw.js', { scope: '/' })
       .then(()=>console.log('✅ PWA ready'))
       .catch(e=>console.log('SW:',e));
   });
