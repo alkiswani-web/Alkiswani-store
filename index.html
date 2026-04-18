@@ -579,14 +579,14 @@ body{padding-bottom:72px;}
 <section class="customer-photos-section" id="customerPhotosSection" style="display:none;">
   <div class="section-header">
     <div class="section-tag">زبائننا</div>
-    <h2 class="section-title">📸 صور من زبائننا</h2>
+    <h2 class="section-title">🌟 تجارب زبائننا</h2>
     <div class="section-line"></div>
-    <p style="color:var(--text-mid);font-size:0.88rem;margin-top:10px;">شارك صورتك مع منتجنا واحصل على خصم 5%!</p>
+    <p style="color:var(--text-mid);font-size:0.88rem;margin-top:10px;">📦 📦 شاركنا تجربتك مع منتجاتنا واحصل على كود خصم 5% على طلبك القادم! 🎁</p>
   </div>
   <div class="customer-photos-grid" id="customerPhotosGrid">
     <div class="upload-photo-btn" onclick="openPhotoModal()">
       <span style="font-size:2rem;">📸</span>
-      <span>شارك صورتك</span>
+      <span>شارك تجربتك معنا</span>
     </div>
   </div>
 </section>
@@ -606,15 +606,20 @@ body{padding-bottom:72px;}
 <div class="photo-modal-overlay" id="photoModalOverlay">
   <div class="photo-modal">
     <div class="pm-header">
-      <h2>📸 شارك صورتك</h2>
+      <h2>📸 شارك تجربتك معنا</h2>
       <button class="pm-close" onclick="closePhotoModal()">✕</button>
     </div>
     <div class="pm-body">
-      <p style="font-size:0.85rem;color:var(--text-mid);margin-bottom:16px;line-height:1.6;">شارك صورتك مع منتجنا وأنت بتستخدمه! سيتم مراجعتها ونشرها في قسم صور الزبائن 🌿</p>
-      <div class="fg"><label>اسمك *</label><input type="text" id="pmName" placeholder="اسمك أو لقبك"></div>
+      <div style="background:linear-gradient(135deg,rgba(201,168,76,0.1),rgba(201,168,76,0.05));border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:14px;margin-bottom:16px;text-align:center;">
+        <div style="font-size:1.5rem;margin-bottom:4px;">🎁</div>
+        <div style="font-weight:700;color:var(--green-dark);margin-bottom:4px;">احصل على خصم 5% فوراً!</div>
+        <div style="font-size:0.82rem;color:var(--text-mid);">شاركنا تجربتك مع منتجاتنا — بيوصلك كود الخصم فور المراجعة 🌿</div>
+      </div>
+      <div class="fg"><label>اسمك *</label><input type="text" id="pmName" placeholder="اسمك الكامل"></div>
+      <div class="fg" style="margin-top:12px;"><label>رقم هاتفك * (لإرسال كود الخصم)</label><input type="tel" id="pmPhone" placeholder="07XXXXXXXX"></div>
       <div class="fg" style="margin-top:12px;"><label>المدينة</label><input type="text" id="pmCity" placeholder="مثال: عمان"></div>
       <div class="fg" style="margin-top:12px;">
-        <label>صورتك مع المنتج *</label>
+        <label>صورة المنتج الذي اشتريته *</label>
         <div class="img-drop" onclick="document.getElementById('pmImg').click()" style="margin-top:6px;">
           <input type="file" id="pmImg" accept="image/*" onchange="prevPhotoUpload(this)">
           <div id="pmUpPh">📸<br><span style="font-size:0.82rem;color:#aaa;">اضغط لاختيار صورة</span></div>
@@ -2537,26 +2542,48 @@ function prevPhotoUpload(input){
 }
 async function submitCustomerPhoto(){
   const name=document.getElementById('pmName').value.trim();
+  const phone=document.getElementById('pmPhone').value.trim();
   const city=document.getElementById('pmCity').value.trim();
   const file=document.getElementById('pmImg').files[0];
-  if(!name||!file){toast('❌ أدخل اسمك واختر صورة');return;}
+  if(!name||!phone||!file){toast('❌ أدخل اسمك ورقمك واختر صورة');return;}
+  // Check if already submitted
+  const existing=await db.collection('customerPhotos').where('phone','==',phone).get();
+  if(!existing.empty){
+    toast('❌ أرسلت صورة من قبل برقم هذا الهاتف');return;
+  }
   toast('⏳ جاري الإرسال...');
   try{
     const imgUrl=await uploadImageToFirebase(file,'customer_'+Date.now());
+    // Generate unique discount code
+    const discCode='PHOTO'+phone.replace(/[^0-9]/g,'').slice(-4)+Math.random().toString(36).slice(-3).toUpperCase();
     await db.collection('customerPhotos').add({
-      name,city:city||'الأردن',img:imgUrl,
-      status:'pending',
+      name,phone,city:city||'الأردن',img:imgUrl,
+      status:'pending',discountCode:discCode,
       date:new Date().toLocaleDateString('ar-JO')
+    });
+    // Save discount code in discounts collection (1 use, 5%)
+    await db.collection('discounts').doc(discCode).set({
+      code:discCode,type:'percent',value:5,limit:1,
+      usedCount:0,expiry:'',isWelcome:false,scope:'all',products_allowed:[],
+      isPhotoCode:true,phone,
+      createdAt:new Date().toLocaleDateString('ar-JO')
     });
     closePhotoModal();
     document.getElementById('pmName').value='';
+    document.getElementById('pmPhone').value='';
     document.getElementById('pmCity').value='';
     document.getElementById('pmImg').value='';
     document.getElementById('pmImgPrev').style.display='none';
     document.getElementById('pmUpPh').style.display='block';
-    toast('✅ شكراً! سيتم مراجعة صورتك ونشرها قريباً 🌿');
+    // Show success with code
+    setTimeout(()=>{
+      toast(`✅ شكراً ${name}! بعد مراجعة مشاركتك سيصلك كودك: ${discCode} 🎁`);
+    },300);
+    // Send WA message with code to admin to notify customer
+    const adminMsg=`📸 *صورة زبون جديدة*\n\nالاسم: ${name}\nالهاتف: ${phone}\n\nبعد الموافقة على الصورة، ابعت للزبون كوده:\n🎁 *${discCode}*\nخصم 5% على طلبه القادم`;
+    setTimeout(()=>window.open(`https://wa.me/${WA}?text=${encodeURIComponent(adminMsg)}`,'_blank'),1000);
   }catch(e){
-    toast('❌ خطأ في الرفع: '+e.message);
+    toast('❌ خطأ: '+e.message);
   }
 }
 
@@ -2568,7 +2595,7 @@ async function loadCustomerPhotos(){
   if(photos.length>0||true){
     section.style.display='block';
     grid.innerHTML=`<div class="upload-photo-btn" onclick="openPhotoModal()">
-      <span style="font-size:2rem;">📸</span><span>شارك صورتك</span>
+      <span style="font-size:2rem;">📸</span><span>شارك تجربتك معنا</span>
     </div>`+photos.map(p=>`
       <div class="customer-photo-item">
         <img src="${p.img}" alt="${p.name}">
@@ -2587,30 +2614,39 @@ async function renderPhotosAdmin(){
   const approved=all.filter(p=>p.status==='approved');
   document.getElementById('pendingPhotosCount').textContent=pending.length;
   document.getElementById('approvedPhotosCount').textContent=approved.length;
-  const pendingEl=document.getElementById('pendingPhotosList');
-  const approvedEl=document.getElementById('approvedPhotosList');
   const renderPhotoRow=(p,showApprove)=>`
     <div class="prod-row" style="flex-direction:column;gap:8px;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <img src="${p.img}" style="width:70px;height:70px;object-fit:cover;border-radius:10px;">
-        <div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <img src="${p.img}" style="width:75px;height:75px;object-fit:cover;border-radius:10px;cursor:pointer;" onclick="openFullImg('${p.img}')">
+        <div style="flex:1;">
           <div style="font-weight:700;">${p.name} · ${p.city||'الأردن'}</div>
+          ${p.phone?`<a href="https://wa.me/962${p.phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-size:0.82rem;text-decoration:none;">📱 ${p.phone}</a>`:''}
           <div style="font-size:0.78rem;color:#aaa;">${p.date||''}</div>
+          ${p.discountCode?`<div style="margin-top:4px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:4px 8px;font-size:0.78rem;color:#166534;">🎁 كود الخصم: <strong>${p.discountCode}</strong></div>`:''}
         </div>
-        <div style="margin-right:auto;display:flex;gap:6px;">
-          ${showApprove?`<button onclick="approvePhoto('${p.id}')" style="padding:6px 12px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✅ نشر</button>`:''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${showApprove?`<button onclick="approvePhoto('${p.id}')" style="padding:6px 12px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✅ نشر وإبلاغ</button>`:''}
           <button onclick="deletePhoto('${p.id}')" style="padding:6px 12px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">🗑️ حذف</button>
         </div>
       </div>
     </div>`;
-  pendingEl.innerHTML=pending.length?pending.map(p=>renderPhotoRow(p,true)).join(''):'<div class="empty-msg">لا يوجد صور بعد</div>';
-  approvedEl.innerHTML=approved.length?approved.map(p=>renderPhotoRow(p,false)).join(''):'<div class="empty-msg">لا يوجد صور منشورة</div>';
+  document.getElementById('pendingPhotosList').innerHTML=pending.length?pending.map(p=>renderPhotoRow(p,true)).join(''):'<div class="empty-msg">لا يوجد صور بعد</div>';
+  document.getElementById('approvedPhotosList').innerHTML=approved.length?approved.map(p=>renderPhotoRow(p,false)).join(''):'<div class="empty-msg">لا يوجد صور منشورة</div>';
 }
 async function approvePhoto(id){
+  const snap=await db.collection('customerPhotos').doc(id).get();
+  const p=snap.data();
   await db.collection('customerPhotos').doc(id).update({status:'approved'});
   toast('✅ تم نشر الصورة!');
   renderPhotosAdmin();
   loadCustomerPhotos();
+  // Send WA to customer with their discount code
+  if(p?.phone&&p?.discountCode){
+    const phone=p.phone.replace(/[^0-9]/g,'');
+    const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
+    const msg=`🌿 *الكسواني روزميري*\n\nأهلاً ${p.name}! 🎉\n\nشكراً لمشاركتك تجربتك معنا 📸\n\nهدية منا لك — كود خصم 5% على طلبك القادم:\n\n🎁 *${p.discountCode}*\n\nاستخدمه عند إتمام طلبك القادم 💚`;
+    window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`,'_blank');
+  }
 }
 async function deletePhoto(id){
   if(!confirm('حذف هذه الصورة؟'))return;
