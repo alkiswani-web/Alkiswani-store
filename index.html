@@ -1803,18 +1803,13 @@ function filterProds(cat,btn){
 // ===== WRITING MODAL =====
 function handleAddToCart(id){
   const p=products.find(x=>x._docId===String(id)||String(x.id)===String(id));
-  if(!p)return;
-  if(p.writing){
-    pendingProduct=p;
-    writingChoice='no';
-    document.getElementById('wmProductName').textContent=p.name;
-    document.getElementById('optNoWrite').classList.remove('selected');
-    document.getElementById('optYesWrite').classList.remove('selected');
-    document.getElementById('writingInputArea').classList.remove('show');
-    document.getElementById('writingText').value='';
-    document.getElementById('writingOverlay').classList.add('open');
+  if(!p) return;
+  // If product has colors or writing — open product page to let user choose
+  if(p.writing||p.colors?.length){
+    openProductPage(id);
   } else {
     addToCartDirect(p,'');
+    toast('✅ تمت الإضافة للسلة!');
   }
 }
 function selectWritingOpt(choice){
