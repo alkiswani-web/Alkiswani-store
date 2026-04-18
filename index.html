@@ -266,18 +266,18 @@ nav{
 .card-badge-wrap{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;pointer-events:none;z-index:2;}
 .card-badge{background:var(--green-dark);color:#fff;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;}
 .writing-badge{background:linear-gradient(135deg,#6b46c1,#805ad5);color:#fff;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;display:flex;align-items:center;gap:4px;}
-.store-card-body{padding:14px;}
-.card-cat{font-size:0.68rem;color:var(--green-light);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-weight:700;}
-.card-name{font-family:'Amiri',serif;font-size:0.98rem;font-weight:700;color:#111827;margin-bottom:4px;line-height:1.4;}
-.card-desc{font-size:0.78rem;color:#9ca3af;line-height:1.5;margin-bottom:10px;}
-.card-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;}
-.card-price{font-size:0.95rem;font-weight:700;color:#111827;}
-.card-price-old{font-size:0.78rem;color:#d1d5db;text-decoration:line-through;margin-right:4px;}
-.card-discount-badge{background:#ef4444;color:#fff;font-size:0.65rem;font-weight:700;padding:2px 6px;border-radius:8px;margin-right:3px;}
-.card-rating{display:flex;align-items:center;gap:4px;margin-bottom:8px;}
-.stars{color:var(--gold);font-size:0.85rem;}
-.rating-count{font-size:0.72rem;color:#9ca3af;}
-.btn-add-cart{background:var(--green-dark);color:#fff;padding:8px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;transition:all 0.3s;white-space:nowrap;}
+.store-card-body{padding:12px;display:flex;flex-direction:column;gap:4px;}
+.card-cat{font-size:0.65rem;color:var(--green-light);letter-spacing:1px;text-transform:uppercase;font-weight:700;}
+.card-name{font-family:'Amiri',serif;font-size:1rem;font-weight:700;color:#111827;line-height:1.3;}
+.card-desc{font-size:0.75rem;color:#9ca3af;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.card-rating{display:flex;align-items:center;gap:4px;}
+.stars{color:var(--gold);font-size:0.82rem;}
+.rating-count{font-size:0.7rem;color:#9ca3af;}
+.card-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;padding-top:8px;border-top:1px solid #f3f4f6;}
+.card-price{font-size:1rem;font-weight:700;color:#111827;}
+.card-price-old{font-size:0.75rem;color:#d1d5db;text-decoration:line-through;margin-right:3px;}
+.card-discount-badge{background:#ef4444;color:#fff;font-size:0.62rem;font-weight:700;padding:2px 5px;border-radius:6px;}
+.btn-add-cart{background:var(--green-dark);color:#fff;padding:7px 12px;border-radius:8px;font-size:0.75rem;font-weight:700;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;transition:all 0.3s;white-space:nowrap;flex-shrink:0;}
 .btn-add-cart:hover{background:var(--green-mid);}
 .btn-add-cart.added{background:#16a34a;}
 .btn-wishlist{background:none;border:none;font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;transition:transform 0.2s;flex-shrink:0;}
@@ -1745,20 +1745,25 @@ function getCardHTML(p){
         ${p.images&&p.images.length?`<img src="${p.images[0]}" alt="${p.name}">`:p.img?`<img src="${p.img}" alt="${p.name}">`:`<span>${p.emoji}</span>`}
         <div class="card-badge-wrap">
           ${p.badge?`<div class="card-badge">${p.badge}</div>`:''}
-          ${p.writing?`<div class="writing-badge">✍️ قابل للكتابة</div>`:''}
-          ${p.colors&&p.colors.length?`<div class="card-badge" style="background:var(--green-mid);">🎨 ${p.colors.length} ألوان</div>`:''}
-          ${p.video?`<div class="card-badge" style="background:#e53e3e;">🎬 فيديو</div>`:''}
+          ${p.writing?`<div class="writing-badge">✍️ كتابة</div>`:''}
+          ${p.video?`<div class="card-badge" style="background:#dc2626;">🎬</div>`:''}
         </div>
-        <button class="btn-wishlist" data-pid="${pid}" onclick="event.stopPropagation();toggleWishlist(this.dataset.pid)" style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.85);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">${inWish?'❤️':'🤍'}</button>
+        <button class="btn-wishlist" data-pid="${pid}" onclick="event.stopPropagation();toggleWishlist(this.dataset.pid)" style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.9);border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:1rem;">${inWish?'❤️':'🤍'}</button>
       </div>
       <div class="store-card-body">
         <div class="card-cat">${p.cat}</div>
         <div class="card-name">${p.name}</div>
         ${getStars(p)}
-        <div class="card-desc">${p.desc}</div>
+        <div class="card-desc">${p.desc||''}</div>
         <div class="card-footer">
-          ${getPriceHTML(p)}
-          <button class="btn-add-cart" data-pid="${pid}" onclick="event.stopPropagation();handleAddToCart(this.dataset.pid)">🛒 أضف للسلة</button>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            ${getPriceHTML(p)}
+            ${p.colors&&p.colors.length?`<div style="font-size:0.68rem;color:#9ca3af;">🎨 ${p.colors.length} ألوان</div>`:''}
+          </div>
+          <button class="btn-add-cart" data-pid="${pid}" onclick="event.stopPropagation();handleAddToCart(this.dataset.pid)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:4px;"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            أضف
+          </button>
         </div>
       </div>
     </div>`;
