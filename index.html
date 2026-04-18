@@ -968,6 +968,20 @@ body{padding-bottom:72px;}
       <div class="points-value" id="profilePoints">0</div>
       <div class="points-sub" id="profilePointsSub">اشترِ أكثر لتجمع نقاطاً أكثر 🌟</div>
     </div>
+    <!-- Referral Section -->
+    <div class="profile-section" style="background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(201,168,76,0.03));border:1.5px solid rgba(201,168,76,0.25);border-radius:14px;padding:16px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:1.3rem;">🎁</span>
+        <h3 style="font-family:'Amiri',serif;font-size:1rem;color:var(--green-dark);margin:0;">ادعِ صديقك واكسب!</h3>
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-mid);margin-bottom:12px;line-height:1.6;">شارك رابطك مع أصحابك — لما أي شخص يطلب من رابطك تكسب كود خصم 10% 🎉</div>
+      <div style="background:#fff;border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px;border:1px solid rgba(201,168,76,0.3);">
+        <div id="referralLink" style="flex:1;font-size:0.75rem;color:var(--text-mid);word-break:break-all;"></div>
+        <button onclick="copyReferral()" style="background:var(--green-dark);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0;">نسخ 📋</button>
+      </div>
+      <button onclick="shareReferral()" style="width:100%;margin-top:8px;padding:10px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📱 شارك عبر واتساب</button>
+      <div id="referralCount" style="text-align:center;margin-top:10px;font-size:0.8rem;color:var(--green-light);"></div>
+    </div>
     <div class="profile-section">
       <h3>سجل طلباتي</h3>
       <div id="orderHistory"></div>
@@ -1930,6 +1944,8 @@ async function confirmOrder(){
   clearCart();
   toast('🎉 تم استلام طلبك!');
   setTimeout(()=>notifyAdminWA(order),1500);
+  // Process referral if exists
+  processReferralOnOrder(phone,name);
 }
 function checkoutWA(){
   if(!cart.length){toast('السلة فاضية!');return;}
@@ -2005,6 +2021,14 @@ async function openProfile(){
   if(pointsSettings.enabled&&(currentUser.points||0)>=pointsSettings.minRedeem){
     sub.textContent=`يمكنك استبدال نقاطك بخصم ${((currentUser.points||0)/pointsSettings.perDiscount).toFixed(2)} د.أ 🎁`;
   }
+  // Referral link
+  const refCode='REF'+currentUser.phone.replace(/[^0-9]/g,'').slice(-6);
+  const refLink=`${location.origin}${location.pathname}?ref=${refCode}`;
+  document.getElementById('referralLink').textContent=refLink;
+  // Count referrals
+  const refSnap=await db.collection('referrals').where('refCode','==',refCode).get();
+  const count=refSnap.size;
+  document.getElementById('referralCount').textContent=count>0?`🎯 دعوت ${count} شخص حتى الآن!`:'لم تدعُ أحداً بعد — شارك رابطك الآن!';
   document.getElementById('profileOverlay').classList.add('open');
   // Load orders from Firebase directly
   const oh=document.getElementById('orderHistory');
@@ -2868,6 +2892,44 @@ function useWelcomeCode(){
   toast('✅ تم نسخ الكود: '+code);
 }
 
+// ===== REFERRAL SYSTEM =====
+function copyReferral(){
+  const link=document.getElementById('referralLink').textContent;
+  navigator.clipboard.writeText(link).then(()=>toast('✅ تم نسخ الرابط!')).catch(()=>{
+    const el=document.createElement('textarea');
+    el.value=link;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);
+    toast('✅ تم نسخ الرابط!');
+  });
+}
+function shareReferral(){
+  const link=document.getElementById('referralLink').textContent;
+  const msg=`🌿 *الكسواني روزميري*\n\nتسوق معي من أجمل متجر خشبيات وأشجار زينة في الأردن!\n\n${link}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+function checkReferral(){
+  const params=new URLSearchParams(location.search);
+  const ref=params.get('ref');
+  if(ref) localStorage.setItem('ak_ref',ref);
+}
+async function processReferralOnOrder(phone,name){
+  const refCode=localStorage.getItem('ak_ref');
+  if(!refCode) return;
+  if(refCode==='REF'+phone.replace(/[^0-9]/g,'').slice(-6)) return;
+  const existing=await db.collection('referrals').where('refCode','==',refCode).where('phone','==',phone).get();
+  if(!existing.empty) return;
+  await db.collection('referrals').add({refCode,phone,name,date:new Date().toLocaleDateString('ar-JO')});
+  localStorage.removeItem('ak_ref');
+  const referrerPhone='962'+refCode.replace('REF','');
+  const rewardCode='REWARD'+refCode+Date.now().toString().slice(-4);
+  await db.collection('discounts').doc(rewardCode).set({
+    code:rewardCode,type:'percent',value:10,limit:1,usedCount:0,
+    expiry:'',isWelcome:false,scope:'all',products_allowed:[],isReferral:true,
+    createdAt:new Date().toLocaleDateString('ar-JO')
+  });
+  const msg=`🌿 *الكسواني روزميري*\n\n🎉 مبروك! ${name} طلب من رابط دعوتك!\n\nهديتك كود خصم 10%:\n\n🎁 *${rewardCode}*\n\nاستخدمه على طلبك القادم 💚`;
+  setTimeout(()=>window.open(`https://wa.me/${referrerPhone}?text=${encodeURIComponent(msg)}`,'_blank'),2000);
+}
+
 // ===== WISHLIST =====
 
 function toggleWishlist(pid){
@@ -2945,6 +3007,7 @@ function initDarkMode(){
 
 async function init(){
   initDarkMode();
+  checkReferral();
   updateWishBadge();
   await loadPointsSettings();
   await loadProducts();
@@ -2988,6 +3051,7 @@ window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
 window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearExistingVideo=clearExistingVideo;
+window.copyReferral=copyReferral; window.shareReferral=shareReferral;
 window.toggleDarkMode=toggleDarkMode;
 window.toggleWishlist=toggleWishlist; window.openWishlist=openWishlist; window.closeWishlist=closeWishlist; window.renderWishlist=renderWishlist; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
 window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
