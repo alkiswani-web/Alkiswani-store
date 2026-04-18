@@ -683,56 +683,34 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 .toast.show{transform:translateY(0);opacity:1;}
 </style>
 
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js';
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
-    authDomain: "alkiswani-store.firebaseapp.com",
-    projectId: "alkiswani-store",
-    storageBucket: "alkiswani-store.firebasestorage.app",
-    messagingSenderId: "60330492719",
-    appId: "1:60330492719:web:71e36dd5327db3e54017da"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const messaging = getMessaging(app);
-
-  const VAPID_KEY = "BJseUfzVt2gWxHGUmlSk6xeEk6CYJsqry17dx1s9R14LI9Nkta9NES1dKrX1JHOWDhY6EUGdSAMglBSJpujn5lk";
-
-  async function initFCM() {
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-        if (token) {
-          console.log('FCM Token:', token);
-          // Save token to Firestore
-          if (typeof db !== 'undefined') {
-            await db.collection('fcm_tokens').doc(token).set({
-              token: token,
-              createdAt: new Date(),
-              userAgent: navigator.userAgent
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.log('FCM Error:', err);
-    }
-  }
-
-  // Show notification when app is open
-  onMessage(messaging, (payload) => {
-    const { title, body } = payload.notification;
-    if (Notification.permission === 'granted') {
-      new Notification(title, { body, icon: '/icon-192.png' });
-    }
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "814b9bfd-52d4-459c-a3ad-5c5d542114da",
+      safari_web_id: "web.onesignal.auto.814b9bfd-52d4-459c-a3ad-5c5d542114da",
+      notifyButton: { enable: false },
+      welcomeNotification: {
+        title: "الكسواني روزميري 🌿",
+        message: "شكراً لاشتراكك! ستصلك أحدث العروض والمنتجات الجديدة.",
+      },
+      promptOptions: {
+        slidedown: {
+          prompts: [{
+            type: "push",
+            autoPrompt: true,
+            delay: { pageViews: 1, timeDelay: 3 },
+            text: {
+              actionMessage: "🌿 اشترك لتصلك أحدث عروض الكسواني روزميري!",
+              acceptButton: "اشترك",
+              cancelButton: "لاحقاً",
+            },
+          }],
+        },
+      },
+    });
   });
-
-  // Init after page loads
-  window.addEventListener('load', () => setTimeout(initFCM, 2000));
 </script>
 </head>
 <body>
@@ -2405,7 +2383,8 @@ function renderOrdersByStatus(){
         ${currentOrderStatus!=='جديد'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📋 جديد</button>`:''}
         ${currentOrderStatus!=='قيد التجهيز'?`<button onclick="updateOrderStatus('${o.id}','قيد التجهيز');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #fbbf24;background:#fef9c3;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#92400e;">⚙️ تجهيز</button>`:''}
         ${currentOrderStatus!=='بالطريق'?`<button onclick="updateOrderStatus('${o.id}','بالطريق');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #93c5fd;background:#dbeafe;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#1e40af;">🚚 بالطريق</button>`:''}
-        ${currentOrderStatus!=='تم التسليم'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>`:''}
+        ${currentOrderStatus!=='تم التسليم'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>
+        <button onclick="deleteOrder('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #fca5a5;background:#fee2e2;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#dc2626;">🗑️ حذف</button>`:''}
       </div>
     </div>
   `).join('');
@@ -2835,6 +2814,17 @@ async function trackOrder(){
 }
 
 // ===== UPDATE ORDER STATUS (from admin) =====
+async function deleteOrder(orderId){
+  if(!confirm('هل أنت متأكد من حذف هذا الطلب؟')) return;
+  try{
+    await db.collection('orders').doc(orderId).delete();
+    showToast('تم حذف الطلب');
+    renderOrders();
+  }catch(e){
+    showToast('حدث خطأ في الحذف');
+  }
+}
+
 async function updateOrderStatus(orderId, newStatus){
   await db.collection('orders').doc(String(orderId)).update({status:newStatus});
   toast('✅ تم تحديث حالة الطلب');
