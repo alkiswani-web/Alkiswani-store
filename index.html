@@ -690,6 +690,24 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       appId: "814b9bfd-52d4-459c-a3ad-5c5d542114da",
       safari_web_id: "web.onesignal.auto.814b9bfd-52d4-459c-a3ad-5c5d542114da",
       notifyButton: { enable: false },
+      welcomeNotification: {
+        title: "الكسواني روزميري 🌿",
+        message: "شكراً لاشتراكك! ستصلك أحدث العروض والمنتجات الجديدة.",
+      },
+      promptOptions: {
+        slidedown: {
+          prompts: [{
+            type: "push",
+            autoPrompt: true,
+            delay: { pageViews: 1, timeDelay: 1 },
+            text: {
+              actionMessage: "🌿 اشترك لتصلك أحدث عروض الكسواني روزميري ومنتجاتنا الجديدة!",
+              acceptButton: "اشترك",
+              cancelButton: "لاحقاً",
+            },
+          }],
+        },
+      },
     });
   });
 </script>
@@ -3357,3 +3375,4 @@ init();
 </script>
 </body>
 </html>
+
