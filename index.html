@@ -184,6 +184,20 @@ nav{
 .btn-add-cart{background:var(--green-dark);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;transition:all 0.3s;white-space:nowrap;}
 .btn-add-cart:hover{background:var(--green-mid);}
 .btn-add-cart.added{background:#25a244;}
+.btn-wishlist{background:none;border:none;font-size:1.3rem;cursor:pointer;padding:4px;line-height:1;transition:transform 0.2s;flex-shrink:0;}
+.btn-wishlist:active{transform:scale(1.3);}
+/* Wishlist Page */
+.wishlist-page{position:fixed;inset:0;background:#f2f2f7;z-index:500;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;}
+.wishlist-page.open{transform:translateY(0);}
+.wishlist-header{background:var(--green-dark);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:2px solid var(--gold);}
+.wishlist-header h2{font-family:'Amiri',serif;font-size:1.15rem;color:#fff;flex:1;}
+.wishlist-items{flex:1;overflow-y:auto;padding:12px 14px;}
+.wishlist-empty{text-align:center;padding:80px 20px;color:#aaa;}
+.wishlist-item{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.wishlist-item-img{width:70px;height:70px;border-radius:10px;overflow:hidden;flex-shrink:0;background:var(--cream-dark);}
+.wishlist-item-img img{width:100%;height:100%;object-fit:cover;}
+body.dark-mode .wishlist-page{background:#0f1a14;}
+body.dark-mode .wishlist-item{background:#1c2d21!important;}
 
 /* RATING MODAL */
 .rating-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:650;opacity:0;pointer-events:none;transition:opacity 0.3s;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -757,6 +771,16 @@ body{padding-bottom:72px;}
   </div>
 </div>
 
+<!-- ===== WISHLIST PAGE ===== -->
+<div class="wishlist-page" id="wishlistPage">
+  <div class="wishlist-header">
+    <button onclick="closeWishlist()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;">←</button>
+    <h2>❤️ قائمة الأمنيات</h2>
+    <span id="wishCount" style="background:rgba(255,255,255,0.15);color:#fff;padding:3px 10px;border-radius:12px;font-size:0.8rem;">0</span>
+  </div>
+  <div class="wishlist-items" id="wishlistItems"></div>
+</div>
+
 <!-- ===== BOTTOM TAB BAR ===== -->
 <div class="bottom-bar">
   <button class="bottom-tab active" onclick="window.scrollTo({top:0,behavior:'smooth'})">
@@ -774,9 +798,10 @@ body{padding-bottom:72px;}
     </span>
     <span>السلة</span>
   </button>
-  <button class="bottom-tab" onclick="openOrderStatus()">
-    <span class="tab-icon">📦</span>
-    <span>طلباتي</span>
+  <button class="bottom-tab" onclick="openWishlist()" style="position:relative;">
+    <span class="tab-icon">❤️</span>
+    <span>أمنياتي</span>
+    <span id="wishBadge" style="display:none;position:absolute;top:6px;right:12px;background:#e53e3e;color:#fff;width:16px;height:16px;border-radius:50%;font-size:0.6rem;font-weight:700;display:none;align-items:center;justify-content:center;"></span>
   </button>
   <button class="bottom-tab" onclick="openAuth()">
     <span class="tab-icon" id="bottomAuthIcon">👤</span>
@@ -1512,6 +1537,7 @@ function getStars(p){
 }
 function getCardHTML(p){
   const pid=p._docId||String(p.id);
+  const inWish=wishlist.some(x=>x._docId===pid||String(x.id)===pid);
   return `
     <div class="store-card" data-pid="${pid}" onclick="openProductPage(this.dataset.pid)" style="cursor:pointer;">
       <div class="store-card-img">
@@ -1522,6 +1548,7 @@ function getCardHTML(p){
           ${p.colors&&p.colors.length?`<div class="card-badge" style="background:var(--green-mid);">🎨 ${p.colors.length} ألوان</div>`:''}
           ${p.video?`<div class="card-badge" style="background:#e53e3e;">🎬 فيديو</div>`:''}
         </div>
+        <button class="btn-wishlist" data-pid="${pid}" onclick="event.stopPropagation();toggleWishlist(this.dataset.pid)" style="position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.85);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">${inWish?'❤️':'🤍'}</button>
       </div>
       <div class="store-card-body">
         <div class="card-cat">${p.cat}</div>
@@ -2828,7 +2855,69 @@ function useWelcomeCode(){
   toast('✅ تم نسخ الكود: '+code);
 }
 
-// ===== DARK MODE =====
+// ===== WISHLIST =====
+let wishlist=load('ak_wish')||[];
+
+function toggleWishlist(pid){
+  const p=products.find(x=>x._docId===pid||String(x.id)===pid);
+  if(!p) return;
+  const idx=wishlist.findIndex(x=>x._docId===pid||String(x.id)===pid);
+  if(idx>=0){
+    wishlist.splice(idx,1);
+    toast('💔 تمت الإزالة من الأمنيات');
+  } else {
+    wishlist.push(p);
+    toast('❤️ تمت الإضافة للأمنيات!');
+  }
+  save('ak_wish',wishlist);
+  updateWishBadge();
+  renderStore(document.querySelector('.filter-btn.active')?.textContent||'الكل');
+}
+
+function updateWishBadge(){
+  const badge=document.getElementById('wishBadge');
+  if(!badge) return;
+  if(wishlist.length>0){
+    badge.style.display='flex';
+    badge.textContent=wishlist.length;
+  } else {
+    badge.style.display='none';
+  }
+  document.getElementById('wishCount').textContent=wishlist.length;
+}
+
+function openWishlist(){
+  const items=document.getElementById('wishlistItems');
+  if(!wishlist.length){
+    items.innerHTML=`<div class="wishlist-empty"><div style="font-size:4rem;margin-bottom:16px;">🤍</div><div style="font-size:1.1rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">قائمة أمنياتك فاضية</div><div style="font-size:0.88rem;color:#aaa;">اضغط ❤️ على أي منتج لحفظه</div></div>`;
+  } else {
+    items.innerHTML=wishlist.map(p=>{
+      const pid=p._docId||String(p.id);
+      return `<div class="wishlist-item">
+        <div class="wishlist-item-img">${p.images?.[0]||p.img?`<img src="${p.images?.[0]||p.img}" alt="">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;">${p.emoji}</div>`}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:0.9rem;color:var(--green-dark);margin-bottom:4px;">${p.name}</div>
+          <div style="font-size:0.95rem;font-weight:700;color:var(--brown);margin-bottom:10px;">${parseFloat(p.price)||0} دينار أردني</div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="handleAddToCart('${pid}');closeWishlist();" style="flex:1;padding:8px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🛒 أضف للسلة</button>
+            <button onclick="toggleWishlist('${pid}');renderWishlist();" style="padding:8px 12px;background:#fff0f0;color:#e53e3e;border:1px solid #fecaca;border-radius:8px;cursor:pointer;">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('wishlistPage').classList.add('open');
+}
+
+function renderWishlist(){
+  const items=document.getElementById('wishlistItems');
+  if(!items) return;
+  openWishlist();
+}
+
+function closeWishlist(){
+  document.getElementById('wishlistPage').classList.remove('open');
+}
 function toggleDarkMode(){
   const isDark=document.body.classList.toggle('dark-mode');
   localStorage.setItem('ak_dark',isDark?'1':'0');
@@ -2843,6 +2932,7 @@ function initDarkMode(){
 
 async function init(){
   initDarkMode();
+  updateWishBadge();
   await loadPointsSettings();
   await loadProducts();
   await loadCustomerPhotos();
@@ -2885,7 +2975,8 @@ window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
 window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearExistingVideo=clearExistingVideo;
-window.toggleDarkMode=toggleDarkMode; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
+window.toggleDarkMode=toggleDarkMode;
+window.toggleWishlist=toggleWishlist; window.openWishlist=openWishlist; window.closeWishlist=closeWishlist; window.renderWishlist=renderWishlist; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
 window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
 window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
