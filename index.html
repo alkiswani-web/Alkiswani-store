@@ -12,19 +12,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --green-dark:#1a3a2a;--green-mid:#2d5a3d;--green-light:#4a8c5c;
-  --gold:#c9a84c;--gold-light:#e8c96d;
-  --cream:#f7f3eb;--cream-dark:#ede8dc;
-  --brown:#6b4c2a;--text-dark:#1a1a1a;--text-mid:#4a4a4a;
+  --green-dark:#1a3a2a;
+  --green-mid:#2d5a3d;
+  --green-light:#4a8c5c;
+  --gold:#d4a843;--gold-light:#e8c96d;--gold-dark:#b08a28;
+  --cream:#ffffff;--cream-dark:#f4f6f4;
+  --brown:#d4a843;
+  --text-dark:#111827;--text-mid:#6b7280;
   --purple:#6b46c1;--purple-light:#805ad5;
-  --bg:#f7f3eb;--card-bg:#ffffff;--border:#e0e0e0;
+  --bg:#ffffff;--card-bg:#ffffff;--border:#e5e7eb;
+  --accent:#1a3a2a;
 }
 body.dark-mode{
-  --cream:#0f1a14;--cream-dark:#162212;
-  --text-dark:#e8e8e8;--text-mid:#9a9a9a;
-  --bg:#0f1a14;--card-bg:#1c2d21;--border:#2a3d2e;
-  --brown:#d4956a;
-  background:#0f1a14;color:#e8e8e8;
+  --cream:#0a0a0a;--cream-dark:#111111;
+  --text-dark:#f0ead8;--text-mid:#999;
+  --bg:#0a0a0a;--card-bg:#161616;--border:#2a2a2a;
+  --brown:#e8c96d;
+  background:#0a0a0a;color:#f0ead8;
 }
 body.dark-mode .store-card,
 body.dark-mode .cart-item,
@@ -34,162 +38,253 @@ body.dark-mode .customers-table,
 body.dark-mode .points-settings,
 body.dark-mode .order-history-item,
 body.dark-mode .prod-row,
-body.dark-mode .cust-row{background:#1c2d21!important;border-color:#2a3d2e!important;color:#e8e8e8!important;}
+body.dark-mode .cust-row{background:#161616!important;border-color:#2a2a2a!important;color:#f0ead8!important;}
 body.dark-mode .store-card-body,
 body.dark-mode .card-name,
-body.dark-mode .card-desc{color:#e8e8e8!important;}
+body.dark-mode .card-desc{color:#f0ead8!important;}
 body.dark-mode .filter-bar,
-body.dark-mode .store-products{background:#162212!important;}
-body.dark-mode .filter-btn{background:#1c2d21!important;color:#9a9a9a!important;border-color:#2a3d2e!important;}
-body.dark-mode .filter-btn.active{background:var(--green-dark)!important;color:#fff!important;}
+body.dark-mode .store-products{background:#111!important;}
+body.dark-mode .filter-btn{background:#1a1a1a!important;color:#888!important;border-color:#2a2a2a!important;}
+body.dark-mode .filter-btn.active{background:#c9a84c!important;color:#000!important;border-color:#c9a84c!important;}
 body.dark-mode .cart-drawer,
 body.dark-mode .cart-footer,
-body.dark-mode .cart-items{background:#0f1a14!important;}
-body.dark-mode .modal{background:#1c2d21!important;}
-body.dark-mode .modal-body{background:#1c2d21!important;}
-body.dark-mode .modal-section{background:#162212!important;border-radius:10px;padding:12px;}
+body.dark-mode .cart-items{background:#0a0a0a!important;}
+body.dark-mode .modal{background:#161616!important;}
+body.dark-mode .modal-body{background:#161616!important;}
+body.dark-mode .modal-section{background:#111!important;border-radius:10px;padding:12px;}
 body.dark-mode input,
 body.dark-mode textarea,
-body.dark-mode select{background:#162212!important;color:#e8e8e8!important;border-color:#2a3d2e!important;}
-body.dark-mode .bottom-bar{background:#0a1510!important;border-color:rgba(201,168,76,0.2)!important;}
+body.dark-mode select{background:#111!important;color:#f0ead8!important;border-color:#2a2a2a!important;}
+body.dark-mode .bottom-bar{background:#0a0a0a!important;border-color:rgba(201,168,76,0.3)!important;}
 body.dark-mode .welcome-card,
 body.dark-mode .welcome-body,
 body.dark-mode .photo-modal,
 body.dark-mode .pm-body,
 body.dark-mode .rating-modal,
 body.dark-mode .writing-modal,
-body.dark-mode .wm-body{background:#1c2d21!important;color:#e8e8e8!important;}
+body.dark-mode .wm-body{background:#161616!important;color:#f0ead8!important;}
 body.dark-mode .order-summary,
-body.dark-mode .cart-total{background:#162212!important;}
-body.dark-mode .cart-summary-row{color:#9a9a9a!important;}
-body.dark-mode .sp-notif{background:#1c2d21!important;color:#e8e8e8!important;}
-body.dark-mode .profile-modal{background:#1c2d21!important;}
-body.dark-mode section{background:#0f1a14;}
-body.dark-mode .customer-photos-section{background:#162212!important;}
+body.dark-mode .cart-total{background:#111!important;}
+body.dark-mode .cart-summary-row{color:#888!important;}
+body.dark-mode .sp-notif{background:#161616!important;color:#f0ead8!important;}
+body.dark-mode .profile-modal{background:#161616!important;}
+body.dark-mode section{background:#0a0a0a;}
+body.dark-mode .customer-photos-section{background:#111!important;}
 body.dark-mode .section-title,
 body.dark-mode .card-name,
 body.dark-mode .card-cat,
 body.dark-mode .card-desc,
 body.dark-mode .section-tag,
-body.dark-mode h2,h3{color:#e8e8e8!important;}
+body.dark-mode h2,h3{color:#f9fafb!important;}
 body.dark-mode .store-card [style*="color:var(--green-dark)"],
-body.dark-mode [style*="color:var(--green-dark)"]{color:#6dbf82!important;}
-body.dark-mode .store-card{background:#1c2d21!important;border-color:#2a3d2e!important;}
-body.dark-mode .store-card-body div{color:#e8e8e8!important;}
-/* Categories cards */
-body.dark-mode section [style*="background:#fff"]{background:#1c2d21!important;border-color:#2a3d2e!important;}
-body.dark-mode section [style*="color:var(--green-dark)"]{color:#6dbf82!important;}
+body.dark-mode [style*="color:var(--green-dark)"]{color:#6ee7b7!important;}
+body.dark-mode .store-card{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode .store-card-body div{color:#f9fafb!important;}
+body.dark-mode section [style*="background:#fff"]{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode section [style*="color:var(--green-dark)"]{color:#6ee7b7!important;}
+body.dark-mode .wishlist-item{background:#1f2937!important;}
+body.dark-mode .cart-item-name{color:#f9fafb!important;}
+/* Nav dark */
+body.dark-mode nav{background:#1f2937!important;border-color:#374151!important;box-shadow:none!important;}
+body.dark-mode .nav-logo{color:#f9fafb!important;}
+body.dark-mode .nav-logo span{color:#9ca3af!important;}
+/* Hero dark */
+body.dark-mode .hero{background:linear-gradient(135deg,#111827,#1f2937)!important;}
+body.dark-mode .hero-title{color:#f9fafb!important;}
+body.dark-mode .hero-title .gold{color:#d4a843!important;-webkit-text-fill-color:#d4a843!important;}
+body.dark-mode .hero-desc{color:#9ca3af!important;}
+body.dark-mode .hero-badge{color:#d4a843!important;border-color:rgba(212,168,67,0.3)!important;background:rgba(212,168,67,0.05)!important;}
+body.dark-mode .hero-stats{border-color:#374151!important;}
+body.dark-mode .hero-stat:not(:last-child){border-color:#374151!important;}
+body.dark-mode .hero-stat-num{color:#d4a843!important;}
+body.dark-mode .hero-stat-label{color:#6b7280!important;}
+/* Categories dark */
+body.dark-mode .cats-section{background:#1f2937!important;}
+body.dark-mode .cat-label{color:#d1d5db!important;}
+/* Filter dark */
+body.dark-mode .filter-bar{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode .filter-btn{background:#374151!important;color:#9ca3af!important;border-color:#4b5563!important;}
+body.dark-mode .filter-btn.active{background:#1a3a2a!important;color:#fff!important;}
+/* Products dark */
+body.dark-mode .store-products,
+body.dark-mode #mostOrdered{background:#111827!important;}
+body.dark-mode .card-name{color:#f9fafb!important;}
+body.dark-mode .card-cat{color:#6ee7b7!important;}
+body.dark-mode .card-desc{color:#9ca3af!important;}
+body.dark-mode .card-price{color:#f9fafb!important;}
+/* Cart dark */
+body.dark-mode .cart-drawer{background:#111827!important;}
+body.dark-mode .cart-items{background:#111827!important;}
+body.dark-mode .cart-item{background:#1f2937!important;}
+body.dark-mode .cart-footer{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode .cart-total{background:#111827!important;}
+body.dark-mode .cart-summary-row{color:#9ca3af!important;}
+/* Modals dark */
+body.dark-mode .modal,
+body.dark-mode .modal-body{background:#1f2937!important;}
+body.dark-mode .modal-section{background:#111827!important;}
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select{background:#374151!important;color:#f9fafb!important;border-color:#4b5563!important;}
+/* Bottom bar dark */
+body.dark-mode .bottom-bar{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode .bottom-tab{color:#6b7280!important;}
+body.dark-mode .bottom-tab.active{color:#6ee7b7!important;}
+body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;border-color:#1f2937!important;}
+/* Other dark */
+body.dark-mode .sp-notif{background:#1f2937!important;color:#f9fafb!important;}
+body.dark-mode .wishlist-page{background:#111827!important;}
+body.dark-mode .profile-overlay .profile-card{background:#1f2937!important;}
+body.dark-mode .order-history-item,
+body.dark-mode .prod-row,
+body.dark-mode .cust-row,
+body.dark-mode .form-card,
+body.dark-mode .products-mgmt,
+body.dark-mode .customers-table,
+body.dark-mode .points-settings{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode .order-summary{background:#111827!important;}
+body.dark-mode .welcome-card,
+body.dark-mode .photo-modal,
+body.dark-mode .rating-modal,
+body.dark-mode .writing-modal{background:#1f2937!important;}
+body.dark-mode section:not(.hero){background:#111827!important;}
+
+/* ===== CATEGORIES ===== */
+.cats-section{padding:24px 16px 16px;background:#f0f0f0;}
+.cats-scroll{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;}
+.cats-scroll::-webkit-scrollbar{display:none;}
+.cat-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;}
+.cat-icon{
+  width:68px;height:68px;border-radius:50%;
+  background:#e8e8e8;
+  box-shadow:6px 6px 12px #bebebe,-6px -6px 12px #ffffff;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;
+}
+.cat-item:active .cat-icon{
+  box-shadow:inset 4px 4px 8px #bebebe,inset -4px -4px 8px #ffffff;
+}
+.cat-item:hover .cat-icon{
+  box-shadow:8px 8px 16px #bebebe,-8px -8px 16px #ffffff;
+}
+.cat-label{font-size:0.7rem;font-weight:600;color:#555;white-space:nowrap;}
+body.dark-mode .cats-section{background:#1f2937!important;}
+body.dark-mode .cat-icon{background:#2d3748!important;box-shadow:4px 4px 8px #1a202c,-4px -4px 8px #3a4a5c!important;}
+body.dark-mode .cat-label{color:#9ca3af!important;}
+
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Tajawal',sans-serif;background:var(--cream);color:var(--text-dark);}
+body{font-family:'Tajawal',sans-serif;background:#fff;color:#111827;}
 
 /* ===== NAV ===== */
 nav{
   position:fixed;top:0;width:100%;z-index:200;
-  background:rgba(26,58,42,0.97);backdrop-filter:blur(10px);
+  background:#fff;
   padding:12px 20px;
   display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border-bottom:1px solid #e5e7eb;
+  box-shadow:0 1px 8px rgba(0,0,0,0.06);
+}
   border-bottom:1px solid rgba(201,168,76,0.3);
 }
-.nav-logo{font-family:'Amiri',serif;font-size:1.3rem;color:var(--gold);flex-shrink:0;}
-.nav-logo span{color:#fff;font-size:0.68rem;display:block;font-weight:300;letter-spacing:2px;text-transform:uppercase;}
+.nav-logo{font-family:'Amiri',serif;font-size:1.3rem;color:var(--green-dark);flex-shrink:0;}
+.nav-logo span{color:#6b7280;font-size:0.65rem;display:block;font-weight:400;letter-spacing:2px;text-transform:uppercase;}
 .nav-right{display:flex;align-items:center;gap:10px;}
 .btn-nav-login{
-  background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);
-  border:1px solid rgba(255,255,255,0.2);padding:8px 14px;border-radius:8px;
-  font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;transition:all 0.3s;
+  background:var(--green-dark);color:#fff;
+  border:none;padding:8px 16px;border-radius:8px;
+  font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;transition:all 0.3s;font-weight:600;
 }
-.btn-nav-login:hover{background:rgba(255,255,255,0.2);color:#fff;}
+.btn-nav-login:hover{background:var(--green-mid);}
 .btn-nav-cart{
-  position:relative;background:var(--gold);color:var(--green-dark);
+  position:relative;background:var(--gold);color:#fff;
   border:none;padding:8px 16px;border-radius:8px;
   font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;
   cursor:pointer;transition:all 0.3s;display:flex;align-items:center;gap:6px;
 }
-.btn-nav-cart:hover{background:var(--gold-light);}
+.btn-nav-cart:hover{background:var(--gold-dark);}
 .cart-badge{
-  background:var(--green-dark);color:#fff;
+  background:#fff;color:var(--green-dark);
   width:18px;height:18px;border-radius:50%;font-size:0.7rem;font-weight:700;
   display:flex;align-items:center;justify-content:center;
 }
 .user-chip{
-  background:rgba(107,70,193,0.2);color:#c4b5fd;
-  border:1px solid rgba(107,70,193,0.4);padding:7px 12px;border-radius:8px;
+  background:#f0fdf4;color:var(--green-dark);
+  border:1px solid #bbf7d0;padding:7px 12px;border-radius:8px;
   font-size:0.8rem;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;gap:6px;
 }
-.user-chip:hover{background:rgba(107,70,193,0.3);}
+.user-chip:hover{background:#dcfce7;}
 .points-pill{
-  background:rgba(201,168,76,0.2);color:var(--gold-light);
-  border:1px solid rgba(201,168,76,0.3);padding:4px 10px;border-radius:12px;
+  background:rgba(212,168,67,0.15);color:var(--gold-dark);
+  border:1px solid rgba(212,168,67,0.3);padding:4px 10px;border-radius:12px;
   font-size:0.75rem;font-weight:700;
 }
 
 /* ===== HERO ===== */
 .hero{
-  min-height:100vh;
-  background:linear-gradient(160deg,#0a1f12 0%,#1a3a2a 40%,#0f2d1c 100%);
+  min-height:92vh;
+  background:linear-gradient(135deg,#f0fdf4 0%,#ffffff 50%,#f0fdf4 100%);
   display:flex;align-items:center;justify-content:center;
   padding-top:70px;position:relative;overflow:hidden;
 }
-.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 60%,rgba(74,140,92,0.2),transparent 60%),radial-gradient(ellipse at 70% 20%,rgba(201,168,76,0.08),transparent 50%);}
-.hero::after{content:'🌿';position:absolute;font-size:20rem;opacity:0.03;right:-80px;bottom:-60px;transform:rotate(-20deg);}
+.hero::before{content:'';position:absolute;top:-100px;right:-100px;width:500px;height:500px;background:radial-gradient(circle,rgba(26,58,42,0.06),transparent 70%);border-radius:50%;}
+.hero::after{content:'';position:absolute;bottom:-80px;left:-80px;width:400px;height:400px;background:radial-gradient(circle,rgba(212,168,67,0.08),transparent 70%);border-radius:50%;}
 .hero-content{text-align:center;position:relative;z-index:2;padding:40px 24px;animation:fadeUp 1s ease;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);padding:8px 22px;border-radius:30px;font-size:0.78rem;letter-spacing:2px;margin-bottom:28px;background:rgba(201,168,76,0.05);}
-.hero-title{font-family:'Amiri',serif;font-size:clamp(2.5rem,8vw,5rem);color:#fff;line-height:1.2;margin-bottom:16px;}
-.hero-title .gold{color:var(--gold);}
-.hero-desc{font-size:0.95rem;color:rgba(255,255,255,0.65);max-width:400px;margin:0 auto 36px;line-height:1.9;}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(26,58,42,0.2);color:var(--green-dark);padding:8px 22px;border-radius:30px;font-size:0.78rem;letter-spacing:2px;margin-bottom:28px;background:rgba(26,58,42,0.05);font-weight:600;}
+.hero-title{font-family:'Amiri',serif;font-size:clamp(2.5rem,8vw,5rem);color:#111827;line-height:1.2;margin-bottom:16px;}
+.hero-title .gold{color:var(--green-dark);}
+.hero-desc{font-size:0.95rem;color:#6b7280;max-width:380px;margin:0 auto 36px;line-height:1.9;}
 .hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:40px;}
-.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--green-dark);padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;text-decoration:none;transition:all 0.3s;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;box-shadow:0 4px 20px rgba(201,168,76,0.3);}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(201,168,76,0.4);}
-.btn-outline{background:rgba(255,255,255,0.06);color:#fff;padding:14px 28px;border-radius:10px;font-size:0.95rem;border:1px solid rgba(255,255,255,0.2);text-decoration:none;transition:all 0.3s;font-family:'Tajawal',sans-serif;backdrop-filter:blur(4px);}
-.btn-outline:hover{border-color:var(--gold);color:var(--gold);}
-/* Hero stats */
-.hero-stats{display:flex;gap:0;justify-content:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:28px;margin-top:4px;}
+.btn-primary{background:var(--green-dark);color:#fff;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;text-decoration:none;transition:all 0.3s;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;box-shadow:0 4px 20px rgba(26,58,42,0.25);letter-spacing:0.5px;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(26,58,42,0.35);background:var(--green-mid);}
+.btn-outline{background:#fff;color:var(--green-dark);padding:14px 28px;border-radius:10px;font-size:0.95rem;border:1.5px solid var(--green-dark);text-decoration:none;transition:all 0.3s;font-family:'Tajawal',sans-serif;font-weight:600;}
+.btn-outline:hover{background:var(--green-dark);color:#fff;}
+.hero-stats{display:flex;gap:0;justify-content:center;border-top:1px solid #e5e7eb;padding-top:28px;margin-top:4px;}
 .hero-stat{flex:1;text-align:center;padding:0 16px;}
-.hero-stat:not(:last-child){border-left:1px solid rgba(255,255,255,0.08);}
-.hero-stat-num{font-family:'Amiri',serif;font-size:1.6rem;color:var(--gold);display:block;font-weight:700;}
-.hero-stat-label{font-size:0.72rem;color:rgba(255,255,255,0.5);margin-top:2px;display:block;}
+.hero-stat:not(:last-child){border-left:1px solid #e5e7eb;}
+.hero-stat-num{font-family:'Amiri',serif;font-size:1.6rem;color:var(--green-dark);display:block;font-weight:700;}
+.hero-stat-label{font-size:0.72rem;color:#9ca3af;margin-top:2px;display:block;}
 
 /* ===== FILTER ===== */
-.filter-bar{background:#fff;padding:14px 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid rgba(0,0,0,0.06);position:sticky;top:62px;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
-.filter-btn{padding:7px 16px;border-radius:20px;border:1.5px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;transition:all 0.3s;color:var(--text-mid);}
-.filter-btn:hover,.filter-btn.active{border-color:var(--green-dark);background:var(--green-dark);color:#fff;}
+.filter-bar{background:#fff;padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #e5e7eb;position:sticky;top:62px;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+.filter-btn{padding:7px 18px;border-radius:20px;border:1.5px solid #e5e7eb;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;transition:all 0.3s;color:#6b7280;font-weight:500;}
+.filter-btn:hover,.filter-btn.active{border-color:var(--green-dark);background:var(--green-dark);color:#fff;font-weight:600;}
 
 /* ===== PRODUCTS ===== */
-.store-products{padding:50px 20px;background:var(--cream-dark);}
-.section-header{text-align:center;margin-bottom:36px;}
-.section-tag{display:inline-block;color:var(--green-light);font-size:0.78rem;letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;}
-.section-title{font-family:'Amiri',serif;font-size:clamp(1.8rem,4vw,2.5rem);color:var(--green-dark);margin-bottom:12px;}
-.section-line{width:60px;height:2px;background:var(--gold);margin:0 auto;}
-.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;max-width:1100px;margin:0 auto;}
-.store-card{background:#fff;border-radius:14px;overflow:hidden;transition:all 0.3s;border:1px solid rgba(0,0,0,0.06);}
-.store-card:hover{transform:translateY(-4px);box-shadow:0 20px 50px rgba(26,58,42,0.12);}
-.store-card-img{width:100%;height:210px;background:linear-gradient(135deg,var(--green-dark),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:4.5rem;color:rgba(255,255,255,0.2);position:relative;overflow:hidden;}
-.store-card-img img{width:100%;height:100%;object-fit:cover;}
-.card-badge-wrap{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;pointer-events:none;z-index:2;}
-.card-badge{background:var(--gold);color:var(--green-dark);padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;}
-.writing-badge{background:linear-gradient(135deg,#6b46c1,#805ad5);color:#fff;padding:4px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;display:flex;align-items:center;gap:4px;animation:glow 2s infinite;}
-@keyframes glow{0%,100%{box-shadow:0 0 6px rgba(107,70,193,0.4)}50%{box-shadow:0 0 14px rgba(107,70,193,0.7)}}
-.store-card-body{padding:16px;}
-.card-cat{font-size:0.72rem;color:var(--green-light);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;}
-.card-name{font-family:'Amiri',serif;font-size:1.05rem;font-weight:700;color:var(--green-dark);margin-bottom:5px;}
-.card-desc{font-size:0.82rem;color:var(--text-mid);line-height:1.6;margin-bottom:12px;}
-.card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-.card-price{font-size:1.05rem;font-weight:700;color:var(--brown);}
-.card-price-old{font-size:0.8rem;color:#aaa;text-decoration:line-through;margin-right:6px;}
-.card-discount-badge{background:#e53e3e;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-right:4px;}
+.store-products{padding:40px 16px;background:#f9fafb;}
+.section-header{text-align:center;margin-bottom:32px;}
+.section-tag{display:inline-block;color:var(--green-light);font-size:0.72rem;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;font-weight:700;}
+.section-title{font-family:'Amiri',serif;font-size:clamp(1.7rem,4vw,2.4rem);color:#111827;margin-bottom:10px;}
+.section-line{width:50px;height:3px;background:var(--green-dark);margin:0 auto;border-radius:2px;}
+.store-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:1100px;margin:0 auto;}
+@media(min-width:600px){.store-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}}
+.store-card{background:#fff;border-radius:16px;overflow:hidden;transition:all 0.3s;border:1px solid #e5e7eb;box-shadow:0 1px 6px rgba(0,0,0,0.04);}
+.store-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.1);border-color:#d1fae5;}
+.store-card-img{width:100%;height:180px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:3.5rem;position:relative;overflow:hidden;}
+.store-card-img img{width:100%;height:100%;object-fit:cover;transition:transform 0.4s;}
+.store-card:hover .store-card-img img{transform:scale(1.05);}
+.card-badge-wrap{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;pointer-events:none;z-index:2;}
+.card-badge{background:var(--green-dark);color:#fff;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;}
+.writing-badge{background:linear-gradient(135deg,#6b46c1,#805ad5);color:#fff;padding:3px 10px;border-radius:20px;font-size:0.68rem;font-weight:700;display:flex;align-items:center;gap:4px;}
+.store-card-body{padding:14px;}
+.card-cat{font-size:0.68rem;color:var(--green-light);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-weight:700;}
+.card-name{font-family:'Amiri',serif;font-size:0.98rem;font-weight:700;color:#111827;margin-bottom:4px;line-height:1.4;}
+.card-desc{font-size:0.78rem;color:#9ca3af;line-height:1.5;margin-bottom:10px;}
+.card-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.card-price{font-size:0.95rem;font-weight:700;color:#111827;}
+.card-price-old{font-size:0.78rem;color:#d1d5db;text-decoration:line-through;margin-right:4px;}
+.card-discount-badge{background:#ef4444;color:#fff;font-size:0.65rem;font-weight:700;padding:2px 6px;border-radius:8px;margin-right:3px;}
 .card-rating{display:flex;align-items:center;gap:4px;margin-bottom:8px;}
-.stars{color:#f6ad55;font-size:0.9rem;}
-.rating-count{font-size:0.75rem;color:#aaa;}
-.btn-add-cart{background:var(--green-dark);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;transition:all 0.3s;white-space:nowrap;}
+.stars{color:var(--gold);font-size:0.85rem;}
+.rating-count{font-size:0.72rem;color:#9ca3af;}
+.btn-add-cart{background:var(--green-dark);color:#fff;padding:8px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;transition:all 0.3s;white-space:nowrap;}
 .btn-add-cart:hover{background:var(--green-mid);}
-.btn-add-cart.added{background:#25a244;}
-.btn-wishlist{background:none;border:none;font-size:1.3rem;cursor:pointer;padding:4px;line-height:1;transition:transform 0.2s;flex-shrink:0;}
+.btn-add-cart.added{background:#16a34a;}
+.btn-wishlist{background:none;border:none;font-size:1.2rem;cursor:pointer;padding:4px;line-height:1;transition:transform 0.2s;flex-shrink:0;}
 .btn-wishlist:active{transform:scale(1.3);}
-/* Wishlist Page */
-.wishlist-page{position:fixed;inset:0;background:#f2f2f7;z-index:500;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;}
+.wishlist-page{position:fixed;inset:0;background:#f9fafb;z-index:500;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;}
 .wishlist-page.open{transform:translateY(0);}
-.wishlist-header{background:var(--green-dark);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:2px solid var(--gold);}
+.wishlist-header{background:var(--green-dark);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:none;}
 .wishlist-header h2{font-family:'Amiri',serif;font-size:1.15rem;color:#fff;flex:1;}
 .wishlist-items{flex:1;overflow-y:auto;padding:12px 14px;}
 .wishlist-empty{text-align:center;padding:80px 20px;color:#aaa;}
@@ -271,7 +366,7 @@ body.dark-mode .wishlist-item{background:#1c2d21!important;}
 .cart-overlay{display:none;}
 .cart-drawer{position:fixed;inset:0;background:#f2f2f7;z-index:500;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;overflow:hidden;}
 .cart-drawer.open{transform:translateY(0);}
-.cart-header{background:var(--green-dark);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:2px solid var(--gold);}
+.cart-header{background:#000;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid rgba(201,168,76,0.3);}
 .cart-header h2{font-family:'Amiri',serif;font-size:1.15rem;color:#fff;flex:1;}
 .cart-close{background:rgba(255,255,255,0.15);color:#fff;border:none;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;flex-shrink:0;}
 .cart-items{flex:1;overflow-y:auto;padding:12px 14px;}
@@ -497,14 +592,21 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 #ppSlider img,#ppSlider video,#ppSlider>div{scroll-snap-align:start;flex-shrink:0;width:100vw;height:380px;object-fit:contain;background:#fff;}
 
 /* ===== BOTTOM TAB BAR ===== */
-.bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:var(--green-dark);display:flex;align-items:stretch;border-top:2px solid rgba(201,168,76,0.4);padding-bottom:env(safe-area-inset-bottom);}
-.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:rgba(255,255,255,0.6);font-family:'Tajawal',sans-serif;font-size:0.65rem;gap:3px;transition:all 0.2s;}
-.bottom-tab:active{background:rgba(255,255,255,0.1);}
-.bottom-tab .tab-icon{font-size:1.3rem;display:block;position:relative;}
-.bottom-tab.active,.bottom-tab.cart-tab{color:var(--gold);}
-.bottom-tab.cart-tab .tab-icon{background:var(--gold);color:var(--green-dark);width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-top:-18px;box-shadow:0 4px 16px rgba(201,168,76,0.5);border:3px solid var(--green-dark);}
-.cart-badge{position:absolute;top:-4px;right:-4px;background:#e53e3e;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:#f0f0f0;display:flex;align-items:stretch;border-top:1px solid #e0e0e0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 16px rgba(0,0,0,0.06);}
+.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:#999;font-family:'Tajawal',sans-serif;font-size:0.65rem;gap:4px;transition:all 0.2s;}
+.bottom-tab:active{opacity:0.7;}
+.bottom-tab .tab-icon{font-size:1.3rem;display:block;position:relative;width:42px;height:42px;border-radius:50%;background:#e8e8e8;box-shadow:3px 3px 6px #bebebe,-3px -3px 6px #ffffff;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.bottom-tab.active{color:var(--green-dark);}
+.bottom-tab.active .tab-icon{box-shadow:inset 3px 3px 6px #bebebe,inset -3px -3px 6px #ffffff;}
+.bottom-tab.cart-tab{color:var(--green-dark);}
+.bottom-tab.cart-tab .tab-icon{background:var(--green-dark);color:#fff;width:52px;height:52px;margin-top:-14px;box-shadow:4px 4px 10px rgba(26,58,42,0.4),-2px -2px 8px #fff;border:3px solid #f0f0f0;}
+.cart-badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
 body{padding-bottom:72px;}
+body.dark-mode .bottom-bar{background:#1f2937!important;border-color:#374151!important;}
+body.dark-mode .bottom-tab .tab-icon{background:#2d3748!important;box-shadow:3px 3px 6px #1a202c,-3px -3px 6px #3a4a5c!important;}
+body.dark-mode .bottom-tab{color:#6b7280!important;}
+body.dark-mode .bottom-tab.active{color:#6ee7b7!important;}
+body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;border-color:#1f2937!important;}
 
 .sp-notif{
   position:fixed;bottom:90px;left:16px;z-index:150;
@@ -585,9 +687,9 @@ body{padding-bottom:72px;}
 <nav>
   <div class="nav-logo">الكسواني روزميري<span>Alkiswani Rosemary</span></div>
   <div class="nav-right">
-    <button id="darkToggle" onclick="toggleDarkMode()" style="background:rgba(255,255,255,0.1);border:none;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">🌙</button>
+    <button id="darkToggle" onclick="toggleDarkMode()" style="background:#f3f4f6;border:none;width:36px;height:36px;border-radius:50%;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#6b7280;">🌙</button>
     <div id="navUserChip" style="display:none;" class="user-chip" onclick="openProfile()">
-      <span>👤</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       <span id="navUserName"></span>
       <span class="points-pill" id="navPoints">0 نقطة</span>
     </div>
@@ -598,12 +700,21 @@ body{padding-bottom:72px;}
 <!-- Hero -->
 <section class="hero">
   <div class="hero-content">
-    <div class="hero-badge">🌿 الأردن · توصيل لجميع المناطق</div>
+    <div class="hero-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12l3 3 5-5"/></svg>
+      الأردن · توصيل لجميع المناطق
+    </div>
     <h1 class="hero-title">خشبيات فاخرة<br><span class="gold">وأشجار زينة</span></h1>
     <p class="hero-desc">منتجات خشبية حرفية وأشجار زينة تضفي جمالاً استثنائياً على منزلك</p>
     <div class="hero-btns">
-      <a href="#products" class="btn-primary">🛍️ تصفح المنتجات</a>
-      <a href="https://wa.me/962775665598" class="btn-outline">📱 تواصل معنا</a>
+      <a href="#products" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        تصفح المنتجات
+      </a>
+      <a href="https://wa.me/962775665598" class="btn-outline">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.999 2C6.477 2 2 6.477 2 12c0 1.985.576 3.833 1.569 5.392L2 22l4.747-1.547A9.97 9.97 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+        تواصل معنا
+      </a>
     </div>
     <div class="hero-stats">
       <div class="hero-stat">
@@ -615,7 +726,7 @@ body{padding-bottom:72px;}
         <span class="hero-stat-label">زبون سعيد</span>
       </div>
       <div class="hero-stat">
-        <span class="hero-stat-num">5⭐</span>
+        <span class="hero-stat-num">4.9★</span>
         <span class="hero-stat-label">تقييم الزبائن</span>
       </div>
     </div>
@@ -623,46 +734,94 @@ body{padding-bottom:72px;}
 </section>
 
 <!-- Categories Section -->
-<section style="padding:30px 16px 10px;background:var(--cream);">
-  <div style="text-align:center;margin-bottom:20px;">
-    <div class="section-tag">تسوق حسب</div>
-    <h2 class="section-title" style="font-size:1.5rem;">الأقسام</h2>
-    <div class="section-line"></div>
+<section class="cats-section">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+    <h2 style="font-family:'Amiri',serif;font-size:1.2rem;color:#333;">الأقسام</h2>
+    <span style="font-size:0.78rem;color:var(--green-dark);font-weight:600;cursor:pointer;" onclick="filterProds('الكل',document.querySelector('.filter-btn'))">عرض الكل</span>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:500px;margin:0 auto;">
-    <div onclick="filterProds('أشجار الزينة',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
-      <div style="font-size:2rem;margin-bottom:6px;">🌳</div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">أشجار الزينة</div>
+  <div class="cats-scroll">
+
+    <!-- أشجار الزينة -->
+    <div class="cat-item" onclick="filterProds('أشجار الزينة',{classList:{add:()=>{},remove:()=>{}}})">
+      <div class="cat-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22v-5"/>
+          <path d="M12 17l-4-5H5l4-5H6l6-7 6 7h-3l4 5h-3l4 5h-8z"/>
+        </svg>
+      </div>
+      <span class="cat-label">أشجار الزينة</span>
     </div>
-    <div onclick="filterProds('الخشبيات',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
-      <div style="font-size:2rem;margin-bottom:6px;">🪵</div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">الخشبيات</div>
+
+    <!-- الخشبيات -->
+    <div class="cat-item" onclick="filterProds('الخشبيات',{classList:{add:()=>{},remove:()=>{}}})">
+      <div class="cat-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="7" width="18" height="13" rx="1"/>
+          <path d="M3 7l2-4h14l2 4"/>
+          <line x1="12" y1="7" x2="12" y2="20"/>
+          <line x1="3" y1="13" x2="21" y2="13"/>
+        </svg>
+      </div>
+      <span class="cat-label">الخشبيات</span>
     </div>
-    <div onclick="filterProds('براويز التخرج',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
-      <div style="font-size:2rem;margin-bottom:6px;">🎓</div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">براويز</div>
+
+    <!-- براويز -->
+    <div class="cat-item" onclick="filterProds('براويز التخرج',{classList:{add:()=>{},remove:()=>{}}})">
+      <div class="cat-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <span class="cat-label">براويز</span>
     </div>
-    <div onclick="filterProds('مباخر',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
-      <div style="font-size:2rem;margin-bottom:6px;">🕯️</div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">مباخر</div>
+
+    <!-- مباخر - مبخرة مع دخان -->
+    <div class="cat-item" onclick="filterProds('مباخر',{classList:{add:()=>{},remove:()=>{}}})">
+      <div class="cat-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 22h8M12 22v-4"/>
+          <path d="M7 18h10a1 1 0 0 0 1-1v-2a6 6 0 0 0-12 0v2a1 1 0 0 0 1 1z"/>
+          <path d="M10 3c0 1.5 2 1.5 2 3s-2 1.5-2 3"/>
+          <path d="M13 3c0 1.5 2 1.5 2 3s-2 1.5-2 3"/>
+        </svg>
+      </div>
+      <span class="cat-label">مباخر</span>
     </div>
-    <div onclick="filterProds('طقوم الضيافة',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
-      <div style="font-size:2rem;margin-bottom:6px;">☕</div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">ضيافة</div>
+
+    <!-- ضيافة -->
+    <div class="cat-item" onclick="filterProds('طقوم الضيافة',{classList:{add:()=>{},remove:()=>{}}})">
+      <div class="cat-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+          <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/>
+          <line x1="6" y1="2" x2="6" y2="4"/>
+          <line x1="10" y1="2" x2="10" y2="4"/>
+          <line x1="14" y1="2" x2="14" y2="4"/>
+        </svg>
+      </div>
+      <span class="cat-label">ضيافة</span>
     </div>
-    <div onclick="filterProds('مناظر تعليق',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
-      <div style="font-size:2rem;margin-bottom:6px;">🖼️</div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">مناظر</div>
+
+    <!-- مناظر -->
+    <div class="cat-item" onclick="filterProds('مناظر تعليق',{classList:{add:()=>{},remove:()=>{}}})">
+      <div class="cat-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <span class="cat-label">مناظر</span>
     </div>
+
   </div>
 </section>
 
 <!-- Most Ordered Section -->
-<section id="mostOrdered" style="padding:20px 16px;background:var(--cream);display:none;">
-  <div style="text-align:center;margin-bottom:16px;">
-    <div class="section-tag">الأكثر</div>
-    <h2 class="section-title" style="font-size:1.5rem;">⭐ الأكثر طلباً</h2>
-    <div class="section-line"></div>
+<section id="mostOrdered" style="padding:20px 16px;background:#f9fafb;display:none;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <h2 style="font-family:'Amiri',serif;font-size:1.2rem;color:#111827;">⭐ الأكثر طلباً</h2>
   </div>
   <div id="mostOrderedGrid" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;"></div>
 </section>
@@ -686,12 +845,12 @@ body{padding-bottom:72px;}
 <!-- Filter -->
 <div class="filter-bar">
   <button class="filter-btn active" onclick="filterProds('الكل',this)">الكل</button>
-  <button class="filter-btn" onclick="filterProds('أشجار الزينة',this)">🌳 أشجار الزينة</button>
-  <button class="filter-btn" onclick="filterProds('الخشبيات',this)">🪵 الخشبيات</button>
-  <button class="filter-btn" onclick="filterProds('براويز التخرج',this)">🎓 براويز</button>
-  <button class="filter-btn" onclick="filterProds('مباخر',this)">🕯️ مباخر</button>
-  <button class="filter-btn" onclick="filterProds('طقوم الضيافة',this)">☕ ضيافة</button>
-  <button class="filter-btn" onclick="filterProds('مناظر تعليق',this)">🖼️ مناظر</button>
+  <button class="filter-btn" onclick="filterProds('أشجار الزينة',this)">أشجار الزينة</button>
+  <button class="filter-btn" onclick="filterProds('الخشبيات',this)">الخشبيات</button>
+  <button class="filter-btn" onclick="filterProds('براويز التخرج',this)">براويز</button>
+  <button class="filter-btn" onclick="filterProds('مباخر',this)">مباخر</button>
+  <button class="filter-btn" onclick="filterProds('طقوم الضيافة',this)">ضيافة</button>
+  <button class="filter-btn" onclick="filterProds('مناظر تعليق',this)">مناظر</button>
 </div>
 
 <!-- Products -->
@@ -784,27 +943,35 @@ body{padding-bottom:72px;}
 <!-- ===== BOTTOM TAB BAR ===== -->
 <div class="bottom-bar">
   <button class="bottom-tab active" onclick="window.scrollTo({top:0,behavior:'smooth'})">
-    <span class="tab-icon">🏠</span>
+    <span class="tab-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </span>
     <span>الرئيسية</span>
   </button>
   <button class="bottom-tab" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">
-    <span class="tab-icon">🛍️</span>
+    <span class="tab-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="7" height="7" rx="1"/><rect x="15" y="3" width="7" height="7" rx="1"/><rect x="2" y="14" width="7" height="7" rx="1"/><rect x="15" y="14" width="7" height="7" rx="1"/></svg>
+    </span>
     <span>المنتجات</span>
   </button>
   <button class="bottom-tab cart-tab" onclick="openCart()">
     <span class="tab-icon" style="position:relative;">
-      🛒
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
       <span class="cart-badge" id="cartCount">0</span>
     </span>
     <span>السلة</span>
   </button>
   <button class="bottom-tab" onclick="openWishlist()" style="position:relative;">
-    <span class="tab-icon">❤️</span>
+    <span class="tab-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+    </span>
+    <span id="wishBadge" style="display:none;position:absolute;top:6px;right:10px;background:#ef4444;color:#fff;width:16px;height:16px;border-radius:50%;font-size:0.6rem;font-weight:700;align-items:center;justify-content:center;"></span>
     <span>أمنياتي</span>
-    <span id="wishBadge" style="display:none;position:absolute;top:6px;right:12px;background:#e53e3e;color:#fff;width:16px;height:16px;border-radius:50%;font-size:0.6rem;font-weight:700;display:none;align-items:center;justify-content:center;"></span>
   </button>
   <button class="bottom-tab" onclick="openAuth()">
-    <span class="tab-icon" id="bottomAuthIcon">👤</span>
+    <span class="tab-icon" id="bottomAuthIcon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </span>
     <span id="bottomAuthText">حسابي</span>
   </button>
 </div>
@@ -2001,7 +2168,7 @@ function updateNavUser(){
     chip.style.display='flex';btn.style.display='none';
     document.getElementById('navUserName').textContent=currentUser.name.split(' ')[0];
     document.getElementById('navPoints').textContent=(currentUser.points||0)+' نقطة';
-    if(bottomIcon) bottomIcon.textContent='✅';
+    if(bottomIcon) bottomIcon.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     if(bottomText) bottomText.textContent=currentUser.name.split(' ')[0];
     // Bottom auth tab opens profile
     document.querySelector('.bottom-tab:last-child').onclick=openProfile;
