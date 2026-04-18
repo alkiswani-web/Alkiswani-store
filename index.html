@@ -1743,6 +1743,13 @@ function applyDiscount(){
     if(dc.expiry&&new Date(dc.expiry)<new Date()){res.className='discount-result err';res.style.display='block';res.textContent='❌ هذا الكود منتهي الصلاحية';appliedDiscount=null;return;}
     // Check limit
     if(dc.limit>0&&(dc.usedCount||0)>=dc.limit){res.className='discount-result err';res.style.display='block';res.textContent='❌ هذا الكود وصل للحد الأقصى';appliedDiscount=null;return;}
+    // Check per-person usage (by phone)
+    const phone=document.getElementById('custPhone')?.value?.trim()||currentUser?.phone||'';
+    if(phone&&dc.usedBy&&dc.usedBy.includes(phone)){
+      res.className='discount-result err';res.style.display='block';
+      res.textContent='❌ لقد استخدمت هذا الكود من قبل';
+      appliedDiscount=null;return;
+    }
     // Check product restriction
     if(dc.scope==='specific'&&dc.products_allowed?.length){
       const cartIds=cart.map(i=>String(i.id));
@@ -1878,8 +1885,13 @@ async function confirmOrder(){
   if(appliedDiscount){
     discountVal=appliedDiscount.type==='percent'?subtotal*(appliedDiscount.value/100):appliedDiscount.value;
     discountText=appliedDiscount.type==='percent'?appliedDiscount.value+'%':appliedDiscount.value+' دينار أردني';
-    // Update usage count
-    await db.collection('discounts').doc(appliedDiscount.docId).update({usedCount:(appliedDiscount.usedCount||0)+1});
+    // Update usage count and track by phone
+    const usedBy=appliedDiscount.usedBy||[];
+    if(phone&&!usedBy.includes(phone)) usedBy.push(phone);
+    await db.collection('discounts').doc(appliedDiscount.docId).update({
+      usedCount:(appliedDiscount.usedCount||0)+1,
+      usedBy:usedBy
+    });
   }
   const total=Math.max(0,subtotal-discountVal)+delivery;
   let earnedPts=0;
