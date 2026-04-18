@@ -523,6 +523,8 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .admin-tab-btn{padding:10px 20px;border:none;background:none;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;color:var(--text-mid);border-bottom:3px solid transparent;margin-bottom:-2px;transition:all 0.3s;}
 .admin-tab-btn.active{color:var(--green-dark);font-weight:700;border-bottom-color:var(--green-dark);}
 .admin-tab-content{display:none;} .admin-tab-content.active{display:block;}
+.order-stab{flex-shrink:0;padding:10px 14px;border:none;background:none;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;color:#9ca3af;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.2s;white-space:nowrap;}
+.order-stab.active{color:var(--green-dark);border-bottom-color:var(--green-dark);font-weight:700;}
 .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:22px;}
 .stat-box{background:#fff;border-radius:12px;padding:16px;text-align:center;border:1px solid rgba(0,0,0,0.06);}
 .stat-box .num{font-size:1.8rem;font-weight:700;color:var(--green-dark);}
@@ -1292,10 +1294,22 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 
     <!-- ORDERS TAB -->
     <div class="admin-tab-content" id="tab-orders">
-      <div class="products-mgmt">
-        <h2>🧾 الطلبات الواردة (<span id="ordersCount">0</span>)</h2>
-        <div id="ordersList"><div class="empty-msg">جاري التحميل...</div></div>
+      <!-- Status Sub-tabs -->
+      <div style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;">
+        <button class="order-stab active" onclick="switchOrderTab('جديد',this)" id="stab-new">
+          🆕 جديد <span id="cnt-new" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
+        </button>
+        <button class="order-stab" onclick="switchOrderTab('قيد التجهيز',this)" id="stab-prep">
+          ⚙️ تجهيز <span id="cnt-prep" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
+        </button>
+        <button class="order-stab" onclick="switchOrderTab('بالطريق',this)" id="stab-way">
+          🚚 بالطريق <span id="cnt-way" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
+        </button>
+        <button class="order-stab" onclick="switchOrderTab('تم التسليم',this)" id="stab-done">
+          ✅ مسلّم <span id="cnt-done" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
+        </button>
       </div>
+      <div id="ordersList"><div class="empty-msg">جاري التحميل...</div></div>
     </div>
 
     <!-- CUSTOMERS TAB -->
@@ -2245,31 +2259,53 @@ function switchAdminTab(tab){
   if(tab==='photos')renderPhotosAdmin();
 }
 
+let currentOrderStatus='جديد';
+
+function switchOrderTab(status, btn){
+  currentOrderStatus=status;
+  document.querySelectorAll('.order-stab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderOrdersByStatus();
+}
+
 async function renderOrders(){
   const list=document.getElementById('ordersList');
   list.innerHTML='<div class="empty-msg">⏳ جاري التحميل...</div>';
   const snap=await db.collection('orders').get();
-  const orders=snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
-  document.getElementById('ordersCount').textContent=orders.length;
-  if(!orders.length){list.innerHTML='<div class="empty-msg">ما في طلبات بعد</div>';return;}
+  const allOrders=snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
+  // Update counts
+  const counts={'جديد':0,'قيد التجهيز':0,'بالطريق':0,'تم التسليم':0};
+  allOrders.forEach(o=>{ const s=o.status||'جديد'; if(counts[s]!==undefined) counts[s]++; });
+  document.getElementById('cnt-new').textContent=counts['جديد'];
+  document.getElementById('cnt-prep').textContent=counts['قيد التجهيز'];
+  document.getElementById('cnt-way').textContent=counts['بالطريق'];
+  document.getElementById('cnt-done').textContent=counts['تم التسليم'];
+  window._allOrders=allOrders;
+  renderOrdersByStatus();
+}
+
+function renderOrdersByStatus(){
+  const list=document.getElementById('ordersList');
+  const all=window._allOrders||[];
+  const filtered=all.filter(o=>(o.status||'جديد')===currentOrderStatus);
+  if(!filtered.length){list.innerHTML=`<div class="empty-msg">ما في طلبات بهذه الحالة</div>`;return;}
   const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#f0fdf4'};
   const statusText={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#166534'};
-  list.innerHTML=orders.map(o=>`
-    <div class="prod-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+  list.innerHTML=filtered.map(o=>`
+    <div class="prod-row" style="flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:6px;">
-        <div style="font-weight:700;color:var(--green-dark);">طلب ${o.orderNum||'#'+String(o.id).slice(-6)} · ${o.date}</div>
-        <span style="background:${statusColors[o.status||'جديد']};color:${statusText[o.status||'جديد']};padding:3px 10px;border-radius:8px;font-size:0.78rem;font-weight:600;">${o.status||'جديد'}</span>
+        <div style="font-weight:700;color:var(--green-dark);font-size:0.9rem;">طلب ${o.orderNum||'#'+String(o.id).slice(-6)} · ${o.date}</div>
+        <span style="background:${statusColors[o.status||'جديد']};color:${statusText[o.status||'جديد']};padding:3px 10px;border-radius:8px;font-size:0.75rem;font-weight:600;">${o.status||'جديد'}</span>
       </div>
-      <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · <a href="https://wa.me/962${o.phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-weight:700;text-decoration:none;">📱 ${o.phone}</a> · 📍 ${o.area}</div>
+      <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · <a href="https://wa.me/962${(o.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-weight:700;text-decoration:none;">📱 ${o.phone}</a> · 📍 ${o.area||''}</div>
       <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
-      <div style="font-size:0.82rem;color:var(--text-mid);">مجموع: ${o.subtotal||o.total} + توصيل: ${o.delivery||'2 دينار أردني'}</div>
-      <div style="font-weight:700;color:var(--brown);">💰 الإجمالي: ${o.total}</div>
+      <div style="font-weight:700;color:var(--brown);font-size:0.9rem;">💰 الإجمالي: ${o.total}</div>
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
-        <button onclick="updateOrderStatus('${o.id}','جديد')" style="padding:5px 10px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">📋 جديد</button>
-        <button onclick="updateOrderStatus('${o.id}','قيد التجهيز')" style="padding:5px 10px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">⚙️ قيد التجهيز</button>
-        <button onclick="updateOrderStatus('${o.id}','بالطريق')" style="padding:5px 10px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🚚 بالطريق</button>
-        <button onclick="updateOrderStatus('${o.id}','تم التسليم')" style="padding:5px 10px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✅ تم التسليم</button>
+        ${currentOrderStatus!=='جديد'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📋 جديد</button>`:''}
+        ${currentOrderStatus!=='قيد التجهيز'?`<button onclick="updateOrderStatus('${o.id}','قيد التجهيز');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #fbbf24;background:#fef9c3;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#92400e;">⚙️ تجهيز</button>`:''}
+        ${currentOrderStatus!=='بالطريق'?`<button onclick="updateOrderStatus('${o.id}','بالطريق');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #93c5fd;background:#dbeafe;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#1e40af;">🚚 بالطريق</button>`:''}
+        ${currentOrderStatus!=='تم التسليم'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>`:''}
       </div>
     </div>
   `).join('');
@@ -3233,7 +3269,7 @@ window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearEx
 window.copyReferral=copyReferral; window.shareReferral=shareReferral;
 window.toggleDarkMode=toggleDarkMode;
 window.toggleWishlist=toggleWishlist; window.openWishlist=openWishlist; window.closeWishlist=closeWishlist; window.renderWishlist=renderWishlist; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
-window.addDiscountCode=addDiscountCode; window.deleteDiscount=deleteDiscount;
+window.switchOrderTab=switchOrderTab; window.renderOrdersByStatus=renderOrdersByStatus;
 window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
 window.prevPhotoUpload=prevPhotoUpload; window.submitCustomerPhoto=submitCustomerPhoto;
