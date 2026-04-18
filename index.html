@@ -2716,31 +2716,43 @@ if('serviceWorker' in navigator){
   });
 }
 
-// ===== SOCIAL PROOF NOTIFICATIONS =====
-const SP_NAMES=['محمد','أحمد','سارة','نور','خالد','ليلى','عمر','رنا','يوسف','هنا','علي','دانا'];
-const SP_CITIES=['عمان','الزرقاء','إربد','العقبة','السلط','مادبا'];
+// ===== SOCIAL PROOF NOTIFICATIONS (REAL ORDERS) =====
 let spTimer=null;
 
-function startSocialProof(){
-  if(!products.length) return;
-  const showNext=()=>{
-    const p=products[Math.floor(Math.random()*products.length)];
-    const name=SP_NAMES[Math.floor(Math.random()*SP_NAMES.length)];
-    const city=SP_CITIES[Math.floor(Math.random()*SP_CITIES.length)];
-    const mins=Math.floor(Math.random()*55)+2;
-    const notif=document.getElementById('spNotif');
-    const imgEl=document.getElementById('spImg');
-    document.getElementById('spName').textContent=name+' من '+city;
-    document.getElementById('spProduct').textContent='اشترى: '+p.name;
-    document.getElementById('spTime').textContent='منذ '+mins+' دقيقة';
-    if(p.images&&p.images[0]){imgEl.innerHTML=`<img src="${p.images[0]}" alt="">`;}
-    else if(p.img){imgEl.innerHTML=`<img src="${p.img}" alt="">`;}
-    else{imgEl.textContent=p.emoji;}
-    notif.classList.add('show');
-    setTimeout(()=>notif.classList.remove('show'),4500);
-    spTimer=setTimeout(showNext, Math.random()*25000+15000);
-  };
-  spTimer=setTimeout(showNext, 8000);
+async function startSocialProof(){
+  // Get last 10 real orders
+  try{
+    const snap=await db.collection('orders').orderBy('id','desc').limit(10).get();
+    if(snap.empty) return;
+    const orders=snap.docs.map(d=>d.data()).filter(o=>o.name&&o.items?.length);
+    if(!orders.length) return;
+    let idx=0;
+    const showNext=()=>{
+      const o=orders[idx%orders.length];
+      idx++;
+      const item=o.items[0];
+      const p=products.find(x=>x.name===item?.name)||products[0];
+      const notif=document.getElementById('spNotif');
+      const imgEl=document.getElementById('spImg');
+      // Show first name only for privacy
+      const firstName=o.name.split(' ')[0];
+      const city=o.area||'الأردن';
+      document.getElementById('spName').textContent=firstName+' من '+city;
+      document.getElementById('spProduct').textContent='اشترى: '+(item?.name||p?.name||'منتج');
+      // Calculate time ago
+      const orderId=o.id||Date.now();
+      const diff=Math.floor((Date.now()-orderId)/60000);
+      const timeText=diff<1?'للتو':diff<60?'منذ '+diff+' دقيقة':diff<1440?'منذ '+(Math.floor(diff/60))+' ساعة':'منذ '+Math.floor(diff/1440)+' يوم';
+      document.getElementById('spTime').textContent=timeText;
+      if(p?.images?.[0]){imgEl.innerHTML=`<img src="${p.images[0]}" alt="">`;}
+      else if(p?.img){imgEl.innerHTML=`<img src="${p.img}" alt="">`;}
+      else{imgEl.textContent=p?.emoji||'📦';}
+      notif.classList.add('show');
+      setTimeout(()=>notif.classList.remove('show'),5000);
+      spTimer=setTimeout(showNext,Math.random()*20000+15000);
+    };
+    spTimer=setTimeout(showNext,8000);
+  }catch(e){console.log('Social proof error:',e);}
 }
 
 // ===== CUSTOMER PHOTOS =====
