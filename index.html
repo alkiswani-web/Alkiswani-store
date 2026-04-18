@@ -2157,8 +2157,17 @@ async function doCustomerLogin(){
   const pass=document.getElementById('loginPassword').value;
   await loadCustomers();
   const cu=customers.find(c=>c.phone===phone&&c.password===pass);
-  if(cu){currentUser={...cu};save('ak_currentUser',currentUser);closeAuth();updateNavUser();toast(`أهلاً ${cu.name}! 🌿`);}
-  else{document.getElementById('loginErr').style.display='block';setTimeout(()=>document.getElementById('loginErr').style.display='none',3000);}
+  if(cu){
+    currentUser={...cu};
+    save('ak_currentUser',currentUser);
+    closeAuth();updateNavUser();
+    // Load cart and wishlist from Firebase
+    await loadUserData(cu.phone);
+    toast(`أهلاً ${cu.name}! 🌿`);
+  } else {
+    document.getElementById('loginErr').style.display='block';
+    setTimeout(()=>document.getElementById('loginErr').style.display='none',3000);
+  }
 }
 async function doCustomerRegister(){
   const name=document.getElementById('regName').value.trim();
@@ -2177,7 +2186,41 @@ async function doCustomerRegister(){
   closeAuth();updateNavUser();
   toast(`أهلاً ${name}! تم إنشاء حسابك${bonus>0?' وحصلت على '+bonus+' نقطة ترحيبية 🎉':''}!`);
 }
-function logoutCustomer(){currentUser=null;localStorage.removeItem('ak_currentUser');updateNavUser();closeProfile();toast('تم تسجيل الخروج');}
+
+async function loadUserData(phone){
+  try{
+    const snap=await db.collection('userData').doc(phone).get();
+    if(snap.exists){
+      const data=snap.data();
+      if(data.cart) { cart=data.cart; save('ak_cart',cart); updateCartCount(); }
+      if(data.wishlist) { wishlist=data.wishlist; localStorage.setItem('ak_wish',JSON.stringify(wishlist)); updateWishBadge(); }
+    }
+  }catch(e){ console.log('loadUserData error',e); }
+}
+
+async function saveUserData(){
+  if(!currentUser) return;
+  try{
+    await db.collection('userData').doc(currentUser.phone).set({
+      cart, wishlist, updatedAt: Date.now()
+    });
+  }catch(e){ console.log('saveUserData error',e); }
+}
+
+function logoutCustomer(){
+  // Save before logout
+  saveUserData();
+  // Clear local data
+  cart=[];wishlist=[];
+  localStorage.removeItem('ak_cart');
+  localStorage.setItem('ak_wish','[]');
+  currentUser=null;
+  localStorage.removeItem('ak_currentUser');
+  updateCartCount();updateWishBadge();
+  updateNavUser();closeProfile();
+  renderStore();
+  toast('تم تسجيل الخروج');
+}
 function updateNavUser(){
   const chip=document.getElementById('navUserChip');
   const btn=document.getElementById('navLoginBtn');
@@ -3182,6 +3225,7 @@ function toggleWishlist(pid){
   }
   save('ak_wish',wishlist);
   localStorage.setItem('ak_wish',JSON.stringify(wishlist));
+  if(currentUser) saveUserData();
   updateWishBadge();
   renderStore(document.querySelector('.filter-btn.active')?.textContent||'الكل');
 }
