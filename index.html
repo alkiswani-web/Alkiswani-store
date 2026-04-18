@@ -65,22 +65,29 @@ nav{
 /* ===== HERO ===== */
 .hero{
   min-height:100vh;
-  background:linear-gradient(135deg,var(--green-dark) 0%,#0f2518 50%,#1a3a2a 100%);
+  background:linear-gradient(160deg,#0a1f12 0%,#1a3a2a 40%,#0f2d1c 100%);
   display:flex;align-items:center;justify-content:center;
   padding-top:70px;position:relative;overflow:hidden;
 }
-.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(74,140,92,0.15),transparent 60%);}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 60%,rgba(74,140,92,0.2),transparent 60%),radial-gradient(ellipse at 70% 20%,rgba(201,168,76,0.08),transparent 50%);}
+.hero::after{content:'🌿';position:absolute;font-size:20rem;opacity:0.03;right:-80px;bottom:-60px;transform:rotate(-20deg);}
 .hero-content{text-align:center;position:relative;z-index:2;padding:40px 24px;animation:fadeUp 1s ease;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
-.hero-badge{display:inline-block;border:1px solid rgba(201,168,76,0.5);color:var(--gold-light);padding:6px 20px;border-radius:30px;font-size:0.8rem;letter-spacing:3px;text-transform:uppercase;margin-bottom:24px;}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);padding:8px 22px;border-radius:30px;font-size:0.78rem;letter-spacing:2px;margin-bottom:28px;background:rgba(201,168,76,0.05);}
 .hero-title{font-family:'Amiri',serif;font-size:clamp(2.5rem,8vw,5rem);color:#fff;line-height:1.2;margin-bottom:16px;}
 .hero-title .gold{color:var(--gold);}
-.hero-desc{font-size:1rem;color:rgba(255,255,255,0.7);max-width:480px;margin:0 auto 36px;line-height:1.8;}
-.hero-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
-.btn-primary{background:var(--gold);color:var(--green-dark);padding:13px 28px;border-radius:8px;font-size:0.95rem;font-weight:700;text-decoration:none;transition:all 0.3s;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;}
-.btn-primary:hover{background:var(--gold-light);transform:translateY(-2px);}
-.btn-outline{background:transparent;color:#fff;padding:13px 28px;border-radius:8px;font-size:0.95rem;border:1px solid rgba(255,255,255,0.3);text-decoration:none;transition:all 0.3s;font-family:'Tajawal',sans-serif;}
+.hero-desc{font-size:0.95rem;color:rgba(255,255,255,0.65);max-width:400px;margin:0 auto 36px;line-height:1.9;}
+.hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:40px;}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--green-dark);padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;text-decoration:none;transition:all 0.3s;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;box-shadow:0 4px 20px rgba(201,168,76,0.3);}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(201,168,76,0.4);}
+.btn-outline{background:rgba(255,255,255,0.06);color:#fff;padding:14px 28px;border-radius:10px;font-size:0.95rem;border:1px solid rgba(255,255,255,0.2);text-decoration:none;transition:all 0.3s;font-family:'Tajawal',sans-serif;backdrop-filter:blur(4px);}
 .btn-outline:hover{border-color:var(--gold);color:var(--gold);}
+/* Hero stats */
+.hero-stats{display:flex;gap:0;justify-content:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:28px;margin-top:4px;}
+.hero-stat{flex:1;text-align:center;padding:0 16px;}
+.hero-stat:not(:last-child){border-left:1px solid rgba(255,255,255,0.08);}
+.hero-stat-num{font-family:'Amiri',serif;font-size:1.6rem;color:var(--gold);display:block;font-weight:700;}
+.hero-stat-label{font-size:0.72rem;color:rgba(255,255,255,0.5);margin-top:2px;display:block;}
 
 /* ===== FILTER ===== */
 .filter-bar{background:#fff;padding:14px 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid rgba(0,0,0,0.06);position:sticky;top:62px;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
@@ -522,9 +529,68 @@ body{padding-bottom:72px;}
     <p class="hero-desc">منتجات خشبية حرفية وأشجار زينة تضفي جمالاً استثنائياً على منزلك</p>
     <div class="hero-btns">
       <a href="#products" class="btn-primary">🛍️ تصفح المنتجات</a>
-      <a href="https://wa.me/962775665598" class="btn-outline">📞 تواصل معنا</a>
+      <a href="https://wa.me/962775665598" class="btn-outline">📱 تواصل معنا</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-num" id="heroProductsCount">+50</span>
+        <span class="hero-stat-label">منتج متاح</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-num">+200</span>
+        <span class="hero-stat-label">زبون سعيد</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-num">5⭐</span>
+        <span class="hero-stat-label">تقييم الزبائن</span>
+      </div>
     </div>
   </div>
+</section>
+
+<!-- Categories Section -->
+<section style="padding:30px 16px 10px;background:var(--cream);">
+  <div style="text-align:center;margin-bottom:20px;">
+    <div class="section-tag">تسوق حسب</div>
+    <h2 class="section-title" style="font-size:1.5rem;">الأقسام</h2>
+    <div class="section-line"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:500px;margin:0 auto;">
+    <div onclick="filterProds('أشجار الزينة',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
+      <div style="font-size:2rem;margin-bottom:6px;">🌳</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">أشجار الزينة</div>
+    </div>
+    <div onclick="filterProds('الخشبيات',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
+      <div style="font-size:2rem;margin-bottom:6px;">🪵</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">الخشبيات</div>
+    </div>
+    <div onclick="filterProds('براويز التخرج',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
+      <div style="font-size:2rem;margin-bottom:6px;">🎓</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">براويز</div>
+    </div>
+    <div onclick="filterProds('مباخر',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
+      <div style="font-size:2rem;margin-bottom:6px;">🕯️</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">مباخر</div>
+    </div>
+    <div onclick="filterProds('طقوم الضيافة',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
+      <div style="font-size:2rem;margin-bottom:6px;">☕</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">ضيافة</div>
+    </div>
+    <div onclick="filterProds('مناظر تعليق',{classList:{add:()=>{},remove:()=>{}}})" style="background:#fff;border-radius:14px;padding:16px 8px;text-align:center;cursor:pointer;border:1.5px solid #f0f0f0;transition:all 0.3s;box-shadow:0 2px 8px rgba(0,0,0,0.04);" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='#f0f0f0'">
+      <div style="font-size:2rem;margin-bottom:6px;">🖼️</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">مناظر</div>
+    </div>
+  </div>
+</section>
+
+<!-- Most Ordered Section -->
+<section id="mostOrdered" style="padding:20px 16px;background:var(--cream);display:none;">
+  <div style="text-align:center;margin-bottom:16px;">
+    <div class="section-tag">الأكثر</div>
+    <h2 class="section-title" style="font-size:1.5rem;">⭐ الأكثر طلباً</h2>
+    <div class="section-line"></div>
+  </div>
+  <div id="mostOrderedGrid" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;"></div>
 </section>
 
 <!-- Search Bar -->
@@ -1262,6 +1328,30 @@ async function loadProducts(){
   const snap=await db.collection('products').get();
   products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
   renderStore();
+  renderMostOrdered();
+  // Update hero count
+  const c=document.getElementById('heroProductsCount');
+  if(c) c.textContent='+'+products.length;
+}
+
+function renderMostOrdered(){
+  const featured=products.filter(p=>p.badge&&p.badge.includes('الأكثر')||p.badge&&p.badge.includes('مميز'));
+  const toShow=featured.length?featured:products.slice(0,5);
+  if(!toShow.length) return;
+  const sec=document.getElementById('mostOrdered');
+  const grid=document.getElementById('mostOrderedGrid');
+  sec.style.display='block';
+  grid.innerHTML=toShow.map(p=>`
+    <div onclick="openProductPage('${p._docId||p.id}')" style="min-width:140px;background:#fff;border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.06);flex-shrink:0;">
+      <div style="height:120px;background:var(--cream-dark);overflow:hidden;">
+        ${p.images?.[0]||p.img?`<img src="${p.images?.[0]||p.img}" style="width:100%;height:100%;object-fit:cover;">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">${p.emoji}</div>`}
+      </div>
+      <div style="padding:10px;">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--green-dark);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+        <div style="font-size:0.82rem;color:var(--brown);font-weight:700;">${parseFloat(p.price)||0} د.أ</div>
+      </div>
+    </div>
+  `).join('');
 }
 
 async function loadCustomers(){
@@ -1411,8 +1501,10 @@ function searchProducts(query){
 function filterProds(cat,btn){
   document.getElementById('searchInput').value='';
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  if(btn&&btn.classList) btn.classList.add('active');
   renderStore(cat);
+  // Scroll to products
+  document.getElementById('products').scrollIntoView({behavior:'smooth'});
 }
 
 // ===== WRITING MODAL =====
