@@ -1402,6 +1402,7 @@ const ADMIN_USER='alkiswani', ADMIN_PASS='rosemary2026', WA='962775665598';
 // ===== STATE =====
 let products=[];
 let customers=[];
+let wishlist=JSON.parse(localStorage.getItem('ak_wish')||'[]');
 let cart=JSON.parse(localStorage.getItem('ak_cart')||'[]');
 let currentUser=JSON.parse(localStorage.getItem('ak_currentUser')||'null');
 let pointsSettings={enabled:false,perDinar:10,onRegister:50,perDiscount:100,minRedeem:200};
@@ -2856,7 +2857,6 @@ function useWelcomeCode(){
 }
 
 // ===== WISHLIST =====
-let wishlist=load('ak_wish')||[];
 
 function toggleWishlist(pid){
   const p=products.find(x=>x._docId===pid||String(x.id)===pid);
@@ -2870,6 +2870,7 @@ function toggleWishlist(pid){
     toast('❤️ تمت الإضافة للأمنيات!');
   }
   save('ak_wish',wishlist);
+  localStorage.setItem('ak_wish',JSON.stringify(wishlist));
   updateWishBadge();
   renderStore(document.querySelector('.filter-btn.active')?.textContent||'الكل');
 }
