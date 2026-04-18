@@ -1782,7 +1782,7 @@ async function renderOrders(){
         <div style="font-weight:700;color:var(--green-dark);">طلب ${o.orderNum||'#'+String(o.id).slice(-6)} · ${o.date}</div>
         <span style="background:${statusColors[o.status||'جديد']};color:${statusText[o.status||'جديد']};padding:3px 10px;border-radius:8px;font-size:0.78rem;font-weight:600;">${o.status||'جديد'}</span>
       </div>
-      <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · 📞 ${o.phone} · 📍 ${o.area}</div>
+      <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · <a href="https://wa.me/962${o.phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-weight:700;text-decoration:none;">📱 ${o.phone}</a> · 📍 ${o.area}</div>
       <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
       <div style="font-size:0.82rem;color:var(--text-mid);">مجموع: ${o.subtotal||o.total} + توصيل: ${o.delivery||'2 دينار أردني'}</div>
       <div style="font-weight:700;color:var(--brown);">💰 الإجمالي: ${o.total}</div>
@@ -2208,7 +2208,7 @@ async function updateOrderStatus(orderId, newStatus){
   await db.collection('orders').doc(String(orderId)).update({status:newStatus});
   toast('✅ تم تحديث حالة الطلب');
   renderOrders();
-  // Send WhatsApp to customer
+  // Get order and build WhatsApp message
   const snap=await db.collection('orders').doc(String(orderId)).get();
   const order=snap.data();
   if(!order||!order.phone) return;
@@ -2218,9 +2218,10 @@ async function updateOrderStatus(orderId, newStatus){
     'بالطريق':'🚚 طلبك في الطريق إليك! سيصلك قريباً.',
     'تم التسليم':'✅ تم توصيل طلبك بنجاح! نشكر ثقتك بنا 🌿'
   };
-  const msg=`🌿 *الكسواني روزميري*\n\nأهلاً ${order.name}،\n\n${statusMsgs[newStatus]||'تم تحديث حالة طلبك.'}\n\n📦 رقم طلبك: ${order.orderNum||'#'+String(order.id).slice(-6)}\n💰 الإجمالي: ${order.total}\n\nللاستفسار تواصل معنا على نفس الرقم 🙏`;
+  const msg=`🌿 *الكسواني روزميري*\n\nأهلاً ${order.name}،\n\n${statusMsgs[newStatus]}\n\n📦 رقم طلبك: ${order.orderNum||'#'+String(order.id).slice(-6)}\n💰 الإجمالي: ${order.total}\n\nللاستفسار تواصل معنا 🙏`;
   const phone=order.phone.replace(/[^0-9]/g,'');
   const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
+  // Open WhatsApp with message ready — send from your business account
   window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
