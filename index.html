@@ -1287,7 +1287,12 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
         <input type="hidden" id="editingId" value="">
       </div>
       <div class="products-mgmt">
-        <h2>📦 المنتجات (<span id="pCount">0</span>)</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
+          <h2 style="margin:0;">📦 المنتجات (<span id="pCount">0</span>)</h2>
+          <div style="position:relative;flex:1;max-width:200px;">
+            <input type="text" id="adminProductSearch" placeholder="🔍 ابحث..." oninput="searchAdminProducts(this.value)" style="width:100%;padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+          </div>
+        </div>
         <div id="adminList"><div class="empty-msg">ما في منتجات بعد</div></div>
       </div>
     </div>
@@ -2311,6 +2316,23 @@ function renderOrdersByStatus(){
   `).join('');
 }
 
+function searchAdminProducts(q){
+  const list=document.getElementById('adminList');
+  const filtered=q.trim()?products.filter(p=>p.name.includes(q)||p.cat.includes(q)):products;
+  if(!filtered.length){list.innerHTML='<div class="empty-msg">ما في نتائج</div>';return;}
+  list.innerHTML=filtered.map(p=>`
+    <div class="prod-row">
+      <div class="prod-thumb">${p.images?.[0]||p.img?`<img src="${p.images?.[0]||p.img}">`:`<span>${p.emoji}</span>`}</div>
+      <div class="prod-info">
+        <div class="prod-name">${p.name}</div>
+        <div class="prod-meta"><span>📂 ${p.cat}</span>${p.writing?`<span class="writing-tag">✍️ قابل للكتابة</span>`:''}</div>
+      </div>
+      <div class="prod-price">${p.price}</div>
+      <button class="btn-del" style="background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;" onclick="editProduct('${p._docId||p.id}')">✏️</button>
+      <button class="btn-del" onclick="delProduct('${p._docId||p.id}')">🗑️</button>
+    </div>
+  `).join('');
+}
 async function renderAdmin(){
   await loadCustomers();
   const cats=[...new Set(products.map(p=>p.cat))];
@@ -3270,6 +3292,7 @@ window.copyReferral=copyReferral; window.shareReferral=shareReferral;
 window.toggleDarkMode=toggleDarkMode;
 window.toggleWishlist=toggleWishlist; window.openWishlist=openWishlist; window.closeWishlist=closeWishlist; window.renderWishlist=renderWishlist; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
 window.switchOrderTab=switchOrderTab; window.renderOrdersByStatus=renderOrdersByStatus;
+window.searchAdminProducts=searchAdminProducts;
 window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
 window.prevPhotoUpload=prevPhotoUpload; window.submitCustomerPhoto=submitCustomerPhoto;
