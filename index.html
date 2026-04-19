@@ -3160,7 +3160,7 @@ function openProductPage(id){
   if(images.length>0){
     imagesGrid.style.display='block';
     mainImg.src=images[0];
-    mainImg.onclick=()=>openFullImg(images[0]);
+    mainImg.onclick=()=>openFullImg(mainImg.src);
     mainImg.style.cursor='zoom-in';
   } else {
     imagesGrid.style.display='none';
@@ -3576,16 +3576,16 @@ function initDarkMode(){
 }
 
 async function init(){
-  initDarkMode();
-  checkReferral();
-  updateWishBadge();
-  await loadPointsSettings();
-  await loadProducts();
-  await loadCustomerPhotos();
-  updateCartCount();
-  updateNavUser();
-  startSocialProof();
-  showWelcome();
+  try{ initDarkMode(); }catch(e){}
+  try{ checkReferral(); }catch(e){}
+  try{ updateWishBadge(); }catch(e){}
+  try{ await loadPointsSettings(); }catch(e){}
+  try{ await loadProducts(); }catch(e){ console.error('loadProducts error:',e); }
+  try{ await loadCustomerPhotos(); }catch(e){}
+  try{ updateCartCount(); }catch(e){}
+  try{ updateNavUser(); }catch(e){}
+  try{ startSocialProof(); }catch(e){}
+  try{ showWelcome(); }catch(e){}
 }
 
 // ===== GLOBALS =====
@@ -3614,7 +3614,7 @@ window.openProductPage=openProductPage; window.closeProductPage=closeProductPage
 window.goToSlide=goToSlide; window.slideImg=slideImg;
 window.selectColor=selectColor; window.switchPPTab=switchPPTab; window.addToCartFromPage=addToCartFromPage;
 window.openRatingFromPage=openRatingFromPage;
-window.handleColorsInput=handleColorsInput; window.removeColorTag=removeColorTag;
+window.handleColorsInput=function(){}; window.removeColorTag=removeColorTag;
 window.prevImgs=prevImgs; window.prevVideo=prevVideo;
 window.openRatingModal=openRatingModal; window.closeRatingModal=closeRatingModal;
 window.selectStar=selectStar; window.submitRating=submitRating;
