@@ -3433,6 +3433,8 @@ function openProductPage(id){
   revEl.innerHTML=reviews.length?reviews.slice().reverse().map(r=>`<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:8px;"><div style="color:#f6ad55;">${'⭐'.repeat(r.stars)}</div>${r.text?`<div style="font-size:0.85rem;margin-top:4px;">${r.text}</div>`:''}<div style="font-size:0.75rem;color:#aaa;margin-top:4px;">${r.author||'زبون'} · ${r.date||''}</div></div>`).join(''):'<div style="color:#aaa;font-size:0.85rem;">لا يوجد تقييمات بعد</div>';
   document.getElementById('productPageOverlay').classList.add('open');
   document.querySelector('#productPageOverlay .modal').scrollTop=0;
+  // Push state so back button closes modal instead of leaving page
+  history.pushState({productPage:true, id:String(id)}, '', '#product-'+String(id));
   // Video section
   const videoSec=document.getElementById('ppVideoSection');
   const videoCont=document.getElementById('ppVideoContainer');
@@ -3466,6 +3468,10 @@ function openProductPage(id){
 function closeProductPage(){
   document.getElementById('productPageOverlay').classList.remove('open');
   document.getElementById('ppVideoContainer').innerHTML='';
+  // Clean URL without triggering popstate
+  if(location.hash.startsWith('#product-')){
+    history.replaceState(null,'',location.pathname);
+  }
 }
 function goToSlide(n){}
 function slideImg(dir){}
@@ -3991,6 +3997,23 @@ async function init(){
   try{ startSocialProof(); }catch(e){}
   try{ showWelcome(); }catch(e){}
 }
+
+// ===== BACK BUTTON HANDLER =====
+window.addEventListener('popstate', function(e){
+  // If product page is open, close it instead of leaving
+  const overlay = document.getElementById('productPageOverlay');
+  if(overlay && overlay.classList.contains('open')){
+    overlay.classList.remove('open');
+    document.getElementById('ppVideoContainer').innerHTML='';
+    return;
+  }
+  // If cart is open, close it
+  const cart = document.getElementById('cartDrawer');
+  if(cart && cart.classList.contains('open')){
+    closeCart();
+    return;
+  }
+});
 
 // ===== GLOBALS =====
 window.openAuth=openAuth; window.closeAuth=closeAuth;
