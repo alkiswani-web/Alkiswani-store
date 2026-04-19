@@ -2307,7 +2307,8 @@ async function confirmOrder(){
   appliedDiscount=null;
   clearCart();
   toast('🎉 تم استلام طلبك!');
-  setTimeout(()=>notifyAdminWA(order),1500);
+  // فتح واتساب فوراً للأدمن (مش في setTimeout عشان ما يتبلوك)
+  notifyAdminWA(order);
   // Process referral if exists
   processReferralOnOrder(phone,name);
 }
@@ -3134,8 +3135,27 @@ function saveCartEdit(){
   toast('✅ تم حفظ التعديل!');
 }
 function notifyAdminWA(order){
-  const msg=`🔔 *طلب جديد - الكسواني روزميري*\n\nرقم الطلب: ${order.orderNum}\n\n👤 الاسم: ${order.name}\n📞 الهاتف: ${order.phone}\n📍 المنطقة: ${order.area}\n🏠 العنوان: ${order.address}\n📅 موعد التوصيل: ${order.deliveryDate||'غير محدد'}\n\n📦 المنتجات:\n${order.items.map(i=>`• ${i.name} ×${i.qty} — ${i.priceDisplay||i.price+' د.أ'}${i.writing?' ✍️ '+i.writing:''}`).join('\n')}\n\n💰 المجموع الفرعي: ${order.subtotal}\n🚚 التوصيل: ${order.delivery}\n💵 الإجمالي: ${order.total}\n\n📝 ملاحظات: ${order.notes||'لا يوجد'}`;
-  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
+  const items=order.items.map(function(i){return '• '+i.name+' ×'+i.qty+' — '+i.price+' د.أ'+(i.writing?' ✍️ '+i.writing:'');}).join('\n');
+  const msg='🔔 *طلب جديد - الكسواني روزميري*\n\n'
+    +'رقم الطلب: '+order.orderNum+'\n\n'
+    +'👤 الاسم: '+order.name+'\n'
+    +'📞 الهاتف: '+order.phone+'\n'
+    +'📍 المنطقة: '+order.area+'\n'
+    +'🏠 العنوان: '+order.address+'\n'
+    +'📅 موعد التوصيل: '+(order.deliveryDate||'غير محدد')+'\n\n'
+    +'📦 المنتجات:\n'+items+'\n\n'
+    +'💰 المجموع: '+order.subtotal+'\n'
+    +'🚚 التوصيل: '+order.delivery+'\n'
+    +'💵 الإجمالي: '+order.total+'\n\n'
+    +'📝 ملاحظات: '+(order.notes||'لا يوجد');
+  var url='https://wa.me/'+WA+'?text='+encodeURIComponent(msg);
+  var a=document.createElement('a');
+  a.href=url;
+  a.target='_blank';
+  a.rel='noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ===== RATING =====
