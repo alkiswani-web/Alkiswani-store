@@ -189,33 +189,37 @@ body.dark-mode .cats-section{background:#1f2937!important;}
   animation:bannerShimmer 3s ease infinite;
   padding:10px 16px;
   text-align:center;
-  position:relative;
-  z-index:199;
+  position:fixed;
+  top:62px;
+  left:0;right:0;
+  z-index:198;
 }
 @keyframes bannerShimmer{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
 #eidBanner.show{display:block;}
-.eid-banner-text{color:#fff;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;}
+.eid-banner-text{color:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;}
 .eid-banner-close{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
 
 /* ===== EID COUNTDOWN ===== */
 #eidCountdown{
   display:none;
   background:linear-gradient(135deg,#0f2d1a,#1a3a2a);
-  padding:14px 16px;
-  margin:0;
+  padding:12px 16px;
+  position:fixed;
+  left:0;right:0;
+  z-index:197;
 }
 #eidCountdown.show{display:block;}
-.countdown-title{text-align:center;color:#c9a84c;font-family:'Amiri',serif;font-size:1rem;margin-bottom:10px;letter-spacing:1px;}
+.countdown-title{text-align:center;color:#c9a84c;font-family:'Amiri',serif;font-size:0.95rem;margin-bottom:8px;letter-spacing:1px;}
 .countdown-boxes{display:flex;justify-content:center;gap:8px;}
 .cd-box{
   background:rgba(255,255,255,0.08);
   border:1px solid rgba(201,168,76,0.3);
-  border-radius:12px;padding:8px 14px;
-  text-align:center;min-width:58px;
+  border-radius:12px;padding:7px 12px;
+  text-align:center;min-width:54px;
 }
-.cd-num{font-size:1.6rem;font-weight:800;color:#fff;font-family:'Amiri',serif;display:block;line-height:1;}
-.cd-label{font-size:0.6rem;color:#c9a84c;letter-spacing:1px;margin-top:3px;display:block;}
-.cd-sep{color:#c9a84c;font-size:1.4rem;font-weight:700;align-self:center;margin-top:-8px;}
+.cd-num{font-size:1.4rem;font-weight:800;color:#fff;font-family:'Amiri',serif;display:block;line-height:1;}
+.cd-label{font-size:0.58rem;color:#c9a84c;letter-spacing:1px;margin-top:3px;display:block;}
+.cd-sep{color:#c9a84c;font-size:1.2rem;font-weight:700;align-self:center;margin-top:-6px;}
 body{font-family:'Tajawal',sans-serif;background:#fff;color:#111827;}
 *{-webkit-tap-highlight-color:transparent;}
 img{image-rendering:auto;}
@@ -3875,6 +3879,23 @@ function initDarkMode(){
 // ===== EID SETTINGS =====
 let countdownTimer=null;
 
+function updateEidPositions(){
+  const navH=62;
+  const banner=document.getElementById('eidBanner');
+  const countdown=document.getElementById('eidCountdown');
+  const bannerVisible=banner.classList.contains('show');
+  const bannerH=bannerVisible?banner.offsetHeight||38:0;
+  // Banner sits just below nav
+  banner.style.top=navH+'px';
+  // Countdown sits below banner
+  countdown.style.top=(navH+bannerH)+'px';
+  // Adjust hero padding so content not hidden
+  const countdownVisible=countdown.classList.contains('show');
+  const countdownH=countdownVisible?countdown.offsetHeight||80:0;
+  const totalFixed=navH+bannerH+countdownH;
+  document.querySelector('.hero').style.paddingTop=(totalFixed+8)+'px';
+}
+
 async function loadEidSettings(){
   try{
     const snap=await db.collection('settings').doc('eid').get();
@@ -3891,6 +3912,7 @@ async function loadEidSettings(){
       if(d.countdownTitle) document.getElementById('eidCountdownTitle').textContent=d.countdownTitle;
       startCountdown(new Date(d.eidDate));
     }
+    setTimeout(updateEidPositions,100);
   }catch(e){}
 }
 
@@ -3939,6 +3961,7 @@ async function saveEidSettings(){
     countdown.classList.remove('show');
     if(countdownTimer) clearInterval(countdownTimer);
   }
+  setTimeout(updateEidPositions,100);
   toast('✅ تم حفظ إعدادات العيد!');
 }
 
@@ -4019,6 +4042,7 @@ window.changePotImg=changePotImg;
 window.removePotTag=removePotTag;
 window.selectPot=selectPot;
 window.saveEidSettings=saveEidSettings;
+window.updateEidPositions=updateEidPositions;
 window.confirmAddColor=confirmAddColor;
 window.previewNewColorImg=previewNewColorImg;
 window.changeColorImg=changeColorImg;
