@@ -151,27 +151,34 @@ body.dark-mode .writing-modal{background:#1f2937!important;}
 body.dark-mode section:not(.hero){background:#111827!important;}
 
 /* ===== CATEGORIES ===== */
-.cats-section{padding:24px 16px 16px;background:#f0f0f0;}
-.cats-scroll{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;}
+.cats-section{padding:20px 16px 8px;background:#fff;}
+.cats-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;}
 .cats-scroll::-webkit-scrollbar{display:none;}
-.cat-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;}
-.cat-icon{
-width:68px;height:68px;border-radius:50%;
-background:#e8e8e8;
-box-shadow:6px 6px 12px #bebebe,-6px -6px 12px #ffffff;
+.cat-item{
+flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+gap:0;cursor:pointer;
+width:88px;height:100px;border-radius:18px;
+position:relative;overflow:hidden;
+transition:transform 0.2s;
+}
+.cat-item:active{transform:scale(0.95);}
+.cat-bg{
+position:absolute;inset:0;border-radius:18px;
 display:flex;align-items:center;justify-content:center;
-transition:all 0.2s;
+padding-bottom:28px;
 }
-.cat-item:active .cat-icon{
-box-shadow:inset 4px 4px 8px #bebebe,inset -4px -4px 8px #ffffff;
+.cat-emoji{font-size:2.2rem;position:absolute;top:14px;left:50%;transform:translateX(-50%);}
+.cat-label{
+position:absolute;bottom:0;left:0;right:0;
+padding:7px 4px 8px;
+font-size:0.68rem;font-weight:700;
+color:#fff;text-align:center;white-space:nowrap;
+text-shadow:0 1px 3px rgba(0,0,0,0.3);
+background:rgba(0,0,0,0.18);
+backdrop-filter:blur(2px);
+border-radius:0 0 18px 18px;
 }
-.cat-item:hover .cat-icon{
-box-shadow:8px 8px 16px #bebebe,-8px -8px 16px #ffffff;
-}
-.cat-label{font-size:0.7rem;font-weight:600;color:#555;white-space:nowrap;}
 body.dark-mode .cats-section{background:#1f2937!important;}
-body.dark-mode .cat-icon{background:#2d3748!important;box-shadow:4px 4px 8px #1a202c,-4px -4px 8px #3a4a5c!important;}
-body.dark-mode .cat-label{color:#9ca3af!important;}
 
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:‘Tajawal’,sans-serif;background:#fff;color:#111827;}
@@ -746,98 +753,59 @@ font-size:0.8rem;text-align:center;transition:all 0.3s;
 <!-- Categories Section -->
 
 <section class="cats-section">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-    <h2 style="font-family:'Amiri',serif;font-size:1.2rem;color:#333;">الأقسام</h2>
-    <span style="font-size:0.78rem;color:var(--green-dark);font-weight:600;cursor:pointer;" onclick="filterProds('الكل',document.querySelector('.filter-btn'))">عرض الكل</span>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <h2 style="font-family:'Amiri',serif;font-size:1.15rem;color:#1a3a2a;font-weight:700;">تصفح الأقسام</h2>
+    <span style="font-size:0.78rem;color:#1a3a2a;font-weight:700;cursor:pointer;background:#f0fdf4;padding:4px 12px;border-radius:20px;" onclick="filterProds('الكل',document.querySelector('.filter-btn'))">عرض الكل ←</span>
   </div>
   <div class="cats-scroll">
 
 ```
 <!-- أشجار الزينة -->
 <div class="cat-item" onclick="filterProds('أشجار الزينة',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 22v-5"/>
-      <path d="M12 17l-4-5H5l4-5H6l6-7 6 7h-3l4 5h-3l4 5h-8z"/>
-    </svg>
-  </div>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#134e2a,#2d7a4a);"></div>
+  <span class="cat-emoji">🌳</span>
   <span class="cat-label">أشجار الزينة</span>
 </div>
 
 <!-- الخشبيات -->
 <div class="cat-item" onclick="filterProds('الخشبيات',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="7" width="18" height="13" rx="1"/>
-      <path d="M3 7l2-4h14l2 4"/>
-      <line x1="12" y1="7" x2="12" y2="20"/>
-      <line x1="3" y1="13" x2="21" y2="13"/>
-    </svg>
-  </div>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#78350f,#b45309);"></div>
+  <span class="cat-emoji">🪵</span>
   <span class="cat-label">الخشبيات</span>
 </div>
 
 <!-- براويز -->
 <div class="cat-item" onclick="filterProds('براويز التخرج',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-      <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-    </svg>
-  </div>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#1e3a5f,#2563eb);"></div>
+  <span class="cat-emoji">🎓</span>
   <span class="cat-label">براويز</span>
 </div>
 
-<!-- مباخر - مبخرة مع دخان -->
+<!-- مباخر -->
 <div class="cat-item" onclick="filterProds('مباخر',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M8 22h8M12 22v-4"/>
-      <path d="M7 18h10a1 1 0 0 0 1-1v-2a6 6 0 0 0-12 0v2a1 1 0 0 0 1 1z"/>
-      <path d="M10 3c0 1.5 2 1.5 2 3s-2 1.5-2 3"/>
-      <path d="M13 3c0 1.5 2 1.5 2 3s-2 1.5-2 3"/>
-    </svg>
-  </div>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#3b0764,#7c3aed);"></div>
+  <span class="cat-emoji">🕯️</span>
   <span class="cat-label">مباخر</span>
 </div>
 
 <!-- ضيافة -->
 <div class="cat-item" onclick="filterProds('طقوم الضيافة',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
-      <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/>
-      <line x1="6" y1="2" x2="6" y2="4"/>
-      <line x1="10" y1="2" x2="10" y2="4"/>
-      <line x1="14" y1="2" x2="14" y2="4"/>
-    </svg>
-  </div>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#7f1d1d,#dc2626);"></div>
+  <span class="cat-emoji">☕</span>
   <span class="cat-label">ضيافة</span>
 </div>
 
 <!-- أعياد -->
 <div class="cat-item" onclick="filterProds('هدايا الأعياد',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon" style="background:linear-gradient(135deg,#fff8e1,#fff3cd);box-shadow:4px 4px 10px #e8c96d44,-4px -4px 10px #fff;">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M20 12v10H4V12"/>
-      <path d="M22 7H2v5h20V7z"/>
-      <path d="M12 22V7"/>
-      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
-      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
-    </svg>
-  </div>
-  <span class="cat-label" style="color:#c9a84c;font-weight:700;">🎁 الأعياد</span>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#92400e,#d97706);"></div>
+  <span class="cat-emoji">🎁</span>
+  <span class="cat-label">الأعياد</span>
 </div>
 
 <!-- مناظر -->
 <div class="cat-item" onclick="filterProds('مناظر تعليق',{classList:{add:()=>{},remove:()=>{}}})">
-  <div class="cat-icon">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-      <circle cx="8.5" cy="8.5" r="1.5"/>
-      <polyline points="21 15 16 10 5 21"/>
-    </svg>
-  </div>
+  <div class="cat-bg" style="background:linear-gradient(145deg,#164e63,#0891b2);"></div>
+  <span class="cat-emoji">🖼️</span>
   <span class="cat-label">مناظر</span>
 </div>
 ```
