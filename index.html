@@ -2607,17 +2607,34 @@ function removeColorTag(color){
 function renderColorTags(){
   const c=document.getElementById('colorsTagsContainer');
   c.innerHTML=currentColors.map(color=>`
-    <div style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:12px;padding:8px 12px;margin-bottom:6px;width:100%;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <div style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:12px;padding:8px 12px;margin-bottom:6px;width:100%;box-sizing:border-box;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="background:var(--green-dark);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.82rem;">${color}</span>
         <span onclick="removeColorTag('${color}')" style="cursor:pointer;color:#e53e3e;font-size:0.8rem;">✕ حذف</span>
       </div>
-      <input type="url" placeholder="رابط صورة اللون ${color} (اختياري)" 
-        value="${colorImages[color]||''}"
-        onchange="colorImages['${color}']=this.value"
-        style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;">
+      ${colorImages[color]?`<div style="position:relative;display:inline-block;margin-bottom:6px;"><img src="${colorImages[color]}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:2px solid var(--green-dark);"><span onclick="colorImages['${color}']=null;renderColorTags()" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;">✕</span></div>`:''}
+      <label style="display:flex;align-items:center;gap:6px;background:#fff;border:1.5px dashed #ccc;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem;color:#666;">
+        📷 ${colorImages[color]?'تغيير صورة':'أضف صورة للون '+color}
+        <input type="file" accept="image/*" onchange="uploadColorImage('${color}',this)" style="display:none;">
+      </label>
     </div>
   `).join('');
+}
+
+async function uploadColorImage(color, input){
+  const file=input.files[0];
+  if(!file) return;
+  showToast('جاري رفع صورة '+color+'...');
+  try{
+    const ref=storage.ref('color-images/'+Date.now()+'_'+file.name);
+    await ref.put(file);
+    const url=await ref.getDownloadURL();
+    colorImages[color]=url;
+    renderColorTags();
+    showToast('تم رفع صورة '+color+' ✅');
+  }catch(e){
+    showToast('خطأ في رفع الصورة');
+  }
 }
 
 async function addProduct(){
@@ -2696,6 +2713,24 @@ async function addProduct(){
   toast(editingId?'✅ تم تعديل المنتج!':'✅ تم إضافة المنتج!');
 }
 
+
+function removeExistingImage(idx){
+  const p=products.find(x=>String(x.id)===document.getElementById('editingId').value||x._docId===document.getElementById('editingId').value);
+  if(!p) return;
+  p.images=p.images||[];
+  p.images.splice(idx,1);
+  const prevContainer=document.getElementById('imgsPrevContainer');
+  const upPh=document.getElementById('upPh');
+  prevContainer.innerHTML=p.images.map((img,i)=>`
+    <div style="position:relative;display:inline-block;">
+      <img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">
+      <span onclick="removeExistingImage(${i})" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;font-weight:700;">✕</span>
+    </div>
+  `).join('');
+  upPh.textContent=p.images.length>0?`✅ ${p.images.length} صورة محفوظة`:'اضغط لرفع صور المنتج';
+  showToast('تم حذف الصورة');
+}
+
 function resetForm(){
   colorImages={};
   ['pName','pPrice','pOldPrice','pDesc','pBadge','pColorsInput'].forEach(id=>document.getElementById(id).value='');
@@ -2751,7 +2786,12 @@ function editProduct(id){
   const upPh=document.getElementById('upPh');
   const imgs=p.images&&p.images.length?p.images:p.img?[p.img]:[];
   if(imgs.length){
-    prevContainer.innerHTML=imgs.map(img=>`<img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">`).join('');
+    prevContainer.innerHTML=imgs.map((img,i)=>`
+      <div style="position:relative;display:inline-block;">
+        <img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">
+        <span onclick="removeExistingImage(${i})" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;font-weight:700;">✕</span>
+      </div>
+    `).join('');
     upPh.textContent=`✅ ${imgs.length} صورة محفوظة`;
   }
   // Show existing video
