@@ -3334,13 +3334,14 @@ function openProductPage(id){
     if(writeBtn) writeBtn.style.display=hasWriting?'block':'none';
     if(hasColors){
       document.getElementById('ppColorsList').innerHTML=pColors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:9px 20px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
-      switchPPTab('color');
-    } else if(hasPots){
-      renderPpPots(pPots, p.potImages||{});
-      switchPPTab('pot');
-    } else {
-      switchPPTab('write');
     }
+    if(hasPots){
+      renderPpPots(pPots, p.potImages||{});
+    }
+    // فتح أول تبويب متاح
+    if(hasColors) switchPPTab('color');
+    else if(hasPots) switchPPTab('pot');
+    else switchPPTab('write');
   } else {
     colorsSection.style.display='none';
   }
