@@ -2617,7 +2617,8 @@ function previewNewColorImg(input){
     const prev=document.getElementById('newColorImgPreview');
     prev.src=e.target.result;
     prev.style.display='block';
-    document.getElementById('newColorImgLabel').childNodes[0].textContent='✅ صورة محددة';
+    const lbl=document.getElementById('newColorImgLabel');
+    lbl.firstChild.textContent='✅ صورة محددة ';
   };
   reader.readAsDataURL(file);
 }
@@ -2647,19 +2648,18 @@ async function confirmAddColor(){
 
 function renderColorTags(){
   const c=document.getElementById('colorsTagsContainer');
-  c.innerHTML=currentColors.map(color=>`
-    <div style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
-      ${colorImages[color]?`<img src="${colorImages[color]}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid var(--green-dark);">`:'<div style="width:48px;height:48px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🎨</div>'}
-      <div style="flex:1;">
-        <div style="font-weight:700;font-size:0.9rem;">${color}</div>
-        <label style="font-size:0.75rem;color:var(--green-dark);cursor:pointer;">
-          📷 ${colorImages[color]?'تغيير الصورة':'إضافة صورة'}
-          <input type="file" accept="image/*" onchange="changeColorImg('${color}',this)" style="display:none;">
-        </label>
-      </div>
-      <span onclick="removeColorTag('${color}')" style="cursor:pointer;color:#e53e3e;font-size:1.2rem;">🗑️</span>
-    </div>
-  `).join('');
+  c.innerHTML=currentColors.map(color=>{
+    const imgHtml=colorImages[color]
+      ?'<img src="'+colorImages[color]+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid var(--green-dark);">'
+      :'<div style="width:48px;height:48px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🎨</div>';
+    const btnTxt=colorImages[color]?'📷 تغيير الصورة':'📷 إضافة صورة';
+    return '<div style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;">'
+      +imgHtml
+      +'<div style="flex:1;"><div style="font-weight:700;font-size:0.9rem;">'+color+'</div>'
+      +'<label style="font-size:0.75rem;color:var(--green-dark);cursor:pointer;">'+btnTxt
+      +'<input type="file" accept="image/*" onchange="changeColorImg(''+color+'',this)" style="display:none;"></label></div>'
+      +'<span onclick="removeColorTag(''+color+'')" style="cursor:pointer;color:#e53e3e;font-size:1.2rem;">🗑️</span></div>';
+  }).join('');
 }
 
 async function changeColorImg(color, input){
