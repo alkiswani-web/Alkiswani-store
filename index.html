@@ -2663,18 +2663,19 @@ function renderColorTags(){
   }).join('');
 }
 
-async function changeColorImg(color, input){
-  const file=input.files[0];
+async function changeColorImg(inputEl, color){
+  const file=inputEl.files[0];
   if(!file) return;
-  showToast('جاري رفع الصورة...');
+  toast('⏳ جاري رفع الصورة...');
   try{
     const ref=storage.ref('color-images/'+Date.now()+'_'+file.name);
     await ref.put(file);
     const url=await ref.getDownloadURL();
     colorImages[color]=url;
     renderColorTags();
-    showToast('تم تحديث صورة '+color+' ✅');
-  }catch(e){showToast('خطأ في رفع الصورة');}
+    toast('✅ تم تحديث صورة '+color);
+  }catch(e){ toast('❌ خطأ في رفع الصورة'); }
+}
 }
 
 function addColorTag(color){
@@ -2809,14 +2810,14 @@ async function delProduct(id){
   if(!confirm('حذف هذا المنتج؟'))return;
   toast('⏳ جاري الحذف...');
   try{
-    const p=products.find(x=>String(x.id)===String(id)||String(x._docId)===String(id));
+    const sid=String(id);
+    const p=products.find(x=>String(x._docId)===sid||String(x.id)===sid);
     if(!p){toast('❌ المنتج غير موجود');return;}
-    // Use _docId (Firestore document ID) for deletion
     const docId=p._docId||String(p.id);
     await db.collection('products').doc(docId).delete();
     products=products.filter(x=>x!==p);
     renderStore();
-    await renderAdmin();
+    renderAdmin();
     toast('🗑️ تم الحذف بنجاح');
   }catch(e){
     console.error(e);
