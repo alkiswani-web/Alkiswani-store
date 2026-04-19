@@ -815,6 +815,20 @@ font-size:0.8rem;text-align:center;transition:all 0.3s;
   <span class="cat-label">ضيافة</span>
 </div>
 
+<!-- أعياد -->
+<div class="cat-item" onclick="filterProds('هدايا الأعياد',{classList:{add:()=>{},remove:()=>{}}})">
+  <div class="cat-icon" style="background:linear-gradient(135deg,#fff8e1,#fff3cd);box-shadow:4px 4px 10px #e8c96d44,-4px -4px 10px #fff;">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 12v10H4V12"/>
+      <path d="M22 7H2v5h20V7z"/>
+      <path d="M12 22V7"/>
+      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+    </svg>
+  </div>
+  <span class="cat-label" style="color:#c9a84c;font-weight:700;">🎁 الأعياد</span>
+</div>
+
 <!-- مناظر -->
 <div class="cat-item" onclick="filterProds('مناظر تعليق',{classList:{add:()=>{},remove:()=>{}}})">
   <div class="cat-icon">
@@ -867,6 +881,7 @@ font-size:0.8rem;text-align:center;transition:all 0.3s;
   <button class="filter-btn" onclick="filterProds('مباخر',this)">مباخر</button>
   <button class="filter-btn" onclick="filterProds('طقوم الضيافة',this)">ضيافة</button>
   <button class="filter-btn" onclick="filterProds('مناظر تعليق',this)">مناظر</button>
+  <button class="filter-btn" onclick="filterProds('هدايا الأعياد',this)" style="background:linear-gradient(135deg,#fff8e1,#fef3c7);border-color:#c9a84c;color:#92400e;font-weight:700;">🎁 الأعياد</button>
 </div>
 
 <!-- Products -->
@@ -1055,8 +1070,7 @@ font-size:0.8rem;text-align:center;transition:all 0.3s;
     <div class="points-info" id="cartPointsInfo"><span>🌟</span><span id="cartPointsText"></span></div>
     <div class="cart-total" id="cartTotal"></div>
     <div class="cart-actions">
-      <button class="btn-checkout-site" onclick="openCheckout()">✅ إتمام الطلب</button>
-      <button class="btn-checkout-wa" onclick="checkoutWA()">📱 واتساب</button>
+      <button class="btn-checkout-site" onclick="openCheckout()" style="background:#1a3a2a;">✅ إتمام الطلب</button>
     </div>
   </div>
 </div>
@@ -1089,6 +1103,11 @@ font-size:0.8rem;text-align:center;transition:all 0.3s;
           </select>
         </div>
         <div class="form-field"><label>العنوان التفصيلي *</label><input type="text" id="custAddress" placeholder="الشارع، المنطقة..."></div>
+        <div class="form-field">
+          <label>📅 تاريخ التوصيل المطلوب *</label>
+          <input type="date" id="custDeliveryDate" min="" style="width:100%;padding:11px 13px;border:1.5px solid #e0e0e0;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fafafa;">
+          <div style="font-size:0.78rem;color:#6b7280;margin-top:4px;">📦 حدد اليوم المناسب لاستلام طلبك</div>
+        </div>
         <div class="form-field"><label>ملاحظات</label><textarea id="custNotes" placeholder="أي طلب خاص..."></textarea></div>
       </div>
       <div class="modal-section" id="discountSection">
@@ -2060,6 +2079,11 @@ function openCheckout(){
   appliedDiscount=null;
   document.getElementById('discountCode').value='';
   document.getElementById('discountResult').style.display='none';
+  // Set min delivery date to tomorrow
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+  const minDate=tomorrow.toISOString().split('T')[0];
+  const dateEl=document.getElementById('custDeliveryDate');
+  if(dateEl){dateEl.min=minDate;dateEl.value=minDate;}
   const summary=document.getElementById('orderSummary');
   const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
@@ -2226,7 +2250,9 @@ async function confirmOrder(){
   const phone=document.getElementById('custPhone').value.trim();
   const area=document.getElementById('custArea').value;
   const address=document.getElementById('custAddress').value.trim();
+  const deliveryDate=document.getElementById('custDeliveryDate')?.value||'';
   if(!name||!phone||!area||!address){toast('❌ يرجى تعبئة جميع الحقول');return;}
+  if(!deliveryDate){toast('📅 يرجى تحديد تاريخ التوصيل');return;}
   toast('⏳ جاري تأكيد الطلب...');
   const subtotal=cart.map(i=>getPriceNum(i)*i.qty).reduce((a,b)=>a+b,0);
   const delivery=2;
@@ -2263,6 +2289,7 @@ async function confirmOrder(){
   const order={
     id:Date.now(),orderNum:'#'+orderNum,name,phone,area,address,
     notes:document.getElementById('custNotes').value||'',
+    deliveryDate:deliveryDate||'',
     items:cart.map(i=>({name:i.name,qty:i.qty,price:getPriceNum(i),writing:i.writingText||''})),
     subtotal:subtotal.toFixed(2)+' دينار أردني',
     delivery:delivery+' دينار أردني',
@@ -2275,7 +2302,7 @@ async function confirmOrder(){
   document.getElementById('checkoutBody').style.display='none';
   const sp=document.getElementById('successScreen');
   sp.classList.add('show');
-  sp.querySelector('p').innerHTML=`رقم طلبك: <strong style="color:var(--green-dark);font-size:1.2rem;">${order.orderNum}</strong><br>احتفظ بهذا الرقم لمتابعة طلبك 📦<br><br>سنتواصل معك قريباً على رقم هاتفك لتأكيد التوصيل.`;
+  sp.querySelector('p').innerHTML=`رقم طلبك: <strong style="color:#1a3a2a;font-size:1.2rem;">${order.orderNum}</strong><br>📅 موعد التوصيل: <strong>${order.deliveryDate}</strong><br><br>سنتواصل معك قريباً على رقم هاتفك لتأكيد التوصيل. 🌿`;
   if(earnedPts>0){document.getElementById('earnedPoints').textContent=earnedPts;document.getElementById('successPoints').style.display='block';}
   appliedDiscount=null;
   clearCart();
@@ -3107,7 +3134,7 @@ function saveCartEdit(){
   toast('✅ تم حفظ التعديل!');
 }
 function notifyAdminWA(order){
-  const msg=`🔔 *طلب جديد - الكسواني روزميري*\n\nرقم الطلب: ${order.orderNum}\n\n👤 الاسم: ${order.name}\n📞 الهاتف: ${order.phone}\n📍 المنطقة: ${order.area}\n🏠 العنوان: ${order.address}\n\n📦 المنتجات:\n${order.items.map(i=>`• ${i.name} ×${i.qty} — ${i.priceDisplay||i.price+' د.أ'}${i.writing?' ✍️ '+i.writing:''}`).join('\n')}\n\n💰 المجموع الفرعي: ${order.subtotal}\n🚚 التوصيل: ${order.delivery}\n💵 الإجمالي: ${order.total}\n\n📝 ملاحظات: ${order.notes||'لا يوجد'}`;
+  const msg=`🔔 *طلب جديد - الكسواني روزميري*\n\nرقم الطلب: ${order.orderNum}\n\n👤 الاسم: ${order.name}\n📞 الهاتف: ${order.phone}\n📍 المنطقة: ${order.area}\n🏠 العنوان: ${order.address}\n📅 موعد التوصيل: ${order.deliveryDate||'غير محدد'}\n\n📦 المنتجات:\n${order.items.map(i=>`• ${i.name} ×${i.qty} — ${i.priceDisplay||i.price+' د.أ'}${i.writing?' ✍️ '+i.writing:''}`).join('\n')}\n\n💰 المجموع الفرعي: ${order.subtotal}\n🚚 التوصيل: ${order.delivery}\n💵 الإجمالي: ${order.total}\n\n📝 ملاحظات: ${order.notes||'لا يوجد'}`;
   window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
