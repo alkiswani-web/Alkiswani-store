@@ -2771,13 +2771,13 @@ function renderPotTags(){
       ?'<img src="'+potImages[pot]+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid #c9a84c;">'
       :'<div style="width:48px;height:48px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🪴</div>';
     const btnTxt=potImages[pot]?'📷 تغيير الصورة':'📷 إضافة صورة';
-    const safePot=pot.replace(/'/g,"\'");
+    const safePot=pot.replace(/'/g,"\\'");
     return '<div style="background:#fffbf0;border:1px solid #e8c96d;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;">'
       +imgHtml
       +'<div style="flex:1;"><div style="font-weight:700;font-size:0.9rem;">'+pot+'</div>'
       +'<label style="font-size:0.75rem;color:#c9a84c;cursor:pointer;">'+btnTxt
-      +'<input type="file" accept="image/*" onchange="changePotImg(''+safePot+'',this)" style="display:none;"></label></div>'
-      +'<span onclick="removePotTag(''+safePot+'')" style="cursor:pointer;color:#e53e3e;font-size:1.2rem;">🗑️</span></div>';
+      +'<input type="file" accept="image/*" onchange="changePotImg(\''+safePot+'\',this)" style="display:none;"></label></div>'
+      +'<span onclick="removePotTag(\''+safePot+'\')" style="cursor:pointer;color:#e53e3e;font-size:1.2rem;">🗑️</span></div>';
   }).join('');
 }
 
