@@ -2584,6 +2584,7 @@ function prevVideo(input){
 }
 
 let currentColors=[];
+let colorImages={};
 function handleColorsInput(e){
   const val=e.target.value;
   if(val.endsWith(',') || e.inputType==='insertLineBreak'){
@@ -2606,10 +2607,16 @@ function removeColorTag(color){
 function renderColorTags(){
   const c=document.getElementById('colorsTagsContainer');
   c.innerHTML=currentColors.map(color=>`
-    <span style="background:var(--green-dark);color:#fff;padding:5px 12px;border-radius:20px;font-size:0.82rem;display:flex;align-items:center;gap:6px;">
-      ${color}
-      <span onclick="removeColorTag('${color}')" style="cursor:pointer;opacity:0.7;">✕</span>
-    </span>
+    <div style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:12px;padding:8px 12px;margin-bottom:6px;width:100%;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="background:var(--green-dark);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.82rem;">${color}</span>
+        <span onclick="removeColorTag('${color}')" style="cursor:pointer;color:#e53e3e;font-size:0.8rem;">✕ حذف</span>
+      </div>
+      <input type="url" placeholder="رابط صورة اللون ${color} (اختياري)" 
+        value="${colorImages[color]||''}"
+        onchange="colorImages['${color}']=this.value"
+        style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;">
+    </div>
   `).join('');
 }
 
@@ -2677,6 +2684,7 @@ async function addProduct(){
     video:video||'',
     emoji:getCatEmoji(cat),
     colors:colors,
+    colorImages:colorImages,
     reviews:existing?.reviews||[]
   };
   await db.collection('products').doc(docId).set(product);
@@ -2689,6 +2697,7 @@ async function addProduct(){
 }
 
 function resetForm(){
+  colorImages={};
   ['pName','pPrice','pOldPrice','pDesc','pBadge','pColorsInput'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pVideo').value='';
   if(document.getElementById('pVideoUrl')) document.getElementById('pVideoUrl').value='';
@@ -2736,6 +2745,7 @@ function editProduct(id){
   document.getElementById('pDesc').value=p.desc||'';
   document.getElementById('pBadge').value=p.badge||'';
   document.getElementById('pWriting').checked=p.writing||false;
+  colorImages=p.colorImages||{};
   // Show existing images
   const prevContainer=document.getElementById('imgsPrevContainer');
   const upPh=document.getElementById('upPh');
@@ -3171,6 +3181,12 @@ function selectColor(color,btn){
   selectedColor=color;
   document.querySelectorAll('#ppColorsList button').forEach(b=>{b.style.borderColor='#e0e0e0';b.style.background='#fff';b.style.color='inherit';});
   btn.style.borderColor='var(--green-dark)';btn.style.background='var(--green-dark)';btn.style.color='#fff';
+  // Change product image based on color
+  const p=currentProductPage;
+  if(p&&p.colorImages&&p.colorImages[color]){
+    const mainImg=document.getElementById('ppMainImage');
+    if(mainImg) mainImg.src=p.colorImages[color];
+  }
 }
 function addToCartFromPage(){
   const p=currentProductPage;if(!p)return;
