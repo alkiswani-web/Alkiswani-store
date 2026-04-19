@@ -1161,6 +1161,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <div class="profile-avatar">👤</div>
       <div class="profile-name" id="profileName"></div>
       <div class="profile-phone" id="profilePhone"></div>
+      <div id="profileBadge" style="margin-top:8px;font-size:1.1rem;padding:6px 16px;border-radius:20px;display:inline-block;font-weight:700;"></div>
     </div>
     <div class="points-card">
       <div class="points-label">نقاطي</div>
@@ -1217,6 +1218,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <button class="admin-tab-btn" onclick="switchAdminTab('discounts')">🎁 كودات الخصم</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('photos')">📸 صور الزبائن</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('stats')">📊 الإحصائيات</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('badges')">🏅 الشارات</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -1373,6 +1375,49 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
         <h3 style="margin-bottom:12px;font-size:0.95rem;color:var(--text-dark);">🏆 أكثر المنتجات مبيعاً</h3>
         <div id="stat-top-products"><div class="empty-msg">جاري التحميل...</div></div>
+      </div>
+    </div>
+
+
+    <!-- BADGES TAB -->
+    <div class="admin-tab-content" id="tab-badges">
+      <h2 style="margin-bottom:16px;color:var(--green-dark);">🏅 إعدادات الشارات</h2>
+      <p style="font-size:0.85rem;color:#888;margin-bottom:20px;">حدد عدد الطلبات المطلوبة لكل مستوى</p>
+      <div style="display:flex;flex-direction:column;gap:14px;max-width:400px;">
+        <div style="background:#fef9f0;border:1.5px solid #cd7f32;border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:1.8rem;">🥉</span>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:#92400e;">Bronze</div>
+            <div style="font-size:0.78rem;color:#888;">من طلب واحد</div>
+          </div>
+          <input type="number" id="badge-bronze" value="1" min="1" style="width:60px;padding:6px;border-radius:8px;border:1px solid #ddd;text-align:center;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+          <span style="font-size:0.78rem;color:#888;">طلب</span>
+        </div>
+        <div style="background:#f8f9fa;border:1.5px solid #8e9eab;border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:1.8rem;">🥈</span>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:#4b5563;">Silver</div>
+          </div>
+          <input type="number" id="badge-silver" value="3" min="1" style="width:60px;padding:6px;border-radius:8px;border:1px solid #ddd;text-align:center;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+          <span style="font-size:0.78rem;color:#888;">طلب</span>
+        </div>
+        <div style="background:#fffbeb;border:1.5px solid #fbbf24;border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:1.8rem;">🥇</span>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:#92400e;">Gold</div>
+          </div>
+          <input type="number" id="badge-gold" value="7" min="1" style="width:60px;padding:6px;border-radius:8px;border:1px solid #ddd;text-align:center;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+          <span style="font-size:0.78rem;color:#888;">طلب</span>
+        </div>
+        <div style="background:#f5f3ff;border:1.5px solid #7c3aed;border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:1.8rem;">💎</span>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:#4c1d95;">VIP</div>
+          </div>
+          <input type="number" id="badge-vip" value="15" min="1" style="width:60px;padding:6px;border-radius:8px;border:1px solid #ddd;text-align:center;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
+          <span style="font-size:0.78rem;color:#888;">طلب</span>
+        </div>
+        <button onclick="saveBadgeSettings()" style="background:var(--green-dark);color:#fff;border:none;border-radius:12px;padding:14px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px;">💾 حفظ الإعدادات</button>
       </div>
     </div>
 
@@ -2317,6 +2362,23 @@ async function openProfile(){
   const refSnap=await db.collection('referrals').where('refCode','==',refCode).get();
   const count=refSnap.size;
   document.getElementById('referralCount').textContent=count>0?`🎯 دعوت ${count} شخص حتى الآن!`:'لم تدعُ أحداً بعد — شارك رابطك الآن!';
+  // Badge system
+  const userOrdersSnap = await db.collection('orders').where('phone','==',currentUser.phone).get();
+  const orderCount = userOrdersSnap.size;
+  const badgeEl = document.getElementById('profileBadge');
+  // Load badge settings from firebase
+  const badgeDoc = await db.collection('settings').doc('badges').get();
+  if(badgeDoc.exists) badgeSettings = {...badgeSettings, ...badgeDoc.data()};
+  let badge = getUserBadge(orderCount);
+  if(badge){
+    badgeEl.textContent = badge.label;
+    badgeEl.style.background = badge.bg;
+    badgeEl.style.color = badge.color;
+    badgeEl.style.display = 'inline-block';
+  } else {
+    badgeEl.style.display = 'none';
+  }
+  
   document.getElementById('profileOverlay').classList.add('open');
   // Load orders from Firebase directly
   const oh=document.getElementById('orderHistory');
@@ -2362,6 +2424,7 @@ function switchAdminTab(tab){
   if(tab==='customers')renderCustomers();
   if(tab==='orders')renderOrders();
   if(tab==='stats')loadStats();
+  if(tab==='badges')loadBadgeSettings();
   if(tab==='points')loadPointsSettingsUI();
   if(tab==='discounts')renderDiscounts();
   if(tab==='photos')renderPhotosAdmin();
@@ -2882,6 +2945,40 @@ async function loadStats(){
       topEl.innerHTML = '<div class="empty-msg">لا توجد طلبات بعد</div>';
     }
   }catch(e){console.log('Stats error:',e);}
+}
+
+
+// Badge settings
+let badgeSettings = {bronze:1, silver:3, gold:7, vip:15};
+
+async function loadBadgeSettings(){
+  try{
+    const doc = await db.collection('settings').doc('badges').get();
+    if(doc.exists) badgeSettings = {...badgeSettings, ...doc.data()};
+    document.getElementById('badge-bronze').value = badgeSettings.bronze;
+    document.getElementById('badge-silver').value = badgeSettings.silver;
+    document.getElementById('badge-gold').value = badgeSettings.gold;
+    document.getElementById('badge-vip').value = badgeSettings.vip;
+  }catch(e){}
+}
+
+async function saveBadgeSettings(){
+  badgeSettings = {
+    bronze: parseInt(document.getElementById('badge-bronze').value)||1,
+    silver: parseInt(document.getElementById('badge-silver').value)||3,
+    gold: parseInt(document.getElementById('badge-gold').value)||7,
+    vip: parseInt(document.getElementById('badge-vip').value)||15,
+  };
+  await db.collection('settings').doc('badges').set(badgeSettings);
+  showToast('تم حفظ إعدادات الشارات ✅');
+}
+
+function getUserBadge(orderCount){
+  if(orderCount >= badgeSettings.vip) return {label:'💎 VIP', bg:'linear-gradient(135deg,#667eea,#764ba2)', color:'#fff'};
+  if(orderCount >= badgeSettings.gold) return {label:'🥇 Gold', bg:'linear-gradient(135deg,#f7971e,#ffd200)', color:'#7a4f00'};
+  if(orderCount >= badgeSettings.silver) return {label:'🥈 Silver', bg:'linear-gradient(135deg,#bdc3c7,#8e9eab)', color:'#fff'};
+  if(orderCount >= badgeSettings.bronze) return {label:'🥉 Bronze', bg:'#cd7f32', color:'#fff'};
+  return null;
 }
 
 async function deleteOrder(orderId){
