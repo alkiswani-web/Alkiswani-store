@@ -683,35 +683,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 .toast.show{transform:translateY(0);opacity:1;}
 </style>
 
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "814b9bfd-52d4-459c-a3ad-5c5d542114da",
-      safari_web_id: "web.onesignal.auto.814b9bfd-52d4-459c-a3ad-5c5d542114da",
-      notifyButton: { enable: false },
-      welcomeNotification: {
-        title: "الكسواني روزميري 🌿",
-        message: "شكراً لاشتراكك! ستصلك أحدث العروض والمنتجات الجديدة.",
-      },
-      promptOptions: {
-        slidedown: {
-          prompts: [{
-            type: "push",
-            autoPrompt: true,
-            delay: { pageViews: 1, timeDelay: 3 },
-            text: {
-              actionMessage: "🌿 اشترك لتصلك أحدث عروض الكسواني روزميري!",
-              acceptButton: "اشترك",
-              cancelButton: "لاحقاً",
-            },
-          }],
-        },
-      },
-    });
-  });
-</script>
+
 </head>
 <body>
 
@@ -2663,19 +2635,18 @@ function renderColorTags(){
   }).join('');
 }
 
-async function changeColorImg(inputEl, color){
-  const file=inputEl.files[0];
+async function changeColorImg(color, input){
+  const file=input.files[0];
   if(!file) return;
-  toast('⏳ جاري رفع الصورة...');
+  showToast('جاري رفع الصورة...');
   try{
     const ref=storage.ref('color-images/'+Date.now()+'_'+file.name);
     await ref.put(file);
     const url=await ref.getDownloadURL();
     colorImages[color]=url;
     renderColorTags();
-    toast('✅ تم تحديث صورة '+color);
-  }catch(e){ toast('❌ خطأ في رفع الصورة'); }
-}
+    showToast('تم تحديث صورة '+color+' ✅');
+  }catch(e){showToast('خطأ في رفع الصورة');}
 }
 
 function addColorTag(color){
@@ -2810,14 +2781,14 @@ async function delProduct(id){
   if(!confirm('حذف هذا المنتج؟'))return;
   toast('⏳ جاري الحذف...');
   try{
-    const sid=String(id);
-    const p=products.find(x=>String(x._docId)===sid||String(x.id)===sid);
+    const p=products.find(x=>String(x.id)===String(id)||String(x._docId)===String(id));
     if(!p){toast('❌ المنتج غير موجود');return;}
+    // Use _docId (Firestore document ID) for deletion
     const docId=p._docId||String(p.id);
     await db.collection('products').doc(docId).delete();
     products=products.filter(x=>x!==p);
     renderStore();
-    renderAdmin();
+    await renderAdmin();
     toast('🗑️ تم الحذف بنجاح');
   }catch(e){
     console.error(e);
