@@ -3868,8 +3868,8 @@ async function submitRating(){
 }
 
 // ===== ORDER STATUS =====
-function openOrderStatus(){document.getElementById('orderStatusOverlay').classList.add('open');document.getElementById('orderStatusResult').style.display='none';document.getElementById('orderStatusError').style.display='none';}
-function closeOrderStatus(){document.getElementById('orderStatusOverlay').classList.remove('open');}
+function openOrderStatus(){document.getElementById('orderStatusOverlay').classList.add('open');document.getElementById('orderStatusResult').style.display='none';document.getElementById('orderStatusError').style.display='none';history.pushState({orderStatus:true},'','#track');}
+function closeOrderStatus(){document.getElementById('orderStatusOverlay').classList.remove('open');if(location.hash==='#track')history.replaceState(null,'',location.pathname);}
 async function trackOrder(){
   const raw=document.getElementById('trackOrderId').value.trim().replace('#','');
   if(!raw){toast('أدخل رقم الطلب');return;}
@@ -3907,8 +3907,8 @@ async function trackOrder(){
   }
 }
 
-function openAbout(){document.getElementById('aboutOverlay').classList.add('open');}
-function closeAbout(){document.getElementById('aboutOverlay').classList.remove('open');}
+function openAbout(){document.getElementById('aboutOverlay').classList.add('open');history.pushState({about:true},'','#about');}
+function closeAbout(){document.getElementById('aboutOverlay').classList.remove('open');if(location.hash==='#about')history.replaceState(null,'',location.pathname);}
 
 // ===== SOUND NOTIFICATION FOR NEW ORDERS =====
 let _orderListener=null;
@@ -5098,13 +5098,13 @@ async function toggleOutOfStock(btn){
 
 // ===== BACK BUTTON HANDLER =====
 window.addEventListener('popstate', function(e){
-  // 1. أولاً — لو الصورة الكبيرة مفتوحة، سكّرها
+  // 1. الصورة الكبيرة
   if(_fullImgOverlay){
     _fullImgOverlay.remove();
     _fullImgOverlay=null;
     return;
   }
-  // 2. ثانياً — لو صفحة المنتج مفتوحة، سكّرها
+  // 2. صفحة المنتج
   const overlay = document.getElementById('productPageOverlay');
   if(overlay && overlay.classList.contains('open')){
     overlay.classList.remove('open');
@@ -5114,7 +5114,19 @@ window.addEventListener('popstate', function(e){
     }
     return;
   }
-  // 3. ثالثاً — لو السلة مفتوحة، سكّرها
+  // 3. صفحة "من نحن"
+  const aboutOv = document.getElementById('aboutOverlay');
+  if(aboutOv && aboutOv.classList.contains('open')){
+    aboutOv.classList.remove('open');
+    return;
+  }
+  // 4. صفحة تتبع الطلب
+  const trackOv = document.getElementById('orderStatusOverlay');
+  if(trackOv && trackOv.classList.contains('open')){
+    trackOv.classList.remove('open');
+    return;
+  }
+  // 5. السلة
   const cart = document.getElementById('cartDrawer');
   if(cart && cart.classList.contains('open')){
     closeCart();
