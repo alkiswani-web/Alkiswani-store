@@ -380,6 +380,15 @@ body.dark-mode .wishlist-item{background:#1c2d21!important;}
 .status-dot.active{background:var(--gold);color:var(--green-dark);}
 .status-label{font-size:0.68rem;color:#aaa;}
 .status-label.active{color:var(--green-dark);font-weight:700;}
+.status-step-v{display:flex;align-items:flex-start;gap:14px;padding-bottom:4px;}
+.sv-icon{width:40px;height:40px;border-radius:50%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;transition:all 0.3s;position:relative;z-index:1;}
+.sv-icon.done{background:var(--green-dark);color:#fff;}
+.sv-icon.active{background:var(--gold);box-shadow:0 0 0 4px rgba(212,168,67,0.2);}
+.sv-line{width:2px;height:36px;background:#e0e0e0;margin:4px 0 4px 19px;transition:background 0.3s;}
+.sv-line.done{background:var(--green-dark);}
+.sv-label{font-size:0.88rem;color:#aaa;padding-top:10px;transition:all 0.3s;}
+.sv-label.active{color:var(--green-dark);font-weight:700;}
+.sv-label.done{color:var(--green-dark);}
 
 .no-products{text-align:center;padding:60px;color:#aaa;grid-column:1/-1;}
 .no-products .icon{font-size:3.5rem;display:block;margin-bottom:14px;}
@@ -1410,6 +1419,10 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 <footer>
   <div class="footer-logo">الكسواني روزميري</div>
   <div style="font-size:0.75rem;color:rgba(255,255,255,0.2);letter-spacing:2px;">Woodcraft & Plants · Jordan</div>
+  <div style="margin-top:14px;">
+    <button onclick="openAbout()" style="background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);padding:7px 18px;border-radius:20px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">من نحن</button>
+    <button onclick="openOrderStatus()" style="background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);padding:7px 18px;border-radius:20px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;margin-right:8px;">تتبع طلبك</button>
+  </div>
   <div class="footer-admin-trigger" onclick="openAdminLogin()">· · ·</div>
   <div class="footer-copy">© 2026 الكسواني روزميري</div>
 </footer>
@@ -2216,43 +2229,110 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
   </div>
 </div>
 
-<!-- ===== ORDER STATUS MODAL ===== -->
-<div class="modal-overlay" id="orderStatusOverlay">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>📦 تتبع طلبك</h2>
-      <button class="modal-close" onclick="closeOrderStatus()">✕</button>
+<!-- ===== ORDER TRACKING PAGE ===== -->
+<div class="modal-overlay" id="orderStatusOverlay" style="align-items:flex-start;padding:0;">
+  <div style="width:100%;min-height:100dvh;background:var(--bg);display:flex;flex-direction:column;">
+    <div style="background:var(--green-dark);padding:20px 16px 24px;color:#fff;position:relative;">
+      <button onclick="closeOrderStatus()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="font-family:'Amiri',serif;font-size:1.4rem;margin-bottom:4px;">📦 تتبع طلبك</div>
+      <div style="font-size:0.82rem;opacity:0.7;">أدخل رقم الطلب لمعرفة حالته</div>
     </div>
-    <div class="modal-body">
-      <div style="font-size:0.85rem;color:var(--text-mid);margin-bottom:16px;">أدخل رقم طلبك لمتابعة حالته</div>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <input type="text" id="trackOrderId" placeholder="رقم الطلب مثال: #123456" style="flex:1;padding:11px 13px;border:1.5px solid #e0e0e0;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;">
-        <button onclick="trackOrder()" style="background:var(--green-dark);color:#fff;border:none;padding:11px 18px;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:700;cursor:pointer;">بحث</button>
+    <div style="padding:20px 16px;flex:1;">
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <input type="text" id="trackOrderId" placeholder="#123456" style="flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);outline:none;" onkeydown="if(event.key==='Enter')trackOrder()">
+        <button onclick="trackOrder()" style="background:var(--green-dark);color:#fff;border:none;padding:12px 20px;border-radius:12px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;">بحث</button>
       </div>
       <div id="orderStatusResult" style="display:none;">
-        <div style="background:var(--cream);border-radius:12px;padding:16px;margin-bottom:16px;">
-          <div id="orderStatusInfo" style="font-size:0.88rem;color:var(--text-dark);margin-bottom:12px;"></div>
-          <div class="order-status-bar">
-            <div class="status-step">
-              <div class="status-dot" id="s1">📋</div>
-              <div class="status-label" id="sl1">جديد</div>
+        <div style="background:var(--card-bg);border-radius:16px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px;">
+          <div style="background:var(--green-dark);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="color:#fff;font-weight:700;font-size:1rem;" id="trOrderNum">—</div>
+            <span id="trStatusBadge" style="padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;"></span>
+          </div>
+          <div style="padding:14px 16px;">
+            <div id="orderStatusInfo" style="font-size:0.88rem;color:var(--text-mid);margin-bottom:14px;line-height:1.8;"></div>
+            <div id="trItems" style="font-size:0.85rem;color:var(--text-dark);background:var(--cream-dark);border-radius:10px;padding:10px 12px;margin-bottom:14px;"></div>
+            <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:var(--text-mid);">
+              <span>الإجمالي</span>
+              <span id="trTotal" style="font-weight:700;color:var(--brown);"></span>
             </div>
-            <div class="status-step">
-              <div class="status-dot" id="s2">⚙️</div>
-              <div class="status-label" id="sl2">قيد التجهيز</div>
-            </div>
-            <div class="status-step">
-              <div class="status-dot" id="s3">🚚</div>
-              <div class="status-label" id="sl3">بالطريق</div>
-            </div>
-            <div class="status-step">
-              <div class="status-dot" id="s4">✅</div>
-              <div class="status-label" id="sl4">تم التسليم</div>
+            <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:var(--text-mid);margin-top:6px;" id="trDateRow">
+              <span>تاريخ الطلب</span>
+              <span id="trDate"></span>
             </div>
           </div>
         </div>
+        <div style="background:var(--card-bg);border-radius:16px;border:1px solid var(--border);padding:20px 16px;">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--green-dark);margin-bottom:20px;letter-spacing:1px;">مراحل الطلب</div>
+          <div class="order-status-bar" style="flex-direction:column;gap:0;">
+            <div class="status-step-v" id="sv1"><div class="sv-icon" id="s1">📋</div><div class="sv-line"></div><div class="sv-label" id="sl1">استلام الطلب</div></div>
+            <div class="status-step-v" id="sv2"><div class="sv-icon" id="s2">⚙️</div><div class="sv-line"></div><div class="sv-label" id="sl2">قيد التجهيز</div></div>
+            <div class="status-step-v" id="sv3"><div class="sv-icon" id="s3">🚚</div><div class="sv-line"></div><div class="sv-label" id="sl3">في الطريق إليك</div></div>
+            <div class="status-step-v" id="sv4"><div class="sv-icon" id="s4">✅</div><div class="sv-line" style="display:none;"></div><div class="sv-label" id="sl4">تم التسليم</div></div>
+          </div>
+        </div>
       </div>
-      <div id="orderStatusError" style="display:none;text-align:center;color:#e53e3e;font-size:0.88rem;padding:20px;">❌ رقم الطلب غير موجود</div>
+      <div id="orderStatusError" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:3rem;margin-bottom:12px;">🔍</div>
+        <div style="font-weight:700;color:var(--text-dark);margin-bottom:6px;">ما لقينا هذا الطلب</div>
+        <div style="font-size:0.85rem;color:var(--text-mid);">تأكد من رقم الطلب وحاول مجددًا</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ABOUT PAGE ===== -->
+<div class="modal-overlay" id="aboutOverlay" style="align-items:flex-start;padding:0;">
+  <div style="width:100%;min-height:100dvh;background:var(--bg);display:flex;flex-direction:column;overflow-y:auto;">
+    <div style="background:var(--green-dark);padding:60px 24px 40px;text-align:center;position:relative;">
+      <button onclick="closeAbout()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+      <div style="font-size:3.5rem;margin-bottom:12px;">🌿</div>
+      <div style="font-family:'Amiri',serif;font-size:1.9rem;color:#fff;margin-bottom:6px;">الكسواني روزميري</div>
+      <div style="font-size:0.82rem;color:rgba(255,255,255,0.55);letter-spacing:3px;">ALKISWANI ROSEMARY</div>
+    </div>
+    <div style="padding:28px 20px;max-width:480px;margin:0 auto;width:100%;">
+      <div style="background:var(--card-bg);border-radius:18px;border:1px solid var(--border);padding:22px;margin-bottom:16px;">
+        <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">✨ قصتنا</div>
+        <div style="font-size:0.9rem;color:var(--text-mid);line-height:2;">
+          بدأت رحلتنا من شغف حقيقي بالطبيعة والخشب، من زاوية صغيرة في قلب الأردن، نحوّل الأخشاب الطبيعية وأشجار الزينة إلى تحف تزيّن بيتك وتسعد روحك. كل قطعة نصنعها تحمل بين طياتها حبًا وإتقانًا، لأن هدفنا ليس البيع فحسب، بل إدخال الجمال إلى حياتك.
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">🪵</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">خشبيات يدوية</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">مصنوعة بحرفية عالية من خشب طبيعي أصلي</div>
+        </div>
+        <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">🌱</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">أشجار زينة</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">نباتات منزلية وأشجار تزيّن مساحتك بالخضرة</div>
+        </div>
+        <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">✍️</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">نقش مخصص</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">اكتب اسمك أو رسالتك على أي منتج تحبه</div>
+        </div>
+        <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">🚚</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">توصيل لبابك</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">نوصل لجميع محافظات الأردن بسرعة وأمان</div>
+        </div>
+      </div>
+      <div style="background:var(--card-bg);border-radius:18px;border:1px solid var(--border);padding:22px;margin-bottom:16px;">
+        <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">📞 تواصل معنا</div>
+        <a href="https://wa.me/962775665598" target="_blank" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px;text-decoration:none;margin-bottom:10px;">
+          <div style="width:40px;height:40px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">💬</div>
+          <div><div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">واتساب</div><div style="font-size:0.78rem;color:#6b7280;">0775665598</div></div>
+          <div style="margin-right:auto;font-size:0.75rem;color:#25D366;font-weight:600;">تواصل الآن ←</div>
+        </a>
+        <div style="display:flex;align-items:center;gap:12px;background:var(--cream-dark);border-radius:12px;padding:14px;">
+          <div style="width:40px;height:40px;background:var(--green-dark);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📍</div>
+          <div><div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);">الأردن</div><div style="font-size:0.78rem;color:var(--text-mid);">نوصّل لجميع المحافظات</div></div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:16px 0 8px;">
+        <div style="font-size:0.78rem;color:var(--text-mid);">© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن</div>
+      </div>
     </div>
   </div>
 </div>
@@ -3071,8 +3151,8 @@ function doAdminLogin(){
     closeAdminLogin();openAdmin();
   } else {document.getElementById('aErr').style.display='block';setTimeout(()=>document.getElementById('aErr').style.display='none',3000);}
 }
-function openAdmin(){document.getElementById('adminPanel').classList.add('open');renderAdmin();}
-function closeAdmin(){document.getElementById('adminPanel').classList.remove('open');renderStore();}
+function openAdmin(){document.getElementById('adminPanel').classList.add('open');renderAdmin();startOrderListener();}
+function closeAdmin(){document.getElementById('adminPanel').classList.remove('open');stopOrderListener();renderStore();}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('adminLoginOverlay').classList.contains('open'))doAdminLogin();});
 
 function switchAdminTab(tab){
@@ -3793,8 +3873,9 @@ function closeOrderStatus(){document.getElementById('orderStatusOverlay').classL
 async function trackOrder(){
   const raw=document.getElementById('trackOrderId').value.trim().replace('#','');
   if(!raw){toast('أدخل رقم الطلب');return;}
+  toast('⏳ جاري البحث...');
   const snap=await db.collection('orders').get();
-  const order=snap.docs.map(d=>d.data()).find(o=>String(o.id).slice(-6)===raw||String(o.id)===raw);
+  const order=snap.docs.map(d=>d.data()).find(o=>String(o.id).slice(-6)===raw||String(o.id)===raw||(o.orderNum||'').replace('#','')=== raw);
   if(!order){
     document.getElementById('orderStatusResult').style.display='none';
     document.getElementById('orderStatusError').style.display='block';
@@ -3802,17 +3883,72 @@ async function trackOrder(){
   }
   document.getElementById('orderStatusError').style.display='none';
   document.getElementById('orderStatusResult').style.display='block';
-  document.getElementById('orderStatusInfo').innerHTML=`<strong>${order.name}</strong> · ${order.date}<br>${order.items.map(i=>i.name+' ×'+i.qty).join(' · ')}`;
+  document.getElementById('trOrderNum').textContent='طلب '+(order.orderNum||'#'+String(order.id).slice(-6));
+  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#d1fae5'};
+  const statusTextC={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#065f46'};
+  const st=order.status||'جديد';
+  const badge=document.getElementById('trStatusBadge');
+  badge.textContent=st; badge.style.background=statusColors[st]; badge.style.color=statusTextC[st];
+  document.getElementById('orderStatusInfo').innerHTML=`👤 <strong>${order.name}</strong> · 📅 ${order.date}${order.deliveryDate?'<br>📦 موعد التوصيل: <strong>'+order.deliveryDate+'</strong>':''}`;
+  document.getElementById('trItems').innerHTML=(order.items||[]).map(i=>`<div style="padding:3px 0;border-bottom:1px solid var(--border);">🌿 ${i.name} × ${i.qty}${i.writing?' <span style="color:#92400e;font-size:0.8rem;">✍️ '+i.writing+'</span>':''}</div>`).join('');
+  document.getElementById('trTotal').textContent=order.total||'—';
+  document.getElementById('trDate').textContent=order.date||'—';
   const statuses=['جديد','قيد التجهيز','بالطريق','تم التسليم'];
-  const cur=statuses.indexOf(order.status||'جديد');
+  const cur=statuses.indexOf(st);
   for(let i=1;i<=4;i++){
-    const dot=document.getElementById('s'+i);
+    const icon=document.getElementById('s'+i);
     const lbl=document.getElementById('sl'+i);
-    dot.classList.remove('done','active');
-    lbl.classList.remove('active');
-    if(i-1<cur){dot.classList.add('done');}
-    else if(i-1===cur){dot.classList.add('active');lbl.classList.add('active');}
+    const line=document.querySelector('#sv'+i+' .sv-line');
+    icon.classList.remove('done','active');
+    lbl.classList.remove('active','done');
+    if(line) line.classList.remove('done');
+    if(i-1<cur){icon.classList.add('done');lbl.classList.add('done');if(line)line.classList.add('done');}
+    else if(i-1===cur){icon.classList.add('active');lbl.classList.add('active');}
   }
+}
+
+function openAbout(){document.getElementById('aboutOverlay').classList.add('open');}
+function closeAbout(){document.getElementById('aboutOverlay').classList.remove('open');}
+
+// ===== SOUND NOTIFICATION FOR NEW ORDERS =====
+let _orderListener=null;
+let _lastOrderCount=-1;
+
+function playOrderSound(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const notes=[523,659,784,1047];
+    notes.forEach((freq,i)=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value=freq;
+      osc.type='sine';
+      gain.gain.setValueAtTime(0,ctx.currentTime+i*0.12);
+      gain.gain.linearRampToValueAtTime(0.3,ctx.currentTime+i*0.12+0.05);
+      gain.gain.linearRampToValueAtTime(0,ctx.currentTime+i*0.12+0.25);
+      osc.start(ctx.currentTime+i*0.12);
+      osc.stop(ctx.currentTime+i*0.12+0.3);
+    });
+  }catch(e){}
+}
+
+function startOrderListener(){
+  if(_orderListener) return;
+  _orderListener=db.collection('orders').onSnapshot(snap=>{
+    const count=snap.size;
+    if(_lastOrderCount===-1){_lastOrderCount=count;return;}
+    if(count>_lastOrderCount){
+      const diff=count-_lastOrderCount;
+      _lastOrderCount=count;
+      playOrderSound();
+      toast('🔔 وصل طلب جديد! ('+diff+')');
+    } else {_lastOrderCount=count;}
+  });
+}
+
+function stopOrderListener(){
+  if(_orderListener){_orderListener();_orderListener=null;_lastOrderCount=-1;}
 }
 
 // ===== UPDATE ORDER STATUS (from admin) =====
@@ -5018,6 +5154,8 @@ window.openRatingModal=openRatingModal; window.closeRatingModal=closeRatingModal
 window.selectStar=selectStar; window.submitRating=submitRating;
 window.openOrderStatus=openOrderStatus; window.closeOrderStatus=closeOrderStatus;
 window.trackOrder=trackOrder; window.updateOrderStatus=updateOrderStatus;
+window.openAbout=openAbout; window.closeAbout=closeAbout;
+window.startOrderListener=startOrderListener; window.stopOrderListener=stopOrderListener;
 window.switchVideoTab=switchVideoTab; window.prevVideo=prevVideo; window.clearExistingVideo=clearExistingVideo;
 window.copyReferral=copyReferral; window.shareReferral=shareReferral;
 window.toggleDarkMode=toggleDarkMode;
