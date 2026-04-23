@@ -650,18 +650,23 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 #ppSlider img,#ppSlider video,#ppSlider>div{scroll-snap-align:start;flex-shrink:0;width:100vw;height:380px;object-fit:contain;background:#fff;}
 
 /* ===== BOTTOM TAB BAR ===== */
-.bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:#f0f0f0;display:flex;align-items:stretch;border-top:1px solid #e0e0e0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 16px rgba(0,0,0,0.06);will-change:transform;transform:translateZ(0);}
-.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:#999;font-family:'Tajawal',sans-serif;font-size:0.65rem;gap:4px;transition:all 0.2s;}
-.bottom-tab:active{opacity:0.7;}
-.bottom-tab .tab-icon{font-size:1.3rem;display:block;position:relative;width:42px;height:42px;border-radius:50%;background:#e8e8e8;box-shadow:3px 3px 6px #bebebe,-3px -3px 6px #ffffff;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:transparent;padding:0 12px calc(10px + env(safe-area-inset-bottom)) 12px;pointer-events:none;}
+.bottom-bar-inner{display:flex;align-items:center;justify-content:space-around;background:#fff;border-radius:22px;padding:0 6px;height:62px;box-shadow:0 8px 32px rgba(0,0,0,0.14),0 2px 8px rgba(0,0,0,0.08);pointer-events:all;}
+.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;color:#bbb;font-family:'Tajawal',sans-serif;font-size:0.62rem;padding:8px 4px;border-radius:16px;transition:all 0.2s;}
+.bottom-tab:active{transform:scale(0.92);}
+.bottom-tab .tab-icon{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;transition:all 0.2s;}
 .bottom-tab.active{color:#1a3a2a;}
-.bottom-tab.active .tab-icon{box-shadow:inset 3px 3px 6px #bebebe,inset -3px -3px 6px #ffffff;}
-.bottom-tab.cart-tab{color:#1a3a2a;}
-.bottom-tab.cart-tab .tab-icon{background:#1a3a2a;color:#fff;width:52px;height:52px;margin-top:-14px;box-shadow:4px 4px 10px rgba(26,58,42,0.4),-2px -2px 8px #fff;border:3px solid #f0f0f0;}
-.cart-badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
-body{padding-bottom:72px;}
-body.dark-mode .bottom-bar{background:#1f2937!important;border-color:#374151!important;}
-body.dark-mode .bottom-tab .tab-icon{background:#2d3748!important;box-shadow:3px 3px 6px #1a202c,-3px -3px 6px #3a4a5c!important;}
+.bottom-tab.active .tab-icon{background:rgba(26,58,42,0.1);}
+.bottom-tab.cart-tab{color:#fff;}
+.bottom-tab.cart-tab .tab-icon{background:#1a3a2a;width:44px;height:44px;border-radius:14px;box-shadow:0 4px 14px rgba(26,58,42,0.4);}
+.cart-badge{position:absolute;top:-4px;right:-4px;background:#d4a843;color:#fff;width:17px;height:17px;border-radius:50%;font-size:0.58rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
+body{padding-bottom:84px;}
+body.dark-mode .bottom-bar-inner{background:#1c1c1e!important;box-shadow:0 8px 32px rgba(0,0,0,0.4)!important;}
+body.dark-mode .bottom-tab{color:#555!important;}
+body.dark-mode .bottom-tab.active{color:#6ee7b7!important;}
+body.dark-mode .bottom-tab.active .tab-icon{background:rgba(110,231,183,0.1)!important;}
+body.dark-mode .bottom-tab.cart-tab{color:#fff!important;}
+body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;}
 body.dark-mode .bottom-tab{color:#6b7280!important;}
 body.dark-mode .bottom-tab.active{color:#6ee7b7!important;}
 body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;border-color:#1f2937!important;}
@@ -1367,7 +1372,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 </div>
 
 <!-- ===== BOTTOM TAB BAR ===== -->
-<div class="bottom-bar">
+<div class="bottom-bar"><div class="bottom-bar-inner">
   <button class="bottom-tab active" onclick="window.scrollTo({top:0,behavior:'smooth'})">
     <span class="tab-icon">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -1400,7 +1405,7 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
     </span>
     <span id="bottomAuthText">حسابي</span>
   </button>
-</div>
+</div></div>
 
 <footer>
   <div class="footer-logo">الكسواني روزميري</div>
