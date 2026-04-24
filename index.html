@@ -1675,6 +1675,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button class="admin-tab-btn" onclick="switchAdminTab('badges')">🏅 الشارات</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('eid')">🌙 العيد</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('categories')">📂 الأقسام</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -2120,6 +2121,63 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       </div>
     </div>
 
+    <!-- ABOUT EDIT TAB -->
+    <div class="admin-tab-content" id="tab-aboutedit">
+      <div class="form-card">
+        <h2>🌿 تعديل صفحة "من نحن"</h2>
+
+        <div class="form-field" style="margin-top:12px;">
+          <label>✨ نص القصة</label>
+          <textarea id="ab_story" rows="5" placeholder="اكتب قصة متجرك هنا..."></textarea>
+        </div>
+
+        <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin:16px 0 10px;">📌 البطاقات الأربع</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 1</div>
+            <input id="ab_c1e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c1t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c1d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 2</div>
+            <input id="ab_c2e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c2t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c2d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 3</div>
+            <input id="ab_c3e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c3t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c3d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 4</div>
+            <input id="ab_c4e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c4t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c4d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+        </div>
+
+        <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">📞 معلومات التواصل</div>
+        <div class="form-field">
+          <label>رقم واتساب (بدون +)</label>
+          <input id="ab_phone" placeholder="962775665598">
+        </div>
+        <div class="form-field">
+          <label>📍 الموقع / العنوان</label>
+          <input id="ab_location" placeholder="الأردن — نوصّل لجميع المحافظات">
+        </div>
+        <div class="form-field">
+          <label>© نص الحقوق</label>
+          <input id="ab_copy" placeholder="© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن">
+        </div>
+
+        <button onclick="saveAboutSettings()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:8px;">💾 حفظ التغييرات</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -2343,46 +2401,44 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div style="padding:28px 20px;max-width:480px;margin:0 auto;width:100%;">
       <div style="background:var(--card-bg);border-radius:18px;border:1px solid var(--border);padding:22px;margin-bottom:16px;">
         <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">✨ قصتنا</div>
-        <div style="font-size:0.9rem;color:var(--text-mid);line-height:2;">
-          بدأت رحلتنا من شغف حقيقي بالطبيعة والخشب، من زاوية صغيرة في قلب الأردن، نحوّل الأخشاب الطبيعية وأشجار الزينة إلى تحف تزيّن بيتك وتسعد روحك. كل قطعة نصنعها تحمل بين طياتها حبًا وإتقانًا، لأن هدفنا ليس البيع فحسب، بل إدخال الجمال إلى حياتك.
-        </div>
+        <div id="about_story" style="font-size:0.9rem;color:var(--text-mid);line-height:2;">بدأت رحلتنا من شغف حقيقي بالطبيعة والخشب، من زاوية صغيرة في قلب الأردن، نحوّل الأخشاب الطبيعية وأشجار الزينة إلى تحف تزيّن بيتك وتسعد روحك. كل قطعة نصنعها تحمل بين طياتها حبًا وإتقانًا، لأن هدفنا ليس البيع فحسب، بل إدخال الجمال إلى حياتك.</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;" id="about_cards">
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">🪵</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">خشبيات يدوية</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">مصنوعة بحرفية عالية من خشب طبيعي أصلي</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c1e">🪵</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c1t">خشبيات يدوية</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c1d">مصنوعة بحرفية عالية من خشب طبيعي أصلي</div>
         </div>
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">🌱</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">أشجار زينة</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">نباتات منزلية وأشجار تزيّن مساحتك بالخضرة</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c2e">🌱</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c2t">أشجار زينة</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c2d">نباتات منزلية وأشجار تزيّن مساحتك بالخضرة</div>
         </div>
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">✍️</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">نقش مخصص</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">اكتب اسمك أو رسالتك على أي منتج تحبه</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c3e">✍️</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c3t">نقش مخصص</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c3d">اكتب اسمك أو رسالتك على أي منتج تحبه</div>
         </div>
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">🚚</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">توصيل لبابك</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">نوصل لجميع محافظات الأردن بسرعة وأمان</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c4e">🚚</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c4t">توصيل لبابك</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c4d">نوصل لجميع محافظات الأردن بسرعة وأمان</div>
         </div>
       </div>
       <div style="background:var(--card-bg);border-radius:18px;border:1px solid var(--border);padding:22px;margin-bottom:16px;">
         <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">📞 تواصل معنا</div>
-        <a href="https://wa.me/962775665598" target="_blank" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px;text-decoration:none;margin-bottom:10px;">
+        <a id="about_wa_link" href="https://wa.me/962775665598" target="_blank" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px;text-decoration:none;margin-bottom:10px;">
           <div style="width:40px;height:40px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">💬</div>
-          <div><div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">واتساب</div><div style="font-size:0.78rem;color:#6b7280;">0775665598</div></div>
+          <div><div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">واتساب</div><div id="about_wa_num" style="font-size:0.78rem;color:#6b7280;">0775665598</div></div>
           <div style="margin-right:auto;font-size:0.75rem;color:#25D366;font-weight:600;">تواصل الآن ←</div>
         </a>
         <div style="display:flex;align-items:center;gap:12px;background:var(--cream-dark);border-radius:12px;padding:14px;">
           <div style="width:40px;height:40px;background:var(--green-dark);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📍</div>
-          <div><div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);">الأردن</div><div style="font-size:0.78rem;color:var(--text-mid);">نوصّل لجميع المحافظات</div></div>
+          <div><div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);">الأردن</div><div id="about_location" style="font-size:0.78rem;color:var(--text-mid);">نوصّل لجميع المحافظات</div></div>
         </div>
       </div>
       <div style="text-align:center;padding:16px 0 8px;">
-        <div style="font-size:0.78rem;color:var(--text-mid);">© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن</div>
+        <div id="about_copy" style="font-size:0.78rem;color:var(--text-mid);">© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن</div>
       </div>
     </div>
   </div>
@@ -3218,6 +3274,7 @@ function switchAdminTab(tab){
   if(tab==='photos')renderPhotosAdmin();
   if(tab==='eid')loadEidAdminUI();
   if(tab==='categories'){ renderCategoriesAdmin(); }
+  if(tab==='aboutedit'){ loadAboutSettingsForm(); }
 }
 
 let currentOrderStatus='جديد';
@@ -5075,6 +5132,7 @@ async function init(){
   try{ await loadProducts(); }catch(e){ console.error('loadProducts error:',e); }
   try{ await loadCustomerPhotos(); }catch(e){}
   try{ await loadEidSettings(); }catch(e){}
+  try{ await loadAboutSettings(); }catch(e){}
   try{ updateCartCount(); }catch(e){}
   try{ updateNavUser(); }catch(e){}
   try{ startSocialProof(); }catch(e){}
@@ -5412,12 +5470,78 @@ window.previewNewColorImg=previewNewColorImg;
 window.changeColorImg=changeColorImg;
 window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
+// ===== ABOUT SETTINGS =====
+async function loadAboutSettings(){
+  try{
+    const snap=await db.collection('settings').doc('about').get();
+    if(!snap.exists) return;
+    const d=snap.data();
+    const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.textContent=val;};
+    if(d.story) set('about_story',d.story);
+    if(d.c1e) set('about_c1e',d.c1e);
+    if(d.c1t) set('about_c1t',d.c1t);
+    if(d.c1d) set('about_c1d',d.c1d);
+    if(d.c2e) set('about_c2e',d.c2e);
+    if(d.c2t) set('about_c2t',d.c2t);
+    if(d.c2d) set('about_c2d',d.c2d);
+    if(d.c3e) set('about_c3e',d.c3e);
+    if(d.c3t) set('about_c3t',d.c3t);
+    if(d.c3d) set('about_c3d',d.c3d);
+    if(d.c4e) set('about_c4e',d.c4e);
+    if(d.c4t) set('about_c4t',d.c4t);
+    if(d.c4d) set('about_c4d',d.c4d);
+    if(d.phone){
+      const link=document.getElementById('about_wa_link');
+      if(link) link.href='https://wa.me/'+d.phone;
+      set('about_wa_num','0'+d.phone.slice(-9));
+    }
+    if(d.location) set('about_location',d.location);
+    if(d.copy) set('about_copy',d.copy);
+  }catch(e){}
+}
+
+function loadAboutSettingsForm(){
+  db.collection('settings').doc('about').get().then(snap=>{
+    if(!snap.exists) return;
+    const d=snap.data();
+    const fill=(id,val)=>{const el=document.getElementById(id);if(el&&val!=null)el.value=val;};
+    fill('ab_story',d.story||'');
+    fill('ab_c1e',d.c1e||''); fill('ab_c1t',d.c1t||''); fill('ab_c1d',d.c1d||'');
+    fill('ab_c2e',d.c2e||''); fill('ab_c2t',d.c2t||''); fill('ab_c2d',d.c2d||'');
+    fill('ab_c3e',d.c3e||''); fill('ab_c3t',d.c3t||''); fill('ab_c3d',d.c3d||'');
+    fill('ab_c4e',d.c4e||''); fill('ab_c4t',d.c4t||''); fill('ab_c4d',d.c4d||'');
+    fill('ab_phone',d.phone||'');
+    fill('ab_location',d.location||'');
+    fill('ab_copy',d.copy||'');
+  }).catch(e=>{});
+}
+
+async function saveAboutSettings(){
+  const g=id=>document.getElementById(id).value.trim();
+  const data={
+    story:g('ab_story'),
+    c1e:g('ab_c1e'),c1t:g('ab_c1t'),c1d:g('ab_c1d'),
+    c2e:g('ab_c2e'),c2t:g('ab_c2t'),c2d:g('ab_c2d'),
+    c3e:g('ab_c3e'),c3t:g('ab_c3t'),c3d:g('ab_c3d'),
+    c4e:g('ab_c4e'),c4t:g('ab_c4t'),c4d:g('ab_c4d'),
+    phone:g('ab_phone'),
+    location:g('ab_location'),
+    copy:g('ab_copy')
+  };
+  try{
+    await db.collection('settings').doc('about').set(data);
+    await loadAboutSettings();
+    toast('✅ تم حفظ صفحة "من نحن"');
+  }catch(e){ toast('❌ خطأ في الحفظ'); }
+}
+
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
 window.closeWANotifModal=closeWANotifModal;
+window.saveAboutSettings=saveAboutSettings; window.loadAboutSettings=loadAboutSettings;
 
 function addAdvisorProduct(docId){
   const p=products.find(x=>(x._docId||x.id)===docId);
