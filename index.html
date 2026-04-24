@@ -2981,8 +2981,6 @@ async function confirmOrder(){
   appliedDiscount=null;
   clearCart();
   toast('🎉 تم استلام طلبك!');
-  // فتح واتساب فوراً للأدمن (مش في setTimeout عشان ما يتبلوك)
-  notifyAdminWA(order);
   // Process referral if exists
   processReferralOnOrder(phone,name);
 }
@@ -3979,12 +3977,59 @@ function startOrderListener(){
     const count=snap.size;
     if(_lastOrderCount===-1){_lastOrderCount=count;return;}
     if(count>_lastOrderCount){
-      const diff=count-_lastOrderCount;
       _lastOrderCount=count;
       playOrderSound();
-      toast('🔔 وصل طلب جديد! ('+diff+')');
+      // Get the latest order to show details
+      const docs=snap.docs.sort((a,b)=>b.data().id-a.data().id);
+      const latest=docs[0]?.data();
+      if(latest) showNewOrderAlert(latest);
+      else toast('🔔 وصل طلب جديد!');
+      renderOrders();
     } else {_lastOrderCount=count;}
   });
+}
+
+function showNewOrderAlert(order){
+  const existing=document.getElementById('newOrderAlert');
+  if(existing) existing.remove();
+  const phone=(order.phone||'').replace(/[^0-9]/g,'');
+  const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
+  const items=(order.items||[]).map(i=>i.name+' ×'+i.qty).join('، ');
+  const waMsg=encodeURIComponent(notifyAdminWAMsg(order));
+  const div=document.createElement('div');
+  div.id='newOrderAlert';
+  div.innerHTML=`
+    <div style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);border:2px solid #25D366;padding:16px 18px;min-width:290px;max-width:340px;animation:fadeUp 0.3s ease;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:700;color:#1a3a2a;font-size:0.95rem;">🔔 طلب جديد!</div>
+        <button onclick="document.getElementById('newOrderAlert').remove()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:#aaa;line-height:1;">✕</button>
+      </div>
+      <div style="font-size:0.82rem;color:#374151;margin-bottom:4px;">👤 <strong>${order.name}</strong> · 📞 ${order.phone}</div>
+      <div style="font-size:0.78rem;color:#6b7280;margin-bottom:2px;">📍 ${order.area||''} ${order.address?'— '+order.address:''}</div>
+      <div style="font-size:0.78rem;color:#6b7280;margin-bottom:10px;">🌿 ${items}</div>
+      <div style="display:flex;gap:8px;">
+        <a href="https://wa.me/${intlPhone}?text=${waMsg}" target="_blank" style="flex:1;background:#25D366;color:#fff;text-align:center;padding:8px;border-radius:8px;font-size:0.82rem;font-weight:700;text-decoration:none;">📱 واتساب</a>
+        <button onclick="switchOrderTab('جديد',document.getElementById('stab-new'));renderOrders();document.getElementById('newOrderAlert').remove()" style="flex:1;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;">📋 عرض الطلب</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(),30000);
+}
+
+function notifyAdminWAMsg(order){
+  const items=(order.items||[]).map(i=>'• '+i.name+' ×'+i.qty+(i.writing?' ✍️ '+i.writing:'')).join('\n');
+  return '🔔 *طلب جديد - الكسواني روزميري*\n\n'
+    +'رقم الطلب: '+(order.orderNum||'#'+String(order.id).slice(-6))+'\n\n'
+    +'👤 الاسم: '+order.name+'\n'
+    +'📞 الهاتف: '+order.phone+'\n'
+    +'📍 المنطقة: '+(order.area||'')+'\n'
+    +'🏠 العنوان: '+(order.address||'')+'\n'
+    +'📅 موعد التوصيل: '+(order.deliveryDate||'غير محدد')+'\n\n'
+    +'📦 المنتجات:\n'+items+'\n\n'
+    +'💰 المجموع: '+(order.subtotal||'')+'\n'
+    +'🚚 التوصيل: '+(order.delivery||'')+'\n'
+    +'💵 الإجمالي: '+(order.total||'')+'\n\n'
+    +'📝 ملاحظات: '+(order.notes||'لا يوجد');
 }
 
 function stopOrderListener(){
