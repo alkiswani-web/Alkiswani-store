@@ -195,6 +195,7 @@ body.dark-mode .cats-section{background:#1f2937!important;}
   z-index:198;
 }
 @keyframes bannerShimmer{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
+@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 #eidBanner.show{display:block;}
 .eid-banner-text{color:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;}
 .eid-banner-close{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
@@ -2248,10 +2249,16 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <div id="orderStatusResult" style="display:none;">
         <div style="background:var(--card-bg);border-radius:16px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px;">
           <div style="background:var(--green-dark);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-            <div style="color:#fff;font-weight:700;font-size:1rem;" id="trOrderNum">—</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="color:#fff;font-weight:700;font-size:1rem;" id="trOrderNum">—</div>
+              <span style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.15);color:#fff;padding:2px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">
+                <span style="width:6px;height:6px;background:#4ade80;border-radius:50%;display:inline-block;animation:livePulse 1.5s ease-in-out infinite;"></span>LIVE
+              </span>
+            </div>
             <span id="trStatusBadge" style="padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;"></span>
           </div>
           <div style="padding:14px 16px;">
+            <div id="trCancelReason" style="display:none;font-size:0.82rem;color:#991b1b;background:#fee2e2;padding:8px 12px;border-radius:8px;margin-bottom:12px;"></div>
             <div id="orderStatusInfo" style="font-size:0.88rem;color:var(--text-mid);margin-bottom:14px;line-height:1.8;"></div>
             <div id="trItems" style="font-size:0.85rem;color:var(--text-dark);background:var(--cream-dark);border-radius:10px;padding:10px 12px;margin-bottom:14px;"></div>
             <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:var(--text-mid);">
@@ -3876,30 +3883,52 @@ async function submitRating(){
 
 // ===== ORDER STATUS =====
 function openOrderStatus(){document.getElementById('orderStatusOverlay').classList.add('open');document.getElementById('orderStatusResult').style.display='none';document.getElementById('orderStatusError').style.display='none';history.pushState({orderStatus:true},'','#track');}
-function closeOrderStatus(){document.getElementById('orderStatusOverlay').classList.remove('open');if(location.hash==='#track')history.replaceState(null,'',location.pathname);}
+function closeOrderStatus(){
+  document.getElementById('orderStatusOverlay').classList.remove('open');
+  if(location.hash==='#track')history.replaceState(null,'',location.pathname);
+  if(_trackingListener){_trackingListener();_trackingListener=null;}
+}
+let _trackingListener=null;
+
 async function trackOrder(){
   const raw=document.getElementById('trackOrderId').value.trim().replace('#','');
   if(!raw){toast('أدخل رقم الطلب');return;}
   toast('⏳ جاري البحث...');
+  // Cancel previous listener
+  if(_trackingListener){_trackingListener();_trackingListener=null;}
   const snap=await db.collection('orders').get();
-  const order=snap.docs.map(d=>d.data()).find(o=>String(o.id).slice(-6)===raw||String(o.id)===raw||(o.orderNum||'').replace('#','')=== raw);
-  if(!order){
+  const doc=snap.docs.find(d=>{const o=d.data();return String(o.id).slice(-6)===raw||String(o.id)===raw||(o.orderNum||'').replace('#','')===raw;});
+  if(!doc){
     document.getElementById('orderStatusResult').style.display='none';
     document.getElementById('orderStatusError').style.display='block';
     return;
   }
+  // Subscribe to real-time updates for this specific order
+  _trackingListener=db.collection('orders').doc(doc.id).onSnapshot(snap=>{
+    if(!snap.exists) return;
+    renderTrackingResult(snap.data());
+  });
+}
+
+function renderTrackingResult(order){
   document.getElementById('orderStatusError').style.display='none';
   document.getElementById('orderStatusResult').style.display='block';
   document.getElementById('trOrderNum').textContent='طلب '+(order.orderNum||'#'+String(order.id).slice(-6));
-  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#d1fae5'};
-  const statusTextC={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#065f46'};
+  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#d1fae5','ملغي':'#fee2e2'};
+  const statusTextC={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#065f46','ملغي':'#991b1b'};
   const st=order.status||'جديد';
   const badge=document.getElementById('trStatusBadge');
-  badge.textContent=st; badge.style.background=statusColors[st]; badge.style.color=statusTextC[st];
+  badge.textContent=st; badge.style.background=statusColors[st]||'#f3f4f6'; badge.style.color=statusTextC[st]||'#374151';
   document.getElementById('orderStatusInfo').innerHTML=`👤 <strong>${order.name}</strong> · 📅 ${order.date}${order.deliveryDate?'<br>📦 موعد التوصيل: <strong>'+order.deliveryDate+'</strong>':''}`;
   document.getElementById('trItems').innerHTML=(order.items||[]).map(i=>`<div style="padding:3px 0;border-bottom:1px solid var(--border);">🌿 ${i.name} × ${i.qty}${i.writing?' <span style="color:#92400e;font-size:0.8rem;">✍️ '+i.writing+'</span>':''}</div>`).join('');
   document.getElementById('trTotal').textContent=order.total||'—';
   document.getElementById('trDate').textContent=order.date||'—';
+  // Update cancel reason display
+  const cancelDiv=document.getElementById('trCancelReason');
+  if(cancelDiv){
+    if(st==='ملغي'&&order.cancelReason){cancelDiv.style.display='block';cancelDiv.textContent='🚫 سبب الإلغاء: '+order.cancelReason;}
+    else{cancelDiv.style.display='none';}
+  }
   const statuses=['جديد','قيد التجهيز','بالطريق','تم التسليم'];
   const cur=statuses.indexOf(st);
   for(let i=1;i<=4;i++){
@@ -3909,8 +3938,12 @@ async function trackOrder(){
     icon.classList.remove('done','active');
     lbl.classList.remove('active','done');
     if(line) line.classList.remove('done');
-    if(i-1<cur){icon.classList.add('done');lbl.classList.add('done');if(line)line.classList.add('done');}
-    else if(i-1===cur){icon.classList.add('active');lbl.classList.add('active');}
+    if(st==='ملغي'){icon.style.opacity='0.4';lbl.style.opacity='0.4';}
+    else{icon.style.opacity='';lbl.style.opacity='';}
+    if(st!=='ملغي'){
+      if(i-1<cur){icon.classList.add('done');lbl.classList.add('done');if(line)line.classList.add('done');}
+      else if(i-1===cur){icon.classList.add('active');lbl.classList.add('active');}
+    }
   }
 }
 
@@ -4091,7 +4124,6 @@ async function updateOrderStatus(orderId, newStatus, cancelReason=''){
   toast('✅ تم تحديث حالة الطلب');
   renderOrders();
   if(newStatus==='ملغي') return;
-  // Get order and build WhatsApp message
   const snap=await db.collection('orders').doc(String(orderId)).get();
   const order=snap.data();
   if(!order||!order.phone) return;
@@ -4104,8 +4136,23 @@ async function updateOrderStatus(orderId, newStatus, cancelReason=''){
   const msg=`🌿 *الكسواني روزميري*\n\nأهلاً ${order.name}،\n\n${statusMsgs[newStatus]}\n\n📦 رقم طلبك: ${order.orderNum||'#'+String(order.id).slice(-6)}\n💰 الإجمالي: ${order.total}\n\nللاستفسار تواصل معنا 🙏`;
   const phone=order.phone.replace(/[^0-9]/g,'');
   const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
-  window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`,'_blank');
+  const waUrl=`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`;
+  showWANotifModal(order.name, newStatus, waUrl);
 }
+
+function showWANotifModal(name, status, waUrl){
+  const statusLabels={
+    'جديد':'📋 استلام الطلب',
+    'قيد التجهيز':'⚙️ قيد التجهيز',
+    'بالطريق':'🚚 في الطريق',
+    'تم التسليم':'✅ تم التسليم'
+  };
+  document.getElementById('waNotifName').textContent=name;
+  document.getElementById('waNotifStatus').textContent=statusLabels[status]||status;
+  document.getElementById('waNotifSendBtn').onclick=()=>{window.open(waUrl,'_blank');closeWANotifModal();};
+  document.getElementById('waNotifOverlay').style.display='flex';
+}
+function closeWANotifModal(){document.getElementById('waNotifOverlay').style.display='none';}
 
 let _cancelTargetOrderId=null;
 
@@ -5248,9 +5295,38 @@ window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
+window.closeWANotifModal=closeWANotifModal;
 
 init();
 </script>
+
+<!-- WHATSAPP NOTIFICATION MODAL -->
+<div id="waNotifOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:900;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:380px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="background:linear-gradient(135deg,#25D366,#128C7E);padding:18px 22px;display:flex;align-items:center;gap:12px;">
+      <div style="font-size:1.8rem;">📱</div>
+      <div>
+        <div style="color:#fff;font-weight:700;font-size:0.95rem;">إرسال إشعار للزبون</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:0.78rem;margin-top:2px;">الحالة تغيرت — أرسل رسالة عبر واتساب</div>
+      </div>
+    </div>
+    <div style="padding:20px;">
+      <div style="background:#f0fdf4;border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid #bbf7d0;">
+        <div style="font-size:0.82rem;color:#6b7280;margin-bottom:6px;">سيُرسل لـ:</div>
+        <div style="font-weight:700;color:#111827;font-size:0.95rem;" id="waNotifName"></div>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.8rem;color:#6b7280;">الحالة الجديدة:</span>
+          <span style="font-weight:700;color:#1a3a2a;font-size:0.85rem;" id="waNotifStatus"></span>
+        </div>
+      </div>
+      <button id="waNotifSendBtn" style="width:100%;padding:13px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        فتح واتساب وإرسال
+      </button>
+      <button onclick="closeWANotifModal()" style="width:100%;padding:11px;background:#f3f4f6;color:#6b7280;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;">تخطي</button>
+    </div>
+  </div>
+</div>
 
 <!-- CANCEL ORDER DIALOG -->
 <div id="cancelDialogOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:900;align-items:center;justify-content:center;padding:20px;">
