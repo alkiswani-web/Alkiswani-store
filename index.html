@@ -935,6 +935,40 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 /* TOAST */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--green-dark);color:#fff;padding:12px 20px;border-radius:12px;font-size:0.85rem;z-index:9999;transform:translateY(70px);opacity:0;transition:all 0.35s;border-right:4px solid var(--gold);max-width:280px;}
 .toast.show{transform:translateY(0);opacity:1;}
+
+/* ===== PRODUCT ADVISOR ===== */
+.advisor-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:800;display:none;align-items:flex-end;justify-content:center;}
+.advisor-overlay.open{display:flex;}
+.advisor-sheet{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:520px;max-height:90dvh;overflow-y:auto;transform:translateY(100%);transition:transform 0.38s cubic-bezier(0.4,0,0.2,1);padding:0 0 40px;}
+.advisor-overlay.open .advisor-sheet{transform:translateY(0);}
+.advisor-header{background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:22px 20px 18px;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:2;}
+.advisor-steps{display:flex;gap:6px;justify-content:center;margin-top:12px;}
+.advisor-step-dot{width:28px;height:4px;border-radius:2px;background:rgba(255,255,255,0.25);transition:all 0.3s;}
+.advisor-step-dot.active{background:#d4a843;width:36px;}
+.advisor-step-dot.done{background:rgba(255,255,255,0.6);}
+.advisor-body{padding:20px 16px 0;}
+.advisor-q{font-family:'Amiri',serif;font-size:1.2rem;color:#111827;margin-bottom:6px;line-height:1.4;}
+.advisor-sub{font-size:0.82rem;color:#6b7280;margin-bottom:18px;}
+.advisor-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;}
+.advisor-opt{border:2px solid #e5e7eb;border-radius:14px;padding:16px 12px;cursor:pointer;text-align:center;transition:all 0.22s;background:#fff;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.advisor-opt:active{transform:scale(0.97);}
+.advisor-opt.selected{border-color:#1a3a2a;background:#f0fdf4;}
+.advisor-opt-icon{font-size:2rem;line-height:1;}
+.advisor-opt-label{font-size:0.85rem;font-weight:700;color:#111827;}
+.advisor-opt-sub{font-size:0.72rem;color:#9ca3af;}
+.advisor-price-opts{display:flex;flex-direction:column;gap:8px;}
+.advisor-price-opt{border:2px solid #e5e7eb;border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.22s;background:#fff;}
+.advisor-price-opt.selected{border-color:#1a3a2a;background:#f0fdf4;}
+.advisor-price-opt-icon{font-size:1.5rem;}
+.advisor-price-opt-text{flex:1;}
+.advisor-price-opt-label{font-weight:700;font-size:0.92rem;color:#111827;}
+.advisor-price-opt-range{font-size:0.75rem;color:#9ca3af;margin-top:2px;}
+.advisor-nav{display:flex;gap:8px;margin-top:20px;}
+.advisor-results-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+body.dark-mode .advisor-sheet{background:#1f2937;}
+body.dark-mode .advisor-opt,body.dark-mode .advisor-price-opt{background:#111827;border-color:#374151;}
+body.dark-mode .advisor-opt-label,body.dark-mode .advisor-q{color:#f9fafb;}
+body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{background:#1a3a2a;border-color:#4a8c5c;}
 </style>
 
 
@@ -1228,7 +1262,10 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
     <h1 class="hero-title">خشبيات فاخرة<br><span class="gold">وأشجار زينة</span></h1>
     <p class="hero-desc">منتجات خشبية حرفية وأشجار زينة تضفي جمالاً استثنائياً على منزلك</p>
     <div class="hero-btns">
-      <a href="#products" class="btn-primary">
+      <button onclick="openAdvisor()" class="btn-primary" style="background:linear-gradient(135deg,#d4a843,#b08a28);box-shadow:0 4px 20px rgba(212,168,67,0.35);">
+        🎯 ساعدني أختار
+      </button>
+      <a href="#products" class="btn-outline">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
         تصفح المنتجات
       </a>
@@ -5375,12 +5412,175 @@ window.previewNewColorImg=previewNewColorImg;
 window.changeColorImg=changeColorImg;
 window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
+window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
+window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
 window.closeWANotifModal=closeWANotifModal;
 
+// ===== PRODUCT ADVISOR =====
+const PRICE_RANGES=[
+  {label:'أقل من 20 دينار',sub:'للميزانية المحدودة',icon:'💚',min:0,max:19.99},
+  {label:'20 — 50 دينار',sub:'الأكثر شيوعاً',icon:'⭐',min:20,max:50},
+  {label:'أكثر من 50 دينار',sub:'منتجات مميزة وفاخرة',icon:'👑',min:50.01,max:Infinity},
+  {label:'ما عندي حدود',sub:'أعرضلي كل شيء',icon:'🎯',min:0,max:Infinity}
+];
+
+let _advisorCat=null, _advisorPrice=null;
+
+function openAdvisor(){
+  _advisorCat=null; _advisorPrice=null;
+  const ov=document.getElementById('advisorOverlay');
+  ov.classList.add('open');
+  renderAdvisorStep(0);
+}
+
+function closeAdvisor(){
+  document.getElementById('advisorOverlay').classList.remove('open');
+}
+
+function renderAdvisorStep(step){
+  const dots=document.getElementById('advisorDots');
+  const label=document.getElementById('advisorStepLabel');
+  const body=document.getElementById('advisorBody');
+  dots.innerHTML=`
+    <div class="advisor-step-dot ${step===0?'active':'done'}"></div>
+    <div class="advisor-step-dot ${step===1?'active':step>1?'done':''}"></div>`;
+  if(step===0){
+    label.textContent='خطوة 1 من 2';
+    const cats=categories.length
+      ? categories.map(c=>({name:c.name,emoji:c.emoji||'🌿'}))
+      : [...new Set(products.map(p=>p.cat))].filter(Boolean).map(c=>({name:c,emoji:'🌿'}));
+    cats.unshift({name:'الكل',emoji:'✨'});
+    body.innerHTML=`
+      <p class="advisor-q">شو بتدور؟</p>
+      <p class="advisor-sub">اختر نوع المنتج اللي يناسبك</p>
+      <div class="advisor-options" style="grid-template-columns:${cats.length<=4?'1fr 1fr':'1fr 1fr 1fr'};">
+        ${cats.map(c=>`
+          <div class="advisor-opt" onclick="advisorSelectCat('${c.name}',this)">
+            <span class="advisor-opt-icon">${c.emoji}</span>
+            <span class="advisor-opt-label">${c.name}</span>
+          </div>`).join('')}
+      </div>`;
+  } else if(step===1){
+    label.textContent='خطوة 2 من 2';
+    body.innerHTML=`
+      <p class="advisor-q">ميزانيتك؟</p>
+      <p class="advisor-sub">اختر النطاق السعري المناسب</p>
+      <div class="advisor-price-opts">
+        ${PRICE_RANGES.map((r,i)=>`
+          <div class="advisor-price-opt" onclick="advisorSelectPrice(${i},this)">
+            <span class="advisor-price-opt-icon">${r.icon}</span>
+            <div class="advisor-price-opt-text">
+              <div class="advisor-price-opt-label">${r.label}</div>
+              <div class="advisor-price-opt-range">${r.sub}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="advisor-nav">
+        <button onclick="advisorGoBack()" style="padding:11px 18px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;color:#6b7280;">← رجوع</button>
+      </div>`;
+  } else {
+    showAdvisorResults();
+  }
+}
+
+function advisorSelectCat(cat, el){
+  _advisorCat=cat==='الكل'?null:cat;
+  document.querySelectorAll('.advisor-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  setTimeout(()=>renderAdvisorStep(1),300);
+}
+
+function advisorSelectPrice(idx, el){
+  _advisorPrice=PRICE_RANGES[idx];
+  document.querySelectorAll('.advisor-price-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  setTimeout(()=>renderAdvisorStep(2),300);
+}
+
+function advisorGoBack(){ renderAdvisorStep(0); }
+
+function showAdvisorResults(){
+  const label=document.getElementById('advisorStepLabel');
+  const dots=document.getElementById('advisorDots');
+  const body=document.getElementById('advisorBody');
+  label.textContent='النتائج';
+  dots.innerHTML=`<div class="advisor-step-dot done"></div><div class="advisor-step-dot done"></div>`;
+  const range=_advisorPrice||PRICE_RANGES[3];
+  let filtered=products.filter(p=>{
+    if(p.outOfStock) return false;
+    const catOk=!_advisorCat||p.cat===_advisorCat;
+    const price=getPriceNum(p);
+    const priceOk=price>=range.min&&price<=range.max;
+    return catOk&&priceOk;
+  });
+  if(!filtered.length){
+    body.innerHTML=`
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:3rem;margin-bottom:12px;">🔍</div>
+        <div style="font-weight:700;color:#111827;margin-bottom:8px;">ما لقينا منتجات بهذه المواصفات</div>
+        <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:20px;">جرب تغير الفلتر أو تصفح كل المنتجات</div>
+        <button onclick="advisorGoBack()" style="padding:11px 20px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;margin-left:8px;">← حاول مجدداً</button>
+        <button onclick="closeAdvisor()" style="padding:11px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">تصفح الكل</button>
+      </div>`;
+    return;
+  }
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <p class="advisor-q" style="margin-bottom:2px;">وجدنا لك ${filtered.length} منتج 🎉</p>
+        <p class="advisor-sub" style="margin-bottom:0;">${_advisorCat||'كل المنتجات'} · ${range.label}</p>
+      </div>
+      <button onclick="advisorGoBack()" style="padding:7px 12px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:#6b7280;white-space:nowrap;">← تعديل</button>
+    </div>
+    <div class="advisor-results-grid">
+      ${filtered.slice(0,8).map(p=>{
+        const img=p.images?.[0]||p.img;
+        const price=getPriceNum(p);
+        const old=p.oldPrice?getPriceNum({price:p.oldPrice}):null;
+        return `<div style="background:#fff;border-radius:14px;border:1px solid #e5e7eb;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="height:120px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">
+            ${img?`<img src="${img}" style="width:100%;height:100%;object-fit:cover;">`:(p.emoji||'🌿')}
+          </div>
+          <div style="padding:10px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#111827;margin-bottom:4px;line-height:1.3;">${p.name}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:6px;">
+              <div>
+                ${old?`<span style="font-size:0.7rem;color:#d1d5db;text-decoration:line-through;">${old} د.أ</span><br>`:''}
+                <span style="font-size:0.9rem;font-weight:700;color:#1a3a2a;">${price.toFixed(2)} د.أ</span>
+              </div>
+              <button onclick="addToCartDirect('${p.id||p._docId}');closeAdvisor();" style="background:#1a3a2a;color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;">+ سلة</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${filtered.length>8?`<div style="text-align:center;margin-top:14px;"><button onclick="closeAdvisor();document.getElementById('products').scrollIntoView({behavior:'smooth'})" style="padding:10px 20px;background:#f3f4f6;color:#1a3a2a;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">عرض كل النتائج (${filtered.length})</button></div>`:''}`;
+}
+
 init();
 </script>
+
+<!-- PRODUCT ADVISOR -->
+<div class="advisor-overlay" id="advisorOverlay">
+  <div class="advisor-sheet" id="advisorSheet">
+    <div class="advisor-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:'Amiri',serif;font-size:1.15rem;color:#fff;">🎯 مساعد الاختيار</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:2px;" id="advisorStepLabel">خطوة 1 من 2</div>
+        </div>
+        <button onclick="closeAdvisor()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+      </div>
+      <div class="advisor-steps" id="advisorDots">
+        <div class="advisor-step-dot active"></div>
+        <div class="advisor-step-dot"></div>
+      </div>
+    </div>
+    <div class="advisor-body" id="advisorBody"></div>
+  </div>
+</div>
 
 <!-- WHATSAPP NOTIFICATION MODAL -->
 <div id="waNotifOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:900;align-items:center;justify-content:center;padding:20px;">
