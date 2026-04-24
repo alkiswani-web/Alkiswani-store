@@ -5448,8 +5448,8 @@ function renderAdvisorStep(step){
     <div class="advisor-step-dot ${step===1?'active':step>1?'done':''}"></div>`;
   if(step===0){
     label.textContent='خطوة 1 من 2';
-    const cats=categories.length
-      ? categories.map(c=>({name:c.name,emoji:c.emoji||'🌿'}))
+    const cats=(storeCategories&&storeCategories.length)
+      ? storeCategories.map(c=>({name:c.name,emoji:c.emoji||'🌿'}))
       : [...new Set(products.map(p=>p.cat))].filter(Boolean).map(c=>({name:c,emoji:'🌿'}));
     cats.unshift({name:'الكل',emoji:'✨'});
     body.innerHTML=`
