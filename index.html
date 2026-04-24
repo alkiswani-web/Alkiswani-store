@@ -1809,6 +1809,9 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
         <button class="order-stab" onclick="switchOrderTab('تم التسليم',this)" id="stab-done">
           ✅ مسلّم <span id="cnt-done" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
         </button>
+        <button class="order-stab" onclick="switchOrderTab('ملغي',this)" id="stab-cancel">
+          🚫 ملغي <span id="cnt-cancel" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
+        </button>
       </div>
       <div id="ordersList"><div class="empty-msg">جاري التحميل...</div></div>
     </div>
@@ -3186,12 +3189,13 @@ async function renderOrders(){
   const snap=await db.collection('orders').get();
   const allOrders=snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
   // Update counts
-  const counts={'جديد':0,'قيد التجهيز':0,'بالطريق':0,'تم التسليم':0};
+  const counts={'جديد':0,'قيد التجهيز':0,'بالطريق':0,'تم التسليم':0,'ملغي':0};
   allOrders.forEach(o=>{ const s=o.status||'جديد'; if(counts[s]!==undefined) counts[s]++; });
   document.getElementById('cnt-new').textContent=counts['جديد'];
   document.getElementById('cnt-prep').textContent=counts['قيد التجهيز'];
   document.getElementById('cnt-way').textContent=counts['بالطريق'];
   document.getElementById('cnt-done').textContent=counts['تم التسليم'];
+  document.getElementById('cnt-cancel').textContent=counts['ملغي'];
   window._allOrders=allOrders;
   renderOrdersByStatus();
 }
@@ -3201,8 +3205,8 @@ function renderOrdersByStatus(){
   const all=window._allOrders||[];
   const filtered=all.filter(o=>(o.status||'جديد')===currentOrderStatus);
   if(!filtered.length){list.innerHTML=`<div class="empty-msg">ما في طلبات بهذه الحالة</div>`;return;}
-  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#f0fdf4'};
-  const statusText={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#166534'};
+  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#f0fdf4','ملغي':'#fee2e2'};
+  const statusText={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#166534','ملغي':'#991b1b'};
   list.innerHTML=filtered.map(o=>`
     <div class="prod-row" style="flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:6px;">
@@ -3213,12 +3217,15 @@ function renderOrdersByStatus(){
       <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
       <div style="font-weight:700;color:var(--brown);font-size:0.9rem;">💰 الإجمالي: ${o.total}</div>
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
+      ${o.cancelReason?`<div style="font-size:0.78rem;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:6px;">🚫 سبب الإلغاء: ${o.cancelReason}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
-        ${currentOrderStatus!=='جديد'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📋 جديد</button>`:''}
-        ${currentOrderStatus!=='قيد التجهيز'?`<button onclick="updateOrderStatus('${o.id}','قيد التجهيز');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #fbbf24;background:#fef9c3;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#92400e;">⚙️ تجهيز</button>`:''}
-        ${currentOrderStatus!=='بالطريق'?`<button onclick="updateOrderStatus('${o.id}','بالطريق');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #93c5fd;background:#dbeafe;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#1e40af;">🚚 بالطريق</button>`:''}
-        ${currentOrderStatus!=='تم التسليم'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>
-        <button onclick="deleteOrder('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #fca5a5;background:#fee2e2;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#dc2626;">🗑️ حذف</button>`:''}
+        ${currentOrderStatus!=='جديد'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📋 جديد</button>`:''}
+        ${currentOrderStatus!=='قيد التجهيز'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','قيد التجهيز');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #fbbf24;background:#fef9c3;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#92400e;">⚙️ تجهيز</button>`:''}
+        ${currentOrderStatus!=='بالطريق'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','بالطريق');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #93c5fd;background:#dbeafe;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#1e40af;">🚚 بالطريق</button>`:''}
+        ${currentOrderStatus!=='تم التسليم'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>`:''}
+        ${currentOrderStatus!=='ملغي'?`<button onclick="openCancelDialog('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #fca5a5;background:#fee2e2;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#dc2626;">🚫 إلغاء</button>`:''}
+        ${currentOrderStatus==='ملغي'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">↩️ استعادة</button>`:''}
+        <button onclick="deleteOrder('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#6b7280;">🗑️ حذف</button>
       </div>
     </div>
   `).join('');
@@ -4076,10 +4083,14 @@ async function deleteOrder(orderId){
   }
 }
 
-async function updateOrderStatus(orderId, newStatus){
-  await db.collection('orders').doc(String(orderId)).update({status:newStatus});
+async function updateOrderStatus(orderId, newStatus, cancelReason=''){
+  const updateData={status:newStatus};
+  if(cancelReason) updateData.cancelReason=cancelReason;
+  if(newStatus!=='ملغي') updateData.cancelReason='';
+  await db.collection('orders').doc(String(orderId)).update(updateData);
   toast('✅ تم تحديث حالة الطلب');
   renderOrders();
+  if(newStatus==='ملغي') return;
   // Get order and build WhatsApp message
   const snap=await db.collection('orders').doc(String(orderId)).get();
   const order=snap.data();
@@ -4093,8 +4104,41 @@ async function updateOrderStatus(orderId, newStatus){
   const msg=`🌿 *الكسواني روزميري*\n\nأهلاً ${order.name}،\n\n${statusMsgs[newStatus]}\n\n📦 رقم طلبك: ${order.orderNum||'#'+String(order.id).slice(-6)}\n💰 الإجمالي: ${order.total}\n\nللاستفسار تواصل معنا 🙏`;
   const phone=order.phone.replace(/[^0-9]/g,'');
   const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
-  // Open WhatsApp with message ready — send from your business account
   window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+let _cancelTargetOrderId=null;
+
+function openCancelDialog(orderId){
+  _cancelTargetOrderId=orderId;
+  document.getElementById('cancelReasonInput').value='';
+  document.querySelectorAll('.cancel-reason-btn').forEach(b=>{
+    b.style.borderColor='#e5e7eb';b.style.background='#fff';b.style.color='';
+  });
+  const overlay=document.getElementById('cancelDialogOverlay');
+  overlay.style.display='flex';
+}
+
+function closeCancelDialog(){
+  document.getElementById('cancelDialogOverlay').style.display='none';
+  _cancelTargetOrderId=null;
+}
+
+function selectCancelReason(btn, reason){
+  document.querySelectorAll('.cancel-reason-btn').forEach(b=>{
+    b.style.borderColor='#e5e7eb';b.style.background='#fff';b.style.color='';
+  });
+  btn.style.borderColor='#dc2626';btn.style.background='#fee2e2';btn.style.color='#991b1b';
+  document.getElementById('cancelReasonInput').value=reason;
+}
+
+async function confirmCancelOrder(){
+  const reason=document.getElementById('cancelReasonInput').value.trim();
+  if(!reason){toast('⚠️ يرجى اختيار أو كتابة سبب الإلغاء');return;}
+  if(!_cancelTargetOrderId){return;}
+  closeCancelDialog();
+  await updateOrderStatus(_cancelTargetOrderId,'ملغي',reason);
+  renderOrders();
 }
 
 // ===== PRODUCT PAGE =====
@@ -5202,8 +5246,32 @@ window.previewNewColorImg=previewNewColorImg;
 window.changeColorImg=changeColorImg;
 window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
+window.openCancelDialog=openCancelDialog;
+window.confirmCancelOrder=confirmCancelOrder;
 
 init();
 </script>
+
+<!-- CANCEL ORDER DIALOG -->
+<div id="cancelDialogOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:900;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-family:'Amiri',serif;font-size:1.1rem;color:#fff;">🚫 إلغاء الطلب</h2>
+      <button onclick="closeCancelDialog()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div style="padding:22px;">
+      <p style="font-size:0.88rem;color:#6b7280;margin-bottom:16px;">اختر سبب الإلغاء أو اكتب سبباً مخصصاً:</p>
+      <div id="cancelReasonBtns" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <button onclick="selectCancelReason(this,'الزبون طلب الإلغاء')" class="cancel-reason-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">👤 الزبون طلب الإلغاء</button>
+        <button onclick="selectCancelReason(this,'المنتج غير متوفر')" class="cancel-reason-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">📦 المنتج غير متوفر</button>
+        <button onclick="selectCancelReason(this,'مشكلة في التوصيل')" class="cancel-reason-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">🚚 مشكلة في التوصيل</button>
+        <button onclick="selectCancelReason(this,'بيانات خاطئة')" class="cancel-reason-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">✏️ بيانات خاطئة</button>
+        <button onclick="selectCancelReason(this,'طلب مكرر')" class="cancel-reason-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">🔁 طلب مكرر</button>
+      </div>
+      <textarea id="cancelReasonInput" placeholder="أو اكتب سبباً مخصصاً..." style="width:100%;padding:11px 13px;border:1.5px solid #e0e0e0;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;resize:none;min-height:70px;margin-bottom:14px;"></textarea>
+      <button onclick="confirmCancelOrder()" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;">🚫 تأكيد الإلغاء</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
