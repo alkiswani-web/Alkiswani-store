@@ -5414,9 +5414,16 @@ window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
+window.addAdvisorProduct=addAdvisorProduct;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
 window.closeWANotifModal=closeWANotifModal;
+
+function addAdvisorProduct(docId){
+  const p=products.find(x=>(x._docId||x.id)===docId);
+  if(!p){toast('⚠️ ما قدرنا نضيف المنتج');return;}
+  addToCartDirect(p,'');
+}
 
 // ===== PRODUCT ADVISOR =====
 const PRICE_RANGES=[
@@ -5550,7 +5557,7 @@ function showAdvisorResults(){
                 ${old?`<span style="font-size:0.7rem;color:#d1d5db;text-decoration:line-through;">${old} د.أ</span><br>`:''}
                 <span style="font-size:0.9rem;font-weight:700;color:#1a3a2a;">${price.toFixed(2)} د.أ</span>
               </div>
-              <button onclick="addToCartDirect('${p.id||p._docId}');closeAdvisor();" style="background:#1a3a2a;color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;">+ سلة</button>
+              <button onclick="addAdvisorProduct('${p._docId||p.id}');closeAdvisor();" style="background:#1a3a2a;color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;">+ سلة</button>
             </div>
           </div>
         </div>`;
