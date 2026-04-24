@@ -1814,6 +1814,10 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
           🚫 ملغي <span id="cnt-cancel" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
         </button>
       </div>
+      <div id="transferBtnWrap" style="display:flex;gap:8px;margin-bottom:12px;align-items:center;background:#fef9c3;border:1px solid #fbbf24;border-radius:12px;padding:10px 14px;">
+        <span style="font-size:0.85rem;color:#92400e;flex:1;">📤 أرسل كل الطلبات الجديدة لواتساب وانقلهم لـ"قيد التجهيز"</span>
+        <button onclick="transferNewOrders()" style="background:#f59e0b;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">ترحيل الطلبات</button>
+      </div>
       <div id="ordersList"><div class="empty-msg">جاري التحميل...</div></div>
     </div>
 
@@ -3185,6 +3189,8 @@ function switchOrderTab(status, btn){
   currentOrderStatus=status;
   document.querySelectorAll('.order-stab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap=document.getElementById('transferBtnWrap');
+  if(wrap) wrap.style.display=status==='جديد'?'flex':'none';
   renderOrdersByStatus();
 }
 
@@ -4014,6 +4020,36 @@ function showNewOrderAlert(order){
     </div>`;
   document.body.appendChild(div);
   setTimeout(()=>div.remove(),30000);
+}
+
+async function transferNewOrders(){
+  const newOrders=(window._allOrders||[]).filter(o=>(o.status||'جديد')==='جديد');
+  if(!newOrders.length){toast('⚠️ ما في طلبات جديدة');return;}
+  if(!confirm(`سيتم ترحيل ${newOrders.length} طلب لواتساب ونقلهم لـ"قيد التجهيز". تأكيد؟`)){return;}
+  const date=new Date().toLocaleDateString('ar-JO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  let msg=`📋 *ترحيل الطلبات الجديدة*\n🌿 الكسواني روزميري\n📅 ${date}\n\n`;
+  newOrders.forEach((o,i)=>{
+    const items=(o.items||[]).map(it=>it.name+' ×'+it.qty+(it.writing?' ✍️ '+it.writing:'')).join('، ');
+    msg+=`${'━'.repeat(22)}\n`;
+    msg+=`📦 طلب ${o.orderNum||'#'+String(o.id).slice(-6)}\n`;
+    msg+=`👤 ${o.name} | 📞 ${o.phone}\n`;
+    msg+=`📍 ${o.area||''}${o.address?' — '+o.address:''}\n`;
+    msg+=`📅 التوصيل: ${o.deliveryDate||'غير محدد'}\n`;
+    msg+=`🌿 ${items}\n`;
+    msg+=`💰 الإجمالي: ${o.total}\n`;
+    if(o.notes) msg+=`📝 ${o.notes}\n`;
+  });
+  msg+=`${'━'.repeat(22)}\n`;
+  msg+=`\n✅ إجمالي الطلبات: ${newOrders.length}`;
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
+  // Move all to قيد التجهيز
+  const batch=db.batch();
+  newOrders.forEach(o=>{
+    batch.update(db.collection('orders').doc(String(o.id)),{status:'قيد التجهيز'});
+  });
+  await batch.commit();
+  toast(`✅ تم ترحيل ${newOrders.length} طلب`);
+  renderOrders();
 }
 
 function notifyAdminWAMsg(order){
@@ -5309,6 +5345,7 @@ window.copyReferral=copyReferral; window.shareReferral=shareReferral;
 window.toggleDarkMode=toggleDarkMode;
 window.toggleWishlist=toggleWishlist; window.openWishlist=openWishlist; window.closeWishlist=closeWishlist; window.renderWishlist=renderWishlist; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
 window.switchOrderTab=switchOrderTab; window.renderOrdersByStatus=renderOrdersByStatus;
+window.transferNewOrders=transferNewOrders;
 window.searchAdminProducts=searchAdminProducts;
 window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
