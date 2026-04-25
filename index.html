@@ -2379,6 +2379,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <div class="status-step-v" id="sv4"><div class="sv-icon" id="s4">✅</div><div class="sv-line" style="display:none;"></div><div class="sv-label" id="sl4">تم التسليم</div></div>
           </div>
         </div>
+        <div id="trCancelBtnWrap" style="display:none;margin-top:14px;">
+          <button style="width:100%;padding:12px;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">🚫 إلغاء الطلب</button>
+        </div>
       </div>
       <div id="orderStatusError" style="display:none;text-align:center;padding:40px 20px;">
         <div style="font-size:3rem;margin-bottom:12px;">🔍</div>
@@ -4043,6 +4046,15 @@ function renderTrackingResult(order){
       else if(i-1===cur){icon.classList.add('active');lbl.classList.add('active');}
     }
   }
+  const cancelBtnWrap=document.getElementById('trCancelBtnWrap');
+  if(cancelBtnWrap){
+    if(st==='جديد'||st==='قيد التجهيز'){
+      cancelBtnWrap.style.display='block';
+      cancelBtnWrap.querySelector('button').onclick=()=>openCustomerCancelDialog(String(order.id));
+    } else {
+      cancelBtnWrap.style.display='none';
+    }
+  }
 }
 
 function openAbout(){document.getElementById('aboutOverlay').classList.add('open');history.pushState({about:true},'','#about');}
@@ -5470,6 +5482,39 @@ window.previewNewColorImg=previewNewColorImg;
 window.changeColorImg=changeColorImg;
 window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
+// ===== CUSTOMER CANCEL ORDER =====
+let _custCancelDocId=null;
+function openCustomerCancelDialog(docId){
+  _custCancelDocId=docId;
+  document.getElementById('custCancelReasonInput').value='';
+  document.querySelectorAll('.cust-cancel-btn').forEach(b=>{
+    b.style.borderColor='#e5e7eb';b.style.background='#fff';b.style.color='';
+  });
+  document.getElementById('customerCancelOverlay').style.display='flex';
+}
+function closeCustomerCancelDialog(){
+  document.getElementById('customerCancelOverlay').style.display='none';
+  _custCancelDocId=null;
+}
+function selectCustomerCancelReason(btn,reason){
+  document.querySelectorAll('.cust-cancel-btn').forEach(b=>{
+    b.style.borderColor='#e5e7eb';b.style.background='#fff';b.style.color='';
+  });
+  btn.style.borderColor='#dc2626';btn.style.background='#fee2e2';btn.style.color='#991b1b';
+  document.getElementById('custCancelReasonInput').value=reason;
+}
+async function confirmCustomerCancel(){
+  const reason=document.getElementById('custCancelReasonInput').value.trim();
+  if(!reason){toast('⚠️ يرجى اختيار أو كتابة سبب الإلغاء');return;}
+  if(!_custCancelDocId){return;}
+  const docId=_custCancelDocId;
+  closeCustomerCancelDialog();
+  try{
+    await db.collection('orders').doc(docId).update({status:'ملغي',cancelReason:reason});
+    toast('✅ تم إلغاء طلبك');
+  }catch(e){ toast('❌ حدث خطأ، حاول مجدداً'); }
+}
+
 // ===== ABOUT SETTINGS =====
 async function loadAboutSettings(){
   try{
@@ -5540,6 +5585,10 @@ window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelec
 window.addAdvisorProduct=addAdvisorProduct;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
+window.openCustomerCancelDialog=openCustomerCancelDialog;
+window.closeCustomerCancelDialog=closeCustomerCancelDialog;
+window.selectCustomerCancelReason=selectCustomerCancelReason;
+window.confirmCustomerCancel=confirmCustomerCancel;
 window.closeWANotifModal=closeWANotifModal;
 window.saveAboutSettings=saveAboutSettings; window.loadAboutSettings=loadAboutSettings;
 
@@ -5742,6 +5791,27 @@ init();
 </div>
 
 <!-- CANCEL ORDER DIALOG -->
+<div id="customerCancelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1200;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-family:'Amiri',serif;font-size:1.1rem;color:#fff;">🚫 إلغاء طلبك</h2>
+      <button onclick="closeCustomerCancelDialog()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div style="padding:22px;">
+      <p style="font-size:0.88rem;color:#6b7280;margin-bottom:16px;">لماذا تريد إلغاء الطلب؟</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <button onclick="selectCustomerCancelReason(this,'غيّرت رأيي')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">🤔 غيّرت رأيي</button>
+        <button onclick="selectCustomerCancelReason(this,'طلبت بالغلط')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">✏️ طلبت بالغلط</button>
+        <button onclick="selectCustomerCancelReason(this,'وجدت سعراً أفضل')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">💰 وجدت سعراً أفضل</button>
+        <button onclick="selectCustomerCancelReason(this,'التوصيل يستغرق وقتاً طويلاً')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">⏳ التوصيل يستغرق وقتاً طويلاً</button>
+        <button onclick="selectCustomerCancelReason(this,'طلب مكرر')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">🔁 طلب مكرر</button>
+      </div>
+      <textarea id="custCancelReasonInput" placeholder="أو اكتب سبباً مخصصاً..." style="width:100%;padding:11px 13px;border:1.5px solid #e0e0e0;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;resize:none;min-height:70px;margin-bottom:14px;box-sizing:border-box;"></textarea>
+      <button onclick="confirmCustomerCancel()" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;">🚫 تأكيد الإلغاء</button>
+    </div>
+  </div>
+</div>
+
 <div id="cancelDialogOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:900;align-items:center;justify-content:center;padding:20px;">
   <div style="background:#fff;border-radius:20px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
     <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;">
