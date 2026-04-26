@@ -4272,8 +4272,7 @@ async function trackVisit(){
 async function loadVisitorStats(){
   try{
     const snap=await db.collection('settings').doc('visitors').get();
-    if(!snap.exists) return;
-    const d=snap.data();
+    const d=snap.exists?snap.data():{};
     document.getElementById('stat-visitors-total').textContent=(d.total||0).toLocaleString('ar');
     document.getElementById('stat-visitors-today').textContent=(d.today||0).toLocaleString('ar');
     const isOn=d.showPublic||false;
