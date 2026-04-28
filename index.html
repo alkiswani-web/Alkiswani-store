@@ -1680,6 +1680,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button class="admin-tab-btn" onclick="switchAdminTab('eid')">🌙 العيد</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('categories')">📂 الأقسام</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -2202,6 +2203,78 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <button onclick="saveAboutSettings()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:8px;">💾 حفظ التغييرات</button>
       </div>
+    </div>
+
+    <div class="admin-tab-content" id="tab-operator">
+      <h2 style="color:var(--green-dark);margin-bottom:4px;">💼 حساب المشغل</h2>
+      <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">كشف يومي خاص — للأدمن فقط</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center;">
+        <input type="date" id="op_date" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+        <button onclick="loadOperatorLedger()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">📂 تحميل</button>
+      </div>
+
+      <!-- الإيرادات -->
+      <div class="form-card" style="margin-bottom:12px;">
+        <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">💰 الإيرادات</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f0fdf4;border-radius:10px;margin-bottom:10px;">
+          <span style="font-size:0.85rem;color:var(--text-dark);">🌐 مبيعات الموقع (تلقائي)</span>
+          <span style="font-weight:800;color:var(--green-dark);font-size:0.95rem;" id="op_site_sales_num">0.00</span>
+        </div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:0.5px;">📱 صفحات البيع الخارجية</div>
+        <div id="op_pages_list"></div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <input id="op_page_name" placeholder="اسم الصفحة" style="flex:2;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+          <input id="op_page_amount" type="number" min="0" placeholder="المبلغ" style="flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+          <button onclick="addOpPage()" style="padding:9px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:700;">+</button>
+        </div>
+      </div>
+
+      <!-- تكاليف المواد -->
+      <div class="form-card" style="margin-bottom:12px;">
+        <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:14px;">🪵 تكاليف الخشب والمواد</div>
+        <div id="op_materials_list"></div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <input id="op_mat_desc" placeholder="نوع المادة" style="flex:2;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+          <input id="op_mat_amount" type="number" min="0" placeholder="التكلفة" style="flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+          <button onclick="addOpMaterial()" style="padding:9px 14px;background:#92400e;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:700;">+</button>
+        </div>
+      </div>
+
+      <!-- أجور العمال -->
+      <div class="form-card" style="margin-bottom:12px;">
+        <div style="font-size:0.88rem;font-weight:700;color:#1e40af;margin-bottom:14px;">👷 أجور العمال</div>
+        <div id="op_workers_list"></div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <input id="op_worker_name" placeholder="اسم العامل" style="flex:2;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+          <input id="op_worker_amount" type="number" min="0" placeholder="الأجرة" style="flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+          <button onclick="addOpWorker()" style="padding:9px 14px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:700;">+</button>
+        </div>
+      </div>
+
+      <!-- أجرة المشغل -->
+      <div class="form-card" style="margin-bottom:12px;">
+        <div style="font-size:0.88rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">👤 أجرة المشغل</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input id="op_operator_wage" type="number" min="0" placeholder="0" oninput="calcOpSummary()" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);">
+          <span style="font-size:0.9rem;color:var(--text-mid);white-space:nowrap;">د.أ / اليوم</span>
+        </div>
+      </div>
+
+      <!-- ملاحظات -->
+      <div class="form-card" style="margin-bottom:16px;">
+        <div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">📝 ملاحظات</div>
+        <textarea id="op_notes" rows="3" placeholder="أي ملاحظات عن هذا اليوم..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;resize:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;"></textarea>
+      </div>
+
+      <!-- أزرار -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <button onclick="saveOperatorLedger()" style="flex:1;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الكشف</button>
+        <button onclick="shareOperatorReport()" style="flex:1;padding:13px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
+      </div>
+
+      <!-- الكشف -->
+      <div id="op_summary"></div>
     </div>
 
   </div>
@@ -3304,6 +3377,11 @@ function switchAdminTab(tab){
   if(tab==='eid')loadEidAdminUI();
   if(tab==='categories'){ renderCategoriesAdmin(); }
   if(tab==='aboutedit'){ loadAboutSettingsForm(); }
+  if(tab==='operator'){
+    const inp=document.getElementById('op_date');
+    if(!inp.value) inp.value=new Date().toISOString().slice(0,10);
+    loadOperatorLedger();
+  }
 }
 
 let currentOrderStatus='جديد';
@@ -4243,6 +4321,170 @@ async function sendDailyReport(){
     a.click();
     document.body.removeChild(a);
   }catch(e){toast('❌ خطأ في إرسال التقرير');}
+}
+
+// ===== OPERATOR LEDGER =====
+let _opPages=[], _opMaterials=[], _opWorkers=[], _opSiteSales=0;
+
+function getOpDate(){ return document.getElementById('op_date').value||new Date().toISOString().slice(0,10); }
+
+async function loadOperatorLedger(){
+  const date=getOpDate();
+  // Site sales from orders on that date
+  try{
+    const snap=await db.collection('orders').get();
+    let siteSales=0;
+    snap.docs.forEach(d=>{
+      const o=d.data();
+      const oDate=(o.createdAt?.toDate?.()?.toISOString()?.slice(0,10))||(o.date||'').slice(0,10)||'';
+      if(oDate===date&&(o.status||'جديد')!=='ملغي'){
+        siteSales+=parseFloat((o.total||'0').toString().replace(/[^0-9.]/g,''))||0;
+      }
+    });
+    _opSiteSales=siteSales;
+    document.getElementById('op_site_sales_num').textContent=siteSales.toFixed(2)+' د.أ';
+  }catch(e){ _opSiteSales=0; }
+
+  // Saved ledger for that date
+  try{
+    const snap=await db.collection('operator_ledger').doc(date).get();
+    const d=snap.exists?snap.data():{};
+    _opPages=d.pages||[];
+    _opMaterials=d.materials||[];
+    _opWorkers=d.workers||[];
+    document.getElementById('op_operator_wage').value=d.operatorWage||'';
+    document.getElementById('op_notes').value=d.notes||'';
+  }catch(e){ _opPages=[];_opMaterials=[];_opWorkers=[]; }
+
+  renderOpLists();
+  calcOpSummary();
+}
+
+function _opEntryRow(label, amount, color, removeFn){
+  return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+    <span style="font-size:0.85rem;color:var(--text-dark);">${label}</span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-weight:700;color:${color};font-size:0.85rem;">${parseFloat(amount).toFixed(2)} د.أ</span>
+      <button onclick="${removeFn}" style="background:#f3f4f6;color:#6b7280;border:none;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:0.8rem;line-height:22px;">×</button>
+    </div>
+  </div>`;
+}
+
+function renderOpLists(){
+  const empty=msg=>`<div style="font-size:0.8rem;color:#9ca3af;padding:5px 0;">${msg}</div>`;
+  document.getElementById('op_pages_list').innerHTML=_opPages.length
+    ? _opPages.map((p,i)=>_opEntryRow('📱 '+p.name,p.amount,'#166534',`removeOpPage(${i})`)).join('')
+    : empty('لا يوجد مبيعات خارجية بعد');
+  document.getElementById('op_materials_list').innerHTML=_opMaterials.length
+    ? _opMaterials.map((m,i)=>_opEntryRow('🪵 '+m.desc,m.amount,'#92400e',`removeOpMaterial(${i})`)).join('')
+    : empty('لا يوجد تكاليف مواد بعد');
+  document.getElementById('op_workers_list').innerHTML=_opWorkers.length
+    ? _opWorkers.map((w,i)=>_opEntryRow('👷 '+w.name,w.amount,'#1e40af',`removeOpWorker(${i})`)).join('')
+    : empty('لا يوجد عمال بعد');
+}
+
+function addOpPage(){
+  const name=document.getElementById('op_page_name').value.trim();
+  const amount=parseFloat(document.getElementById('op_page_amount').value);
+  if(!name||!amount){toast('⚠️ أدخل اسم الصفحة والمبلغ');return;}
+  _opPages.push({name,amount});
+  document.getElementById('op_page_name').value='';
+  document.getElementById('op_page_amount').value='';
+  renderOpLists(); calcOpSummary();
+}
+function removeOpPage(i){_opPages.splice(i,1);renderOpLists();calcOpSummary();}
+
+function addOpMaterial(){
+  const desc=document.getElementById('op_mat_desc').value.trim();
+  const amount=parseFloat(document.getElementById('op_mat_amount').value);
+  if(!desc||!amount){toast('⚠️ أدخل نوع المادة والتكلفة');return;}
+  _opMaterials.push({desc,amount});
+  document.getElementById('op_mat_desc').value='';
+  document.getElementById('op_mat_amount').value='';
+  renderOpLists(); calcOpSummary();
+}
+function removeOpMaterial(i){_opMaterials.splice(i,1);renderOpLists();calcOpSummary();}
+
+function addOpWorker(){
+  const name=document.getElementById('op_worker_name').value.trim();
+  const amount=parseFloat(document.getElementById('op_worker_amount').value);
+  if(!name||!amount){toast('⚠️ أدخل اسم العامل والأجرة');return;}
+  _opWorkers.push({name,amount});
+  document.getElementById('op_worker_name').value='';
+  document.getElementById('op_worker_amount').value='';
+  renderOpLists(); calcOpSummary();
+}
+function removeOpWorker(i){_opWorkers.splice(i,1);renderOpLists();calcOpSummary();}
+
+function calcOpSummary(){
+  const pagesSales=_opPages.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalRevenue=_opSiteSales+pagesSales;
+  const materialsCost=_opMaterials.reduce((s,m)=>s+parseFloat(m.amount||0),0);
+  const workersCost=_opWorkers.reduce((s,w)=>s+parseFloat(w.amount||0),0);
+  const opWage=parseFloat(document.getElementById('op_operator_wage')?.value)||0;
+  const totalCosts=materialsCost+workersCost+opWage;
+  const net=totalRevenue-totalCosts;
+  const isProfit=net>=0;
+  const row=(label,amount,color,bold)=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(0,0,0,0.07);font-size:${bold?'0.9rem':'0.83rem'};${bold?'font-weight:800;':''}color:${color};">
+      <span>${label}</span><span>${amount}</span>
+    </div>`;
+  document.getElementById('op_summary').innerHTML=`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:16px;overflow:hidden;">
+      <div style="background:${isProfit?'var(--green-dark)':'#991b1b'};padding:12px 16px;color:#fff;font-weight:700;font-size:0.9rem;">📊 كشف يوم ${getOpDate()}</div>
+      <div style="padding:16px;">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--green-dark);letter-spacing:1px;margin-bottom:6px;">الإيرادات</div>
+        ${row('🌐 الموقع الإلكتروني',_opSiteSales.toFixed(2)+' د.أ','var(--text-dark)',false)}
+        ${_opPages.map(p=>row('📱 '+p.name,parseFloat(p.amount).toFixed(2)+' د.أ','var(--text-dark)',false)).join('')}
+        ${row('▪️ إجمالي الإيرادات',totalRevenue.toFixed(2)+' د.أ','#166534',true)}
+        <div style="margin-top:12px;font-size:0.75rem;font-weight:700;color:#dc2626;letter-spacing:1px;margin-bottom:6px;">التكاليف</div>
+        ${_opMaterials.map(m=>row('🪵 '+m.desc,parseFloat(m.amount).toFixed(2)+' د.أ','#92400e',false)).join('')}
+        ${_opWorkers.map(w=>row('👷 '+w.name,parseFloat(w.amount).toFixed(2)+' د.أ','#1e40af',false)).join('')}
+        ${opWage?row('👤 أجرة المشغل',opWage.toFixed(2)+' د.أ','#7c3aed',false):''}
+        ${row('▪️ إجمالي التكاليف',totalCosts.toFixed(2)+' د.أ','#dc2626',true)}
+        <div style="margin-top:14px;background:${isProfit?'#dcfce7':'#fee2e2'};border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:800;color:${isProfit?'#166534':'#991b1b'};font-size:0.95rem;">صافي ${isProfit?'الربح':'الخسارة'}</span>
+          <span style="font-weight:800;color:${isProfit?'#166534':'#991b1b'};font-size:1.3rem;">${Math.abs(net).toFixed(2)} د.أ ${isProfit?'✅':'⚠️'}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveOperatorLedger(){
+  const date=getOpDate();
+  const opWage=parseFloat(document.getElementById('op_operator_wage').value)||0;
+  const notes=document.getElementById('op_notes').value.trim();
+  try{
+    await db.collection('operator_ledger').doc(date).set({
+      date, siteSales:_opSiteSales, pages:_opPages,
+      materials:_opMaterials, workers:_opWorkers,
+      operatorWage:opWage, notes,
+      savedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم حفظ الكشف');
+    calcOpSummary();
+  }catch(e){ toast('❌ خطأ في الحفظ'); }
+}
+
+function shareOperatorReport(){
+  const pagesSales=_opPages.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalRevenue=_opSiteSales+pagesSales;
+  const materialsCost=_opMaterials.reduce((s,m)=>s+parseFloat(m.amount||0),0);
+  const workersCost=_opWorkers.reduce((s,w)=>s+parseFloat(w.amount||0),0);
+  const opWage=parseFloat(document.getElementById('op_operator_wage')?.value)||0;
+  const totalCosts=materialsCost+workersCost+opWage;
+  const net=totalRevenue-totalCosts;
+  let msg=`📊 كشف حساب يوم ${getOpDate()}\n━━━━━━━━━━━━\n`;
+  msg+=`💰 الإيرادات:\n• الموقع: ${_opSiteSales.toFixed(2)} د.أ\n`;
+  _opPages.forEach(p=>{ msg+=`• ${p.name}: ${parseFloat(p.amount).toFixed(2)} د.أ\n`; });
+  msg+=`▪️ الإجمالي: ${totalRevenue.toFixed(2)} د.أ\n\n`;
+  msg+=`💸 التكاليف:\n`;
+  _opMaterials.forEach(m=>{ msg+=`• 🪵 ${m.desc}: ${parseFloat(m.amount).toFixed(2)} د.أ\n`; });
+  _opWorkers.forEach(w=>{ msg+=`• 👷 ${w.name}: ${parseFloat(w.amount).toFixed(2)} د.أ\n`; });
+  if(opWage) msg+=`• 👤 المشغل: ${opWage.toFixed(2)} د.أ\n`;
+  msg+=`▪️ الإجمالي: ${totalCosts.toFixed(2)} د.أ\n\n`;
+  msg+=`━━━━━━━━━━━━\n${net>=0?'✅ صافي الربح':'⚠️ الخسارة'}: ${Math.abs(net).toFixed(2)} د.أ`;
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
 // ===== VISITOR TRACKING =====
@@ -5678,6 +5920,13 @@ window.confirmCustomerCancel=confirmCustomerCancel;
 window.closeWANotifModal=closeWANotifModal;
 window.saveAboutSettings=saveAboutSettings; window.loadAboutSettings=loadAboutSettings;
 window.toggleVisitorPublic=toggleVisitorPublic;
+window.loadOperatorLedger=loadOperatorLedger;
+window.addOpPage=addOpPage; window.removeOpPage=removeOpPage;
+window.addOpMaterial=addOpMaterial; window.removeOpMaterial=removeOpMaterial;
+window.addOpWorker=addOpWorker; window.removeOpWorker=removeOpWorker;
+window.calcOpSummary=calcOpSummary;
+window.saveOperatorLedger=saveOperatorLedger;
+window.shareOperatorReport=shareOperatorReport;
 
 function addAdvisorProduct(docId){
   const p=products.find(x=>(x._docId||x.id)===docId);
