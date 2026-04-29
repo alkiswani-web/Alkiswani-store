@@ -1224,6 +1224,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <nav>
   <div class="nav-logo">الكسواني روزميري<span>Alkiswani Rosemary</span></div>
   <div class="nav-right">
+    <button onclick="openAdminLogin()" title="دخول الإدارة" style="background:rgba(26,58,42,0.07);border:1.5px solid rgba(26,58,42,0.15);color:var(--green-dark);width:34px;height:34px;border-radius:50%;font-size:0.9rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" onmouseover="this.style.background='rgba(26,58,42,0.15)'" onmouseout="this.style.background='rgba(26,58,42,0.07)'">🔑</button>
     <button id="darkToggle" onclick="toggleDarkMode()" style="background:#f3f4f6;border:none;width:36px;height:36px;border-radius:50%;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#6b7280;">🌙</button>
     <div id="navUserChip" style="display:none;" class="user-chip" onclick="openProfile()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -1467,7 +1468,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <button onclick="openAbout()" style="background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);padding:7px 18px;border-radius:20px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">من نحن</button>
     <button onclick="openOrderStatus()" style="background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);padding:7px 18px;border-radius:20px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;margin-right:8px;">تتبع طلبك</button>
   </div>
-  <div class="footer-admin-trigger" onclick="openAdminLogin()">· · ·</div>
   <div class="footer-copy">© 2026 الكسواني روزميري</div>
 </footer>
 
@@ -1666,23 +1666,24 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <!-- ===== ADMIN PANEL ===== -->
 <div id="adminPanel">
   <div class="admin-nav">
-    <div class="admin-nav-title"><span>لوحة التحكم</span>الكسواني روزميري</div>
+    <div class="admin-nav-title"><span>لوحة التحكم</span>الكسواني روزميري <span id="adminLoggedUser" style="font-size:0.7rem;color:rgba(201,168,76,0.7);"></span></div>
     <button class="btn-back-store" onclick="closeAdmin()">← العودة للمتجر</button>
   </div>
   <div class="admin-content">
     <div class="admin-tabs">
-      <button class="admin-tab-btn active" onclick="switchAdminTab('products')">📦 المنتجات</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('orders')">🧾 الطلبات</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('customers')">👥 الزبائن</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('points')">🌟 إعدادات النقاط</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('discounts')">🎁 كودات الخصم</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('photos')">📸 صور الزبائن</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('stats')">📊 الإحصائيات</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('badges')">🏅 الشارات</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('eid')">🌙 العيد</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('categories')">📂 الأقسام</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
-      <button class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
+      <button id="admin-tab-btn-products" class="admin-tab-btn active" onclick="switchAdminTab('products')">📦 المنتجات</button>
+      <button id="admin-tab-btn-orders" class="admin-tab-btn" onclick="switchAdminTab('orders')">🧾 الطلبات</button>
+      <button id="admin-tab-btn-customers" class="admin-tab-btn" onclick="switchAdminTab('customers')">👥 الزبائن</button>
+      <button id="admin-tab-btn-points" class="admin-tab-btn" onclick="switchAdminTab('points')">🌟 إعدادات النقاط</button>
+      <button id="admin-tab-btn-discounts" class="admin-tab-btn" onclick="switchAdminTab('discounts')">🎁 كودات الخصم</button>
+      <button id="admin-tab-btn-photos" class="admin-tab-btn" onclick="switchAdminTab('photos')">📸 صور الزبائن</button>
+      <button id="admin-tab-btn-stats" class="admin-tab-btn" onclick="switchAdminTab('stats')">📊 الإحصائيات</button>
+      <button id="admin-tab-btn-badges" class="admin-tab-btn" onclick="switchAdminTab('badges')">🏅 الشارات</button>
+      <button id="admin-tab-btn-eid" class="admin-tab-btn" onclick="switchAdminTab('eid')">🌙 العيد</button>
+      <button id="admin-tab-btn-categories" class="admin-tab-btn" onclick="switchAdminTab('categories')">📂 الأقسام</button>
+      <button id="admin-tab-btn-aboutedit" class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
+      <button id="admin-tab-btn-operator" class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
+      <button id="admin-tab-btn-adminusers" class="admin-tab-btn" onclick="switchAdminTab('adminusers')">🔑 المستخدمون</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -2579,6 +2580,44 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
     </div>
 
+    <!-- ===== ADMIN USERS TAB ===== -->
+    <div class="admin-tab-content" id="tab-adminusers">
+      <div style="max-width:720px;">
+        <h2 style="color:var(--green-dark);margin-bottom:4px;">🔑 إدارة المستخدمين</h2>
+        <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">أضف حسابات للموظفين وحدد صلاحياتهم</p>
+
+        <!-- Add user form -->
+        <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:20px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:14px;">➕ إضافة مستخدم جديد</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <input id="newAdminUsername" placeholder="اسم المستخدم" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <input id="newAdminPassword" type="password" placeholder="كلمة المرور" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:8px;">الصلاحيات:</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="operator" style="accent-color:var(--green-dark);"> 💼 حساب المشغل</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="products" style="accent-color:var(--green-dark);"> 📦 المنتجات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="orders" style="accent-color:var(--green-dark);"> 🧾 الطلبات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="customers" style="accent-color:var(--green-dark);"> 👥 الزبائن</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="stats" style="accent-color:var(--green-dark);"> 📊 الإحصائيات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="discounts" style="accent-color:var(--green-dark);"> 🎁 كودات الخصم</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="photos" style="accent-color:var(--green-dark);"> 📸 صور الزبائن</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="points" style="accent-color:var(--green-dark);"> 🌟 إعدادات النقاط</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="badges" style="accent-color:var(--green-dark);"> 🏅 الشارات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="categories" style="accent-color:var(--green-dark);"> 📂 الأقسام</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="aboutedit" style="accent-color:var(--green-dark);"> 🌿 من نحن</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="eid" style="accent-color:var(--green-dark);"> 🌙 العيد</label>
+            </div>
+          </div>
+          <button onclick="addAdminUser()" style="padding:10px 24px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">💾 حفظ المستخدم</button>
+        </div>
+
+        <!-- Users list -->
+        <div id="adminUsersWrap"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -2881,6 +2920,11 @@ let currentUser=JSON.parse(localStorage.getItem('ak_currentUser')||'null');
 let pointsSettings={enabled:false,perDinar:10,onRegister:50,perDiscount:100,minRedeem:200};
 let pendingProduct=null;
 let writingChoice='no';
+
+// ===== ADMIN SESSION =====
+let _currentAdminUser=null; // null=not logged in | 'MAIN'=owner | string=sub-user
+let _currentAdminPerms=null; // null=full | array=limited
+let _adminUsersList=[];
 
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
@@ -3658,13 +3702,63 @@ function closeProfile(){document.getElementById('profileOverlay').classList.remo
 // ===== ADMIN =====
 function openAdminLogin(){document.getElementById('adminLoginOverlay').classList.add('open');setTimeout(()=>document.getElementById('aUser').focus(),300);}
 function closeAdminLogin(){document.getElementById('adminLoginOverlay').classList.remove('open');}
-function doAdminLogin(){
-  if(document.getElementById('aUser').value===ADMIN_USER&&document.getElementById('aPass').value===ADMIN_PASS){
-    closeAdminLogin();openAdmin();
-  } else {document.getElementById('aErr').style.display='block';setTimeout(()=>document.getElementById('aErr').style.display='none',3000);}
+async function doAdminLogin(){
+  const u=document.getElementById('aUser').value.trim();
+  const p=document.getElementById('aPass').value;
+  // Main owner login
+  if(u===ADMIN_USER&&p===ADMIN_PASS){
+    _currentAdminUser='MAIN';_currentAdminPerms=null;
+    closeAdminLogin();openAdmin();return;
+  }
+  // Sub-user login from Firestore
+  try{
+    const snap=await db.collection('admin_users').where('username','==',u).limit(1).get();
+    if(!snap.empty){
+      const docData=snap.docs[0].data();
+      if(docData.password===p){
+        _currentAdminUser=u;_currentAdminPerms=docData.permissions||[];
+        closeAdminLogin();openAdmin();return;
+      }
+    }
+  }catch(e){}
+  document.getElementById('aErr').style.display='block';
+  setTimeout(()=>document.getElementById('aErr').style.display='none',3000);
 }
-function openAdmin(){document.getElementById('adminPanel').classList.add('open');renderAdmin();startOrderListener();}
-function closeAdmin(){document.getElementById('adminPanel').classList.remove('open');stopOrderListener();renderStore();}
+function openAdmin(){
+  document.getElementById('adminPanel').classList.add('open');
+  const lbl=document.getElementById('adminLoggedUser');
+  if(lbl)lbl.textContent=_currentAdminUser==='MAIN'?'':'— '+_currentAdminUser;
+  applyAdminPerms();
+  renderAdmin();startOrderListener();
+}
+function closeAdmin(){
+  document.getElementById('adminPanel').classList.remove('open');
+  _currentAdminUser=null;_currentAdminPerms=null;
+  stopOrderListener();renderStore();
+}
+
+function applyAdminPerms(){
+  const isMain=_currentAdminUser==='MAIN';
+  const perms=_currentAdminPerms;
+  const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers'];
+  allTabs.forEach(tab=>{
+    const btn=document.getElementById('admin-tab-btn-'+tab);
+    if(!btn)return;
+    if(isMain){btn.style.display='';}
+    else if(tab==='adminusers'){btn.style.display='none';}
+    else if(perms&&perms.includes(tab)){btn.style.display='';}
+    else{btn.style.display='none';}
+  });
+  // activate first allowed tab
+  const firstTab=allTabs.find(tab=>{
+    if(tab==='adminusers')return isMain;
+    return isMain||(perms&&perms.includes(tab));
+  });
+  if(firstTab){
+    const btn=document.getElementById('admin-tab-btn-'+firstTab);
+    if(btn)btn.click();
+  }
+}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('adminLoginOverlay').classList.contains('open'))doAdminLogin();});
 
 function switchAdminTab(tab){
@@ -3685,6 +3779,71 @@ function switchAdminTab(tab){
   if(tab==='operator'){
     switchOpTab('products');
   }
+  if(tab==='adminusers')loadAdminUsers();
+}
+
+// ===== ADMIN USERS MANAGEMENT =====
+const PERM_LABELS={operator:'💼 حساب المشغل',products:'📦 المنتجات',orders:'🧾 الطلبات',customers:'👥 الزبائن',stats:'📊 الإحصائيات',discounts:'🎁 كودات الخصم',photos:'📸 صور الزبائن',points:'🌟 النقاط',badges:'🏅 الشارات',categories:'📂 الأقسام',aboutedit:'🌿 من نحن',eid:'🌙 العيد'};
+
+async function loadAdminUsers(){
+  try{
+    const snap=await db.collection('admin_users').orderBy('createdAt','desc').get();
+    _adminUsersList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    const snap=await db.collection('admin_users').get();
+    _adminUsersList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }
+  renderAdminUsers();
+}
+
+function renderAdminUsers(){
+  const wrap=document.getElementById('adminUsersWrap');
+  if(!wrap)return;
+  if(!_adminUsersList.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;background:#fff;border-radius:12px;border:1.5px solid #e5e7eb;">لا يوجد مستخدمون مضافون بعد</div>';
+    return;
+  }
+  wrap.innerHTML=_adminUsersList.map(u=>`
+    <div style="background:#fff;border-radius:12px;padding:16px 18px;margin-bottom:10px;border:1.5px solid #e5e7eb;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:0.95rem;color:#111827;margin-bottom:6px;">👤 ${u.username}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          ${(u.permissions||[]).map(p=>`<span style="background:rgba(26,58,42,0.08);color:var(--green-dark);border-radius:6px;padding:3px 8px;font-size:0.75rem;font-weight:600;">${PERM_LABELS[p]||p}</span>`).join('')}
+        </div>
+      </div>
+      <button onclick="deleteAdminUser('${u.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:7px 13px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;flex-shrink:0;">🗑 حذف</button>
+    </div>
+  `).join('');
+}
+
+async function addAdminUser(){
+  const u=document.getElementById('newAdminUsername').value.trim();
+  const p=document.getElementById('newAdminPassword').value.trim();
+  const perms=Array.from(document.querySelectorAll('.perm-check:checked')).map(c=>c.value);
+  if(!u){toast('⚠️ أدخل اسم المستخدم');return;}
+  if(!p){toast('⚠️ أدخل كلمة المرور');return;}
+  if(!perms.length){toast('⚠️ اختر صلاحية واحدة على الأقل');return;}
+  if(u===ADMIN_USER){toast('⚠️ هذا الاسم محجوز');return;}
+  // check duplicate
+  const dup=_adminUsersList.find(x=>x.username===u);
+  if(dup){toast('⚠️ اسم المستخدم موجود مسبقاً');return;}
+  try{
+    await db.collection('admin_users').add({username:u,password:p,permissions:perms,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('newAdminUsername').value='';
+    document.getElementById('newAdminPassword').value='';
+    document.querySelectorAll('.perm-check').forEach(c=>c.checked=false);
+    toast('✅ تم إضافة المستخدم');
+    loadAdminUsers();
+  }catch(e){toast('❌ خطأ: '+e.message);}
+}
+
+async function deleteAdminUser(id){
+  if(!confirm('حذف هذا المستخدم نهائياً؟'))return;
+  try{
+    await db.collection('admin_users').doc(id).delete();
+    toast('🗑 تم حذف المستخدم');
+    loadAdminUsers();
+  }catch(e){toast('❌ خطأ: '+e.message);}
 }
 
 let currentOrderStatus='جديد';
@@ -7217,6 +7376,7 @@ window.openAdminLogin=openAdminLogin; window.closeAdminLogin=closeAdminLogin;
 window.doAdminLogin=doAdminLogin;
 window.openAdmin=openAdmin; window.closeAdmin=closeAdmin;
 window.switchAdminTab=switchAdminTab;
+window.loadAdminUsers=loadAdminUsers; window.addAdminUser=addAdminUser; window.deleteAdminUser=deleteAdminUser;
 window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
 window.openProductPage=openProductPage; window.closeProductPage=closeProductPage;
