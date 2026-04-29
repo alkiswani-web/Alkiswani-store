@@ -7340,7 +7340,12 @@ async function loadBalanceTab(){
   try{
     const snap=await db.collection('operator_malik_payments').orderBy('date','desc').get();
     _opBalPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opBalPayments=[];}
+  }catch(e){
+    try{
+      const snap=await db.collection('operator_malik_payments').get();
+      _opBalPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e2){_opBalPayments=[];}
+  }
   // Load total raw material costs from all sales
   try{
     const snap=await db.collection('operator_sales').get();
