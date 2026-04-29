@@ -195,6 +195,7 @@ body.dark-mode .cats-section{background:#1f2937!important;}
   z-index:198;
 }
 @keyframes bannerShimmer{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
+@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
 #eidBanner.show{display:block;}
 .eid-banner-text{color:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;}
 .eid-banner-close{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
@@ -934,6 +935,41 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
 /* TOAST */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--green-dark);color:#fff;padding:12px 20px;border-radius:12px;font-size:0.85rem;z-index:9999;transform:translateY(70px);opacity:0;transition:all 0.35s;border-right:4px solid var(--gold);max-width:280px;}
 .toast.show{transform:translateY(0);opacity:1;}
+
+/* ===== PRODUCT ADVISOR ===== */
+.advisor-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:800;display:none;align-items:flex-end;justify-content:center;}
+.advisor-overlay.open{display:flex;}
+.advisor-sheet{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:520px;max-height:90dvh;overflow-y:auto;transform:translateY(100%);transition:transform 0.38s cubic-bezier(0.4,0,0.2,1);padding:0 0 40px;}
+.advisor-overlay.open .advisor-sheet{transform:translateY(0);}
+.advisor-header{background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:22px 20px 18px;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:2;}
+.advisor-steps{display:flex;gap:6px;justify-content:center;margin-top:12px;}
+.advisor-step-dot{width:28px;height:4px;border-radius:2px;background:rgba(255,255,255,0.25);transition:all 0.3s;}
+.advisor-step-dot.active{background:#d4a843;width:36px;}
+.advisor-step-dot.done{background:rgba(255,255,255,0.6);}
+.advisor-body{padding:20px 16px 0;}
+.advisor-q{font-family:'Amiri',serif;font-size:1.2rem;color:#111827;margin-bottom:6px;line-height:1.4;}
+.advisor-sub{font-size:0.82rem;color:#6b7280;margin-bottom:18px;}
+.advisor-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;}
+.advisor-opt{border:2px solid #e5e7eb;border-radius:14px;padding:16px 12px;cursor:pointer;text-align:center;transition:all 0.22s;background:#fff;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.advisor-opt:active{transform:scale(0.97);}
+.advisor-opt.selected{border-color:#1a3a2a;background:#f0fdf4;}
+.advisor-opt-icon{font-size:2rem;line-height:1;}
+.advisor-opt-label{font-size:0.85rem;font-weight:700;color:#111827;}
+.advisor-opt-sub{font-size:0.72rem;color:#9ca3af;}
+.advisor-price-opts{display:flex;flex-direction:column;gap:8px;}
+.advisor-price-opt{border:2px solid #e5e7eb;border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.22s;background:#fff;}
+.advisor-price-opt.selected{border-color:#1a3a2a;background:#f0fdf4;}
+.advisor-price-opt-icon{font-size:1.5rem;}
+.advisor-price-opt-text{flex:1;}
+.advisor-price-opt-label{font-weight:700;font-size:0.92rem;color:#111827;}
+.advisor-price-opt-range{font-size:0.75rem;color:#9ca3af;margin-top:2px;}
+.advisor-nav{display:flex;gap:8px;margin-top:20px;}
+.advisor-results-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+body.dark-mode .advisor-sheet{background:#1f2937;}
+body.dark-mode .advisor-opt,body.dark-mode .advisor-price-opt{background:#111827;border-color:#374151;}
+body.dark-mode .advisor-opt-label,body.dark-mode .advisor-q{color:#f9fafb;}
+body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{background:#1a3a2a;border-color:#4a8c5c;}
+@media print{body>*{display:none!important;}#op_print_frame{display:block!important;position:fixed;inset:0;background:#fff;z-index:99999;overflow:auto;}}
 </style>
 
 
@@ -1227,7 +1263,10 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
     <h1 class="hero-title">خشبيات فاخرة<br><span class="gold">وأشجار زينة</span></h1>
     <p class="hero-desc">منتجات خشبية حرفية وأشجار زينة تضفي جمالاً استثنائياً على منزلك</p>
     <div class="hero-btns">
-      <a href="#products" class="btn-primary">
+      <button onclick="openAdvisor()" class="btn-primary" style="background:linear-gradient(135deg,#d4a843,#b08a28);box-shadow:0 4px 20px rgba(212,168,67,0.35);">
+        🎯 ساعدني أختار
+      </button>
+      <a href="#products" class="btn-outline">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
         تصفح المنتجات
       </a>
@@ -1313,6 +1352,10 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
     <a href="https://wa.me/962775665598?text=أهلاً 🌿" class="btn-whatsapp">📱 تواصل على واتساب</a>
   </div>
 </section>
+
+<div id="visitorCountWidget" style="display:none;text-align:center;padding:8px 20px 4px;">
+  <span style="display:inline-flex;align-items:center;gap:6px;background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:7px 16px;font-size:0.82rem;color:var(--text-mid);">👥 <span id="publicVisitorCount">0</span> زيارة لمتجرنا</span>
+</div>
 
 <!-- Customer Photos -->
 <section class="customer-photos-section" id="customerPhotosSection" style="display:none;">
@@ -1637,6 +1680,9 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <button class="admin-tab-btn" onclick="switchAdminTab('badges')">🏅 الشارات</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('eid')">🌙 العيد</button>
       <button class="admin-tab-btn" onclick="switchAdminTab('categories')">📂 الأقسام</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('op-products')">📋 منتجاتي</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -1702,6 +1748,26 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
           <div class="fg" style="margin-top:4px;">
             <label>المادة المصنوع منها</label>
             <input type="text" id="pMaterial" placeholder="مثال: خشب طبيعي، بلاستيك عالي الجودة، معدن...">
+          </div>
+        </div>
+        <!-- OPERATOR COSTS - hidden from customers -->
+        <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:4px;">
+          <div style="font-size:0.8rem;font-weight:700;color:#92400e;margin-bottom:12px;">💼 تكاليف المشغل (لا تظهر للزبائن)</div>
+          <div class="form-row">
+            <div class="fg">
+              <label>🪵 تكلفة الخشب والمواد</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" id="pWoodCost" placeholder="0" min="0" step="0.5" style="flex:1;">
+                <span style="color:var(--text-mid);font-size:0.9rem;white-space:nowrap;">د.أ</span>
+              </div>
+            </div>
+            <div class="fg">
+              <label>👷 أجرة العامل</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" id="pWorkerWage" placeholder="0" min="0" step="0.5" style="flex:1;">
+                <span style="color:var(--text-mid);font-size:0.9rem;white-space:nowrap;">د.أ</span>
+              </div>
+            </div>
           </div>
         </div>
         <!-- WRITING TOGGLE -->
@@ -1813,6 +1879,10 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
           🚫 ملغي <span id="cnt-cancel" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span>
         </button>
       </div>
+      <div id="transferBtnWrap" style="display:flex;gap:8px;margin-bottom:12px;align-items:center;background:#fef9c3;border:1px solid #fbbf24;border-radius:12px;padding:10px 14px;">
+        <span style="font-size:0.85rem;color:#92400e;flex:1;">📤 أرسل كل الطلبات الجديدة لواتساب وانقلهم لـ"قيد التجهيز"</span>
+        <button onclick="transferNewOrders()" style="background:#f59e0b;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">ترحيل الطلبات</button>
+      </div>
       <div id="ordersList"><div class="empty-msg">جاري التحميل...</div></div>
     </div>
 
@@ -1824,6 +1894,28 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
         <button onclick="sendDailyReport()" style="background:#25D366;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
           📱 إرسال تقرير اليوم على واتساب
         </button>
+      </div>
+
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);">👁️ زيارات الموقع</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-mid);cursor:pointer;">
+            <span>إظهار للزبائن</span>
+            <div onclick="toggleVisitorPublic()" id="visitorToggle" style="width:42px;height:24px;border-radius:12px;background:#d1d5db;cursor:pointer;position:relative;transition:background 0.2s;">
+              <div id="visitorToggleThumb" style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px;transition:right 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+            </div>
+          </label>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:12px;padding:14px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:800;color:#166534;" id="stat-visitors-total">—</div>
+            <div style="font-size:0.78rem;color:#166534;">إجمالي الزيارات</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#fef9c3,#fef08a);border-radius:12px;padding:14px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:800;color:#92400e;" id="stat-visitors-today">—</div>
+            <div style="font-size:0.78rem;color:#92400e;">زيارات اليوم</div>
+          </div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
         <div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:14px;padding:16px;text-align:center;">
@@ -2078,6 +2170,165 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       </div>
     </div>
 
+    <!-- ABOUT EDIT TAB -->
+    <div class="admin-tab-content" id="tab-aboutedit">
+      <div class="form-card">
+        <h2>🌿 تعديل صفحة "من نحن"</h2>
+
+        <div class="form-field" style="margin-top:12px;">
+          <label>✨ نص القصة</label>
+          <textarea id="ab_story" rows="5" placeholder="اكتب قصة متجرك هنا..."></textarea>
+        </div>
+
+        <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin:16px 0 10px;">📌 البطاقات الأربع</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 1</div>
+            <input id="ab_c1e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c1t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c1d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 2</div>
+            <input id="ab_c2e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c2t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c2d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 3</div>
+            <input id="ab_c3e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c3t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c3d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+          <div style="background:#f9fafb;border-radius:12px;padding:12px;border:1px solid #e5e7eb;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;font-weight:700;">بطاقة 4</div>
+            <input id="ab_c4e" placeholder="إيموجي" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:1rem;">
+            <input id="ab_c4t" placeholder="العنوان" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;margin-bottom:6px;font-size:0.85rem;">
+            <input id="ab_c4d" placeholder="الوصف" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;">
+          </div>
+        </div>
+
+        <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">📞 معلومات التواصل</div>
+        <div class="form-field">
+          <label>رقم واتساب (بدون +)</label>
+          <input id="ab_phone" placeholder="962775665598">
+        </div>
+        <div class="form-field">
+          <label>📍 الموقع / العنوان</label>
+          <input id="ab_location" placeholder="الأردن — نوصّل لجميع المحافظات">
+        </div>
+        <div class="form-field">
+          <label>© نص الحقوق</label>
+          <input id="ab_copy" placeholder="© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن">
+        </div>
+
+        <button onclick="saveAboutSettings()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:8px;">💾 حفظ التغييرات</button>
+      </div>
+    </div>
+
+    <div class="admin-tab-content" id="tab-operator">
+      <h2 style="color:var(--green-dark);margin-bottom:4px;">💼 حساب المشغل</h2>
+      <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">كشف يومي — للأدمن فقط</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center;">
+        <input type="date" id="op_date" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+        <button onclick="loadOperatorLedger()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">📂 تحميل</button>
+      </div>
+
+      <!-- قنوات البيع (rendered by JS) -->
+      <div id="op_channels_wrap"></div>
+
+      <!-- إضافة قناة جديدة -->
+      <div class="form-card" style="margin-bottom:12px;">
+        <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">➕ إضافة قناة بيع جديدة</div>
+        <div style="display:flex;gap:8px;">
+          <input id="op_new_channel_name" placeholder="انستغرام، فيسبوك، بازار..." style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);">
+          <button onclick="addOpChannel()" style="padding:9px 18px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
+        </div>
+      </div>
+
+      <!-- أجرة المشغل -->
+      <div class="form-card" style="margin-bottom:12px;">
+        <div style="font-size:0.88rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">👤 أجرة المشغل</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input id="op_operator_wage" type="number" min="0" placeholder="0" oninput="calcOpSummary()" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);">
+          <span style="font-size:0.9rem;color:var(--text-mid);white-space:nowrap;">د.أ / اليوم</span>
+        </div>
+      </div>
+
+      <!-- ملاحظات -->
+      <div class="form-card" style="margin-bottom:16px;">
+        <div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">📝 ملاحظات</div>
+        <textarea id="op_notes" rows="3" placeholder="أي ملاحظات عن هذا اليوم..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;resize:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;"></textarea>
+      </div>
+
+      <!-- أزرار -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+        <button onclick="saveOperatorLedger()" style="padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+        <button onclick="shareOperatorReport()" style="padding:12px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
+        <button onclick="printOperatorReport()" style="padding:12px;background:#4b5563;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
+      </div>
+
+      <div id="op_summary"></div>
+    </div>
+
+    <!-- تاب منتجاتي -->
+    <div class="admin-tab-content" id="tab-op-products">
+      <h2 style="color:var(--green-dark);margin-bottom:4px;">📋 منتجاتي</h2>
+      <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:16px;">كتالوج المشغل الخاص — لا يظهر على الموقع</p>
+
+      <div class="form-card" style="margin-bottom:16px;">
+        <h2 id="op_prod_form_title" style="font-size:1rem;">➕ إضافة منتج</h2>
+        <input type="hidden" id="op_prod_editing_id" value="">
+        <div class="form-row">
+          <div class="fg"><label>اسم المنتج *</label><input id="op_prod_name" placeholder="مثال: لوح خشبي مخصص"></div>
+          <div class="fg">
+            <label>سعر البيع *</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" id="op_prod_sell" placeholder="0" min="0" step="0.5" style="flex:1;">
+              <span style="color:var(--text-mid);font-size:0.9rem;white-space:nowrap;">د.أ</span>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:14px;margin-top:4px;">
+          <div style="font-size:0.8rem;font-weight:700;color:#92400e;margin-bottom:12px;">💼 تفصيل التكاليف لكل وحدة</div>
+          <div class="form-row">
+            <div class="fg">
+              <label>🪵 مواد خام</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" id="op_prod_raw" placeholder="0" min="0" step="0.5" style="flex:1;">
+                <span style="color:var(--text-mid);font-size:0.9rem;">د.أ</span>
+              </div>
+            </div>
+            <div class="fg">
+              <label>⚙️ أجرة عامل ماكينة</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" id="op_prod_machine" placeholder="0" min="0" step="0.5" style="flex:1;">
+                <span style="color:var(--text-mid);font-size:0.9rem;">د.أ</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:6px;">
+            <div class="fg">
+              <label>🔧 أجرة عامل تركيب</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" id="op_prod_assembly" placeholder="0" min="0" step="0.5" style="flex:1;">
+                <span style="color:var(--text-mid);font-size:0.9rem;">د.أ</span>
+              </div>
+            </div>
+            <div class="fg"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button onclick="saveOpProduct()" id="op_prod_save_btn" style="flex:1;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">✅ إضافة</button>
+          <button onclick="cancelOpProductEdit()" id="op_prod_cancel_btn" style="display:none;padding:12px 18px;background:#f3f4f6;color:var(--text-dark);border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;">إلغاء</button>
+        </div>
+      </div>
+
+      <div id="op_products_list"><div class="empty-msg">⏳ جاري التحميل...</div></div>
+    </div>
+
   </div>
 </div>
 
@@ -2248,10 +2499,16 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
       <div id="orderStatusResult" style="display:none;">
         <div style="background:var(--card-bg);border-radius:16px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px;">
           <div style="background:var(--green-dark);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-            <div style="color:#fff;font-weight:700;font-size:1rem;" id="trOrderNum">—</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="color:#fff;font-weight:700;font-size:1rem;" id="trOrderNum">—</div>
+              <span style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.15);color:#fff;padding:2px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">
+                <span style="width:6px;height:6px;background:#4ade80;border-radius:50%;display:inline-block;animation:livePulse 1.5s ease-in-out infinite;"></span>LIVE
+              </span>
+            </div>
             <span id="trStatusBadge" style="padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;"></span>
           </div>
           <div style="padding:14px 16px;">
+            <div id="trCancelReason" style="display:none;font-size:0.82rem;color:#991b1b;background:#fee2e2;padding:8px 12px;border-radius:8px;margin-bottom:12px;"></div>
             <div id="orderStatusInfo" style="font-size:0.88rem;color:var(--text-mid);margin-bottom:14px;line-height:1.8;"></div>
             <div id="trItems" style="font-size:0.85rem;color:var(--text-dark);background:var(--cream-dark);border-radius:10px;padding:10px 12px;margin-bottom:14px;"></div>
             <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:var(--text-mid);">
@@ -2272,6 +2529,9 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
             <div class="status-step-v" id="sv3"><div class="sv-icon" id="s3">🚚</div><div class="sv-line"></div><div class="sv-label" id="sl3">في الطريق إليك</div></div>
             <div class="status-step-v" id="sv4"><div class="sv-icon" id="s4">✅</div><div class="sv-line" style="display:none;"></div><div class="sv-label" id="sl4">تم التسليم</div></div>
           </div>
+        </div>
+        <div id="trCancelBtnWrap" style="display:none;margin-top:14px;">
+          <button style="width:100%;padding:12px;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">🚫 إلغاء الطلب</button>
         </div>
       </div>
       <div id="orderStatusError" style="display:none;text-align:center;padding:40px 20px;">
@@ -2295,46 +2555,44 @@ body.dark-mode .bottom-tab.cart-tab .tab-icon{background:#1a3a2a!important;borde
     <div style="padding:28px 20px;max-width:480px;margin:0 auto;width:100%;">
       <div style="background:var(--card-bg);border-radius:18px;border:1px solid var(--border);padding:22px;margin-bottom:16px;">
         <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">✨ قصتنا</div>
-        <div style="font-size:0.9rem;color:var(--text-mid);line-height:2;">
-          بدأت رحلتنا من شغف حقيقي بالطبيعة والخشب، من زاوية صغيرة في قلب الأردن، نحوّل الأخشاب الطبيعية وأشجار الزينة إلى تحف تزيّن بيتك وتسعد روحك. كل قطعة نصنعها تحمل بين طياتها حبًا وإتقانًا، لأن هدفنا ليس البيع فحسب، بل إدخال الجمال إلى حياتك.
-        </div>
+        <div id="about_story" style="font-size:0.9rem;color:var(--text-mid);line-height:2;">بدأت رحلتنا من شغف حقيقي بالطبيعة والخشب، من زاوية صغيرة في قلب الأردن، نحوّل الأخشاب الطبيعية وأشجار الزينة إلى تحف تزيّن بيتك وتسعد روحك. كل قطعة نصنعها تحمل بين طياتها حبًا وإتقانًا، لأن هدفنا ليس البيع فحسب، بل إدخال الجمال إلى حياتك.</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;" id="about_cards">
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">🪵</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">خشبيات يدوية</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">مصنوعة بحرفية عالية من خشب طبيعي أصلي</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c1e">🪵</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c1t">خشبيات يدوية</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c1d">مصنوعة بحرفية عالية من خشب طبيعي أصلي</div>
         </div>
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">🌱</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">أشجار زينة</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">نباتات منزلية وأشجار تزيّن مساحتك بالخضرة</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c2e">🌱</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c2t">أشجار زينة</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c2d">نباتات منزلية وأشجار تزيّن مساحتك بالخضرة</div>
         </div>
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">✍️</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">نقش مخصص</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">اكتب اسمك أو رسالتك على أي منتج تحبه</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c3e">✍️</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c3t">نقش مخصص</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c3d">اكتب اسمك أو رسالتك على أي منتج تحبه</div>
         </div>
         <div style="background:var(--card-bg);border-radius:14px;border:1px solid var(--border);padding:18px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:6px;">🚚</div>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);">توصيل لبابك</div>
-          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;">نوصل لجميع محافظات الأردن بسرعة وأمان</div>
+          <div style="font-size:2rem;margin-bottom:6px;" id="about_c4e">🚚</div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--green-dark);" id="about_c4t">توصيل لبابك</div>
+          <div style="font-size:0.72rem;color:var(--text-mid);margin-top:4px;" id="about_c4d">نوصل لجميع محافظات الأردن بسرعة وأمان</div>
         </div>
       </div>
       <div style="background:var(--card-bg);border-radius:18px;border:1px solid var(--border);padding:22px;margin-bottom:16px;">
         <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">📞 تواصل معنا</div>
-        <a href="https://wa.me/962775665598" target="_blank" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px;text-decoration:none;margin-bottom:10px;">
+        <a id="about_wa_link" href="https://wa.me/962775665598" target="_blank" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-radius:12px;padding:14px;text-decoration:none;margin-bottom:10px;">
           <div style="width:40px;height:40px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">💬</div>
-          <div><div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">واتساب</div><div style="font-size:0.78rem;color:#6b7280;">0775665598</div></div>
+          <div><div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">واتساب</div><div id="about_wa_num" style="font-size:0.78rem;color:#6b7280;">0775665598</div></div>
           <div style="margin-right:auto;font-size:0.75rem;color:#25D366;font-weight:600;">تواصل الآن ←</div>
         </a>
         <div style="display:flex;align-items:center;gap:12px;background:var(--cream-dark);border-radius:12px;padding:14px;">
           <div style="width:40px;height:40px;background:var(--green-dark);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📍</div>
-          <div><div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);">الأردن</div><div style="font-size:0.78rem;color:var(--text-mid);">نوصّل لجميع المحافظات</div></div>
+          <div><div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);">الأردن</div><div id="about_location" style="font-size:0.78rem;color:var(--text-mid);">نوصّل لجميع المحافظات</div></div>
         </div>
       </div>
       <div style="text-align:center;padding:16px 0 8px;">
-        <div style="font-size:0.78rem;color:var(--text-mid);">© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن</div>
+        <div id="about_copy" style="font-size:0.78rem;color:var(--text-mid);">© 2026 الكسواني روزميري · صُنع بـ ❤️ في الأردن</div>
       </div>
     </div>
   </div>
@@ -2974,8 +3232,6 @@ async function confirmOrder(){
   appliedDiscount=null;
   clearCart();
   toast('🎉 تم استلام طلبك!');
-  // فتح واتساب فوراً للأدمن (مش في setTimeout عشان ما يتبلوك)
-  notifyAdminWA(order);
   // Process referral if exists
   processReferralOnOrder(phone,name);
 }
@@ -3165,13 +3421,20 @@ function switchAdminTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='customers')renderCustomers();
   if(tab==='orders')renderOrders();
-  if(tab==='stats')loadStats();
+  if(tab==='stats'){loadStats();loadVisitorStats();}
   if(tab==='badges')loadBadgeSettings();
   if(tab==='points')loadPointsSettingsUI();
   if(tab==='discounts')renderDiscounts();
   if(tab==='photos')renderPhotosAdmin();
   if(tab==='eid')loadEidAdminUI();
   if(tab==='categories'){ renderCategoriesAdmin(); }
+  if(tab==='aboutedit'){ loadAboutSettingsForm(); }
+  if(tab==='operator'){
+    const inp=document.getElementById('op_date');
+    if(!inp.value) inp.value=new Date().toISOString().slice(0,10);
+    loadOperatorLedger();
+  }
+  if(tab==='op-products'){ loadOpProducts(); }
 }
 
 let currentOrderStatus='جديد';
@@ -3180,6 +3443,8 @@ function switchOrderTab(status, btn){
   currentOrderStatus=status;
   document.querySelectorAll('.order-stab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap=document.getElementById('transferBtnWrap');
+  if(wrap) wrap.style.display=status==='جديد'?'flex':'none';
   renderOrdersByStatus();
 }
 
@@ -3608,6 +3873,8 @@ async function addProduct(){
   const pHeight=document.getElementById('pHeight')?.value.trim()||'';
   const pWidth=document.getElementById('pWidth')?.value.trim()||'';
   const pMaterial=document.getElementById('pMaterial')?.value.trim()||'';
+  const pWoodCost=parseFloat(document.getElementById('pWoodCost')?.value)||0;
+  const pWorkerWage=parseFloat(document.getElementById('pWorkerWage')?.value)||0;
   const product={
     id:finalId,name,price,oldPrice:oldPrice||null,
     cat,desc,badge,writing,
@@ -3622,6 +3889,8 @@ async function addProduct(){
     height:pHeight,
     width:pWidth,
     material:pMaterial,
+    woodCost:pWoodCost,
+    workerWage:pWorkerWage,
     reviews:existing?.reviews||[]
   };
   await db.collection('products').doc(docId).set(product);
@@ -3653,7 +3922,7 @@ function removeExistingImage(idx){
 
 function resetForm(){
   colorImages={};potImages={};
-  ['pName','pPrice','pOldPrice','pDesc','pBadge','pColorsInput','pHeight','pWidth','pMaterial'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['pName','pPrice','pOldPrice','pDesc','pBadge','pColorsInput','pHeight','pWidth','pMaterial','pWoodCost','pWorkerWage'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const pPotsEl=document.getElementById('pPots');if(pPotsEl)pPotsEl.value='';
   const ptc=document.getElementById('potsTagsContainer');if(ptc)ptc.innerHTML='';
   currentPots=[];
@@ -3706,6 +3975,8 @@ function editProduct(id){
   if(document.getElementById('pHeight')) document.getElementById('pHeight').value=p.height||'';
   if(document.getElementById('pWidth')) document.getElementById('pWidth').value=p.width||'';
   if(document.getElementById('pMaterial')) document.getElementById('pMaterial').value=p.material||'';
+  if(document.getElementById('pWoodCost')) document.getElementById('pWoodCost').value=p.woodCost||'';
+  if(document.getElementById('pWorkerWage')) document.getElementById('pWorkerWage').value=p.workerWage||'';
   colorImages=p.colorImages||{};
   potImages=p.potImages||{};
   // Load pots
@@ -3876,30 +4147,52 @@ async function submitRating(){
 
 // ===== ORDER STATUS =====
 function openOrderStatus(){document.getElementById('orderStatusOverlay').classList.add('open');document.getElementById('orderStatusResult').style.display='none';document.getElementById('orderStatusError').style.display='none';history.pushState({orderStatus:true},'','#track');}
-function closeOrderStatus(){document.getElementById('orderStatusOverlay').classList.remove('open');if(location.hash==='#track')history.replaceState(null,'',location.pathname);}
+function closeOrderStatus(){
+  document.getElementById('orderStatusOverlay').classList.remove('open');
+  if(location.hash==='#track')history.replaceState(null,'',location.pathname);
+  if(_trackingListener){_trackingListener();_trackingListener=null;}
+}
+let _trackingListener=null;
+
 async function trackOrder(){
   const raw=document.getElementById('trackOrderId').value.trim().replace('#','');
   if(!raw){toast('أدخل رقم الطلب');return;}
   toast('⏳ جاري البحث...');
+  // Cancel previous listener
+  if(_trackingListener){_trackingListener();_trackingListener=null;}
   const snap=await db.collection('orders').get();
-  const order=snap.docs.map(d=>d.data()).find(o=>String(o.id).slice(-6)===raw||String(o.id)===raw||(o.orderNum||'').replace('#','')=== raw);
-  if(!order){
+  const doc=snap.docs.find(d=>{const o=d.data();return String(o.id).slice(-6)===raw||String(o.id)===raw||(o.orderNum||'').replace('#','')===raw;});
+  if(!doc){
     document.getElementById('orderStatusResult').style.display='none';
     document.getElementById('orderStatusError').style.display='block';
     return;
   }
+  // Subscribe to real-time updates for this specific order
+  _trackingListener=db.collection('orders').doc(doc.id).onSnapshot(snap=>{
+    if(!snap.exists) return;
+    renderTrackingResult(snap.data());
+  });
+}
+
+function renderTrackingResult(order){
   document.getElementById('orderStatusError').style.display='none';
   document.getElementById('orderStatusResult').style.display='block';
   document.getElementById('trOrderNum').textContent='طلب '+(order.orderNum||'#'+String(order.id).slice(-6));
-  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#d1fae5'};
-  const statusTextC={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#065f46'};
+  const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#d1fae5','ملغي':'#fee2e2'};
+  const statusTextC={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#065f46','ملغي':'#991b1b'};
   const st=order.status||'جديد';
   const badge=document.getElementById('trStatusBadge');
-  badge.textContent=st; badge.style.background=statusColors[st]; badge.style.color=statusTextC[st];
+  badge.textContent=st; badge.style.background=statusColors[st]||'#f3f4f6'; badge.style.color=statusTextC[st]||'#374151';
   document.getElementById('orderStatusInfo').innerHTML=`👤 <strong>${order.name}</strong> · 📅 ${order.date}${order.deliveryDate?'<br>📦 موعد التوصيل: <strong>'+order.deliveryDate+'</strong>':''}`;
   document.getElementById('trItems').innerHTML=(order.items||[]).map(i=>`<div style="padding:3px 0;border-bottom:1px solid var(--border);">🌿 ${i.name} × ${i.qty}${i.writing?' <span style="color:#92400e;font-size:0.8rem;">✍️ '+i.writing+'</span>':''}</div>`).join('');
   document.getElementById('trTotal').textContent=order.total||'—';
   document.getElementById('trDate').textContent=order.date||'—';
+  // Update cancel reason display
+  const cancelDiv=document.getElementById('trCancelReason');
+  if(cancelDiv){
+    if(st==='ملغي'&&order.cancelReason){cancelDiv.style.display='block';cancelDiv.textContent='🚫 سبب الإلغاء: '+order.cancelReason;}
+    else{cancelDiv.style.display='none';}
+  }
   const statuses=['جديد','قيد التجهيز','بالطريق','تم التسليم'];
   const cur=statuses.indexOf(st);
   for(let i=1;i<=4;i++){
@@ -3909,8 +4202,21 @@ async function trackOrder(){
     icon.classList.remove('done','active');
     lbl.classList.remove('active','done');
     if(line) line.classList.remove('done');
-    if(i-1<cur){icon.classList.add('done');lbl.classList.add('done');if(line)line.classList.add('done');}
-    else if(i-1===cur){icon.classList.add('active');lbl.classList.add('active');}
+    if(st==='ملغي'){icon.style.opacity='0.4';lbl.style.opacity='0.4';}
+    else{icon.style.opacity='';lbl.style.opacity='';}
+    if(st!=='ملغي'){
+      if(i-1<cur){icon.classList.add('done');lbl.classList.add('done');if(line)line.classList.add('done');}
+      else if(i-1===cur){icon.classList.add('active');lbl.classList.add('active');}
+    }
+  }
+  const cancelBtnWrap=document.getElementById('trCancelBtnWrap');
+  if(cancelBtnWrap){
+    if(st==='جديد'||st==='قيد التجهيز'){
+      cancelBtnWrap.style.display='block';
+      cancelBtnWrap.querySelector('button').onclick=()=>openCustomerCancelDialog(String(order.id));
+    } else {
+      cancelBtnWrap.style.display='none';
+    }
   }
 }
 
@@ -3946,12 +4252,89 @@ function startOrderListener(){
     const count=snap.size;
     if(_lastOrderCount===-1){_lastOrderCount=count;return;}
     if(count>_lastOrderCount){
-      const diff=count-_lastOrderCount;
       _lastOrderCount=count;
       playOrderSound();
-      toast('🔔 وصل طلب جديد! ('+diff+')');
+      // Get the latest order to show details
+      const docs=snap.docs.sort((a,b)=>b.data().id-a.data().id);
+      const latest=docs[0]?.data();
+      if(latest) showNewOrderAlert(latest);
+      else toast('🔔 وصل طلب جديد!');
+      renderOrders();
     } else {_lastOrderCount=count;}
   });
+}
+
+function showNewOrderAlert(order){
+  const existing=document.getElementById('newOrderAlert');
+  if(existing) existing.remove();
+  const phone=(order.phone||'').replace(/[^0-9]/g,'');
+  const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
+  const items=(order.items||[]).map(i=>i.name+' ×'+i.qty).join('، ');
+  const waMsg=encodeURIComponent(notifyAdminWAMsg(order));
+  const div=document.createElement('div');
+  div.id='newOrderAlert';
+  div.innerHTML=`
+    <div style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);border:2px solid #25D366;padding:16px 18px;min-width:290px;max-width:340px;animation:fadeUp 0.3s ease;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:700;color:#1a3a2a;font-size:0.95rem;">🔔 طلب جديد!</div>
+        <button onclick="document.getElementById('newOrderAlert').remove()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:#aaa;line-height:1;">✕</button>
+      </div>
+      <div style="font-size:0.82rem;color:#374151;margin-bottom:4px;">👤 <strong>${order.name}</strong> · 📞 ${order.phone}</div>
+      <div style="font-size:0.78rem;color:#6b7280;margin-bottom:2px;">📍 ${order.area||''} ${order.address?'— '+order.address:''}</div>
+      <div style="font-size:0.78rem;color:#6b7280;margin-bottom:10px;">🌿 ${items}</div>
+      <div style="display:flex;gap:8px;">
+        <a href="https://wa.me/${intlPhone}?text=${waMsg}" target="_blank" style="flex:1;background:#25D366;color:#fff;text-align:center;padding:8px;border-radius:8px;font-size:0.82rem;font-weight:700;text-decoration:none;">📱 واتساب</a>
+        <button onclick="switchOrderTab('جديد',document.getElementById('stab-new'));renderOrders();document.getElementById('newOrderAlert').remove()" style="flex:1;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;">📋 عرض الطلب</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(),30000);
+}
+
+async function transferNewOrders(){
+  const newOrders=(window._allOrders||[]).filter(o=>(o.status||'جديد')==='جديد');
+  if(!newOrders.length){toast('⚠️ ما في طلبات جديدة');return;}
+  if(!confirm(`سيتم ترحيل ${newOrders.length} طلب لواتساب ونقلهم لـ"قيد التجهيز". تأكيد؟`)){return;}
+  const date=new Date().toLocaleDateString('ar-JO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  let msg=`📋 *ترحيل الطلبات الجديدة*\n🌿 الكسواني روزميري\n📅 ${date}\n\n`;
+  newOrders.forEach((o,i)=>{
+    const items=(o.items||[]).map(it=>it.name+' ×'+it.qty+(it.writing?' ✍️ '+it.writing:'')).join('، ');
+    msg+=`${'━'.repeat(22)}\n`;
+    msg+=`📦 طلب ${o.orderNum||'#'+String(o.id).slice(-6)}\n`;
+    msg+=`👤 ${o.name} | 📞 ${o.phone}\n`;
+    msg+=`📍 ${o.area||''}${o.address?' — '+o.address:''}\n`;
+    msg+=`📅 التوصيل: ${o.deliveryDate||'غير محدد'}\n`;
+    msg+=`🌿 ${items}\n`;
+    msg+=`💰 الإجمالي: ${o.total}\n`;
+    if(o.notes) msg+=`📝 ${o.notes}\n`;
+  });
+  msg+=`${'━'.repeat(22)}\n`;
+  msg+=`\n✅ إجمالي الطلبات: ${newOrders.length}`;
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
+  // Move all to قيد التجهيز
+  const batch=db.batch();
+  newOrders.forEach(o=>{
+    batch.update(db.collection('orders').doc(String(o.id)),{status:'قيد التجهيز'});
+  });
+  await batch.commit();
+  toast(`✅ تم ترحيل ${newOrders.length} طلب`);
+  renderOrders();
+}
+
+function notifyAdminWAMsg(order){
+  const items=(order.items||[]).map(i=>'• '+i.name+' ×'+i.qty+(i.writing?' ✍️ '+i.writing:'')).join('\n');
+  return '🔔 *طلب جديد - الكسواني روزميري*\n\n'
+    +'رقم الطلب: '+(order.orderNum||'#'+String(order.id).slice(-6))+'\n\n'
+    +'👤 الاسم: '+order.name+'\n'
+    +'📞 الهاتف: '+order.phone+'\n'
+    +'📍 المنطقة: '+(order.area||'')+'\n'
+    +'🏠 العنوان: '+(order.address||'')+'\n'
+    +'📅 موعد التوصيل: '+(order.deliveryDate||'غير محدد')+'\n\n'
+    +'📦 المنتجات:\n'+items+'\n\n'
+    +'💰 المجموع: '+(order.subtotal||'')+'\n'
+    +'🚚 التوصيل: '+(order.delivery||'')+'\n'
+    +'💵 الإجمالي: '+(order.total||'')+'\n\n'
+    +'📝 ملاحظات: '+(order.notes||'لا يوجد');
 }
 
 function stopOrderListener(){
@@ -3997,6 +4380,477 @@ async function sendDailyReport(){
     a.click();
     document.body.removeChild(a);
   }catch(e){toast('❌ خطأ في إرسال التقرير');}
+}
+
+// ===== OPERATOR PRODUCTS =====
+let _opProductsList=[];
+
+async function loadOpProducts(){
+  try{
+    const snap=await db.collection('op_products').get();
+    _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'));
+  }catch(e){ _opProductsList=[]; }
+  renderOpProductsList();
+}
+
+function renderOpProductsList(){
+  const el=document.getElementById('op_products_list');
+  if(!el) return;
+  if(!_opProductsList.length){
+    el.innerHTML='<div class="empty-msg">لا يوجد منتجات — أضف منتجك الأول أعلاه</div>';
+    return;
+  }
+  el.innerHTML=_opProductsList.map(p=>{
+    const totalCost=(p.rawMaterials||0)+(p.machineWage||0)+(p.assemblyWage||0);
+    const profit=(p.sellPrice||0)-totalCost;
+    return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-weight:700;color:var(--text-dark);">${p.name}</span>
+        <div style="display:flex;gap:6px;">
+          <button onclick="editOpProduct('${p.id}')" style="background:#f0fdf4;color:var(--green-dark);border:1px solid #bbf7d0;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">✏️</button>
+          <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">🗑️</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;font-size:0.79rem;">
+        <div style="background:#f0fdf4;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#6b7280;margin-bottom:2px;">💰 سعر البيع</div>
+          <div style="font-weight:700;color:#166534;">${p.sellPrice||0} د.أ</div>
+        </div>
+        <div style="background:#fef9c3;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#6b7280;margin-bottom:2px;">🪵 مواد خام</div>
+          <div style="font-weight:700;color:#92400e;">${p.rawMaterials||0} د.أ</div>
+        </div>
+        <div style="background:#eff6ff;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#6b7280;margin-bottom:2px;">⚙️ ماكينة</div>
+          <div style="font-weight:700;color:#1e40af;">${p.machineWage||0} د.أ</div>
+        </div>
+        <div style="background:#f5f3ff;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#6b7280;margin-bottom:2px;">🔧 تركيب</div>
+          <div style="font-weight:700;color:#7c3aed;">${p.assemblyWage||0} د.أ</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:${profit>=0?'#dcfce7':'#fee2e2'};border-radius:8px;">
+        <span style="font-size:0.79rem;color:${profit>=0?'#166534':'#991b1b'};">التكلفة الإجمالية: ${totalCost.toFixed(2)} د.أ</span>
+        <span style="font-weight:800;color:${profit>=0?'#166534':'#991b1b'};font-size:0.85rem;">ربح الوحدة: ${profit.toFixed(2)} ${profit>=0?'✅':'⚠️'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveOpProduct(){
+  const name=document.getElementById('op_prod_name').value.trim();
+  if(!name){toast('⚠️ أدخل اسم المنتج');return;}
+  const data={
+    name,
+    sellPrice:parseFloat(document.getElementById('op_prod_sell').value)||0,
+    rawMaterials:parseFloat(document.getElementById('op_prod_raw').value)||0,
+    machineWage:parseFloat(document.getElementById('op_prod_machine').value)||0,
+    assemblyWage:parseFloat(document.getElementById('op_prod_assembly').value)||0
+  };
+  const editingId=document.getElementById('op_prod_editing_id').value;
+  try{
+    if(editingId){ await db.collection('op_products').doc(editingId).set(data); toast('✅ تم التعديل'); }
+    else{ await db.collection('op_products').add(data); toast('✅ تم الإضافة'); }
+    cancelOpProductEdit();
+    await loadOpProducts();
+  }catch(e){ toast('❌ خطأ في الحفظ'); }
+}
+
+function editOpProduct(id){
+  const p=_opProductsList.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('op_prod_editing_id').value=id;
+  document.getElementById('op_prod_name').value=p.name||'';
+  document.getElementById('op_prod_sell').value=p.sellPrice||'';
+  document.getElementById('op_prod_raw').value=p.rawMaterials||'';
+  document.getElementById('op_prod_machine').value=p.machineWage||'';
+  document.getElementById('op_prod_assembly').value=p.assemblyWage||'';
+  document.getElementById('op_prod_form_title').textContent='✏️ تعديل: '+p.name;
+  document.getElementById('op_prod_save_btn').textContent='💾 حفظ التعديلات';
+  document.getElementById('op_prod_cancel_btn').style.display='block';
+  document.querySelector('#tab-op-products .form-card').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelOpProductEdit(){
+  document.getElementById('op_prod_editing_id').value='';
+  ['op_prod_name','op_prod_sell','op_prod_raw','op_prod_machine','op_prod_assembly']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('op_prod_form_title').textContent='➕ إضافة منتج';
+  document.getElementById('op_prod_save_btn').textContent='✅ إضافة';
+  document.getElementById('op_prod_cancel_btn').style.display='none';
+}
+
+async function deleteOpProduct(id){
+  if(!confirm('حذف هذا المنتج؟')) return;
+  try{
+    await db.collection('op_products').doc(id).delete();
+    toast('✅ تم الحذف');
+    await loadOpProducts();
+  }catch(e){ toast('❌ خطأ في الحذف'); }
+}
+
+// ===== OPERATOR LEDGER =====
+let _opChannels=[];
+function getOpDate(){return document.getElementById('op_date').value||new Date().toISOString().slice(0,10);}
+function _opDefaultChannels(){return [{name:'الموقع الإلكتروني',type:'site',items:[],deliveryCost:0}];}
+
+async function loadOperatorLedger(){
+  // ensure products catalog is loaded first
+  if(!_opProductsList.length){
+    try{
+      const snap=await db.collection('op_products').get();
+      _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'));
+    }catch(e){}
+  }
+  const date=getOpDate();
+  try{
+    const snap=await db.collection('operator_ledger').doc(date).get();
+    if(snap.exists){
+      const d=snap.data();
+      _opChannels=(d.channels||_opDefaultChannels()).map(ch=>({deliveryCost:0,...ch}));
+      document.getElementById('op_operator_wage').value=d.operatorWage||'';
+      document.getElementById('op_notes').value=d.notes||'';
+    } else {
+      _opChannels=_opDefaultChannels();
+      document.getElementById('op_operator_wage').value='';
+      document.getElementById('op_notes').value='';
+    }
+  }catch(e){ _opChannels=_opDefaultChannels(); }
+  renderOpChannels();
+  calcOpSummary();
+}
+
+function _opProdOptions(){
+  return _opProductsList.map(p=>
+    `<option value="${p.id}" data-sell="${p.sellPrice||0}" data-raw="${p.rawMaterials||0}" data-machine="${p.machineWage||0}" data-assembly="${p.assemblyWage||0}">${p.name}</option>`
+  ).join('');
+}
+
+function updateOpDelivery(ci,val){
+  _opChannels[ci].deliveryCost=parseFloat(val)||0;
+  calcOpSummary();
+}
+
+function renderOpChannels(){
+  const wrap=document.getElementById('op_channels_wrap');
+  if(!wrap) return;
+  const inp=s=>`style="flex:${s};padding:7px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.82rem;background:var(--card-bg);color:var(--text-dark);"`;
+  wrap.innerHTML=_opChannels.map((ch,ci)=>{
+    const isSite=ch.type==='site';
+    const hdr=isSite?'var(--green-dark)':'#1e40af';
+    const rev=ch.items.reduce((s,it)=>s+(it.sellPrice||0)*(it.qty||0),0);
+    const raw=ch.items.reduce((s,it)=>s+(it.rawMaterials||0)*(it.qty||0),0);
+    const mac=ch.items.reduce((s,it)=>s+(it.machineWage||0)*(it.qty||0),0);
+    const asm=ch.items.reduce((s,it)=>s+(it.assemblyWage||0)*(it.qty||0),0);
+    const del=ch.deliveryCost||0;
+    const cost=raw+mac+asm+del;
+    const profit=rev-cost;
+    const rows=ch.items.length
+      ? ch.items.map((it,ii)=>{
+          const itRev=(it.sellPrice||0)*(it.qty||0);
+          const itCost=((it.rawMaterials||0)+(it.machineWage||0)+(it.assemblyWage||0))*(it.qty||0);
+          const itP=itRev-itCost;
+          return `<tr style="font-size:0.79rem;border-bottom:1px solid var(--border);">
+            <td style="padding:5px 7px;">${it.productName}</td>
+            <td style="padding:5px 7px;text-align:center;">${it.qty}</td>
+            <td style="padding:5px 7px;text-align:center;color:#166534;font-weight:700;">${itRev.toFixed(2)}</td>
+            <td style="padding:5px 7px;text-align:center;color:#92400e;">${(it.rawMaterials||0)*it.qty > 0?(it.rawMaterials*it.qty).toFixed(2):'—'}</td>
+            <td style="padding:5px 7px;text-align:center;color:#1e40af;">${(it.machineWage||0)*it.qty > 0?(it.machineWage*it.qty).toFixed(2):'—'}</td>
+            <td style="padding:5px 7px;text-align:center;color:#7c3aed;">${(it.assemblyWage||0)*it.qty > 0?(it.assemblyWage*it.qty).toFixed(2):'—'}</td>
+            <td style="padding:5px 7px;text-align:center;font-weight:700;color:${itP>=0?'#166534':'#991b1b'};">${itP.toFixed(2)}</td>
+            <td style="padding:5px 7px;"><button onclick="removeOpItem(${ci},${ii})" style="background:#fee2e2;color:#dc2626;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:0.75rem;">×</button></td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="8" style="text-align:center;padding:10px;font-size:0.8rem;color:#9ca3af;">اختر منتجاً من القائمة وأضفه</td></tr>`;
+    return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;margin-bottom:12px;overflow:hidden;">
+      <div style="background:${hdr};padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#fff;font-weight:700;font-size:0.88rem;">${isSite?'🌐':'📱'} ${ch.name}</span>
+        ${!isSite?`<button onclick="removeOpChannel(${ci})" style="background:rgba(255,255,255,0.2);color:#fff;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;">✕</button>`:''}
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:420px;">
+          <thead><tr style="background:#f9fafb;font-size:0.71rem;color:var(--text-mid);">
+            <th style="padding:5px 7px;text-align:right;">المنتج</th>
+            <th style="padding:5px 7px;">كمية</th>
+            <th style="padding:5px 7px;">إيراد</th>
+            <th style="padding:5px 7px;color:#92400e;">🪵خام</th>
+            <th style="padding:5px 7px;color:#1e40af;">⚙️ماكنة</th>
+            <th style="padding:5px 7px;color:#7c3aed;">🔧تركيب</th>
+            <th style="padding:5px 7px;">ربح</th>
+            <th></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:8px 10px;display:flex;gap:5px;border-top:1px solid var(--border);">
+        <select id="op_prod_${ci}" ${inp('2')} style="flex:2;padding:7px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.82rem;background:var(--card-bg);color:var(--text-dark);">
+          <option value="">اختر منتج...</option>${_opProdOptions()}
+        </select>
+        <input type="number" id="op_qty_${ci}" min="1" value="1" style="flex:0 0 52px;padding:7px 5px;border:1.5px solid var(--border);border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.82rem;background:var(--card-bg);color:var(--text-dark);">
+        <button onclick="addOpItem(${ci})" style="padding:7px 14px;background:${hdr};color:#fff;border:none;border-radius:7px;font-size:0.9rem;cursor:pointer;font-weight:700;">+</button>
+      </div>
+      <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;background:#fffbeb;">
+        <span style="font-size:0.8rem;color:#92400e;white-space:nowrap;">🚚 أجرة التوصيل:</span>
+        <input type="number" min="0" step="0.5" value="${del}" oninput="updateOpDelivery(${ci},this.value)" style="width:70px;padding:6px 8px;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:#fff;">
+        <span style="font-size:0.8rem;color:#92400e;">د.أ</span>
+        <span style="font-size:0.75rem;color:#9ca3af;margin-right:auto;">(مجموع هذه القناة)</span>
+      </div>
+      <div style="padding:8px 14px;background:#f9fafb;display:flex;flex-wrap:wrap;gap:12px;font-size:0.79rem;border-top:1px solid var(--border);">
+        <span>إيراد: <b style="color:#166534;">${rev.toFixed(2)}</b></span>
+        <span>خام: <b style="color:#92400e;">${raw.toFixed(2)}</b></span>
+        <span>ماكنة: <b style="color:#1e40af;">${mac.toFixed(2)}</b></span>
+        <span>تركيب: <b style="color:#7c3aed;">${asm.toFixed(2)}</b></span>
+        <span>توصيل: <b style="color:#b45309;">${del.toFixed(2)}</b></span>
+        <span>ربح: <b style="color:${profit>=0?'#166534':'#991b1b'};">${profit.toFixed(2)} ${profit>=0?'✅':'⚠️'}</b></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addOpChannel(){
+  const el=document.getElementById('op_new_channel_name');
+  const name=el.value.trim();
+  if(!name){toast('⚠️ أدخل اسم القناة');return;}
+  _opChannels.push({name,type:'external',items:[],deliveryCost:0});
+  el.value='';
+  renderOpChannels(); calcOpSummary();
+}
+function removeOpChannel(ci){_opChannels.splice(ci,1);renderOpChannels();calcOpSummary();}
+
+function addOpItem(ci){
+  const sel=document.getElementById(`op_prod_${ci}`);
+  const opt=sel.options[sel.selectedIndex];
+  if(!sel.value){toast('⚠️ اختر منتجاً من القائمة');return;}
+  const qty=parseFloat(document.getElementById(`op_qty_${ci}`).value)||1;
+  _opChannels[ci].items.push({
+    productId:sel.value,
+    productName:opt.text,
+    qty,
+    sellPrice:parseFloat(opt.dataset.sell)||0,
+    rawMaterials:parseFloat(opt.dataset.raw)||0,
+    machineWage:parseFloat(opt.dataset.machine)||0,
+    assemblyWage:parseFloat(opt.dataset.assembly)||0
+  });
+  document.getElementById(`op_qty_${ci}`).value='1';
+  renderOpChannels(); calcOpSummary();
+}
+function removeOpItem(ci,ii){_opChannels[ci].items.splice(ii,1);renderOpChannels();calcOpSummary();}
+
+function calcOpSummary(){
+  const opWage=parseFloat(document.getElementById('op_operator_wage')?.value)||0;
+  let tRev=0,tRaw=0,tMac=0,tAsm=0,tDel=0;
+  const chRows=_opChannels.map(ch=>{
+    const rev=ch.items.reduce((s,it)=>s+(it.sellPrice||0)*(it.qty||0),0);
+    const raw=ch.items.reduce((s,it)=>s+(it.rawMaterials||0)*(it.qty||0),0);
+    const mac=ch.items.reduce((s,it)=>s+(it.machineWage||0)*(it.qty||0),0);
+    const asm=ch.items.reduce((s,it)=>s+(it.assemblyWage||0)*(it.qty||0),0);
+    const del=ch.deliveryCost||0;
+    tRev+=rev; tRaw+=raw; tMac+=mac; tAsm+=asm; tDel+=del;
+    const p=rev-raw-mac-asm-del;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border);font-size:0.82rem;flex-wrap:wrap;gap:4px;">
+      <span style="font-weight:600;">${ch.type==='site'?'🌐':'📱'} ${ch.name}</span>
+      <span>إيراد:<b style="color:#166534;margin-right:2px;">${rev.toFixed(2)}</b> — ربح:<b style="color:${p>=0?'#166534':'#991b1b'};margin-right:2px;">${p.toFixed(2)} ${p>=0?'✅':'⚠️'}</b></span>
+    </div>`;
+  }).join('');
+  const tCost=tRaw+tMac+tAsm+tDel+opWage;
+  const net=tRev-tCost;
+  const isP=net>=0;
+  const sumRow=(label,val,color)=>
+    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--border);font-size:0.83rem;">
+      <span style="color:var(--text-mid);">${label}</span>
+      <span style="font-weight:700;color:${color};">${val.toFixed(2)} د.أ</span>
+    </div>`;
+  const el=document.getElementById('op_summary');
+  if(!el) return;
+  el.innerHTML=`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-top:4px;">
+      <div style="background:${isP?'var(--green-dark)':'#991b1b'};padding:12px 16px;color:#fff;font-weight:700;font-size:0.9rem;">📊 كشف يوم ${getOpDate()}</div>
+      <div style="padding:16px;">
+        ${chRows||'<p style="font-size:0.82rem;color:#9ca3af;">لا توجد قنوات بعد</p>'}
+        <div style="margin-top:12px;">
+          ${sumRow('💰 إجمالي الإيرادات',tRev,'#166534')}
+          ${sumRow('🪵 مواد خام',tRaw,'#92400e')}
+          ${sumRow('⚙️ أجور الماكينة',tMac,'#1e40af')}
+          ${sumRow('🔧 أجور التركيب',tAsm,'#7c3aed')}
+          ${sumRow('🚚 أجور التوصيل',tDel,'#b45309')}
+          ${opWage?sumRow('👤 أجرة المشغل',opWage,'#374151'):''}
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.85rem;font-weight:800;color:#dc2626;">
+            <span>إجمالي التكاليف</span><span>${tCost.toFixed(2)} د.أ</span>
+          </div>
+        </div>
+        <div style="margin-top:12px;background:${isP?'#dcfce7':'#fee2e2'};border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:800;color:${isP?'#166534':'#991b1b'};font-size:0.95rem;">صافي ${isP?'الربح':'الخسارة'}</span>
+          <span style="font-weight:800;color:${isP?'#166534':'#991b1b'};font-size:1.4rem;">${Math.abs(net).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveOperatorLedger(){
+  const date=getOpDate();
+  const opWage=parseFloat(document.getElementById('op_operator_wage').value)||0;
+  const notes=document.getElementById('op_notes').value.trim();
+  try{
+    await db.collection('operator_ledger').doc(date).set({
+      date,channels:_opChannels,operatorWage:opWage,notes,
+      savedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم حفظ الكشف');
+  }catch(e){ toast('❌ خطأ في الحفظ'); }
+}
+
+function shareOperatorReport(){
+  const opWage=parseFloat(document.getElementById('op_operator_wage')?.value)||0;
+  let tRev=0,tRaw=0,tMac=0,tAsm=0,tDel=0;
+  let msg=`📊 كشف المشغل — ${getOpDate()}\n━━━━━━━━━━━━━━\n`;
+  _opChannels.forEach(ch=>{
+    const rev=ch.items.reduce((s,it)=>s+(it.sellPrice||0)*(it.qty||0),0);
+    const raw=ch.items.reduce((s,it)=>s+(it.rawMaterials||0)*(it.qty||0),0);
+    const mac=ch.items.reduce((s,it)=>s+(it.machineWage||0)*(it.qty||0),0);
+    const asm=ch.items.reduce((s,it)=>s+(it.assemblyWage||0)*(it.qty||0),0);
+    const del=ch.deliveryCost||0;
+    tRev+=rev; tRaw+=raw; tMac+=mac; tAsm+=asm; tDel+=del;
+    msg+=`${ch.type==='site'?'🌐':'📱'} ${ch.name}:\n`;
+    ch.items.forEach(it=>{msg+=`  • ${it.productName} ×${it.qty} — إيراد: ${(it.sellPrice*it.qty).toFixed(2)}\n`;});
+    if(del) msg+=`  🚚 توصيل: ${del.toFixed(2)}\n`;
+    msg+=`  ↳ ربح القناة: ${(rev-raw-mac-asm-del).toFixed(2)} د.أ\n\n`;
+  });
+  const tCost=tRaw+tMac+tAsm+tDel+opWage;
+  const net=tRev-tCost;
+  msg+=`━━━━━━━━━━━━━━\nإيرادات: ${tRev.toFixed(2)} | خام: ${tRaw.toFixed(2)} | ماكنة: ${tMac.toFixed(2)} | تركيب: ${tAsm.toFixed(2)} | توصيل: ${tDel.toFixed(2)}`;
+  if(opWage) msg+=` | مشغل: ${opWage.toFixed(2)}`;
+  msg+=`\n${net>=0?'✅ صافي الربح':'⚠️ الخسارة'}: ${Math.abs(net).toFixed(2)} د.أ`;
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+function printOperatorReport(){
+  const opWage=parseFloat(document.getElementById('op_operator_wage')?.value)||0;
+  let tRev=0,tRaw=0,tMac=0,tAsm=0,tDel=0;
+  const chHTML=_opChannels.map(ch=>{
+    const rev=ch.items.reduce((s,it)=>s+(it.sellPrice||0)*(it.qty||0),0);
+    const raw=ch.items.reduce((s,it)=>s+(it.rawMaterials||0)*(it.qty||0),0);
+    const mac=ch.items.reduce((s,it)=>s+(it.machineWage||0)*(it.qty||0),0);
+    const asm=ch.items.reduce((s,it)=>s+(it.assemblyWage||0)*(it.qty||0),0);
+    const del=ch.deliveryCost||0;
+    tRev+=rev; tRaw+=raw; tMac+=mac; tAsm+=asm; tDel+=del;
+    const p=rev-raw-mac-asm-del;
+    const rows=ch.items.map(it=>`<tr>
+      <td>${it.productName}</td><td>${it.qty}</td>
+      <td>${(it.sellPrice*it.qty).toFixed(2)}</td>
+      <td>${((it.rawMaterials||0)*it.qty).toFixed(2)}</td>
+      <td>${((it.machineWage||0)*it.qty).toFixed(2)}</td>
+      <td>${((it.assemblyWage||0)*it.qty).toFixed(2)}</td>
+      <td>${((it.sellPrice-(it.rawMaterials||0)-(it.machineWage||0)-(it.assemblyWage||0))*it.qty).toFixed(2)}</td>
+    </tr>`).join('');
+    return `<div class="ch-block">
+      <div class="ch-title">${ch.type==='site'?'🌐':'📱'} ${ch.name}</div>
+      <table><thead><tr><th>المنتج</th><th>كمية</th><th>إيراد</th><th>خام</th><th>ماكينة</th><th>تركيب</th><th>ربح</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      ${del?`<div class="delivery">🚚 أجرة التوصيل: ${del.toFixed(2)} د.أ</div>`:''}
+      <div class="ch-total">ربح القناة: ${p.toFixed(2)} د.أ</div>
+    </div>`;
+  }).join('');
+  const tCost=tRaw+tMac+tAsm+tDel+opWage;
+  const net=tRev-tCost;
+  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+  <title>كشف المشغل — ${getOpDate()}</title>
+  <style>
+    *{box-sizing:border-box;} body{font-family:'Tajawal',Arial,sans-serif;padding:24px;color:#1a1a1a;direction:rtl;}
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
+    h1{font-size:1.3rem;text-align:center;margin-bottom:4px;} .date{text-align:center;color:#666;margin-bottom:20px;font-size:0.9rem;}
+    .ch-block{margin-bottom:20px;border:1px solid #ddd;border-radius:8px;overflow:hidden;}
+    .ch-title{background:#134e2a;color:#fff;padding:8px 14px;font-weight:700;}
+    table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+    th{background:#f3f4f6;padding:6px 8px;text-align:right;border-bottom:1px solid #ddd;}
+    td{padding:6px 8px;border-bottom:1px solid #f0f0f0;}
+    .delivery{padding:6px 14px;background:#fffbeb;font-size:0.82rem;color:#92400e;}
+    .ch-total{padding:8px 14px;background:#f0fdf4;font-weight:700;color:#166534;font-size:0.88rem;}
+    .summary{margin-top:20px;border:2px solid #134e2a;border-radius:8px;padding:16px;}
+    .sum-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #ddd;font-size:0.85rem;}
+    .net{display:flex;justify-content:space-between;margin-top:12px;padding:12px;border-radius:8px;font-weight:800;font-size:1.1rem;}
+    @media print{button{display:none;}}
+  </style></head><body>
+  <h1>الكسواني روزميري — كشف المشغل</h1>
+  <div class="date">📅 ${getOpDate()}</div>
+  ${chHTML}
+  <div class="summary">
+    <div class="sum-row"><span>💰 إجمالي الإيرادات</span><span>${tRev.toFixed(2)} د.أ</span></div>
+    <div class="sum-row"><span>🪵 مواد خام</span><span>${tRaw.toFixed(2)} د.أ</span></div>
+    <div class="sum-row"><span>⚙️ أجور الماكينة</span><span>${tMac.toFixed(2)} د.أ</span></div>
+    <div class="sum-row"><span>🔧 أجور التركيب</span><span>${tAsm.toFixed(2)} د.أ</span></div>
+    <div class="sum-row"><span>🚚 أجور التوصيل</span><span>${tDel.toFixed(2)} د.أ</span></div>
+    ${opWage?`<div class="sum-row"><span>👤 أجرة المشغل</span><span>${opWage.toFixed(2)} د.أ</span></div>`:''}
+    <div class="sum-row" style="font-weight:700;color:#dc2626;"><span>إجمالي التكاليف</span><span>${tCost.toFixed(2)} د.أ</span></div>
+    <div class="net" style="background:${net>=0?'#dcfce7':'#fee2e2'};color:${net>=0?'#166534':'#991b1b'};">
+      <span>صافي ${net>=0?'الربح':'الخسارة'}</span><span>${Math.abs(net).toFixed(2)} د.أ ${net>=0?'✅':'⚠️'}</span>
+    </div>
+  </div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+  const w=window.open('','_blank','width=800,height=700');
+  if(w){ w.document.write(html); w.document.close(); }
+}
+
+
+// ===== VISITOR TRACKING =====
+async function trackVisit(){
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    const ref=db.collection('settings').doc('visitors');
+    const snap=await ref.get();
+    const existing=snap.exists?snap.data():{};
+    const inc=firebase.firestore.FieldValue.increment(1);
+    const update={total:inc,showPublic:existing.showPublic||false};
+    if(existing.todayDate===today){
+      update.today=inc;
+    } else {
+      update.today=1;
+      update.todayDate=today;
+    }
+    await ref.set(update,{merge:true});
+    if(existing.showPublic){
+      const total=(existing.total||0)+1;
+      document.getElementById('publicVisitorCount').textContent=total.toLocaleString('ar');
+      document.getElementById('visitorCountWidget').style.display='block';
+    }
+  }catch(e){}
+}
+
+async function loadVisitorStats(){
+  try{
+    const snap=await db.collection('settings').doc('visitors').get();
+    const d=snap.exists?snap.data():{};
+    document.getElementById('stat-visitors-total').textContent=(d.total||0).toLocaleString('ar');
+    document.getElementById('stat-visitors-today').textContent=(d.today||0).toLocaleString('ar');
+    const isOn=d.showPublic||false;
+    const toggle=document.getElementById('visitorToggle');
+    const thumb=document.getElementById('visitorToggleThumb');
+    if(toggle) toggle.style.background=isOn?'#16a34a':'#d1d5db';
+    if(thumb) thumb.style.right=isOn?'2px':'20px';
+  }catch(e){}
+}
+
+async function toggleVisitorPublic(){
+  try{
+    const snap=await db.collection('settings').doc('visitors').get();
+    const current=(snap.exists&&snap.data().showPublic)||false;
+    const newVal=!current;
+    await db.collection('settings').doc('visitors').set({showPublic:newVal},{merge:true});
+    const toggle=document.getElementById('visitorToggle');
+    const thumb=document.getElementById('visitorToggleThumb');
+    toggle.style.background=newVal?'#16a34a':'#d1d5db';
+    thumb.style.right=newVal?'2px':'20px';
+    const widget=document.getElementById('visitorCountWidget');
+    if(newVal&&snap.exists){
+      document.getElementById('publicVisitorCount').textContent=(snap.data().total||0).toLocaleString('ar');
+      widget.style.display='block';
+    } else {
+      widget.style.display='none';
+    }
+    toast(newVal?'✅ سيظهر عداد الزيارات للزبائن':'✅ تم إخفاء العداد عن الزبائن');
+  }catch(e){ toast('❌ خطأ'); }
 }
 
 async function loadStats(){
@@ -4091,7 +4945,6 @@ async function updateOrderStatus(orderId, newStatus, cancelReason=''){
   toast('✅ تم تحديث حالة الطلب');
   renderOrders();
   if(newStatus==='ملغي') return;
-  // Get order and build WhatsApp message
   const snap=await db.collection('orders').doc(String(orderId)).get();
   const order=snap.data();
   if(!order||!order.phone) return;
@@ -4104,8 +4957,23 @@ async function updateOrderStatus(orderId, newStatus, cancelReason=''){
   const msg=`🌿 *الكسواني روزميري*\n\nأهلاً ${order.name}،\n\n${statusMsgs[newStatus]}\n\n📦 رقم طلبك: ${order.orderNum||'#'+String(order.id).slice(-6)}\n💰 الإجمالي: ${order.total}\n\nللاستفسار تواصل معنا 🙏`;
   const phone=order.phone.replace(/[^0-9]/g,'');
   const intlPhone=phone.startsWith('0')?'962'+phone.slice(1):phone;
-  window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`,'_blank');
+  const waUrl=`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`;
+  showWANotifModal(order.name, newStatus, waUrl);
 }
+
+function showWANotifModal(name, status, waUrl){
+  const statusLabels={
+    'جديد':'📋 استلام الطلب',
+    'قيد التجهيز':'⚙️ قيد التجهيز',
+    'بالطريق':'🚚 في الطريق',
+    'تم التسليم':'✅ تم التسليم'
+  };
+  document.getElementById('waNotifName').textContent=name;
+  document.getElementById('waNotifStatus').textContent=statusLabels[status]||status;
+  document.getElementById('waNotifSendBtn').onclick=()=>{window.open(waUrl,'_blank');closeWANotifModal();};
+  document.getElementById('waNotifOverlay').style.display='flex';
+}
+function closeWANotifModal(){document.getElementById('waNotifOverlay').style.display='none';}
 
 let _cancelTargetOrderId=null;
 
@@ -4910,6 +5778,8 @@ async function init(){
   try{ await loadProducts(); }catch(e){ console.error('loadProducts error:',e); }
   try{ await loadCustomerPhotos(); }catch(e){}
   try{ await loadEidSettings(); }catch(e){}
+  try{ await loadAboutSettings(); }catch(e){}
+  try{ trackVisit(); }catch(e){}
   try{ updateCartCount(); }catch(e){}
   try{ updateNavUser(); }catch(e){}
   try{ startSocialProof(); }catch(e){}
@@ -5217,6 +6087,7 @@ window.copyReferral=copyReferral; window.shareReferral=shareReferral;
 window.toggleDarkMode=toggleDarkMode;
 window.toggleWishlist=toggleWishlist; window.openWishlist=openWishlist; window.closeWishlist=closeWishlist; window.renderWishlist=renderWishlist; window.closeEditCart=closeEditCart; window.saveCartEdit=saveCartEdit; window.selectEditColor=selectEditColor;
 window.switchOrderTab=switchOrderTab; window.renderOrdersByStatus=renderOrdersByStatus;
+window.transferNewOrders=transferNewOrders;
 window.searchAdminProducts=searchAdminProducts;
 window.editDiscount=editDiscount; window.cancelDcEdit=cancelDcEdit; window.toggleDcProducts=toggleDcProducts;
 window.openPhotoModal=openPhotoModal; window.closePhotoModal=closePhotoModal;
@@ -5246,13 +6117,348 @@ window.previewNewColorImg=previewNewColorImg;
 window.changeColorImg=changeColorImg;
 window.removeColorTag=removeColorTag;
 window.removeExistingImage=removeExistingImage;
+// ===== CUSTOMER CANCEL ORDER =====
+let _custCancelDocId=null;
+function openCustomerCancelDialog(docId){
+  _custCancelDocId=docId;
+  document.getElementById('custCancelReasonInput').value='';
+  document.querySelectorAll('.cust-cancel-btn').forEach(b=>{
+    b.style.borderColor='#e5e7eb';b.style.background='#fff';b.style.color='';
+  });
+  document.getElementById('customerCancelOverlay').style.display='flex';
+}
+function closeCustomerCancelDialog(){
+  document.getElementById('customerCancelOverlay').style.display='none';
+  _custCancelDocId=null;
+}
+function selectCustomerCancelReason(btn,reason){
+  document.querySelectorAll('.cust-cancel-btn').forEach(b=>{
+    b.style.borderColor='#e5e7eb';b.style.background='#fff';b.style.color='';
+  });
+  btn.style.borderColor='#dc2626';btn.style.background='#fee2e2';btn.style.color='#991b1b';
+  document.getElementById('custCancelReasonInput').value=reason;
+}
+async function confirmCustomerCancel(){
+  const reason=document.getElementById('custCancelReasonInput').value.trim();
+  if(!reason){toast('⚠️ يرجى اختيار أو كتابة سبب الإلغاء');return;}
+  if(!_custCancelDocId){return;}
+  const docId=_custCancelDocId;
+  closeCustomerCancelDialog();
+  try{
+    await db.collection('orders').doc(docId).update({status:'ملغي',cancelReason:reason});
+    toast('✅ تم إلغاء طلبك');
+  }catch(e){ toast('❌ حدث خطأ، حاول مجدداً'); }
+}
+
+// ===== ABOUT SETTINGS =====
+async function loadAboutSettings(){
+  try{
+    const snap=await db.collection('settings').doc('about').get();
+    if(!snap.exists) return;
+    const d=snap.data();
+    const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.textContent=val;};
+    if(d.story) set('about_story',d.story);
+    if(d.c1e) set('about_c1e',d.c1e);
+    if(d.c1t) set('about_c1t',d.c1t);
+    if(d.c1d) set('about_c1d',d.c1d);
+    if(d.c2e) set('about_c2e',d.c2e);
+    if(d.c2t) set('about_c2t',d.c2t);
+    if(d.c2d) set('about_c2d',d.c2d);
+    if(d.c3e) set('about_c3e',d.c3e);
+    if(d.c3t) set('about_c3t',d.c3t);
+    if(d.c3d) set('about_c3d',d.c3d);
+    if(d.c4e) set('about_c4e',d.c4e);
+    if(d.c4t) set('about_c4t',d.c4t);
+    if(d.c4d) set('about_c4d',d.c4d);
+    if(d.phone){
+      const link=document.getElementById('about_wa_link');
+      if(link) link.href='https://wa.me/'+d.phone;
+      set('about_wa_num','0'+d.phone.slice(-9));
+    }
+    if(d.location) set('about_location',d.location);
+    if(d.copy) set('about_copy',d.copy);
+  }catch(e){}
+}
+
+function loadAboutSettingsForm(){
+  db.collection('settings').doc('about').get().then(snap=>{
+    if(!snap.exists) return;
+    const d=snap.data();
+    const fill=(id,val)=>{const el=document.getElementById(id);if(el&&val!=null)el.value=val;};
+    fill('ab_story',d.story||'');
+    fill('ab_c1e',d.c1e||''); fill('ab_c1t',d.c1t||''); fill('ab_c1d',d.c1d||'');
+    fill('ab_c2e',d.c2e||''); fill('ab_c2t',d.c2t||''); fill('ab_c2d',d.c2d||'');
+    fill('ab_c3e',d.c3e||''); fill('ab_c3t',d.c3t||''); fill('ab_c3d',d.c3d||'');
+    fill('ab_c4e',d.c4e||''); fill('ab_c4t',d.c4t||''); fill('ab_c4d',d.c4d||'');
+    fill('ab_phone',d.phone||'');
+    fill('ab_location',d.location||'');
+    fill('ab_copy',d.copy||'');
+  }).catch(e=>{});
+}
+
+async function saveAboutSettings(){
+  const g=id=>document.getElementById(id).value.trim();
+  const data={
+    story:g('ab_story'),
+    c1e:g('ab_c1e'),c1t:g('ab_c1t'),c1d:g('ab_c1d'),
+    c2e:g('ab_c2e'),c2t:g('ab_c2t'),c2d:g('ab_c2d'),
+    c3e:g('ab_c3e'),c3t:g('ab_c3t'),c3d:g('ab_c3d'),
+    c4e:g('ab_c4e'),c4t:g('ab_c4t'),c4d:g('ab_c4d'),
+    phone:g('ab_phone'),
+    location:g('ab_location'),
+    copy:g('ab_copy')
+  };
+  try{
+    await db.collection('settings').doc('about').set(data);
+    await loadAboutSettings();
+    toast('✅ تم حفظ صفحة "من نحن"');
+  }catch(e){ toast('❌ خطأ في الحفظ'); }
+}
+
+window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
+window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
+window.addAdvisorProduct=addAdvisorProduct;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
+window.openCustomerCancelDialog=openCustomerCancelDialog;
+window.closeCustomerCancelDialog=closeCustomerCancelDialog;
+window.selectCustomerCancelReason=selectCustomerCancelReason;
+window.confirmCustomerCancel=confirmCustomerCancel;
+window.closeWANotifModal=closeWANotifModal;
+window.saveAboutSettings=saveAboutSettings; window.loadAboutSettings=loadAboutSettings;
+window.toggleVisitorPublic=toggleVisitorPublic;
+window.loadOpProducts=loadOpProducts; window.saveOpProduct=saveOpProduct;
+window.editOpProduct=editOpProduct; window.cancelOpProductEdit=cancelOpProductEdit;
+window.deleteOpProduct=deleteOpProduct;
+window.loadOperatorLedger=loadOperatorLedger;
+window.addOpChannel=addOpChannel; window.removeOpChannel=removeOpChannel;
+window.addOpItem=addOpItem; window.removeOpItem=removeOpItem;
+window.updateOpDelivery=updateOpDelivery;
+window.calcOpSummary=calcOpSummary;
+window.saveOperatorLedger=saveOperatorLedger;
+window.shareOperatorReport=shareOperatorReport;
+window.printOperatorReport=printOperatorReport;
+
+function addAdvisorProduct(docId){
+  const p=products.find(x=>(x._docId||x.id)===docId);
+  if(!p){toast('⚠️ ما قدرنا نضيف المنتج');return;}
+  addToCartDirect(p,'');
+}
+
+// ===== PRODUCT ADVISOR =====
+const PRICE_RANGES=[
+  {label:'أقل من 20 دينار',sub:'للميزانية المحدودة',icon:'💚',min:0,max:19.99},
+  {label:'20 — 50 دينار',sub:'الأكثر شيوعاً',icon:'⭐',min:20,max:50},
+  {label:'أكثر من 50 دينار',sub:'منتجات مميزة وفاخرة',icon:'👑',min:50.01,max:Infinity},
+  {label:'ما عندي حدود',sub:'أعرضلي كل شيء',icon:'🎯',min:0,max:Infinity}
+];
+
+let _advisorCat=null, _advisorPrice=null;
+
+function openAdvisor(){
+  _advisorCat=null; _advisorPrice=null;
+  const ov=document.getElementById('advisorOverlay');
+  ov.classList.add('open');
+  renderAdvisorStep(0);
+}
+
+function closeAdvisor(){
+  document.getElementById('advisorOverlay').classList.remove('open');
+}
+
+function renderAdvisorStep(step){
+  const dots=document.getElementById('advisorDots');
+  const label=document.getElementById('advisorStepLabel');
+  const body=document.getElementById('advisorBody');
+  dots.innerHTML=`
+    <div class="advisor-step-dot ${step===0?'active':'done'}"></div>
+    <div class="advisor-step-dot ${step===1?'active':step>1?'done':''}"></div>`;
+  if(step===0){
+    label.textContent='خطوة 1 من 2';
+    const cats=(storeCategories&&storeCategories.length)
+      ? storeCategories.map(c=>({name:c.name,emoji:c.emoji||'🌿'}))
+      : [...new Set(products.map(p=>p.cat))].filter(Boolean).map(c=>({name:c,emoji:'🌿'}));
+    cats.unshift({name:'الكل',emoji:'✨'});
+    body.innerHTML=`
+      <p class="advisor-q">شو بتدور؟</p>
+      <p class="advisor-sub">اختر نوع المنتج اللي يناسبك</p>
+      <div class="advisor-options" style="grid-template-columns:${cats.length<=4?'1fr 1fr':'1fr 1fr 1fr'};">
+        ${cats.map(c=>`
+          <div class="advisor-opt" onclick="advisorSelectCat('${c.name}',this)">
+            <span class="advisor-opt-icon">${c.emoji}</span>
+            <span class="advisor-opt-label">${c.name}</span>
+          </div>`).join('')}
+      </div>`;
+  } else if(step===1){
+    label.textContent='خطوة 2 من 2';
+    body.innerHTML=`
+      <p class="advisor-q">ميزانيتك؟</p>
+      <p class="advisor-sub">اختر النطاق السعري المناسب</p>
+      <div class="advisor-price-opts">
+        ${PRICE_RANGES.map((r,i)=>`
+          <div class="advisor-price-opt" onclick="advisorSelectPrice(${i},this)">
+            <span class="advisor-price-opt-icon">${r.icon}</span>
+            <div class="advisor-price-opt-text">
+              <div class="advisor-price-opt-label">${r.label}</div>
+              <div class="advisor-price-opt-range">${r.sub}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="advisor-nav">
+        <button onclick="advisorGoBack()" style="padding:11px 18px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;color:#6b7280;">← رجوع</button>
+      </div>`;
+  } else {
+    showAdvisorResults();
+  }
+}
+
+function advisorSelectCat(cat, el){
+  _advisorCat=cat==='الكل'?null:cat;
+  document.querySelectorAll('.advisor-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  setTimeout(()=>renderAdvisorStep(1),300);
+}
+
+function advisorSelectPrice(idx, el){
+  _advisorPrice=PRICE_RANGES[idx];
+  document.querySelectorAll('.advisor-price-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  setTimeout(()=>renderAdvisorStep(2),300);
+}
+
+function advisorGoBack(){ renderAdvisorStep(0); }
+
+function showAdvisorResults(){
+  const label=document.getElementById('advisorStepLabel');
+  const dots=document.getElementById('advisorDots');
+  const body=document.getElementById('advisorBody');
+  label.textContent='النتائج';
+  dots.innerHTML=`<div class="advisor-step-dot done"></div><div class="advisor-step-dot done"></div>`;
+  const range=_advisorPrice||PRICE_RANGES[3];
+  let filtered=products.filter(p=>{
+    if(p.outOfStock) return false;
+    const catOk=!_advisorCat||p.cat===_advisorCat;
+    const price=getPriceNum(p);
+    const priceOk=price>=range.min&&price<=range.max;
+    return catOk&&priceOk;
+  });
+  if(!filtered.length){
+    body.innerHTML=`
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:3rem;margin-bottom:12px;">🔍</div>
+        <div style="font-weight:700;color:#111827;margin-bottom:8px;">ما لقينا منتجات بهذه المواصفات</div>
+        <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:20px;">جرب تغير الفلتر أو تصفح كل المنتجات</div>
+        <button onclick="advisorGoBack()" style="padding:11px 20px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;margin-left:8px;">← حاول مجدداً</button>
+        <button onclick="closeAdvisor()" style="padding:11px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">تصفح الكل</button>
+      </div>`;
+    return;
+  }
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <p class="advisor-q" style="margin-bottom:2px;">وجدنا لك ${filtered.length} منتج 🎉</p>
+        <p class="advisor-sub" style="margin-bottom:0;">${_advisorCat||'كل المنتجات'} · ${range.label}</p>
+      </div>
+      <button onclick="advisorGoBack()" style="padding:7px 12px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:#6b7280;white-space:nowrap;">← تعديل</button>
+    </div>
+    <div class="advisor-results-grid">
+      ${filtered.slice(0,8).map(p=>{
+        const img=p.images?.[0]||p.img;
+        const price=getPriceNum(p);
+        const old=p.oldPrice?getPriceNum({price:p.oldPrice}):null;
+        return `<div style="background:#fff;border-radius:14px;border:1px solid #e5e7eb;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="height:120px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">
+            ${img?`<img src="${img}" style="width:100%;height:100%;object-fit:cover;">`:(p.emoji||'🌿')}
+          </div>
+          <div style="padding:10px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#111827;margin-bottom:4px;line-height:1.3;">${p.name}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:6px;">
+              <div>
+                ${old?`<span style="font-size:0.7rem;color:#d1d5db;text-decoration:line-through;">${old} د.أ</span><br>`:''}
+                <span style="font-size:0.9rem;font-weight:700;color:#1a3a2a;">${price.toFixed(2)} د.أ</span>
+              </div>
+              <button onclick="addAdvisorProduct('${p._docId||p.id}');closeAdvisor();" style="background:#1a3a2a;color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;">+ سلة</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${filtered.length>8?`<div style="text-align:center;margin-top:14px;"><button onclick="closeAdvisor();document.getElementById('products').scrollIntoView({behavior:'smooth'})" style="padding:10px 20px;background:#f3f4f6;color:#1a3a2a;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">عرض كل النتائج (${filtered.length})</button></div>`:''}`;
+}
 
 init();
 </script>
 
+<!-- PRODUCT ADVISOR -->
+<div class="advisor-overlay" id="advisorOverlay">
+  <div class="advisor-sheet" id="advisorSheet">
+    <div class="advisor-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:'Amiri',serif;font-size:1.15rem;color:#fff;">🎯 مساعد الاختيار</div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:2px;" id="advisorStepLabel">خطوة 1 من 2</div>
+        </div>
+        <button onclick="closeAdvisor()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+      </div>
+      <div class="advisor-steps" id="advisorDots">
+        <div class="advisor-step-dot active"></div>
+        <div class="advisor-step-dot"></div>
+      </div>
+    </div>
+    <div class="advisor-body" id="advisorBody"></div>
+  </div>
+</div>
+
+<!-- WHATSAPP NOTIFICATION MODAL -->
+<div id="waNotifOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:900;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:380px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="background:linear-gradient(135deg,#25D366,#128C7E);padding:18px 22px;display:flex;align-items:center;gap:12px;">
+      <div style="font-size:1.8rem;">📱</div>
+      <div>
+        <div style="color:#fff;font-weight:700;font-size:0.95rem;">إرسال إشعار للزبون</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:0.78rem;margin-top:2px;">الحالة تغيرت — أرسل رسالة عبر واتساب</div>
+      </div>
+    </div>
+    <div style="padding:20px;">
+      <div style="background:#f0fdf4;border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid #bbf7d0;">
+        <div style="font-size:0.82rem;color:#6b7280;margin-bottom:6px;">سيُرسل لـ:</div>
+        <div style="font-weight:700;color:#111827;font-size:0.95rem;" id="waNotifName"></div>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.8rem;color:#6b7280;">الحالة الجديدة:</span>
+          <span style="font-weight:700;color:#1a3a2a;font-size:0.85rem;" id="waNotifStatus"></span>
+        </div>
+      </div>
+      <button id="waNotifSendBtn" style="width:100%;padding:13px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        فتح واتساب وإرسال
+      </button>
+      <button onclick="closeWANotifModal()" style="width:100%;padding:11px;background:#f3f4f6;color:#6b7280;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;">تخطي</button>
+    </div>
+  </div>
+</div>
+
 <!-- CANCEL ORDER DIALOG -->
+<div id="customerCancelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1200;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-family:'Amiri',serif;font-size:1.1rem;color:#fff;">🚫 إلغاء طلبك</h2>
+      <button onclick="closeCustomerCancelDialog()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div style="padding:22px;">
+      <p style="font-size:0.88rem;color:#6b7280;margin-bottom:16px;">لماذا تريد إلغاء الطلب؟</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <button onclick="selectCustomerCancelReason(this,'غيّرت رأيي')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">🤔 غيّرت رأيي</button>
+        <button onclick="selectCustomerCancelReason(this,'طلبت بالغلط')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">✏️ طلبت بالغلط</button>
+        <button onclick="selectCustomerCancelReason(this,'وجدت سعراً أفضل')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">💰 وجدت سعراً أفضل</button>
+        <button onclick="selectCustomerCancelReason(this,'التوصيل يستغرق وقتاً طويلاً')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">⏳ التوصيل يستغرق وقتاً طويلاً</button>
+        <button onclick="selectCustomerCancelReason(this,'طلب مكرر')" class="cust-cancel-btn" style="text-align:right;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.2s;">🔁 طلب مكرر</button>
+      </div>
+      <textarea id="custCancelReasonInput" placeholder="أو اكتب سبباً مخصصاً..." style="width:100%;padding:11px 13px;border:1.5px solid #e0e0e0;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;resize:none;min-height:70px;margin-bottom:14px;box-sizing:border-box;"></textarea>
+      <button onclick="confirmCustomerCancel()" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;">🚫 تأكيد الإلغاء</button>
+    </div>
+  </div>
+</div>
+
 <div id="cancelDialogOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:900;align-items:center;justify-content:center;padding:20px;">
   <div style="background:#fff;border-radius:20px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
     <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;">
@@ -5273,5 +6479,6 @@ init();
     </div>
   </div>
 </div>
+<div id="op_print_frame" style="display:none;"></div>
 </body>
 </html>
