@@ -2236,7 +2236,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 2px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">📦 المنتجات</button>
         <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-right:1px solid var(--border);border-left:1px solid var(--border);">🏪 المتاجر</button>
         <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">🛒 مبيعات</button>
-        <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">📋 كشف حساب</button>
+        <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">📋 كشف</button>
+        <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">💰 الرصيد</button>
       </div>
 
       <!-- ========== PRODUCTS SUB-TAB ========== -->
@@ -2447,6 +2448,52 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button onclick="whatsappAcctStatement()" style="flex:1;min-width:110px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
           </div>
         </div>
+
+      </div>
+
+      <!-- ========== BALANCE TAB (الرصيد) ========== -->
+      <div id="optab-balance" style="display:none;">
+
+        <!-- Summary Cards -->
+        <div id="opbal_summary" style="margin-bottom:16px;"></div>
+
+        <!-- Edit base balance (hidden by default) -->
+        <div id="opbal_base_form" style="display:none;background:var(--card-bg);border:1.5px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:14px;">
+          <div style="font-size:0.85rem;font-weight:700;color:#92400e;margin-bottom:10px;">✏️ تعديل الرصيد الأولي للمواد الخام</div>
+          <div style="display:flex;gap:8px;">
+            <input type="number" id="opbal_base_inp" min="0" step="0.5" placeholder="0.00"
+              style="flex:1;padding:10px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
+            <button onclick="saveBalanceBase()" style="padding:10px 16px;background:#92400e;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;">💾 حفظ</button>
+            <button onclick="document.getElementById('opbal_base_form').style.display='none'" style="padding:10px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
+          </div>
+        </div>
+
+        <!-- Add Purchase Form -->
+        <div class="form-card" style="margin-bottom:14px;">
+          <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">➕ تسجيل شراء مواد خام</div>
+          <div class="form-row" style="margin-bottom:10px;">
+            <div class="fg">
+              <label>💵 المبلغ (د.أ)</label>
+              <input type="number" id="opbal_buy_amount" min="0" step="0.5" placeholder="0.00"
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <div class="fg">
+              <label>📅 التاريخ</label>
+              <input type="date" id="opbal_buy_date"
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+          </div>
+          <div class="fg" style="margin-bottom:10px;">
+            <label>📝 ملاحظات</label>
+            <input type="text" id="opbal_buy_notes" placeholder="وصف الشراء..."
+              style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+          </div>
+          <button onclick="addBalancePurchase()" style="width:100%;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الشراء</button>
+        </div>
+
+        <!-- Purchase History -->
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل المشتريات</div>
+        <div id="opbal_purchases_list"></div>
 
       </div>
 
@@ -4507,7 +4554,7 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  ['products','stores','sales','account'].forEach(t=>{
+  ['products','stores','sales','account','balance'].forEach(t=>{
     const el=document.getElementById(`optab-${t}`);
     const btn=document.getElementById(`optab-btn-${t}`);
     if(el) el.style.display=t===tab?'block':'none';
@@ -4521,6 +4568,7 @@ function switchOpTab(tab){
   if(tab==='stores') loadOpStores();
   if(tab==='sales') initSalesTab();
   if(tab==='account'){loadAcctStoreList();checkOperatorDayStatus();}
+  if(tab==='balance') loadBalanceTab();
 }
 
 // --- Operator Products (منتجات المشغل) ---
@@ -7233,6 +7281,128 @@ async function saveAboutSettings(){
   }catch(e){ toast('❌ خطأ في الحفظ'); }
 }
 
+// ===== BALANCE TAB (الرصيد) =====
+let _opBalSettings={rawMaterialsBase:0};
+let _opBalPurchases=[];
+let _opBalSalesRaw=0;
+
+async function loadBalanceTab(){
+  // Load settings
+  try{
+    const doc=await db.collection('operator_balance').doc('settings').get();
+    _opBalSettings=doc.exists?doc.data():{rawMaterialsBase:0};
+  }catch(e){_opBalSettings={rawMaterialsBase:0};}
+  // Load purchases
+  try{
+    const snap=await db.collection('operator_purchases').orderBy('date','desc').get();
+    _opBalPurchases=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opBalPurchases=[];}
+  // Load total raw material costs from all sales
+  try{
+    const snap=await db.collection('operator_sales').get();
+    _opBalSalesRaw=snap.docs.reduce((sum,d)=>{
+      const s=d.data();
+      return sum+((s.rawMaterialCost||0)*(s.qty||1));
+    },0);
+  }catch(e){_opBalSalesRaw=0;}
+  // Set today's date in purchase form
+  const dateInp=document.getElementById('opbal_buy_date');
+  if(dateInp&&!dateInp.value) dateInp.value=new Date().toISOString().slice(0,10);
+  renderBalanceSummary();
+  renderBalancePurchases();
+}
+
+function renderBalanceSummary(){
+  const wrap=document.getElementById('opbal_summary');
+  if(!wrap) return;
+  const totalPurchases=_opBalPurchases.reduce((s,p)=>s+(p.amount||0),0);
+  const rawBase=_opBalSettings.rawMaterialsBase||0;
+  const currentRaw=rawBase+totalPurchases-_opBalSalesRaw;
+  const milkKham=_opBalSalesRaw;
+  wrap.innerHTML=`
+    <!-- Main raw materials card -->
+    <div style="background:linear-gradient(135deg,#78350f,#92400e);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
+      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">🧱 مواد الخام الحالية</div>
+      <div style="font-size:1.8rem;font-weight:900;margin-bottom:6px;">${currentRaw.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
+      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${rawBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مستهلك ${_opBalSalesRaw.toFixed(2)}</div>
+      <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${rawBase}'"
+        style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل الرصيد</button>
+    </div>
+    <!-- Two small cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:0.72rem;color:#166534;margin-bottom:4px;">✅ ملك خام</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#166534;">${milkKham.toFixed(2)}</div>
+        <div style="font-size:0.68rem;color:#166534;opacity:0.75;">د.أ</div>
+        <div style="font-size:0.65rem;color:#9ca3af;margin-top:4px;">تكاليف مواد استُرجعت من المبيعات</div>
+      </div>
+      <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:0.72rem;color:#1e40af;margin-bottom:4px;">💼 رأس المال</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#1e40af;">${totalPurchases.toFixed(2)}</div>
+        <div style="font-size:0.68rem;color:#1e40af;opacity:0.75;">د.أ</div>
+        <div style="font-size:0.65rem;color:#9ca3af;margin-top:4px;">مجموع مشتريات المواد الخام</div>
+      </div>
+    </div>`;
+}
+
+async function saveBalanceBase(){
+  const v=parseFloat(document.getElementById('opbal_base_inp').value);
+  if(isNaN(v)||v<0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    await db.collection('operator_balance').doc('settings').set({rawMaterialsBase:v,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    _opBalSettings.rawMaterialsBase=v;
+    document.getElementById('opbal_base_form').style.display='none';
+    toast('✅ تم حفظ الرصيد الأولي');
+    renderBalanceSummary();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function addBalancePurchase(){
+  const amount=parseFloat(document.getElementById('opbal_buy_amount').value);
+  const date=document.getElementById('opbal_buy_date').value;
+  const notes=document.getElementById('opbal_buy_notes').value.trim();
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!date){toast('⚠️ اختر التاريخ');return;}
+  try{
+    await db.collection('operator_purchases').add({
+      amount,date,notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('opbal_buy_amount').value='';
+    document.getElementById('opbal_buy_notes').value='';
+    toast('✅ تم تسجيل الشراء');
+    loadBalanceTab();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteBalancePurchase(id){
+  if(!confirm('حذف هذا الشراء؟')) return;
+  try{
+    await db.collection('operator_purchases').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadBalanceTab();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+function renderBalancePurchases(){
+  const wrap=document.getElementById('opbal_purchases_list');
+  if(!wrap) return;
+  if(!_opBalPurchases.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مشتريات مسجلة بعد</div>';
+    return;
+  }
+  wrap.innerHTML=_opBalPurchases.map(p=>`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;color:#1e40af;font-size:0.9rem;">${(p.amount||0).toFixed(2)} د.أ</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);">📅 ${p.date||''}${p.notes?' — '+p.notes:''}</div>
+      </div>
+      <button onclick="deleteBalancePurchase('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>
+    </div>`).join('');
+}
+
+window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
+window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=deleteBalancePurchase;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
