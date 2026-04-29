@@ -606,6 +606,8 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 @media(max-width:540px){.form-row{grid-template-columns:1fr;}}
 .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(107,70,193,0.05);border:1px solid rgba(107,70,193,0.2);border-radius:10px;margin-bottom:12px;}
 .toggle-row label{font-size:0.88rem;font-weight:600;color:#6b46c1;display:flex;align-items:center;gap:8px;}
+.delivery-quick-btn{padding:7px 11px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.delivery-quick-btn:hover,.delivery-quick-btn.active{background:#1e40af;color:#fff;border-color:#1e40af;}
 .toggle{position:relative;width:44px;height:24px;flex-shrink:0;}
 .toggle input{opacity:0;width:0;height:0;}
 .toggle-slider{position:absolute;inset:0;background:#ccc;border-radius:12px;cursor:pointer;transition:0.3s;}
@@ -2227,47 +2229,156 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
     <div class="admin-tab-content" id="tab-operator">
       <h2 style="color:var(--green-dark);margin-bottom:4px;">💼 حساب المشغل</h2>
-      <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">كشف يومي — للأدمن فقط</p>
+      <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:16px;">إدارة المنتجات والمتاجر والكشف اليومي</p>
 
-      <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center;">
-        <input type="date" id="op_date" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-        <button onclick="loadOperatorLedger()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">📂 تحميل</button>
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:20px;">
+        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 4px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">📦 المنتجات</button>
+        <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:1;padding:10px 4px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-right:1px solid var(--border);border-left:1px solid var(--border);">🏪 المتاجر</button>
+        <button id="optab-btn-ledger" onclick="switchOpTab('ledger')" style="flex:1;padding:10px 4px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">📊 الكشف</button>
       </div>
 
-      <!-- قنوات البيع (rendered by JS) -->
-      <div id="op_channels_wrap"></div>
+      <!-- ========== PRODUCTS SUB-TAB ========== -->
+      <div id="optab-products" style="display:block;">
+        <div class="form-card" style="margin-bottom:16px;">
+          <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">➕ إضافة منتج جديد</div>
+          <div class="form-row">
+            <div class="fg">
+              <label>اسم المنتج</label>
+              <input type="text" id="opp_name" placeholder="اسم المنتج...">
+            </div>
+            <div class="fg">
+              <label>💰 سعر البيع (د.أ)</label>
+              <input type="number" id="opp_sell" min="0" step="0.5" placeholder="0.00">
+            </div>
+          </div>
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div class="fg">
+              <label>🧱 تكلفة المواد الخام</label>
+              <input type="number" id="opp_raw" min="0" step="0.5" placeholder="0.00">
+            </div>
+            <div class="fg">
+              <label>⚙️ أجرة عامل الماكينة</label>
+              <input type="number" id="opp_machine" min="0" step="0.5" placeholder="0.00">
+            </div>
+            <div class="fg">
+              <label>🔧 أجرة عامل التركيب</label>
+              <input type="number" id="opp_assembly" min="0" step="0.5" placeholder="0.00">
+            </div>
+          </div>
+          <button onclick="saveOpProduct()" style="width:100%;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;margin-top:4px;">💾 حفظ المنتج</button>
+        </div>
+        <div id="opp_list"></div>
+      </div>
 
-      <!-- إضافة قناة جديدة -->
-      <div class="form-card" style="margin-bottom:12px;">
-        <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">➕ إضافة قناة بيع جديدة</div>
-        <div style="display:flex;gap:8px;">
-          <input id="op_new_channel_name" placeholder="انستغرام، فيسبوك، بازار..." style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);">
-          <button onclick="addOpChannel()" style="padding:9px 18px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
+      <!-- ========== STORES SUB-TAB ========== -->
+      <div id="optab-stores" style="display:none;">
+        <!-- Store list view -->
+        <div id="opstore-list-view">
+          <div class="form-card" style="margin-bottom:14px;">
+            <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">➕ إضافة متجر/عميل جديد</div>
+            <div style="display:flex;gap:8px;">
+              <input id="opstore_name_inp" placeholder="اسم المتجر أو الصفحة..." style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              <button onclick="addOpStore()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
+            </div>
+          </div>
+          <div id="opstore_list"></div>
+        </div>
+
+        <!-- Store Account View -->
+        <div id="opstore-account-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <button onclick="backToStoreList()" style="padding:8px 14px;background:var(--border);color:var(--text-dark);border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
+            <div id="opstore_account_title" style="font-size:1.05rem;font-weight:700;color:var(--green-dark);flex:1;"></div>
+            <div id="opstore_account_date" style="font-size:0.8rem;color:var(--text-mid);background:var(--border);padding:4px 10px;border-radius:20px;"></div>
+          </div>
+
+          <!-- Add item -->
+          <div class="form-card" style="margin-bottom:12px;">
+            <div style="font-size:0.85rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">➕ إضافة صنف</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <select id="opsa_prod_sel" style="flex:2;min-width:140px;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);">
+                <option value="">اختر منتج...</option>
+              </select>
+              <input type="number" id="opsa_qty" min="1" value="1" style="flex:0 0 60px;padding:9px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);" placeholder="كمية">
+              <button onclick="addItemToStoreOrder()" style="padding:9px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
+            </div>
+          </div>
+
+          <!-- Items list -->
+          <div id="opsa_items_list" style="margin-bottom:12px;"></div>
+
+          <!-- Delivery fee -->
+          <div class="form-card" style="margin-bottom:12px;">
+            <div style="font-size:0.85rem;font-weight:700;color:#1e40af;margin-bottom:10px;">🚚 أجرة التوصيل</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+              <button onclick="setDeliveryFee(0,this)" class="delivery-quick-btn">مجاني</button>
+              <button onclick="setDeliveryFee(1,this)" class="delivery-quick-btn">1 د.أ</button>
+              <button onclick="setDeliveryFee(1.5,this)" class="delivery-quick-btn">1.5 د.أ</button>
+              <button onclick="setDeliveryFee(2,this)" class="delivery-quick-btn">2 د.أ</button>
+              <button onclick="setDeliveryFee(3,this)" class="delivery-quick-btn">3 د.أ</button>
+              <button onclick="setDeliveryFee(5,this)" class="delivery-quick-btn">5 د.أ</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.82rem;color:var(--text-mid);">مبلغ مخصص:</span>
+              <input type="number" id="opsa_delivery" min="0" step="0.5" value="0" oninput="calcStoreOrderSummary()" style="width:100px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              <span style="font-size:0.85rem;color:var(--text-mid);">د.أ</span>
+            </div>
+          </div>
+
+          <!-- Operator wage -->
+          <div class="form-card" style="margin-bottom:12px;">
+            <div style="font-size:0.85rem;font-weight:700;color:#7c3aed;margin-bottom:10px;">👤 أجرة المشغل (يدوي)</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input type="number" id="opsa_op_wage" min="0" step="0.5" value="0" oninput="calcStoreOrderSummary()" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);" placeholder="0">
+              <span style="font-size:0.9rem;color:var(--text-mid);white-space:nowrap;">د.أ</span>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div id="opsa_summary" style="margin-bottom:14px;"></div>
+
+          <!-- Action buttons -->
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+            <button onclick="saveStoreOrder()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+            <button onclick="printStoreOrder()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
+            <button onclick="closeStoreOrder()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 إغلاق</button>
+          </div>
         </div>
       </div>
 
-      <!-- أجرة المشغل -->
-      <div class="form-card" style="margin-bottom:12px;">
-        <div style="font-size:0.88rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">👤 أجرة المشغل</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input id="op_operator_wage" type="number" min="0" placeholder="0" oninput="calcOpSummary()" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);">
-          <span style="font-size:0.9rem;color:var(--text-mid);white-space:nowrap;">د.أ / اليوم</span>
+      <!-- ========== LEDGER SUB-TAB (existing) ========== -->
+      <div id="optab-ledger" style="display:none;">
+        <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center;">
+          <input type="date" id="op_date" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+          <button onclick="loadOperatorLedger()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">📂 تحميل</button>
         </div>
+        <div id="op_channels_wrap"></div>
+        <div class="form-card" style="margin-bottom:12px;">
+          <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">➕ إضافة قناة بيع جديدة</div>
+          <div style="display:flex;gap:8px;">
+            <input id="op_new_channel_name" placeholder="انستغرام، فيسبوك، بازار..." style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);">
+            <button onclick="addOpChannel()" style="padding:9px 18px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:12px;">
+          <div style="font-size:0.88rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">👤 أجرة المشغل</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input id="op_operator_wage" type="number" min="0" placeholder="0" oninput="calcOpSummary()" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);">
+            <span style="font-size:0.9rem;color:var(--text-mid);white-space:nowrap;">د.أ / اليوم</span>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:16px;">
+          <div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">📝 ملاحظات</div>
+          <textarea id="op_notes" rows="3" placeholder="أي ملاحظات عن هذا اليوم..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;resize:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;">
+          <button onclick="saveOperatorLedger()" style="flex:1;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الكشف</button>
+          <button onclick="shareOperatorReport()" style="flex:1;padding:13px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
+        </div>
+        <div id="op_summary"></div>
       </div>
 
-      <!-- ملاحظات -->
-      <div class="form-card" style="margin-bottom:16px;">
-        <div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">📝 ملاحظات</div>
-        <textarea id="op_notes" rows="3" placeholder="أي ملاحظات عن هذا اليوم..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;resize:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;"></textarea>
-      </div>
-
-      <!-- أزرار -->
-      <div style="display:flex;gap:10px;margin-bottom:16px;">
-        <button onclick="saveOperatorLedger()" style="flex:1;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الكشف</button>
-        <button onclick="shareOperatorReport()" style="flex:1;padding:13px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
-      </div>
-
-      <div id="op_summary"></div>
     </div>
 
   </div>
@@ -3371,9 +3482,7 @@ function switchAdminTab(tab){
   if(tab==='categories'){ renderCategoriesAdmin(); }
   if(tab==='aboutedit'){ loadAboutSettingsForm(); }
   if(tab==='operator'){
-    const inp=document.getElementById('op_date');
-    if(!inp.value) inp.value=new Date().toISOString().slice(0,10);
-    loadOperatorLedger();
+    switchOpTab('products');
   }
 }
 
@@ -4323,6 +4432,442 @@ async function sendDailyReport(){
 }
 
 // ===== OPERATOR LEDGER =====
+// ===== OPERATOR ACCOUNTING SYSTEM — NEW =====
+
+// --- Sub-tab switcher ---
+function switchOpTab(tab){
+  ['products','stores','ledger'].forEach(t=>{
+    const el=document.getElementById(`optab-${t}`);
+    const btn=document.getElementById(`optab-btn-${t}`);
+    if(el) el.style.display=t===tab?'block':'none';
+    if(btn){
+      btn.style.background=t===tab?'var(--green-dark)':'var(--card-bg)';
+      btn.style.color=t===tab?'#fff':'var(--text-mid)';
+      btn.style.fontWeight=t===tab?'700':'400';
+    }
+  });
+  if(tab==='products') loadOpProducts();
+  if(tab==='stores') loadOpStores();
+  if(tab==='ledger'){
+    const inp=document.getElementById('op_date');
+    if(inp&&!inp.value) inp.value=new Date().toISOString().slice(0,10);
+    loadOperatorLedger();
+  }
+}
+
+// --- Operator Products (منتجات المشغل) ---
+let _opProductsList=[];
+
+async function loadOpProducts(){
+  try{
+    const snap=await db.collection('operator_products').orderBy('name').get();
+    _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opProductsList=[];}
+  renderOpProductsList();
+}
+
+function renderOpProductsList(){
+  const wrap=document.getElementById('opp_list');
+  if(!wrap) return;
+  if(!_opProductsList.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد منتجات — أضف منتجاً جديداً</div>';
+    return;
+  }
+  wrap.innerHTML=_opProductsList.map(p=>`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;">📦 ${p.name}</div>
+        <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:0.78rem;">
+        <div style="background:#fefce8;border-radius:7px;padding:7px;text-align:center;">
+          <div style="color:#92400e;margin-bottom:2px;">🧱 مواد خام</div>
+          <div style="font-weight:800;color:#92400e;">${(p.rawMaterialCost||0).toFixed(2)}</div>
+        </div>
+        <div style="background:#eff6ff;border-radius:7px;padding:7px;text-align:center;">
+          <div style="color:#1e40af;margin-bottom:2px;">⚙️ ماكينة</div>
+          <div style="font-weight:800;color:#1e40af;">${(p.machineWorkerWage||0).toFixed(2)}</div>
+        </div>
+        <div style="background:#f5f3ff;border-radius:7px;padding:7px;text-align:center;">
+          <div style="color:#7c3aed;margin-bottom:2px;">🔧 تركيب</div>
+          <div style="font-weight:800;color:#7c3aed;">${(p.assemblyWorkerWage||0).toFixed(2)}</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:7px;padding:7px;text-align:center;">
+          <div style="color:#166534;margin-bottom:2px;">💰 بيع</div>
+          <div style="font-weight:800;color:#166534;">${(p.sellPrice||0).toFixed(2)}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function saveOpProduct(){
+  const name=document.getElementById('opp_name').value.trim();
+  const raw=parseFloat(document.getElementById('opp_raw').value)||0;
+  const machine=parseFloat(document.getElementById('opp_machine').value)||0;
+  const assembly=parseFloat(document.getElementById('opp_assembly').value)||0;
+  const sell=parseFloat(document.getElementById('opp_sell').value)||0;
+  if(!name){toast('⚠️ أدخل اسم المنتج');return;}
+  try{
+    await db.collection('operator_products').add({
+      name,rawMaterialCost:raw,machineWorkerWage:machine,
+      assemblyWorkerWage:assembly,sellPrice:sell,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    ['opp_name','opp_raw','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
+      const el=document.getElementById(id);if(el) el.value='';
+    });
+    toast('✅ تم حفظ المنتج');
+    loadOpProducts();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteOpProduct(id){
+  if(!confirm('حذف هذا المنتج؟')) return;
+  try{
+    await db.collection('operator_products').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadOpProducts();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+// --- Operator Stores (المتاجر) ---
+let _opStoresList=[];
+
+async function loadOpStores(){
+  try{
+    const snap=await db.collection('operator_stores').orderBy('name').get();
+    _opStoresList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opStoresList=[];}
+  renderOpStoresList();
+}
+
+function renderOpStoresList(){
+  const wrap=document.getElementById('opstore_list');
+  if(!wrap) return;
+  if(!_opStoresList.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد متاجر — أضف متجراً جديداً</div>';
+    return;
+  }
+  const today=new Date().toISOString().slice(0,10);
+  wrap.innerHTML=_opStoresList.map(s=>`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);margin-top:2px;">اليوم: ${today}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="openStoreAccount('${s.id}',${JSON.stringify(s.name)},'${today}')" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📋 الحساب</button>
+        <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function addOpStore(){
+  const name=document.getElementById('opstore_name_inp').value.trim();
+  if(!name){toast('⚠️ أدخل اسم المتجر');return;}
+  try{
+    await db.collection('operator_stores').add({
+      name,createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('opstore_name_inp').value='';
+    toast('✅ تم إضافة المتجر');
+    loadOpStores();
+  }catch(e){toast('❌ خطأ في الإضافة');}
+}
+
+async function deleteOpStore(id){
+  if(!confirm('حذف هذا المتجر؟')) return;
+  try{
+    await db.collection('operator_stores').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadOpStores();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+// --- Store Daily Account (حسابات المتاجر اليومية) ---
+let _currentStoreId=null;
+let _currentStoreName='';
+let _currentStoreDate='';
+let _currentStoreOrder=null;
+
+async function openStoreAccount(storeId,storeName,date){
+  _currentStoreId=storeId;
+  _currentStoreName=storeName;
+  _currentStoreDate=date;
+  const docId=`${storeId}_${date}`;
+  try{
+    const snap=await db.collection('operator_store_orders').doc(docId).get();
+    _currentStoreOrder=snap.exists?snap.data():{storeId,storeName,date,items:[],deliveryFee:0,operatorWage:0,status:'open'};
+  }catch(e){
+    _currentStoreOrder={storeId,storeName,date,items:[],deliveryFee:0,operatorWage:0,status:'open'};
+  }
+  // Populate product dropdown
+  const sel=document.getElementById('opsa_prod_sel');
+  if(sel){
+    sel.innerHTML='<option value="">اختر منتج...</option>'+
+      _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
+  }
+  const dEl=document.getElementById('opsa_delivery');
+  const wEl=document.getElementById('opsa_op_wage');
+  if(dEl) dEl.value=_currentStoreOrder.deliveryFee||0;
+  if(wEl) wEl.value=_currentStoreOrder.operatorWage||0;
+  document.getElementById('opstore_account_title').textContent='🏪 '+storeName;
+  document.getElementById('opstore_account_date').textContent=date;
+  document.getElementById('opstore-list-view').style.display='none';
+  document.getElementById('opstore-account-view').style.display='block';
+  // Disable add form if closed
+  const isClosed=_currentStoreOrder.status==='closed';
+  const addForm=document.getElementById('opsa_prod_sel');
+  if(addForm) addForm.disabled=isClosed;
+  renderStoreOrderItems();
+  calcStoreOrderSummary();
+}
+
+function backToStoreList(){
+  document.getElementById('opstore-list-view').style.display='block';
+  document.getElementById('opstore-account-view').style.display='none';
+  _currentStoreId=null;_currentStoreOrder=null;
+}
+
+function addItemToStoreOrder(){
+  if(!_currentStoreOrder){return;}
+  if(_currentStoreOrder.status==='closed'){toast('🔒 الحساب مغلق');return;}
+  const sel=document.getElementById('opsa_prod_sel');
+  const opt=sel.options[sel.selectedIndex];
+  if(!sel.value){toast('⚠️ اختر منتجاً');return;}
+  const qty=parseFloat(document.getElementById('opsa_qty').value)||1;
+  _currentStoreOrder.items.push({
+    productId:sel.value,
+    productName:opt.text,
+    qty,
+    rawMaterialCost:parseFloat(opt.dataset.raw)||0,
+    machineWorkerWage:parseFloat(opt.dataset.machine)||0,
+    assemblyWorkerWage:parseFloat(opt.dataset.assembly)||0,
+    sellPrice:parseFloat(opt.dataset.sell)||0
+  });
+  document.getElementById('opsa_qty').value='1';
+  renderStoreOrderItems();
+  calcStoreOrderSummary();
+}
+
+function removeItemFromStoreOrder(index){
+  if(!_currentStoreOrder||_currentStoreOrder.status==='closed') return;
+  _currentStoreOrder.items.splice(index,1);
+  renderStoreOrderItems();
+  calcStoreOrderSummary();
+}
+
+function renderStoreOrderItems(){
+  const wrap=document.getElementById('opsa_items_list');
+  if(!wrap||!_currentStoreOrder) return;
+  const isClosed=_currentStoreOrder.status==='closed';
+  if(!_currentStoreOrder.items.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:16px;font-size:0.85rem;background:var(--card-bg);border-radius:10px;border:1px dashed var(--border);">لا يوجد أصناف — اختر منتجاً وأضفه</div>';
+    return;
+  }
+  wrap.innerHTML=`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:400px;">
+          <thead>
+            <tr style="background:#f9fafb;font-size:0.72rem;color:var(--text-mid);">
+              <th style="padding:8px;text-align:right;font-weight:600;">المنتج</th>
+              <th style="padding:8px;text-align:center;font-weight:600;">كمية</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#92400e;">🧱 مواد</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#1e40af;">⚙️ ماكينة</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#7c3aed;">🔧 تركيب</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#166534;">💰 بيع</th>
+              ${!isClosed?'<th></th>':''}
+            </tr>
+          </thead>
+          <tbody>
+            ${_currentStoreOrder.items.map((it,i)=>`
+              <tr style="border-bottom:1px solid var(--border);font-size:0.8rem;">
+                <td style="padding:8px;color:var(--text-dark);font-weight:600;">${it.productName}</td>
+                <td style="padding:8px;text-align:center;">${it.qty}</td>
+                <td style="padding:8px;text-align:center;color:#92400e;">${((it.rawMaterialCost||0)*it.qty).toFixed(2)}</td>
+                <td style="padding:8px;text-align:center;color:#1e40af;">${((it.machineWorkerWage||0)*it.qty).toFixed(2)}</td>
+                <td style="padding:8px;text-align:center;color:#7c3aed;">${((it.assemblyWorkerWage||0)*it.qty).toFixed(2)}</td>
+                <td style="padding:8px;text-align:center;font-weight:700;color:#166534;">${((it.sellPrice||0)*it.qty).toFixed(2)}</td>
+                ${!isClosed?`<td style="padding:8px;text-align:center;"><button onclick="removeItemFromStoreOrder(${i})" style="background:#fee2e2;color:#dc2626;border:none;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:0.75rem;">✕</button></td>`:''}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function calcStoreOrderSummary(){
+  const wrap=document.getElementById('opsa_summary');
+  if(!wrap||!_currentStoreOrder) return;
+  const delivery=parseFloat(document.getElementById('opsa_delivery')?.value)||0;
+  const opWage=parseFloat(document.getElementById('opsa_op_wage')?.value)||0;
+  const items=_currentStoreOrder.items||[];
+  const totalRaw=items.reduce((s,it)=>s+(it.rawMaterialCost||0)*it.qty,0);
+  const totalMachine=items.reduce((s,it)=>s+(it.machineWorkerWage||0)*it.qty,0);
+  const totalAssembly=items.reduce((s,it)=>s+(it.assemblyWorkerWage||0)*it.qty,0);
+  const totalSell=items.reduce((s,it)=>s+(it.sellPrice||0)*it.qty,0);
+  const totalCost=totalRaw+totalMachine+totalAssembly+delivery+opWage;
+  const profit=totalSell-totalCost;
+  const isP=profit>=0;
+  const isClosed=_currentStoreOrder.status==='closed';
+  const statusBadge=isClosed
+    ?'<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;">🔒 مغلق</span>'
+    :'<span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;">🟢 مفتوح</span>';
+  wrap.innerHTML=`
+    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;">
+      <div style="background:${isP?'var(--green-dark)':'#991b1b'};padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#fff;font-weight:700;font-size:0.88rem;">📊 كشف — ${_currentStoreName}</span>
+        ${statusBadge}
+      </div>
+      <div style="padding:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div style="background:#fefce8;border-radius:9px;padding:9px;text-align:center;">
+            <div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div>
+            <div style="font-weight:800;color:#92400e;font-size:1rem;">${totalRaw.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;">
+            <div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div>
+            <div style="font-weight:800;color:#1e40af;font-size:1rem;">${totalMachine.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:#f5f3ff;border-radius:9px;padding:9px;text-align:center;">
+            <div style="font-size:0.7rem;color:#7c3aed;margin-bottom:2px;">🔧 أجرة عامل التركيب</div>
+            <div style="font-weight:800;color:#7c3aed;font-size:1rem;">${totalAssembly.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:#fdf4ff;border-radius:9px;padding:9px;text-align:center;">
+            <div style="font-size:0.7rem;color:#9d174d;margin-bottom:2px;">👤 أجرة المشغل</div>
+            <div style="font-weight:800;color:#9d174d;font-size:1rem;">${opWage.toFixed(2)} د.أ</div>
+          </div>
+        </div>
+        ${delivery>0?`<div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;margin-bottom:10px;">
+          <div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">🚚 أجرة التوصيل</div>
+          <div style="font-weight:800;color:#1e40af;font-size:1rem;">${delivery.toFixed(2)} د.أ</div>
+        </div>`:''}
+        <div style="border-top:1px dashed var(--border);margin:8px 0;padding-top:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;">
+            <span style="color:var(--text-mid);">إجمالي التكاليف</span>
+            <span style="font-weight:700;color:#dc2626;">${totalCost.toFixed(2)} د.أ</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span style="color:var(--text-mid);">إجمالي البيع</span>
+            <span style="font-weight:700;color:#166534;">${totalSell.toFixed(2)} د.أ</span>
+          </div>
+        </div>
+        <div style="background:${isP?'#dcfce7':'#fee2e2'};border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <span style="font-weight:800;color:${isP?'#166534':'#991b1b'};font-size:0.9rem;">صافي ${isP?'الربح':'الخسارة'}</span>
+          <span style="font-weight:900;color:${isP?'#166534':'#991b1b'};font-size:1.25rem;">${Math.abs(profit).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function setDeliveryFee(amount,btn){
+  const inp=document.getElementById('opsa_delivery');
+  if(inp){inp.value=amount;calcStoreOrderSummary();}
+  document.querySelectorAll('.delivery-quick-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+async function saveStoreOrder(){
+  if(!_currentStoreOrder||!_currentStoreId) return;
+  _currentStoreOrder.deliveryFee=parseFloat(document.getElementById('opsa_delivery').value)||0;
+  _currentStoreOrder.operatorWage=parseFloat(document.getElementById('opsa_op_wage').value)||0;
+  _currentStoreOrder.updatedAt=firebase.firestore.FieldValue.serverTimestamp();
+  const docId=`${_currentStoreId}_${_currentStoreDate}`;
+  try{
+    await db.collection('operator_store_orders').doc(docId).set(_currentStoreOrder);
+    toast('✅ تم الحفظ');
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function closeStoreOrder(){
+  if(!_currentStoreOrder) return;
+  if(_currentStoreOrder.status==='closed'){toast('🔒 الحساب مغلق مسبقاً');return;}
+  if(!confirm(`إغلاق حساب ${_currentStoreName} ليوم ${_currentStoreDate}؟`)) return;
+  _currentStoreOrder.status='closed';
+  _currentStoreOrder.closedAt=firebase.firestore.FieldValue.serverTimestamp();
+  await saveStoreOrder();
+  renderStoreOrderItems();
+  calcStoreOrderSummary();
+  toast('🔒 تم إغلاق الحساب');
+}
+
+function printStoreOrder(){
+  if(!_currentStoreOrder) return;
+  const delivery=parseFloat(document.getElementById('opsa_delivery')?.value)||0;
+  const opWage=parseFloat(document.getElementById('opsa_op_wage')?.value)||0;
+  const items=_currentStoreOrder.items||[];
+  const totalRaw=items.reduce((s,it)=>s+(it.rawMaterialCost||0)*it.qty,0);
+  const totalMachine=items.reduce((s,it)=>s+(it.machineWorkerWage||0)*it.qty,0);
+  const totalAssembly=items.reduce((s,it)=>s+(it.assemblyWorkerWage||0)*it.qty,0);
+  const totalSell=items.reduce((s,it)=>s+(it.sellPrice||0)*it.qty,0);
+  const totalCost=totalRaw+totalMachine+totalAssembly+delivery+opWage;
+  const profit=totalSell-totalCost;
+  const isP=profit>=0;
+  const rows=items.map(it=>`
+    <tr>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.productName}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${it.qty}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#92400e;">${((it.rawMaterialCost||0)*it.qty).toFixed(2)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#1e40af;">${((it.machineWorkerWage||0)*it.qty).toFixed(2)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#7c3aed;">${((it.assemblyWorkerWage||0)*it.qty).toFixed(2)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:#166534;">${((it.sellPrice||0)*it.qty).toFixed(2)}</td>
+    </tr>`).join('');
+  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+<title>كشف حساب — ${_currentStoreName}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
+h1{font-size:1.5rem;color:#1a3a2a;margin-bottom:4px;}
+.meta{font-size:0.85rem;color:#6b7280;margin-bottom:20px;border-bottom:2px solid #1a3a2a;padding-bottom:8px;}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+thead th{background:#1a3a2a;color:#fff;padding:10px 8px;font-size:0.82rem;}
+tbody tr:nth-child(even){background:#f9fafb;}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.box{border-radius:8px;padding:10px;text-align:center;}
+.box .lbl{font-size:0.7rem;margin-bottom:3px;}
+.box .val{font-weight:800;font-size:1rem;}
+.total{display:flex;justify-content:space-between;padding:14px 16px;border-radius:10px;font-size:1.1rem;font-weight:800;margin-top:10px;}
+@media print{body{padding:10px;}}
+</style></head><body>
+<h1>🏪 كشف حساب — ${_currentStoreName}</h1>
+<div class="meta">التاريخ: ${_currentStoreDate} | الحالة: ${_currentStoreOrder.status==='closed'?'🔒 مغلق':'🟢 مفتوح'}</div>
+<table>
+<thead><tr>
+  <th style="text-align:right;">المنتج</th>
+  <th>كمية</th>
+  <th style="color:#fef3c7;">🧱 مواد خام</th>
+  <th style="color:#bfdbfe;">⚙️ ماكينة</th>
+  <th style="color:#ddd6fe;">🔧 تركيب</th>
+  <th style="color:#bbf7d0;">💰 بيع</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<div class="summary">
+  <div class="box" style="background:#fefce8;"><div class="lbl" style="color:#92400e;">🧱 مجموع المواد</div><div class="val" style="color:#92400e;">${totalRaw.toFixed(2)} د.أ</div></div>
+  <div class="box" style="background:#eff6ff;"><div class="lbl" style="color:#1e40af;">⚙️ أجرة الماكينة</div><div class="val" style="color:#1e40af;">${totalMachine.toFixed(2)} د.أ</div></div>
+  <div class="box" style="background:#f5f3ff;"><div class="lbl" style="color:#7c3aed;">🔧 أجرة التركيب</div><div class="val" style="color:#7c3aed;">${totalAssembly.toFixed(2)} د.أ</div></div>
+  ${opWage>0?`<div class="box" style="background:#fdf4ff;"><div class="lbl" style="color:#9d174d;">👤 أجرة المشغل</div><div class="val" style="color:#9d174d;">${opWage.toFixed(2)} د.أ</div></div>`:''}
+</div>
+${delivery>0?`<div class="box" style="background:#eff6ff;border-radius:8px;padding:10px;text-align:center;margin-bottom:12px;"><div class="lbl" style="color:#1e40af;">🚚 أجرة التوصيل</div><div class="val" style="color:#1e40af;">${delivery.toFixed(2)} د.أ</div></div>`:''}
+<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:0.9rem;border-top:1px dashed #e5e7eb;margin-bottom:4px;">
+  <span style="color:#6b7280;">إجمالي التكاليف</span><span style="font-weight:700;color:#dc2626;">${totalCost.toFixed(2)} د.أ</span>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:0.9rem;margin-bottom:8px;">
+  <span style="color:#6b7280;">إجمالي البيع</span><span style="font-weight:700;color:#166534;">${totalSell.toFixed(2)} د.أ</span>
+</div>
+<div class="total" style="background:${isP?'#dcfce7':'#fee2e2'};color:${isP?'#166534':'#991b1b'};">
+  <span>صافي ${isP?'الربح':'الخسارة'}</span>
+  <span>${Math.abs(profit).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+}
+
+// ===== OPERATOR LEDGER (existing — kept as-is under "الكشف" sub-tab) =====
 let _opChannels=[];
 function getOpDate(){return document.getElementById('op_date').value||new Date().toISOString().slice(0,10);}
 function _opDefaultChannels(){return [{name:'الموقع الإلكتروني',type:'site',items:[]}];}
@@ -5958,6 +6503,18 @@ window.addOpItem=addOpItem; window.removeOpItem=removeOpItem;
 window.calcOpSummary=calcOpSummary;
 window.saveOperatorLedger=saveOperatorLedger;
 window.shareOperatorReport=shareOperatorReport;
+// New operator accounting system
+window.switchOpTab=switchOpTab;
+window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
+window.loadOpProducts=loadOpProducts;
+window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore;
+window.loadOpStores=loadOpStores;
+window.openStoreAccount=openStoreAccount; window.backToStoreList=backToStoreList;
+window.addItemToStoreOrder=addItemToStoreOrder; window.removeItemFromStoreOrder=removeItemFromStoreOrder;
+window.calcStoreOrderSummary=calcStoreOrderSummary;
+window.setDeliveryFee=setDeliveryFee;
+window.saveStoreOrder=saveStoreOrder; window.closeStoreOrder=closeStoreOrder;
+window.printStoreOrder=printStoreOrder;
 
 function addAdvisorProduct(docId){
   const p=products.find(x=>(x._docId||x.id)===docId);
