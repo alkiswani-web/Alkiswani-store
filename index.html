@@ -2242,7 +2242,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <!-- ========== PRODUCTS SUB-TAB ========== -->
       <div id="optab-products" style="display:block;">
         <div class="form-card" style="margin-bottom:16px;">
-          <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">➕ إضافة منتج جديد</div>
+          <div id="opp_form_title" style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">➕ إضافة منتج جديد</div>
           <div class="form-row">
             <div class="fg">
               <label>اسم المنتج</label>
@@ -2269,7 +2269,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <!-- Per-store prices -->
           <div id="opp_store_prices_section" style="margin-bottom:10px;"></div>
-          <button onclick="saveOpProduct()" style="width:100%;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;margin-top:4px;">💾 حفظ المنتج</button>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button id="opp_save_btn" onclick="saveOpProduct()" style="flex:1;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ المنتج</button>
+            <button id="opp_cancel_btn" onclick="cancelEditProduct()" style="display:none;padding:12px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✕ إلغاء</button>
+          </div>
         </div>
         <div id="opp_list"></div>
       </div>
@@ -4522,6 +4525,7 @@ function switchOpTab(tab){
 
 // --- Operator Products (منتجات المشغل) ---
 let _opProductsList=[];
+let _editingProductId=null;
 
 async function loadOpProducts(){
   try{
@@ -4564,7 +4568,10 @@ function renderOpProductsList(){
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;">📦 ${p.name}</div>
-        <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
+        <div style="display:flex;gap:5px;">
+          <button onclick="editOpProduct('${p.id}')" style="background:#eff6ff;color:#1e40af;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✏️</button>
+          <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:0.78rem;">
         <div style="background:#fefce8;border-radius:7px;padding:7px;text-align:center;">
@@ -4605,6 +4612,41 @@ function renderStorePricesForm(){
     </div>`;
 }
 
+function editOpProduct(id){
+  const p=_opProductsList.find(x=>x.id===id);
+  if(!p) return;
+  _editingProductId=id;
+  document.getElementById('opp_name').value=p.name||'';
+  document.getElementById('opp_sell').value=p.sellPrice||'';
+  document.getElementById('opp_raw').value=p.rawMaterialCost||'';
+  document.getElementById('opp_machine').value=p.machineWorkerWage||'';
+  document.getElementById('opp_assembly').value=p.assemblyWorkerWage||'';
+  // Fill per-store prices
+  _opStoresList.forEach(s=>{
+    const inp=document.getElementById(`opp_sp_${s.id}`);
+    if(inp) inp.value=(p.storePrices&&p.storePrices[s.id])||'';
+  });
+  document.getElementById('opp_form_title').textContent='✏️ تعديل المنتج';
+  document.getElementById('opp_save_btn').textContent='💾 حفظ التعديلات';
+  document.getElementById('opp_cancel_btn').style.display='block';
+  document.getElementById('opp_name').focus();
+  document.getElementById('opp_name').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cancelEditProduct(){
+  _editingProductId=null;
+  ['opp_name','opp_raw','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
+    const el=document.getElementById(id);if(el) el.value='';
+  });
+  _opStoresList.forEach(s=>{
+    const inp=document.getElementById(`opp_sp_${s.id}`);
+    if(inp) inp.value='';
+  });
+  document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
+  document.getElementById('opp_save_btn').textContent='💾 حفظ المنتج';
+  document.getElementById('opp_cancel_btn').style.display='none';
+}
+
 async function saveOpProduct(){
   const name=document.getElementById('opp_name').value.trim();
   const raw=parseFloat(document.getElementById('opp_raw').value)||0;
@@ -4619,20 +4661,22 @@ async function saveOpProduct(){
     if(!isNaN(v)&&v>0) storePrices[s.id]=v;
   });
   try{
-    await db.collection('operator_products').add({
-      name,rawMaterialCost:raw,machineWorkerWage:machine,
-      assemblyWorkerWage:assembly,sellPrice:sell,
-      storePrices,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    ['opp_name','opp_raw','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
-      const el=document.getElementById(id);if(el) el.value='';
-    });
-    _opStoresList.forEach(s=>{
-      const inp=document.getElementById(`opp_sp_${s.id}`);
-      if(inp) inp.value='';
-    });
-    toast('✅ تم حفظ المنتج');
+    if(_editingProductId){
+      await db.collection('operator_products').doc(_editingProductId).update({
+        name,rawMaterialCost:raw,machineWorkerWage:machine,
+        assemblyWorkerWage:assembly,sellPrice:sell,storePrices
+      });
+      toast('✅ تم حفظ التعديلات');
+    } else {
+      await db.collection('operator_products').add({
+        name,rawMaterialCost:raw,machineWorkerWage:machine,
+        assemblyWorkerWage:assembly,sellPrice:sell,
+        storePrices,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      toast('✅ تم حفظ المنتج');
+    }
+    cancelEditProduct();
     loadOpProducts();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
