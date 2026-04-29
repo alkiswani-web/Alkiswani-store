@@ -7373,7 +7373,7 @@ function renderBalanceSummary(){
   const totalCapital=capitalBase+totalPurchases-totalPayments;
   const malikDutiesAdj=_opBalSettings.malikDutiesAdj||0;
   const totalDuties=_opBalSalesRaw+malikDutiesAdj;
-  const milkBalance=totalDuties+totalPayments-totalPurchases;
+  const milkBalance=totalDuties-totalPayments-totalPurchases;
   wrap.innerHTML=`
     <!-- رأس المال الرئيسي — big editable card -->
     <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
@@ -7389,7 +7389,7 @@ function renderBalanceSummary(){
         <div>
           <div style="font-size:0.82rem;font-weight:700;color:${milkBalance>0?'#92400e':'#166534'};margin-bottom:4px;">👤 ملك</div>
           <div style="font-size:1.5rem;font-weight:900;color:${milkBalance>0?'#92400e':'#166534'};">${milkBalance.toFixed(2)} د.أ</div>
-          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات ${totalDuties.toFixed(2)} + مدفوعات ${totalPayments.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)}</div>
+          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات ${totalDuties.toFixed(2)} − مدفوعات ${totalPayments.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)}</div>
         </div>
         <button onclick="document.getElementById('opbal_duties_form').style.display='block';document.getElementById('opbal_duties_inp').value='${totalDuties.toFixed(2)}'"
           style="background:rgba(0,0,0,0.08);border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;color:${milkBalance>0?'#78350f':'#166534'};">✏️ تعديل المستحقات</button>
