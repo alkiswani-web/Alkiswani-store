@@ -2233,9 +2233,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Sub-tabs -->
       <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:20px;">
-        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 4px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">📦 المنتجات</button>
-        <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:1;padding:10px 4px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-right:1px solid var(--border);border-left:1px solid var(--border);">🏪 المتاجر</button>
-        <button id="optab-btn-ledger" onclick="switchOpTab('ledger')" style="flex:1;padding:10px 4px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">📊 الكشف</button>
+        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 2px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">📦 المنتجات</button>
+        <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-right:1px solid var(--border);border-left:1px solid var(--border);">🏪 المتاجر</button>
+        <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">🛒 مبيعات</button>
+        <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">📋 كشف حساب</button>
       </div>
 
       <!-- ========== PRODUCTS SUB-TAB ========== -->
@@ -2347,36 +2348,60 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
       </div>
 
-      <!-- ========== LEDGER SUB-TAB (existing) ========== -->
-      <div id="optab-ledger" style="display:none;">
-        <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center;">
-          <input type="date" id="op_date" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-          <button onclick="loadOperatorLedger()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">📂 تحميل</button>
+      <!-- ========== SALES SUB-TAB (مبيعات) ========== -->
+      <div id="optab-sales" style="display:none;">
+        <div class="form-card" style="margin-bottom:14px;">
+          <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">🛒 تسجيل مبيعة جديدة</div>
+          <!-- Store select -->
+          <div class="fg" style="margin-bottom:10px;">
+            <label>🏪 اسم المتجر</label>
+            <select id="opsale_store_sel" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              <option value="">اختر المتجر...</option>
+            </select>
+          </div>
+          <!-- Product select -->
+          <div class="fg" style="margin-bottom:10px;">
+            <label>📦 المنتج</label>
+            <select id="opsale_prod_sel" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              <option value="">اختر المنتج...</option>
+            </select>
+          </div>
+          <!-- Quantity -->
+          <div class="fg" style="margin-bottom:10px;">
+            <label>🔢 الكمية</label>
+            <input type="number" id="opsale_qty" min="1" value="1" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+          </div>
+          <!-- Notes -->
+          <div class="fg" style="margin-bottom:14px;">
+            <label>📝 ملاحظات</label>
+            <textarea id="opsale_notes" rows="2" placeholder="أي ملاحظة..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;resize:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;"></textarea>
+          </div>
+          <button onclick="saveSaleEntry()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;">💾 حفظ المبيعة</button>
         </div>
-        <div id="op_channels_wrap"></div>
-        <div class="form-card" style="margin-bottom:12px;">
-          <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">➕ إضافة قناة بيع جديدة</div>
-          <div style="display:flex;gap:8px;">
-            <input id="op_new_channel_name" placeholder="انستغرام، فيسبوك، بازار..." style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);">
-            <button onclick="addOpChannel()" style="padding:9px 18px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
+        <!-- Today's sales list -->
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">مبيعات اليوم</div>
+        <div id="opsale_today_list"></div>
+      </div>
+
+      <!-- ========== ACCOUNT STATEMENT TAB (كشف حساب) ========== -->
+      <div id="optab-account" style="display:none;">
+        <!-- Store list view -->
+        <div id="opacct-store-list">
+          <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:12px;">اضغط على اسم التاجر لعرض كشف حسابه الكامل</div>
+          <div id="opacct_stores_wrap"></div>
+        </div>
+        <!-- Single store account view -->
+        <div id="opacct-detail-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <button onclick="backToAcctList()" style="padding:8px 14px;background:var(--border);color:var(--text-dark);border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
+            <div id="opacct_detail_title" style="font-size:1.05rem;font-weight:700;color:var(--green-dark);flex:1;"></div>
+          </div>
+          <div id="opacct_detail_body"></div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+            <button onclick="printAcctStatement()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
+            <button onclick="whatsappAcctStatement()" style="flex:1;min-width:110px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
           </div>
         </div>
-        <div class="form-card" style="margin-bottom:12px;">
-          <div style="font-size:0.88rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">👤 أجرة المشغل</div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <input id="op_operator_wage" type="number" min="0" placeholder="0" oninput="calcOpSummary()" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:1rem;background:var(--card-bg);color:var(--text-dark);">
-            <span style="font-size:0.9rem;color:var(--text-mid);white-space:nowrap;">د.أ / اليوم</span>
-          </div>
-        </div>
-        <div class="form-card" style="margin-bottom:16px;">
-          <div style="font-size:0.88rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">📝 ملاحظات</div>
-          <textarea id="op_notes" rows="3" placeholder="أي ملاحظات عن هذا اليوم..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;resize:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;"></textarea>
-        </div>
-        <div style="display:flex;gap:10px;margin-bottom:16px;">
-          <button onclick="saveOperatorLedger()" style="flex:1;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الكشف</button>
-          <button onclick="shareOperatorReport()" style="flex:1;padding:13px;background:#25D366;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
-        </div>
-        <div id="op_summary"></div>
       </div>
 
     </div>
@@ -4436,7 +4461,7 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  ['products','stores','ledger'].forEach(t=>{
+  ['products','stores','sales','account'].forEach(t=>{
     const el=document.getElementById(`optab-${t}`);
     const btn=document.getElementById(`optab-btn-${t}`);
     if(el) el.style.display=t===tab?'block':'none';
@@ -4448,11 +4473,8 @@ function switchOpTab(tab){
   });
   if(tab==='products') loadOpProducts();
   if(tab==='stores') loadOpStores();
-  if(tab==='ledger'){
-    const inp=document.getElementById('op_date');
-    if(inp&&!inp.value) inp.value=new Date().toISOString().slice(0,10);
-    loadOperatorLedger();
-  }
+  if(tab==='sales') initSalesTab();
+  if(tab==='account') loadAcctStoreList();
 }
 
 // --- Operator Products (منتجات المشغل) ---
@@ -4865,6 +4887,279 @@ ${delivery>0?`<div class="box" style="background:#eff6ff;border-radius:8px;paddi
 </body></html>`;
   const win=window.open('','_blank');
   if(win){win.document.write(html);win.document.close();}
+}
+
+// ===== SALES TAB (مبيعات) =====
+
+function initSalesTab(){
+  // Populate store dropdown
+  const stSel=document.getElementById('opsale_store_sel');
+  if(stSel){
+    stSel.innerHTML='<option value="">اختر المتجر...</option>'+
+      _opStoresList.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
+    if(!_opStoresList.length) loadOpStores().then(()=>{
+      stSel.innerHTML='<option value="">اختر المتجر...</option>'+
+        _opStoresList.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
+    });
+  }
+  // Populate product dropdown
+  const prSel=document.getElementById('opsale_prod_sel');
+  if(prSel){
+    prSel.innerHTML='<option value="">اختر المنتج...</option>'+
+      _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
+    if(!_opProductsList.length) loadOpProducts().then(()=>{
+      prSel.innerHTML='<option value="">اختر المنتج...</option>'+
+        _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
+    });
+  }
+  loadTodaySales();
+}
+
+async function loadTodaySales(){
+  const today=new Date().toISOString().slice(0,10);
+  const wrap=document.getElementById('opsale_today_list');
+  if(!wrap) return;
+  wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ تحميل...</div>';
+  try{
+    const snap=await db.collection('operator_sales').where('date','==',today).orderBy('createdAt','desc').get();
+    if(snap.empty){
+      wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات اليوم بعد</div>';
+      return;
+    }
+    wrap.innerHTML=snap.docs.map(d=>{
+      const s=d.data();
+      const total=(s.sellPrice||0)*(s.qty||1);
+      return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:700;font-size:0.88rem;color:var(--green-dark);">${s.productName} ×${s.qty}</div>
+          <div style="font-size:0.75rem;color:var(--text-mid);">🏪 ${s.storeName}${s.notes?' — '+s.notes:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:800;color:#166534;font-size:0.9rem;">${total.toFixed(2)} د.أ</span>
+          <button onclick="deleteSaleEntry('${d.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:0.8rem;">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;text-align:center;padding:10px;">خطأ في التحميل</div>';}
+}
+
+async function saveSaleEntry(){
+  const stSel=document.getElementById('opsale_store_sel');
+  const prSel=document.getElementById('opsale_prod_sel');
+  const qty=parseFloat(document.getElementById('opsale_qty').value)||1;
+  const notes=document.getElementById('opsale_notes').value.trim();
+  if(!stSel.value){toast('⚠️ اختر المتجر');return;}
+  if(!prSel.value){toast('⚠️ اختر المنتج');return;}
+  const stOpt=stSel.options[stSel.selectedIndex];
+  const prOpt=prSel.options[prSel.selectedIndex];
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    await db.collection('operator_sales').add({
+      storeId:stSel.value, storeName:stOpt.text,
+      productId:prSel.value, productName:prOpt.text,
+      qty,
+      rawMaterialCost:parseFloat(prOpt.dataset.raw)||0,
+      machineWorkerWage:parseFloat(prOpt.dataset.machine)||0,
+      assemblyWorkerWage:parseFloat(prOpt.dataset.assembly)||0,
+      sellPrice:parseFloat(prOpt.dataset.sell)||0,
+      notes, date:today,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    stSel.value=''; prSel.value='';
+    document.getElementById('opsale_qty').value='1';
+    document.getElementById('opsale_notes').value='';
+    toast('✅ تم حفظ المبيعة');
+    loadTodaySales();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteSaleEntry(id){
+  if(!confirm('حذف هذه المبيعة؟')) return;
+  try{
+    await db.collection('operator_sales').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadTodaySales();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+// ===== ACCOUNT STATEMENT TAB (كشف حساب) =====
+
+let _acctCurrentStore=null;
+let _acctCurrentSales=[];
+
+async function loadAcctStoreList(){
+  if(!_opStoresList.length) await loadOpStores();
+  const wrap=document.getElementById('opacct_stores_wrap');
+  if(!wrap) return;
+  if(!_opStoresList.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد متاجر — أضف متجراً من تبويب المتاجر</div>';
+    return;
+  }
+  wrap.innerHTML=_opStoresList.map(s=>`
+    <div onclick="openAcctDetail('${s.id}',${JSON.stringify(s.name)})" style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
+      <span style="color:var(--text-mid);font-size:1.2rem;">←</span>
+    </div>`).join('');
+}
+
+async function openAcctDetail(storeId, storeName){
+  _acctCurrentStore={id:storeId,name:storeName};
+  document.getElementById('opacct_detail_title').textContent='🏪 '+storeName;
+  document.getElementById('opacct-store-list').style.display='none';
+  document.getElementById('opacct-detail-view').style.display='block';
+  const body=document.getElementById('opacct_detail_body');
+  body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
+  try{
+    const snap=await db.collection('operator_sales').where('storeId','==',storeId).orderBy('createdAt','asc').get();
+    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_acctCurrentSales=[];}
+  renderAcctDetail();
+}
+
+function renderAcctDetail(){
+  const body=document.getElementById('opacct_detail_body');
+  if(!body) return;
+  if(!_acctCurrentSales.length){
+    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;">لا يوجد مبيعات مسجلة لهذا المتجر</div>';
+    return;
+  }
+  // Group by date
+  const byDate={};
+  _acctCurrentSales.forEach(s=>{
+    if(!byDate[s.date]) byDate[s.date]=[];
+    byDate[s.date].push(s);
+  });
+  const totalSell=_acctCurrentSales.reduce((sum,s)=>(s.sellPrice||0)*(s.qty||1)+sum,0);
+  const totalCost=_acctCurrentSales.reduce((sum,s)=>((s.rawMaterialCost||0)+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0))*(s.qty||1)+sum,0);
+  const profit=totalSell-totalCost;
+  const isP=profit>=0;
+  const dateRows=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,items])=>{
+    const dayTotal=items.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+    const rows=items.map(it=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border);font-size:0.82rem;">
+        <div>
+          <span style="font-weight:600;color:var(--text-dark);">${it.productName}</span>
+          <span style="color:var(--text-mid);margin-right:6px;">×${it.qty}</span>
+          ${it.notes?`<span style="color:#9ca3af;font-size:0.75rem;">— ${it.notes}</span>`:''}
+        </div>
+        <span style="font-weight:700;color:#166534;white-space:nowrap;">${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ</span>
+      </div>`).join('');
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#f9fafb;padding:8px 10px;border-radius:8px;margin-bottom:6px;">
+        <span style="font-size:0.78rem;font-weight:700;color:var(--text-mid);">📅 ${date}</span>
+        <span style="font-size:0.8rem;font-weight:700;color:#166534;">${dayTotal.toFixed(2)} د.أ</span>
+      </div>
+      <div style="padding:0 4px;">${rows}</div>
+    </div>`;
+  }).join('');
+  body.innerHTML=`
+    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;">
+      <div style="background:${isP?'var(--green-dark)':'#991b1b'};padding:12px 14px;color:#fff;font-weight:700;font-size:0.9rem;">📊 ملخص حساب ${_acctCurrentStore.name}</div>
+      <div style="padding:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div style="background:#f0fdf4;border-radius:9px;padding:10px;text-align:center;">
+            <div style="font-size:0.7rem;color:#166534;margin-bottom:2px;">💰 إجمالي المبيعات</div>
+            <div style="font-weight:800;color:#166534;font-size:1.1rem;">${totalSell.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:#fef2f2;border-radius:9px;padding:10px;text-align:center;">
+            <div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div>
+            <div style="font-weight:800;color:#dc2626;font-size:1.1rem;">${totalCost.toFixed(2)} د.أ</div>
+          </div>
+        </div>
+        <div style="background:${isP?'#dcfce7':'#fee2e2'};border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:800;color:${isP?'#166534':'#991b1b'};">صافي ${isP?'الربح':'الخسارة'}</span>
+          <span style="font-weight:900;color:${isP?'#166534':'#991b1b'};font-size:1.2rem;">${Math.abs(profit).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:0.78rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">تفصيل المشتريات</div>
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px;">${dateRows}</div>`;
+}
+
+function backToAcctList(){
+  document.getElementById('opacct-store-list').style.display='block';
+  document.getElementById('opacct-detail-view').style.display='none';
+  _acctCurrentStore=null; _acctCurrentSales=[];
+}
+
+function printAcctStatement(){
+  if(!_acctCurrentStore||!_acctCurrentSales.length) return;
+  const totalSell=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+  const totalCost=_acctCurrentSales.reduce((s,it)=>((it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0))*(it.qty||1)+s,0);
+  const profit=totalSell-totalCost;
+  const isP=profit>=0;
+  const rows=_acctCurrentSales.map(it=>`
+    <tr>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.date}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.productName}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${it.qty}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${(it.sellPrice||0).toFixed(2)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:#166534;">${((it.sellPrice||0)*(it.qty||1)).toFixed(2)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;font-size:0.8rem;color:#6b7280;">${it.notes||''}</td>
+    </tr>`).join('');
+  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+<title>كشف حساب — ${_acctCurrentStore.name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
+h1{font-size:1.5rem;color:#1a3a2a;margin-bottom:4px;}
+.meta{font-size:0.85rem;color:#6b7280;margin-bottom:20px;padding-bottom:8px;border-bottom:2px solid #1a3a2a;}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+thead th{background:#1a3a2a;color:#fff;padding:10px 8px;font-size:0.82rem;}
+tbody tr:nth-child(even){background:#f9fafb;}
+.total{display:flex;justify-content:space-between;padding:14px 16px;border-radius:10px;font-size:1.1rem;font-weight:800;}
+@media print{body{padding:10px;}}
+</style></head><body>
+<h1>🏪 كشف حساب — ${_acctCurrentStore.name}</h1>
+<div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-JO')} | إجمالي الإيرادات: ${totalSell.toFixed(2)} د.أ</div>
+<table>
+<thead><tr>
+  <th style="text-align:right;">التاريخ</th>
+  <th style="text-align:right;">المنتج</th>
+  <th>كمية</th>
+  <th>سعر الوحدة</th>
+  <th>الإجمالي</th>
+  <th style="text-align:right;">ملاحظات</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+  <div style="background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">
+    <div style="font-size:0.72rem;color:#166534;margin-bottom:3px;">💰 إجمالي المبيعات</div>
+    <div style="font-weight:800;color:#166534;font-size:1.1rem;">${totalSell.toFixed(2)} د.أ</div>
+  </div>
+  <div style="background:#fef2f2;border-radius:8px;padding:10px;text-align:center;">
+    <div style="font-size:0.72rem;color:#dc2626;margin-bottom:3px;">💸 إجمالي التكاليف</div>
+    <div style="font-weight:800;color:#dc2626;font-size:1.1rem;">${totalCost.toFixed(2)} د.أ</div>
+  </div>
+</div>
+<div class="total" style="background:${isP?'#dcfce7':'#fee2e2'};color:${isP?'#166534':'#991b1b'};">
+  <span>صافي ${isP?'الربح':'الخسارة'}</span>
+  <span>${Math.abs(profit).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+}
+
+function whatsappAcctStatement(){
+  if(!_acctCurrentStore||!_acctCurrentSales.length) return;
+  const totalSell=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+  const totalCost=_acctCurrentSales.reduce((s,it)=>((it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0))*(it.qty||1)+s,0);
+  const profit=totalSell-totalCost;
+  let msg=`📊 كشف حساب — ${_acctCurrentStore.name}\n━━━━━━━━━━━━\n`;
+  const byDate={};
+  _acctCurrentSales.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
+  Object.entries(byDate).sort().forEach(([date,items])=>{
+    msg+=`📅 ${date}:\n`;
+    items.forEach(it=>{msg+=`  • ${it.productName} ×${it.qty} = ${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ${it.notes?' ('+it.notes+')':''}\n`;});
+  });
+  msg+=`━━━━━━━━━━━━\n💰 إجمالي المبيعات: ${totalSell.toFixed(2)} د.أ\n`;
+  msg+=`💸 إجمالي التكاليف: ${totalCost.toFixed(2)} د.أ\n`;
+  msg+=`${profit>=0?'✅ صافي الربح':'⚠️ الخسارة'}: ${Math.abs(profit).toFixed(2)} د.أ`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
 // ===== OPERATOR LEDGER (existing — kept as-is under "الكشف" sub-tab) =====
@@ -6505,6 +6800,13 @@ window.saveOperatorLedger=saveOperatorLedger;
 window.shareOperatorReport=shareOperatorReport;
 // New operator accounting system
 window.switchOpTab=switchOpTab;
+// Sales tab
+window.saveSaleEntry=saveSaleEntry; window.deleteSaleEntry=deleteSaleEntry;
+window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
+// Account statement tab
+window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail;
+window.backToAcctList=backToAcctList; window.printAcctStatement=printAcctStatement;
+window.whatsappAcctStatement=whatsappAcctStatement;
 window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
 window.loadOpProducts=loadOpProducts;
 window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore;
