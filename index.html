@@ -2267,6 +2267,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <input type="number" id="opp_assembly" min="0" step="0.5" placeholder="0.00">
             </div>
           </div>
+          <!-- Per-store prices -->
+          <div id="opp_store_prices_section" style="margin-bottom:10px;"></div>
           <button onclick="saveOpProduct()" style="width:100%;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;margin-top:4px;">💾 حفظ المنتج</button>
         </div>
         <div id="opp_list"></div>
@@ -2355,7 +2357,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <!-- Store select -->
           <div class="fg" style="margin-bottom:10px;">
             <label>🏪 اسم المتجر</label>
-            <select id="opsale_store_sel" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            <select id="opsale_store_sel" onchange="onSaleStoreChange(this)" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
               <option value="">اختر المتجر...</option>
             </select>
           </div>
@@ -4523,10 +4525,15 @@ let _opProductsList=[];
 
 async function loadOpProducts(){
   try{
-    const snap=await db.collection('operator_products').orderBy('name').get();
-    _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const [pSnap,sSnap]=await Promise.all([
+      db.collection('operator_products').orderBy('name').get(),
+      db.collection('operator_stores').orderBy('name').get()
+    ]);
+    _opProductsList=pSnap.docs.map(d=>({id:d.id,...d.data()}));
+    _opStoresList=sSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opProductsList=[];}
   renderOpProductsList();
+  renderStorePricesForm();
 }
 
 function renderOpProductsList(){
@@ -4536,7 +4543,24 @@ function renderOpProductsList(){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد منتجات — أضف منتجاً جديداً</div>';
     return;
   }
-  wrap.innerHTML=_opProductsList.map(p=>`
+  wrap.innerHTML=_opProductsList.map(p=>{
+    const spEntries=p.storePrices?Object.entries(p.storePrices).filter(([,v])=>v>0):[];
+    const storePricesHtml=spEntries.length
+      ?`<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <div style="font-size:0.72rem;font-weight:700;color:var(--text-mid);margin-bottom:5px;">🏪 أسعار لكل متجر</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            ${spEntries.map(([sid,price])=>{
+              const st=_opStoresList.find(s=>s.id===sid);
+              if(!st) return '';
+              return `<div style="background:#ecfdf5;border:1px solid #86efac;border-radius:6px;padding:3px 8px;font-size:0.73rem;">
+                <span style="color:var(--text-mid);">${st.name}</span>
+                <strong style="color:#166534;margin-right:4px;">${parseFloat(price).toFixed(2)} د.أ</strong>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`
+      :'';
+    return `
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;">📦 ${p.name}</div>
@@ -4556,11 +4580,29 @@ function renderOpProductsList(){
           <div style="font-weight:800;color:#7c3aed;">${(p.assemblyWorkerWage||0).toFixed(2)}</div>
         </div>
         <div style="background:#f0fdf4;border-radius:7px;padding:7px;text-align:center;">
-          <div style="color:#166534;margin-bottom:2px;">💰 بيع</div>
+          <div style="color:#166534;margin-bottom:2px;">💰 افتراضي</div>
           <div style="font-weight:800;color:#166534;">${(p.sellPrice||0).toFixed(2)}</div>
         </div>
       </div>
-    </div>`).join('');
+      ${storePricesHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderStorePricesForm(){
+  const sec=document.getElementById('opp_store_prices_section');
+  if(!sec) return;
+  if(!_opStoresList.length){sec.innerHTML='';return;}
+  sec.innerHTML=`
+    <div style="margin-bottom:6px;font-size:0.82rem;font-weight:700;color:var(--text-mid);">🏪 سعر البيع لكل متجر (اختياري)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      ${_opStoresList.map(s=>`
+        <div style="display:flex;align-items:center;gap:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:6px 8px;">
+          <div style="flex:1;font-size:0.8rem;font-weight:600;color:var(--text-dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${s.name.replace(/"/g,'&quot;')}">${s.name}</div>
+          <input type="number" id="opp_sp_${s.id}" min="0" step="0.5" placeholder="—"
+            style="width:68px;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;font-family:'Tajawal',sans-serif;font-size:0.82rem;background:var(--card-bg);color:var(--text-dark);text-align:center;">
+        </div>`).join('')}
+    </div>`;
 }
 
 async function saveOpProduct(){
@@ -4570,14 +4612,25 @@ async function saveOpProduct(){
   const assembly=parseFloat(document.getElementById('opp_assembly').value)||0;
   const sell=parseFloat(document.getElementById('opp_sell').value)||0;
   if(!name){toast('⚠️ أدخل اسم المنتج');return;}
+  const storePrices={};
+  _opStoresList.forEach(s=>{
+    const inp=document.getElementById(`opp_sp_${s.id}`);
+    const v=inp?parseFloat(inp.value):NaN;
+    if(!isNaN(v)&&v>0) storePrices[s.id]=v;
+  });
   try{
     await db.collection('operator_products').add({
       name,rawMaterialCost:raw,machineWorkerWage:machine,
       assemblyWorkerWage:assembly,sellPrice:sell,
+      storePrices,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     ['opp_name','opp_raw','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
       const el=document.getElementById(id);if(el) el.value='';
+    });
+    _opStoresList.forEach(s=>{
+      const inp=document.getElementById(`opp_sp_${s.id}`);
+      if(inp) inp.value='';
     });
     toast('✅ تم حفظ المنتج');
     loadOpProducts();
@@ -4984,27 +5037,41 @@ async function loadTodaySales(){
   }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;text-align:center;padding:10px;">خطأ في التحميل</div>';}
 }
 
-// Auto-fill sell price + show cost info when product selected
+// Auto-fill sell price + show cost info when product or store selected
 function onSaleProdChange(sel){
-  const opt=sel.options[sel.selectedIndex];
+  updateSalePriceFromSelection();
+}
+
+function onSaleStoreChange(sel){
+  updateSalePriceFromSelection();
+}
+
+function updateSalePriceFromSelection(){
+  const stSel=document.getElementById('opsale_store_sel');
+  const prSel=document.getElementById('opsale_prod_sel');
   const sellInp=document.getElementById('opsale_sell');
   const infoBox=document.getElementById('opsale_cost_info');
-  if(!sel.value){
-    if(sellInp) sellInp.value='';
+  if(!stSel||!prSel||!sellInp) return;
+  if(!prSel.value){
+    sellInp.value='';
     if(infoBox) infoBox.style.display='none';
     return;
   }
-  const raw=parseFloat(opt.dataset.raw)||0;
-  const machine=parseFloat(opt.dataset.machine)||0;
-  const assembly=parseFloat(opt.dataset.assembly)||0;
-  const sell=parseFloat(opt.dataset.sell)||0;
-  if(sellInp) sellInp.value=sell||'';
+  const prod=_opProductsList.find(p=>p.id===prSel.value);
+  if(!prod) return;
+  const raw=prod.rawMaterialCost||0;
+  const machine=prod.machineWorkerWage||0;
+  const assembly=prod.assemblyWorkerWage||0;
+  // Use store-specific price if available, else fall back to product default
+  const storeSpecific=stSel.value&&prod.storePrices&&prod.storePrices[stSel.value];
+  const effectiveSell=storeSpecific?prod.storePrices[stSel.value]:(prod.sellPrice||0);
+  sellInp.value=effectiveSell||'';
   if(infoBox){
     infoBox.style.display='block';
     document.getElementById('opsale_info_raw').textContent=raw.toFixed(2)+' د.أ';
     document.getElementById('opsale_info_machine').textContent=machine.toFixed(2)+' د.أ';
     document.getElementById('opsale_info_assembly').textContent=assembly.toFixed(2)+' د.أ';
-    const profit=sell-(raw+machine+assembly);
+    const profit=effectiveSell-(raw+machine+assembly);
     const pEl=document.getElementById('opsale_info_profit');
     pEl.textContent=profit.toFixed(2)+' د.أ';
     pEl.style.color=profit>=0?'#166534':'#dc2626';
