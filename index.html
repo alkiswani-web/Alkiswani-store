@@ -4578,7 +4578,7 @@ function renderOpStoresList(){
         <div style="font-size:0.75rem;color:var(--text-mid);margin-top:2px;">اليوم: ${today}</div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button onclick="openStoreAccount('${s.id}',${JSON.stringify(s.name)},'${today}')" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📋 الحساب</button>
+        <button data-sid="${s.id}" data-sname="${s.name.replace(/"/g,'&quot;')}" data-date="${today}" onclick="openStoreAccount(this.dataset.sid,this.dataset.sname,this.dataset.date)" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📋 الحساب</button>
         <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
       </div>
     </div>`).join('');
@@ -4921,7 +4921,7 @@ async function loadTodaySales(){
   if(!wrap) return;
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ تحميل...</div>';
   try{
-    const snap=await db.collection('operator_sales').where('date','==',today).orderBy('createdAt','desc').get();
+    const snap=await db.collection('operator_sales').where('date','==',today).get();
     if(snap.empty){
       wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات اليوم بعد</div>';
       return;
@@ -4996,7 +4996,7 @@ async function loadAcctStoreList(){
     return;
   }
   wrap.innerHTML=_opStoresList.map(s=>`
-    <div onclick="openAcctDetail('${s.id}',${JSON.stringify(s.name)})" style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div data-sid="${s.id}" data-sname="${s.name.replace(/"/g,'&quot;')}" onclick="openAcctDetail(this.dataset.sid,this.dataset.sname)" style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--green-dark)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
       <span style="color:var(--text-mid);font-size:1.2rem;">←</span>
     </div>`).join('');
@@ -5010,7 +5010,7 @@ async function openAcctDetail(storeId, storeName){
   const body=document.getElementById('opacct_detail_body');
   body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
   try{
-    const snap=await db.collection('operator_sales').where('storeId','==',storeId).orderBy('createdAt','asc').get();
+    const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
     _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_acctCurrentSales=[];}
   renderAcctDetail();
