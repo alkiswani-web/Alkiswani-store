@@ -2495,6 +2495,33 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل المشتريات</div>
         <div id="opbal_purchases_list"></div>
 
+        <!-- Pay Malik Form -->
+        <div class="form-card" style="margin-top:16px;margin-bottom:14px;border:1.5px solid #fde68a;background:#fffbeb;">
+          <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:12px;">💸 دفع الى ملك</div>
+          <div class="form-row" style="margin-bottom:10px;">
+            <div class="fg">
+              <label>💵 المبلغ (د.أ)</label>
+              <input type="number" id="opbal_pay_amount" min="0" step="0.5" placeholder="0.00"
+                style="width:100%;padding:10px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
+            </div>
+            <div class="fg">
+              <label>📅 التاريخ</label>
+              <input type="date" id="opbal_pay_date"
+                style="width:100%;padding:10px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
+            </div>
+          </div>
+          <div class="fg" style="margin-bottom:10px;">
+            <label>📝 ملاحظات</label>
+            <input type="text" id="opbal_pay_notes" placeholder="سبب الدفع..."
+              style="width:100%;padding:10px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
+          </div>
+          <button onclick="addMalikPayment()" style="width:100%;padding:12px;background:#92400e;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 تسجيل الدفع لملك</button>
+        </div>
+
+        <!-- Malik Payments History -->
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل المدفوعات لملك</div>
+        <div id="opbal_payments_list"></div>
+
       </div>
 
     </div>
@@ -7284,6 +7311,7 @@ async function saveAboutSettings(){
 // ===== BALANCE TAB (الرصيد) =====
 let _opBalSettings={capitalBase:0};
 let _opBalPurchases=[];
+let _opBalPayments=[];
 let _opBalSalesRaw=0;
 
 async function loadBalanceTab(){
@@ -7291,12 +7319,17 @@ async function loadBalanceTab(){
   try{
     const doc=await db.collection('operator_balance').doc('settings').get();
     _opBalSettings=doc.exists?doc.data():{capitalBase:0};
-  }catch(e){_opBalSettings={rawMaterialsBase:0};}
+  }catch(e){_opBalSettings={capitalBase:0};}
   // Load purchases
   try{
     const snap=await db.collection('operator_purchases').orderBy('date','desc').get();
     _opBalPurchases=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opBalPurchases=[];}
+  // Load payments to Malik
+  try{
+    const snap=await db.collection('operator_malik_payments').orderBy('date','desc').get();
+    _opBalPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opBalPayments=[];}
   // Load total raw material costs from all sales
   try{
     const snap=await db.collection('operator_sales').get();
@@ -7305,26 +7338,30 @@ async function loadBalanceTab(){
       return sum+((s.rawMaterialCost||0)*(s.qty||1));
     },0);
   }catch(e){_opBalSalesRaw=0;}
-  // Set today's date in purchase form
-  const dateInp=document.getElementById('opbal_buy_date');
-  if(dateInp&&!dateInp.value) dateInp.value=new Date().toISOString().slice(0,10);
+  // Set today's date in forms
+  ['opbal_buy_date','opbal_pay_date'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&!el.value) el.value=new Date().toISOString().slice(0,10);
+  });
   renderBalanceSummary();
   renderBalancePurchases();
+  renderBalancePayments();
 }
 
 function renderBalanceSummary(){
   const wrap=document.getElementById('opbal_summary');
   if(!wrap) return;
   const totalPurchases=_opBalPurchases.reduce((s,p)=>s+(p.amount||0),0);
+  const totalPayments=_opBalPayments.reduce((s,p)=>s+(p.amount||0),0);
   const capitalBase=_opBalSettings.capitalBase||0;
-  const totalCapital=capitalBase+totalPurchases;
-  const milkBalance=_opBalSalesRaw-totalPurchases;
+  const totalCapital=capitalBase+totalPurchases-totalPayments;
+  const milkBalance=_opBalSalesRaw-totalPurchases-totalPayments;
   wrap.innerHTML=`
     <!-- رأس المال الرئيسي — big editable card -->
     <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
       <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
       <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${totalCapital.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
-      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)}</div>
+      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مدفوعات لملك ${totalPayments.toFixed(2)}</div>
       <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
         style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
     </div>
@@ -7334,7 +7371,7 @@ function renderBalanceSummary(){
         <div>
           <div style="font-size:0.82rem;font-weight:700;color:${milkBalance>0?'#92400e':'#166534'};margin-bottom:4px;">👤 ملك</div>
           <div style="font-size:1.5rem;font-weight:900;color:${milkBalance>0?'#92400e':'#166534'};">${milkBalance.toFixed(2)} د.أ</div>
-          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات المواد ${_opBalSalesRaw.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)}</div>
+          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات ${_opBalSalesRaw.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)} − مدفوعات ${totalPayments.toFixed(2)}</div>
         </div>
         <div style="font-size:2rem;">${milkBalance>0?'🔴':'✅'}</div>
       </div>
@@ -7384,6 +7421,50 @@ async function deleteBalancePurchase(id){
   }catch(e){toast('❌ خطأ في الحذف');}
 }
 
+async function addMalikPayment(){
+  const amount=parseFloat(document.getElementById('opbal_pay_amount').value);
+  const date=document.getElementById('opbal_pay_date').value;
+  const notes=document.getElementById('opbal_pay_notes').value.trim();
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!date){toast('⚠️ اختر التاريخ');return;}
+  try{
+    await db.collection('operator_malik_payments').add({
+      amount,date,notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('opbal_pay_amount').value='';
+    document.getElementById('opbal_pay_notes').value='';
+    toast('✅ تم تسجيل الدفع لملك');
+    loadBalanceTab();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteMalikPayment(id){
+  if(!confirm('حذف هذا الدفع؟')) return;
+  try{
+    await db.collection('operator_malik_payments').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadBalanceTab();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+function renderBalancePayments(){
+  const wrap=document.getElementById('opbal_payments_list');
+  if(!wrap) return;
+  if(!_opBalPayments.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مدفوعات لملك بعد</div>';
+    return;
+  }
+  wrap.innerHTML=_opBalPayments.map(p=>`
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;color:#92400e;font-size:0.9rem;">💸 ${(p.amount||0).toFixed(2)} د.أ</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);">📅 ${p.date||''}${p.notes?' — '+p.notes:''}</div>
+      </div>
+      <button onclick="deleteMalikPayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>
+    </div>`).join('');
+}
+
 function renderBalancePurchases(){
   const wrap=document.getElementById('opbal_purchases_list');
   if(!wrap) return;
@@ -7403,6 +7484,7 @@ function renderBalancePurchases(){
 
 window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
 window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=deleteBalancePurchase;
+window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
