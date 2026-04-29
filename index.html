@@ -2428,10 +2428,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- ===== OPERATOR DAILY VIEW ===== -->
         <div id="opacct-operator-view" style="display:none;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
             <button onclick="backToAcctList()" style="padding:8px 14px;background:var(--border);color:var(--text-dark);border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
             <div style="font-size:1.05rem;font-weight:700;color:var(--green-dark);flex:1;">👤 حساب المشغل</div>
-            <div id="opacct_op_date_badge" style="font-size:0.78rem;color:var(--text-mid);background:var(--border);padding:4px 10px;border-radius:20px;"></div>
+          </div>
+          <!-- Date navigation bar -->
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:8px 10px;">
+            <button onclick="prevOpDay()" title="اليوم السابق" style="padding:7px 11px;background:#f3f4f6;border:none;border-radius:8px;font-size:1rem;cursor:pointer;color:var(--green-dark);font-weight:700;flex-shrink:0;">◀</button>
+            <input type="date" id="opview_date" onchange="jumpOpDate(this.value)" style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;background:var(--card-bg);color:var(--text-dark);outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='var(--border)'">
+            <button onclick="nextOpDay()" id="opview_next_btn" title="اليوم التالي" style="padding:7px 11px;background:#f3f4f6;border:none;border-radius:8px;font-size:1rem;cursor:pointer;color:var(--green-dark);font-weight:700;flex-shrink:0;">▶</button>
+            <button onclick="goOpToday()" id="opview_today_btn" style="padding:7px 13px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;flex-shrink:0;">اليوم</button>
           </div>
           <div id="opacct_op_body"></div>
           <div id="opacct_op_actions" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;"></div>
@@ -5552,7 +5558,14 @@ function backToAcctList(){
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
 let _opDayRecord=null;
+let _opViewDate=null; // currently viewed date (YYYY-MM-DD)
 const _opToday=()=>jordanDateStr();
+
+function _opDateOffset(date, days){
+  const d=new Date(date+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  return d.toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
+}
 
 async function checkOperatorDayStatus(){
   const badge=document.getElementById('opacct_op_status_badge');
@@ -5569,24 +5582,69 @@ async function checkOperatorDayStatus(){
   }catch(e){}
 }
 
-async function openOperatorDailyAccount(){
-  const today=_opToday();
+async function openOperatorDailyAccount(date){
+  _opViewDate=date||_opToday();
   document.getElementById('opacct-store-list').style.display='none';
   document.getElementById('opacct-operator-view').style.display='block';
-  document.getElementById('opacct_op_date_badge').textContent=today;
+  const dateEl=document.getElementById('opview_date');
+  if(dateEl) dateEl.value=_opViewDate;
+  const nextBtn=document.getElementById('opview_next_btn');
+  if(nextBtn) nextBtn.disabled=(_opViewDate>=_opToday());
+  await _loadOpDayData(_opViewDate);
+}
+
+async function _loadOpDayData(date){
   const body=document.getElementById('opacct_op_body');
-  body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
-  // Load close record
+  if(body) body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
   try{
-    const cr=await db.collection('operator_daily_close').doc(today).get();
+    const cr=await db.collection('operator_daily_close').doc(date).get();
     _opDayRecord=cr.exists?cr.data():null;
   }catch(e){_opDayRecord=null;}
-  // Load today's sales
   try{
-    const snap=await db.collection('operator_sales').where('date','==',today).get();
+    const snap=await db.collection('operator_sales').where('date','==',date).get();
     _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opDailySales=[];}
   renderOperatorDailyView();
+}
+
+function prevOpDay(){
+  _opViewDate=_opDateOffset(_opViewDate,-1);
+  const dateEl=document.getElementById('opview_date');
+  if(dateEl) dateEl.value=_opViewDate;
+  const nextBtn=document.getElementById('opview_next_btn');
+  if(nextBtn) nextBtn.disabled=false;
+  _loadOpDayData(_opViewDate);
+}
+
+function nextOpDay(){
+  const today=_opToday();
+  if(_opViewDate>=today) return;
+  _opViewDate=_opDateOffset(_opViewDate,1);
+  const dateEl=document.getElementById('opview_date');
+  if(dateEl) dateEl.value=_opViewDate;
+  const nextBtn=document.getElementById('opview_next_btn');
+  if(nextBtn) nextBtn.disabled=(_opViewDate>=today);
+  _loadOpDayData(_opViewDate);
+}
+
+function goOpToday(){
+  _opViewDate=_opToday();
+  const dateEl=document.getElementById('opview_date');
+  if(dateEl) dateEl.value=_opViewDate;
+  const nextBtn=document.getElementById('opview_next_btn');
+  if(nextBtn) nextBtn.disabled=true;
+  _loadOpDayData(_opViewDate);
+}
+
+function jumpOpDate(val){
+  if(!val) return;
+  const today=_opToday();
+  _opViewDate=val>today?today:val;
+  const dateEl=document.getElementById('opview_date');
+  if(dateEl) dateEl.value=_opViewDate;
+  const nextBtn=document.getElementById('opview_next_btn');
+  if(nextBtn) nextBtn.disabled=(_opViewDate>=today);
+  _loadOpDayData(_opViewDate);
 }
 
 function renderOperatorDailyView(){
@@ -5596,7 +5654,7 @@ function renderOperatorDailyView(){
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
   if(!_opDailySales.length){
     body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات مسجلة اليوم</div>';
-    actionsWrap.innerHTML=isClosed?'<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الحساب مغلق ليوم '+_opToday()+'</div>':'';
+    actionsWrap.innerHTML=isClosed?'<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الحساب مغلق ليوم '+_opViewDate+'</div>':'';
     return;
   }
   // Aggregate by product
@@ -5632,7 +5690,7 @@ function renderOperatorDailyView(){
     </tr>`;
   }).join('');
   body.innerHTML=`
-    ${isClosed?`<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الحساب مغلق — ${_opToday()}</div>`:''}
+    ${isClosed?`<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الحساب مغلق — ${_opViewDate}</div>`:''}
     <!-- Detailed table -->
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;">
       <div style="overflow-x:auto;">
@@ -5692,22 +5750,20 @@ function renderOperatorDailyView(){
         <div style="font-weight:900;color:${isP?'#166534':'#dc2626'};font-size:1.2rem;">${Math.abs(totProfit).toFixed(2)} د.أ</div>
       </div>
     </div>`;
-  // Action buttons
-  if(!isClosed){
-    actionsWrap.innerHTML=`
-      <button onclick="closeOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق حساب اليوم</button>
-      <button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
-      <button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
+  // Action buttons — غلق only available for today's open account
+  const isToday=(_opViewDate===_opToday());
+  const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
+  const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
+  if(!isClosed&&isToday){
+    actionsWrap.innerHTML=`<button onclick="closeOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق حساب اليوم</button>${printBtn}${waBtn}`;
   } else {
-    actionsWrap.innerHTML=`
-      <button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
-      <button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
+    actionsWrap.innerHTML=printBtn+waBtn;
   }
 }
 
 async function closeOperatorDay(){
   if(!confirm('إغلاق حساب اليوم؟ لن تتمكن من إضافة مبيعات جديدة بعد الغلق.')) return;
-  const today=_opToday();
+  const today=_opViewDate||_opToday();
   const byProd={};
   _opDailySales.forEach(s=>{
     const key=s.productName;
@@ -5734,7 +5790,7 @@ async function closeOperatorDay(){
 }
 
 function _buildOpDayHTML(forPrint){
-  const today=_opToday();
+  const today=_opViewDate||_opToday();
   const byProd={};
   _opDailySales.forEach(s=>{
     const key=s.productName;
@@ -7861,6 +7917,7 @@ window.whatsappAcctStatement=whatsappAcctStatement;
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
+window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
 window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
