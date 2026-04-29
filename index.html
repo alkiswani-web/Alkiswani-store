@@ -2385,12 +2385,36 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- ========== ACCOUNT STATEMENT TAB (كشف حساب) ========== -->
       <div id="optab-account" style="display:none;">
-        <!-- Store list view -->
+
+        <!-- ===== STORE LIST ===== -->
         <div id="opacct-store-list">
-          <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:12px;">اضغط على اسم التاجر لعرض كشف حسابه الكامل</div>
+          <!-- Fixed المشغل card -->
+          <div onclick="openOperatorDailyAccount()" style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:0 4px 12px rgba(26,58,42,0.25);">
+            <div>
+              <div style="font-weight:800;color:#fff;font-size:1.05rem;">👤 المشغل</div>
+              <div style="font-size:0.75rem;color:rgba(255,255,255,0.7);margin-top:3px;">كشف اليوم الكامل — جميع المبيعات</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div id="opacct_op_status_badge" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;">⏳ جاري...</div>
+              <span style="color:rgba(255,255,255,0.7);font-size:1.2rem;">←</span>
+            </div>
+          </div>
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text-mid);letter-spacing:1px;margin-bottom:8px;">🏪 حسابات المتاجر</div>
           <div id="opacct_stores_wrap"></div>
         </div>
-        <!-- Single store account view -->
+
+        <!-- ===== OPERATOR DAILY VIEW ===== -->
+        <div id="opacct-operator-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <button onclick="backToAcctList()" style="padding:8px 14px;background:var(--border);color:var(--text-dark);border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
+            <div style="font-size:1.05rem;font-weight:700;color:var(--green-dark);flex:1;">👤 حساب المشغل</div>
+            <div id="opacct_op_date_badge" style="font-size:0.78rem;color:var(--text-mid);background:var(--border);padding:4px 10px;border-radius:20px;"></div>
+          </div>
+          <div id="opacct_op_body"></div>
+          <div id="opacct_op_actions" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;"></div>
+        </div>
+
+        <!-- ===== SINGLE STORE DETAIL VIEW ===== -->
         <div id="opacct-detail-view" style="display:none;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
             <button onclick="backToAcctList()" style="padding:8px 14px;background:var(--border);color:var(--text-dark);border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
@@ -2402,6 +2426,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button onclick="whatsappAcctStatement()" style="flex:1;min-width:110px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>
           </div>
         </div>
+
       </div>
 
     </div>
@@ -4474,7 +4499,7 @@ function switchOpTab(tab){
   if(tab==='products') loadOpProducts();
   if(tab==='stores') loadOpStores();
   if(tab==='sales') initSalesTab();
-  if(tab==='account') loadAcctStoreList();
+  if(tab==='account'){loadAcctStoreList();checkOperatorDayStatus();}
 }
 
 // --- Operator Products (منتجات المشغل) ---
@@ -5079,7 +5104,304 @@ function renderAcctDetail(){
 function backToAcctList(){
   document.getElementById('opacct-store-list').style.display='block';
   document.getElementById('opacct-detail-view').style.display='none';
+  document.getElementById('opacct-operator-view').style.display='none';
   _acctCurrentStore=null; _acctCurrentSales=[];
+  _opDailySales=[]; _opDayRecord=null;
+  // refresh badge
+  checkOperatorDayStatus();
+}
+
+// ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
+let _opDailySales=[];
+let _opDayRecord=null;
+const _opToday=()=>new Date().toISOString().slice(0,10);
+
+async function checkOperatorDayStatus(){
+  const badge=document.getElementById('opacct_op_status_badge');
+  if(!badge) return;
+  try{
+    const snap=await db.collection('operator_daily_close').doc(_opToday()).get();
+    if(snap.exists && snap.data().status==='closed'){
+      badge.textContent='🔒 مغلق';
+      badge.style.background='#dc2626';
+    } else {
+      badge.textContent='🟢 مفتوح';
+      badge.style.background='rgba(255,255,255,0.2)';
+    }
+  }catch(e){}
+}
+
+async function openOperatorDailyAccount(){
+  const today=_opToday();
+  document.getElementById('opacct-store-list').style.display='none';
+  document.getElementById('opacct-operator-view').style.display='block';
+  document.getElementById('opacct_op_date_badge').textContent=today;
+  const body=document.getElementById('opacct_op_body');
+  body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
+  // Load close record
+  try{
+    const cr=await db.collection('operator_daily_close').doc(today).get();
+    _opDayRecord=cr.exists?cr.data():null;
+  }catch(e){_opDayRecord=null;}
+  // Load today's sales
+  try{
+    const snap=await db.collection('operator_sales').where('date','==',today).get();
+    _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opDailySales=[];}
+  renderOperatorDailyView();
+}
+
+function renderOperatorDailyView(){
+  const body=document.getElementById('opacct_op_body');
+  const actionsWrap=document.getElementById('opacct_op_actions');
+  if(!body||!actionsWrap) return;
+  const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
+  if(!_opDailySales.length){
+    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات مسجلة اليوم</div>';
+    actionsWrap.innerHTML=isClosed?'<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الحساب مغلق ليوم '+_opToday()+'</div>':'';
+    return;
+  }
+  // Aggregate by product
+  const byProd={};
+  _opDailySales.forEach(s=>{
+    const key=s.productName;
+    if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,machine:0,assembly:0,sell:0};
+    byProd[key].qty+=s.qty||1;
+    byProd[key].raw+=(s.rawMaterialCost||0)*(s.qty||1);
+    byProd[key].machine+=(s.machineWorkerWage||0)*(s.qty||1);
+    byProd[key].assembly+=(s.assemblyWorkerWage||0)*(s.qty||1);
+    byProd[key].sell+=(s.sellPrice||0)*(s.qty||1);
+  });
+  const prods=Object.values(byProd);
+  const totRaw=prods.reduce((s,p)=>s+p.raw,0);
+  const totMachine=prods.reduce((s,p)=>s+p.machine,0);
+  const totAssembly=prods.reduce((s,p)=>s+p.assembly,0);
+  const totSell=prods.reduce((s,p)=>s+p.sell,0);
+  const totCost=totRaw+totMachine+totAssembly;
+  const totProfit=totSell-totCost;
+  const isP=totProfit>=0;
+  const rows=prods.map(p=>{
+    const cost=p.raw+p.machine+p.assembly;
+    const profit=p.sell-cost;
+    return `<tr style="border-bottom:1px solid var(--border);font-size:0.78rem;">
+      <td style="padding:7px 8px;font-weight:600;color:var(--text-dark);">${p.name}</td>
+      <td style="padding:7px 8px;text-align:center;">${p.qty}</td>
+      <td style="padding:7px 8px;text-align:center;color:#92400e;">${p.raw.toFixed(2)}</td>
+      <td style="padding:7px 8px;text-align:center;color:#1e40af;">${p.machine.toFixed(2)}</td>
+      <td style="padding:7px 8px;text-align:center;color:#7c3aed;">${p.assembly.toFixed(2)}</td>
+      <td style="padding:7px 8px;text-align:center;font-weight:700;color:#166534;">${p.sell.toFixed(2)}</td>
+      <td style="padding:7px 8px;text-align:center;font-weight:700;color:${profit>=0?'#166534':'#dc2626'};">${profit.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML=`
+    ${isClosed?`<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الحساب مغلق — ${_opToday()}</div>`:''}
+    <!-- Detailed table -->
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;">
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:420px;">
+          <thead>
+            <tr style="background:#1a3a2a;color:#fff;font-size:0.72rem;">
+              <th style="padding:8px;text-align:right;font-weight:600;">المنتج</th>
+              <th style="padding:8px;text-align:center;font-weight:600;">كمية</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#fef3c7;">🧱 مواد</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#bfdbfe;">⚙️ ماكينة</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#ddd6fe;">🔧 تركيب</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#bbf7d0;">💰 بيع</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#d4a843;">💵 ربح</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="background:#f9fafb;font-size:0.8rem;font-weight:800;border-top:2px solid var(--border);">
+              <td style="padding:8px;color:var(--text-dark);">المجموع</td>
+              <td style="padding:8px;text-align:center;">${prods.reduce((s,p)=>s+p.qty,0)}</td>
+              <td style="padding:8px;text-align:center;color:#92400e;">${totRaw.toFixed(2)}</td>
+              <td style="padding:8px;text-align:center;color:#1e40af;">${totMachine.toFixed(2)}</td>
+              <td style="padding:8px;text-align:center;color:#7c3aed;">${totAssembly.toFixed(2)}</td>
+              <td style="padding:8px;text-align:center;color:#166534;">${totSell.toFixed(2)}</td>
+              <td style="padding:8px;text-align:center;color:${isP?'#166534':'#dc2626'};">${totProfit.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <!-- Summary cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div style="background:#fefce8;border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div>
+        <div style="font-weight:800;color:#92400e;font-size:1rem;">${totRaw.toFixed(2)} د.أ</div>
+      </div>
+      <div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div>
+        <div style="font-weight:800;color:#1e40af;font-size:1rem;">${totMachine.toFixed(2)} د.أ</div>
+      </div>
+      <div style="background:#f5f3ff;border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:0.7rem;color:#7c3aed;margin-bottom:2px;">🔧 أجرة عامل التركيب</div>
+        <div style="font-weight:800;color:#7c3aed;font-size:1rem;">${totAssembly.toFixed(2)} د.أ</div>
+      </div>
+      <div style="background:#fef2f2;border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div>
+        <div style="font-weight:800;color:#dc2626;font-size:1rem;">${totCost.toFixed(2)} د.أ</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:0.7rem;color:#166534;margin-bottom:2px;">💰 إجمالي البيع</div>
+        <div style="font-weight:800;color:#166534;font-size:1.1rem;">${totSell.toFixed(2)} د.أ</div>
+      </div>
+      <div style="background:${isP?'#dcfce7':'#fee2e2'};border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:0.7rem;color:${isP?'#166534':'#dc2626'};margin-bottom:2px;">${isP?'✅ صافي الربح':'⚠️ الخسارة'}</div>
+        <div style="font-weight:900;color:${isP?'#166534':'#dc2626'};font-size:1.2rem;">${Math.abs(totProfit).toFixed(2)} د.أ</div>
+      </div>
+    </div>`;
+  // Action buttons
+  if(!isClosed){
+    actionsWrap.innerHTML=`
+      <button onclick="closeOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق حساب اليوم</button>
+      <button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
+      <button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
+  } else {
+    actionsWrap.innerHTML=`
+      <button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
+      <button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
+  }
+}
+
+async function closeOperatorDay(){
+  if(!confirm('إغلاق حساب اليوم؟ لن تتمكن من إضافة مبيعات جديدة بعد الغلق.')) return;
+  const today=_opToday();
+  const byProd={};
+  _opDailySales.forEach(s=>{
+    const key=s.productName;
+    if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,machine:0,assembly:0,sell:0};
+    byProd[key].qty+=s.qty||1;
+    byProd[key].raw+=(s.rawMaterialCost||0)*(s.qty||1);
+    byProd[key].machine+=(s.machineWorkerWage||0)*(s.qty||1);
+    byProd[key].assembly+=(s.assemblyWorkerWage||0)*(s.qty||1);
+    byProd[key].sell+=(s.sellPrice||0)*(s.qty||1);
+  });
+  const prods=Object.values(byProd);
+  const totRaw=prods.reduce((s,p)=>s+p.raw,0);
+  const totMachine=prods.reduce((s,p)=>s+p.machine,0);
+  const totAssembly=prods.reduce((s,p)=>s+p.assembly,0);
+  const totSell=prods.reduce((s,p)=>s+p.sell,0);
+  const totCost=totRaw+totMachine+totAssembly;
+  try{
+    _opDayRecord={date:today,status:'closed',totalRaw:totRaw,totalMachine:totMachine,totalAssembly:totAssembly,totalSell:totSell,totalCost:totCost,totalProfit:totSell-totCost,products:prods,salesCount:_opDailySales.length};
+    await db.collection('operator_daily_close').doc(today).set({..._opDayRecord,closedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast('🔒 تم إغلاق حساب اليوم');
+    checkOperatorDayStatus();
+    renderOperatorDailyView();
+  }catch(e){toast('❌ خطأ في الإغلاق');}
+}
+
+function _buildOpDayHTML(forPrint){
+  const today=_opToday();
+  const byProd={};
+  _opDailySales.forEach(s=>{
+    const key=s.productName;
+    if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,machine:0,assembly:0,sell:0};
+    byProd[key].qty+=s.qty||1;
+    byProd[key].raw+=(s.rawMaterialCost||0)*(s.qty||1);
+    byProd[key].machine+=(s.machineWorkerWage||0)*(s.qty||1);
+    byProd[key].assembly+=(s.assemblyWorkerWage||0)*(s.qty||1);
+    byProd[key].sell+=(s.sellPrice||0)*(s.qty||1);
+  });
+  const prods=Object.values(byProd);
+  const totRaw=prods.reduce((s,p)=>s+p.raw,0);
+  const totMachine=prods.reduce((s,p)=>s+p.machine,0);
+  const totAssembly=prods.reduce((s,p)=>s+p.assembly,0);
+  const totSell=prods.reduce((s,p)=>s+p.sell,0);
+  const totCost=totRaw+totMachine+totAssembly;
+  const totProfit=totSell-totCost;
+  const isP=totProfit>=0;
+  const rows=prods.map(p=>`<tr>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${p.name}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${p.qty}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#92400e;">${p.raw.toFixed(2)}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#1e40af;">${p.machine.toFixed(2)}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#7c3aed;">${p.assembly.toFixed(2)}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:#166534;">${p.sell.toFixed(2)}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${(p.sell-(p.raw+p.machine+p.assembly))>=0?'#166534':'#dc2626'};">${(p.sell-(p.raw+p.machine+p.assembly)).toFixed(2)}</td>
+  </tr>`).join('');
+  const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
+  return {rows,totRaw,totMachine,totAssembly,totSell,totCost,totProfit,isP,today,isClosed,prods};
+}
+
+function printOperatorDay(){
+  const d=_buildOpDayHTML(true);
+  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+<title>حساب المشغل — ${d.today}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
+h1{font-size:1.5rem;color:#1a3a2a;margin-bottom:2px;}
+.meta{font-size:0.85rem;color:#6b7280;margin-bottom:18px;padding-bottom:8px;border-bottom:2px solid #1a3a2a;}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+thead th{background:#1a3a2a;color:#fff;padding:10px 8px;font-size:0.8rem;}
+tfoot td{background:#f9fafb;font-weight:800;padding:8px;}
+tbody tr:nth-child(even){background:#f9fafb;}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.box{border-radius:8px;padding:10px;text-align:center;}
+.box .lbl{font-size:0.7rem;margin-bottom:3px;}
+.box .val{font-weight:800;font-size:1rem;}
+.total{display:flex;justify-content:space-between;padding:14px;border-radius:10px;font-size:1.1rem;font-weight:800;}
+@media print{body{padding:10px;}}
+</style></head><body>
+<h1>👤 حساب المشغل</h1>
+<div class="meta">التاريخ: ${d.today} | الحالة: ${d.isClosed?'🔒 مغلق':'🟢 مفتوح'} | عدد المبيعات: ${_opDailySales.length}</div>
+<table>
+<thead><tr>
+  <th style="text-align:right;">المنتج</th><th>كمية</th>
+  <th style="color:#fef3c7;">🧱 مواد</th><th style="color:#bfdbfe;">⚙️ ماكينة</th>
+  <th style="color:#ddd6fe;">🔧 تركيب</th><th style="color:#bbf7d0;">💰 بيع</th>
+  <th style="color:#d4a843;">💵 ربح</th>
+</tr></thead>
+<tbody>${d.rows}</tbody>
+<tfoot><tr>
+  <td style="padding:8px;">المجموع</td><td style="text-align:center;">${d.prods.reduce((s,p)=>s+p.qty,0)}</td>
+  <td style="text-align:center;color:#92400e;">${d.totRaw.toFixed(2)}</td>
+  <td style="text-align:center;color:#1e40af;">${d.totMachine.toFixed(2)}</td>
+  <td style="text-align:center;color:#7c3aed;">${d.totAssembly.toFixed(2)}</td>
+  <td style="text-align:center;color:#166534;">${d.totSell.toFixed(2)}</td>
+  <td style="text-align:center;color:${d.isP?'#166534':'#dc2626'};">${d.totProfit.toFixed(2)}</td>
+</tr></tfoot>
+</table>
+<div class="grid">
+  <div class="box" style="background:#fefce8;"><div class="lbl" style="color:#92400e;">🧱 مواد خام</div><div class="val" style="color:#92400e;">${d.totRaw.toFixed(2)} د.أ</div></div>
+  <div class="box" style="background:#eff6ff;"><div class="lbl" style="color:#1e40af;">⚙️ أجرة ماكينة</div><div class="val" style="color:#1e40af;">${d.totMachine.toFixed(2)} د.أ</div></div>
+  <div class="box" style="background:#f5f3ff;"><div class="lbl" style="color:#7c3aed;">🔧 أجرة تركيب</div><div class="val" style="color:#7c3aed;">${d.totAssembly.toFixed(2)} د.أ</div></div>
+</div>
+<div class="total" style="background:${d.isP?'#dcfce7':'#fee2e2'};color:${d.isP?'#166534':'#991b1b'};">
+  <div><div style="font-size:0.8rem;margin-bottom:4px;">إجمالي التكاليف: ${d.totCost.toFixed(2)} د.أ &nbsp;|&nbsp; إجمالي البيع: ${d.totSell.toFixed(2)} د.أ</div>
+  <div>صافي ${d.isP?'الربح':'الخسارة'}: ${Math.abs(d.totProfit).toFixed(2)} د.أ ${d.isP?'✅':'⚠️'}</div></div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+}
+
+function whatsappOperatorDay(){
+  const d=_buildOpDayHTML(false);
+  let msg=`👤 حساب المشغل — ${d.today}\n`;
+  msg+=d.isClosed?'🔒 مغلق\n':'🟢 مفتوح\n';
+  msg+=`━━━━━━━━━━━━\n`;
+  d.prods.forEach(p=>{
+    const cost=p.raw+p.machine+p.assembly;
+    msg+=`📦 ${p.name} ×${p.qty}\n`;
+    msg+=`  🧱 مواد: ${p.raw.toFixed(2)} | ⚙️ ماكينة: ${p.machine.toFixed(2)} | 🔧 تركيب: ${p.assembly.toFixed(2)}\n`;
+    msg+=`  💰 بيع: ${p.sell.toFixed(2)} | 💵 ربح: ${(p.sell-cost).toFixed(2)}\n`;
+  });
+  msg+=`━━━━━━━━━━━━\n`;
+  msg+=`🧱 مجموع المواد: ${d.totRaw.toFixed(2)} د.أ\n`;
+  msg+=`⚙️ مجموع الماكينة: ${d.totMachine.toFixed(2)} د.أ\n`;
+  msg+=`🔧 مجموع التركيب: ${d.totAssembly.toFixed(2)} د.أ\n`;
+  msg+=`💸 إجمالي التكاليف: ${d.totCost.toFixed(2)} د.أ\n`;
+  msg+=`💰 إجمالي البيع: ${d.totSell.toFixed(2)} د.أ\n`;
+  msg+=`${d.isP?'✅ صافي الربح':'⚠️ الخسارة'}: ${Math.abs(d.totProfit).toFixed(2)} د.أ`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
 function printAcctStatement(){
@@ -6807,6 +7129,12 @@ window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail;
 window.backToAcctList=backToAcctList; window.printAcctStatement=printAcctStatement;
 window.whatsappAcctStatement=whatsappAcctStatement;
+// Operator daily account
+window.openOperatorDailyAccount=openOperatorDailyAccount;
+window.checkOperatorDayStatus=checkOperatorDayStatus;
+window.closeOperatorDay=closeOperatorDay;
+window.printOperatorDay=printOperatorDay;
+window.whatsappOperatorDay=whatsappOperatorDay;
 window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
 window.loadOpProducts=loadOpProducts;
 window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore;
