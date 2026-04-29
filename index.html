@@ -2362,14 +2362,30 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <!-- Product select -->
           <div class="fg" style="margin-bottom:10px;">
             <label>📦 المنتج</label>
-            <select id="opsale_prod_sel" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            <select id="opsale_prod_sel" onchange="onSaleProdChange(this)" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
               <option value="">اختر المنتج...</option>
             </select>
           </div>
-          <!-- Quantity -->
-          <div class="fg" style="margin-bottom:10px;">
-            <label>🔢 الكمية</label>
-            <input type="number" id="opsale_qty" min="1" value="1" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+          <!-- Quantity + Sell Price (side by side) -->
+          <div class="form-row" style="margin-bottom:10px;">
+            <div class="fg">
+              <label>🔢 الكمية</label>
+              <input type="number" id="opsale_qty" min="1" value="1" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <div class="fg">
+              <label>💰 سعر البيع لهذا المتجر (د.أ)</label>
+              <input type="number" id="opsale_sell" min="0" step="0.5" placeholder="0.00" style="width:100%;padding:11px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
+            </div>
+          </div>
+          <!-- Cost breakdown (readonly info) -->
+          <div id="opsale_cost_info" style="display:none;background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;">
+            <div style="font-weight:700;color:var(--text-mid);margin-bottom:6px;">📊 تكاليف المنتج (للمعلومية)</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <span>🧱 مواد: <strong id="opsale_info_raw" style="color:#92400e;">0</strong></span>
+              <span>⚙️ ماكينة: <strong id="opsale_info_machine" style="color:#1e40af;">0</strong></span>
+              <span>🔧 تركيب: <strong id="opsale_info_assembly" style="color:#7c3aed;">0</strong></span>
+              <span>💵 ربح متوقع: <strong id="opsale_info_profit" style="color:#166534;">—</strong></span>
+            </div>
           </div>
           <!-- Notes -->
           <div class="fg" style="margin-bottom:14px;">
@@ -4968,13 +4984,42 @@ async function loadTodaySales(){
   }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;text-align:center;padding:10px;">خطأ في التحميل</div>';}
 }
 
+// Auto-fill sell price + show cost info when product selected
+function onSaleProdChange(sel){
+  const opt=sel.options[sel.selectedIndex];
+  const sellInp=document.getElementById('opsale_sell');
+  const infoBox=document.getElementById('opsale_cost_info');
+  if(!sel.value){
+    if(sellInp) sellInp.value='';
+    if(infoBox) infoBox.style.display='none';
+    return;
+  }
+  const raw=parseFloat(opt.dataset.raw)||0;
+  const machine=parseFloat(opt.dataset.machine)||0;
+  const assembly=parseFloat(opt.dataset.assembly)||0;
+  const sell=parseFloat(opt.dataset.sell)||0;
+  if(sellInp) sellInp.value=sell||'';
+  if(infoBox){
+    infoBox.style.display='block';
+    document.getElementById('opsale_info_raw').textContent=raw.toFixed(2)+' د.أ';
+    document.getElementById('opsale_info_machine').textContent=machine.toFixed(2)+' د.أ';
+    document.getElementById('opsale_info_assembly').textContent=assembly.toFixed(2)+' د.أ';
+    const profit=sell-(raw+machine+assembly);
+    const pEl=document.getElementById('opsale_info_profit');
+    pEl.textContent=profit.toFixed(2)+' د.أ';
+    pEl.style.color=profit>=0?'#166534':'#dc2626';
+  }
+}
+
 async function saveSaleEntry(){
   const stSel=document.getElementById('opsale_store_sel');
   const prSel=document.getElementById('opsale_prod_sel');
   const qty=parseFloat(document.getElementById('opsale_qty').value)||1;
   const notes=document.getElementById('opsale_notes').value.trim();
+  const customSell=parseFloat(document.getElementById('opsale_sell').value);
   if(!stSel.value){toast('⚠️ اختر المتجر');return;}
   if(!prSel.value){toast('⚠️ اختر المنتج');return;}
+  if(isNaN(customSell)||customSell<0){toast('⚠️ أدخل سعر البيع');return;}
   const stOpt=stSel.options[stSel.selectedIndex];
   const prOpt=prSel.options[prSel.selectedIndex];
   const today=new Date().toISOString().slice(0,10);
@@ -4986,13 +5031,16 @@ async function saveSaleEntry(){
       rawMaterialCost:parseFloat(prOpt.dataset.raw)||0,
       machineWorkerWage:parseFloat(prOpt.dataset.machine)||0,
       assemblyWorkerWage:parseFloat(prOpt.dataset.assembly)||0,
-      sellPrice:parseFloat(prOpt.dataset.sell)||0,
+      sellPrice:customSell,
       notes, date:today,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     stSel.value=''; prSel.value='';
     document.getElementById('opsale_qty').value='1';
+    document.getElementById('opsale_sell').value='';
     document.getElementById('opsale_notes').value='';
+    const infoBox=document.getElementById('opsale_cost_info');
+    if(infoBox) infoBox.style.display='none';
     toast('✅ تم حفظ المبيعة');
     loadTodaySales();
   }catch(e){toast('❌ خطأ في الحفظ');}
@@ -7124,6 +7172,7 @@ window.shareOperatorReport=shareOperatorReport;
 window.switchOpTab=switchOpTab;
 // Sales tab
 window.saveSaleEntry=saveSaleEntry; window.deleteSaleEntry=deleteSaleEntry;
+window.onSaleProdChange=onSaleProdChange;
 window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 // Account statement tab
 window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail;
