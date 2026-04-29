@@ -4529,13 +4529,15 @@ let _editingProductId=null;
 
 async function loadOpProducts(){
   try{
-    const [pSnap,sSnap]=await Promise.all([
-      db.collection('operator_products').orderBy('name').get(),
-      db.collection('operator_stores').orderBy('name').get()
-    ]);
-    _opProductsList=pSnap.docs.map(d=>({id:d.id,...d.data()}));
-    _opStoresList=sSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const snap=await db.collection('operator_products').orderBy('name').get();
+    _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opProductsList=[];}
+  if(!_opStoresList.length){
+    try{
+      const snap=await db.collection('operator_stores').orderBy('name').get();
+      _opStoresList=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){}
+  }
   renderOpProductsList();
   renderStorePricesForm();
 }
