@@ -7355,7 +7355,7 @@ function renderBalanceSummary(){
   const totalPayments=_opBalPayments.reduce((s,p)=>s+(p.amount||0),0);
   const capitalBase=_opBalSettings.capitalBase||0;
   const totalCapital=capitalBase+totalPurchases-totalPayments;
-  const milkBalance=_opBalSalesRaw-totalPurchases-totalPayments;
+  const milkBalance=_opBalSalesRaw+totalPayments-totalPurchases;
   wrap.innerHTML=`
     <!-- رأس المال الرئيسي — big editable card -->
     <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
@@ -7371,7 +7371,7 @@ function renderBalanceSummary(){
         <div>
           <div style="font-size:0.82rem;font-weight:700;color:${milkBalance>0?'#92400e':'#166534'};margin-bottom:4px;">👤 ملك</div>
           <div style="font-size:1.5rem;font-weight:900;color:${milkBalance>0?'#92400e':'#166534'};">${milkBalance.toFixed(2)} د.أ</div>
-          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات ${_opBalSalesRaw.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)} − مدفوعات ${totalPayments.toFixed(2)}</div>
+          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات ${_opBalSalesRaw.toFixed(2)} + مدفوعات ${totalPayments.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)}</div>
         </div>
         <div style="font-size:2rem;">${milkBalance>0?'🔴':'✅'}</div>
       </div>
