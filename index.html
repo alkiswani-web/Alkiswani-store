@@ -7373,7 +7373,8 @@ function renderBalanceSummary(){
   const totalCapital=capitalBase+totalPurchases-totalPayments;
   const malikDutiesAdj=_opBalSettings.malikDutiesAdj||0;
   const totalDuties=_opBalSalesRaw+malikDutiesAdj;
-  const milkBalance=totalDuties-totalPayments-totalPurchases;
+  const milkDebt=totalDuties-totalPayments;       // مستحقات − مدفوعات
+  const milkCash=totalPayments-totalPurchases;    // رصيد كاش معها = مدفوعات − مشتريات
   wrap.innerHTML=`
     <!-- رأس المال الرئيسي — big editable card -->
     <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
@@ -7384,20 +7385,24 @@ function renderBalanceSummary(){
         style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
     </div>
     <!-- ملك card -->
-    <div style="background:${milkBalance>0?'#fef3c7':'#f0fdf4'};border:1.5px solid ${milkBalance>0?'#fcd34d':'#86efac'};border-radius:12px;padding:16px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:0.82rem;font-weight:700;color:${milkBalance>0?'#92400e':'#166534'};margin-bottom:4px;">👤 ملك</div>
-          <div style="font-size:1.5rem;font-weight:900;color:${milkBalance>0?'#92400e':'#166534'};">${milkBalance.toFixed(2)} د.أ</div>
-          <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">مستحقات ${totalDuties.toFixed(2)} − مدفوعات ${totalPayments.toFixed(2)} − مشتريات ${totalPurchases.toFixed(2)}</div>
-        </div>
+    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);">👤 ملك</div>
         <button onclick="document.getElementById('opbal_duties_form').style.display='block';document.getElementById('opbal_duties_inp').value='${totalDuties.toFixed(2)}'"
-          style="background:rgba(0,0,0,0.08);border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;color:${milkBalance>0?'#78350f':'#166534'};">✏️ تعديل المستحقات</button>
+          style="background:var(--border);border:none;padding:4px 10px;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;color:var(--text-mid);">✏️ تعديل المستحقات</button>
       </div>
-      ${milkBalance>0
-        ?`<div style="margin-top:10px;background:#fde68a;border-radius:8px;padding:8px 10px;font-size:0.78rem;color:#78350f;font-weight:600;">⚠️ مستحق لملك ${milkBalance.toFixed(2)} د.أ — سجّل شراء لتسوية الرصيد</div>`
-        :`<div style="margin-top:10px;background:#dcfce7;border-radius:8px;padding:8px 10px;font-size:0.78rem;color:#166534;font-weight:600;">✅ تم تسوية حساب ملك</div>`
-      }
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="background:${milkDebt>0?'#fef3c7':'#f0fdf4'};border:1.5px solid ${milkDebt>0?'#fcd34d':'#86efac'};border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:0.72rem;font-weight:700;color:${milkDebt>0?'#92400e':'#166534'};margin-bottom:4px;">🔴 مستحقات عليك</div>
+          <div style="font-size:1.2rem;font-weight:900;color:${milkDebt>0?'#92400e':'#166534'};">${milkDebt.toFixed(2)}</div>
+          <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
+        </div>
+        <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:4px;">💵 رصيد معها</div>
+          <div style="font-size:1.2rem;font-weight:900;color:#1e40af;">${milkCash.toFixed(2)}</div>
+          <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
+        </div>
+      </div>
     </div>`;
 }
 
