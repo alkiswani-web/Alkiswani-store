@@ -2533,6 +2533,48 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل المدفوعات لملك</div>
         <div id="opbal_payments_list"></div>
 
+        <!-- ===== رصيد المحل ===== -->
+        <div style="margin-top:24px;padding-top:20px;border-top:2px dashed var(--border);">
+          <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">🏬 رصيد المحل</div>
+
+          <!-- Balance card -->
+          <div id="opstore_bal_card" style="margin-bottom:14px;"></div>
+
+          <!-- Add transaction form -->
+          <div class="form-card" style="margin-bottom:14px;">
+            <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">➕ تسجيل حركة</div>
+            <!-- Type toggle -->
+            <div style="display:flex;gap:0;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:12px;">
+              <button id="opstore_type_deposit" onclick="setStoreBalType('deposit')"
+                style="flex:1;padding:10px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💚 إيداع</button>
+              <button id="opstore_type_withdraw" onclick="setStoreBalType('withdraw')"
+                style="flex:1;padding:10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1.5px solid var(--border);">🔴 سحب</button>
+            </div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>💵 المبلغ (د.أ)</label>
+                <input type="number" id="opstore_bal_amount" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>📅 التاريخ</label>
+                <input type="date" id="opstore_bal_date"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+            <div class="fg" style="margin-bottom:10px;">
+              <label>📝 ملاحظات</label>
+              <input type="text" id="opstore_bal_notes" placeholder="سبب الحركة..."
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <button onclick="addStoreTx()" style="width:100%;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+          </div>
+
+          <!-- Transaction history -->
+          <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل الحركات</div>
+          <div id="opstore_tx_list"></div>
+        </div>
+
       </div>
 
     </div>
@@ -7355,13 +7397,14 @@ async function loadBalanceTab(){
     },0);
   }catch(e){_opBalSalesRaw=0;}
   // Set today's date in forms
-  ['opbal_buy_date','opbal_pay_date'].forEach(id=>{
+  ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
     if(el&&!el.value) el.value=new Date().toISOString().slice(0,10);
   });
   renderBalanceSummary();
   renderBalancePurchases();
   renderBalancePayments();
+  loadStoreTx();
 }
 
 function renderBalanceSummary(){
@@ -7522,10 +7565,107 @@ function renderBalancePurchases(){
     </div>`).join('');
 }
 
+// ===== STORE BALANCE (رصيد المحل) =====
+let _opStoreTxList=[];
+let _opStoreTxType='deposit';
+
+function setStoreBalType(type){
+  _opStoreTxType=type;
+  const dep=document.getElementById('opstore_type_deposit');
+  const wth=document.getElementById('opstore_type_withdraw');
+  if(dep&&wth){
+    dep.style.background=type==='deposit'?'var(--green-dark)':'var(--card-bg)';
+    dep.style.color=type==='deposit'?'#fff':'var(--text-mid)';
+    dep.style.fontWeight=type==='deposit'?'700':'400';
+    wth.style.background=type==='withdraw'?'#dc2626':'var(--card-bg)';
+    wth.style.color=type==='withdraw'?'#fff':'var(--text-mid)';
+    wth.style.fontWeight=type==='withdraw'?'700':'400';
+  }
+}
+
+async function loadStoreTx(){
+  try{
+    const snap=await db.collection('operator_store_balance').orderBy('date','desc').get();
+    _opStoreTxList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    try{
+      const snap=await db.collection('operator_store_balance').get();
+      _opStoreTxList=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e2){_opStoreTxList=[];}
+  }
+  renderStoreTx();
+}
+
+function renderStoreTx(){
+  const totalIn=_opStoreTxList.filter(t=>t.type==='deposit').reduce((s,t)=>s+(t.amount||0),0);
+  const totalOut=_opStoreTxList.filter(t=>t.type==='withdraw').reduce((s,t)=>s+(t.amount||0),0);
+  const bal=totalIn-totalOut;
+  const card=document.getElementById('opstore_bal_card');
+  if(card) card.innerHTML=`
+    <div style="background:linear-gradient(135deg,#1e3a5f,#1e40af);border-radius:14px;padding:16px;color:#fff;">
+      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">💰 الرصيد الحالي للمحل</div>
+      <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${bal.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:0.68rem;opacity:0.85;">💚 إجمالي الإيداعات</div>
+          <div style="font-weight:800;font-size:0.95rem;">${totalIn.toFixed(2)} د.أ</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:0.68rem;opacity:0.85;">🔴 إجمالي السحبيات</div>
+          <div style="font-weight:800;font-size:0.95rem;">${totalOut.toFixed(2)} د.أ</div>
+        </div>
+      </div>
+    </div>`;
+  const wrap=document.getElementById('opstore_tx_list');
+  if(!wrap) return;
+  if(!_opStoreTxList.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد حركات بعد</div>';
+    return;
+  }
+  wrap.innerHTML=_opStoreTxList.map(t=>{
+    const isD=t.type==='deposit';
+    return `<div style="background:var(--card-bg);border:1px solid ${isD?'#86efac':'#fca5a5'};border-right:4px solid ${isD?'#16a34a':'#dc2626'};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;color:${isD?'#166534':'#dc2626'};font-size:0.9rem;">${isD?'💚':'🔴'} ${isD?'إيداع':'سحب'} — ${(t.amount||0).toFixed(2)} د.أ</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);">📅 ${t.date||''}${t.notes?' — '+t.notes:''}</div>
+      </div>
+      <button onclick="deleteStoreTx('${t.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function addStoreTx(){
+  const amount=parseFloat(document.getElementById('opstore_bal_amount').value);
+  const date=document.getElementById('opstore_bal_date').value;
+  const notes=document.getElementById('opstore_bal_notes').value.trim();
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!date){toast('⚠️ اختر التاريخ');return;}
+  try{
+    await db.collection('operator_store_balance').add({
+      type:_opStoreTxType,amount,date,notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('opstore_bal_amount').value='';
+    document.getElementById('opstore_bal_notes').value='';
+    toast('✅ تم الحفظ');
+    loadStoreTx();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteStoreTx(id){
+  if(!confirm('حذف هذه الحركة؟')) return;
+  try{
+    await db.collection('operator_store_balance').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadStoreTx();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
 window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
 window.saveMalikDuties=saveMalikDuties;
 window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=deleteBalancePurchase;
 window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
+window.setStoreBalType=setStoreBalType; window.addStoreTx=addStoreTx; window.deleteStoreTx=deleteStoreTx;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
