@@ -2866,6 +2866,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
+function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});}
+function jordanDisplayDate(opts={}){return new Date().toLocaleDateString('ar-JO',{timeZone:'Asia/Amman',...opts});}
+
 // ===== CONFIG =====
 const ADMIN_USER='alkiswani', ADMIN_PASS='rosemary2026', WA='962775665598';
 
@@ -3346,7 +3349,7 @@ async function addDiscountCode(){
   const products_allowed=scope==='specific'?getDcSelectedProducts():[];
   const editingCode=document.getElementById('dcEditingCode').value;
   if(!code||!value){toast('❌ أدخل الكود والقيمة');return;}
-  const dc={code,type,value,limit,expiry:expiry||'',createdAt:new Date().toLocaleDateString('ar-JO'),isWelcome,scope,products_allowed};
+  const dc={code,type,value,limit,expiry:expiry||'',createdAt:jordanDisplayDate(),isWelcome,scope,products_allowed};
   if(editingCode){
     const existing=await db.collection('discounts').doc(editingCode).get();
     dc.usedCount=existing.data()?.usedCount||0;
@@ -3453,7 +3456,7 @@ async function confirmOrder(){
     if(cu){
       cu.points=(cu.points||0)+earnedPts;
       cu.orders=cu.orders||[];
-      cu.orders.push({id:'#'+Date.now().toString().slice(-6),items:cart.map(i=>i.name+' ×'+i.qty),total:total.toFixed(2)+' دينار أردني',date:new Date().toLocaleDateString('ar-JO')});
+      cu.orders.push({id:'#'+Date.now().toString().slice(-6),items:cart.map(i=>i.name+' ×'+i.qty),total:total.toFixed(2)+' دينار أردني',date:jordanDisplayDate()});
       await updateCustomerInFirebase(cu);
       currentUser.points=cu.points;
       save('ak_currentUser',currentUser);
@@ -3470,7 +3473,7 @@ async function confirmOrder(){
     delivery:delivery+' دينار أردني',
     discount:discountVal>0?discountText:'لا يوجد',
     total:total.toFixed(2)+' دينار أردني',
-    date:new Date().toLocaleDateString('ar-JO'),
+    date:jordanDisplayDate(),
     status:'جديد'
   };
   await db.collection('orders').doc(String(order.id)).set(order);
@@ -3530,7 +3533,7 @@ async function doCustomerRegister(){
   await loadCustomers();
   if(customers.find(c=>c.phone===phone)){err.textContent='❌ هذا الرقم مسجل مسبقاً';err.style.display='block';return;}
   const bonus=pointsSettings.enabled?pointsSettings.onRegister:0;
-  const newCust={id:Date.now(),name,phone,password:pass,points:bonus,orders:[],joinDate:new Date().toLocaleDateString('ar-JO')};
+  const newCust={id:Date.now(),name,phone,password:pass,points:bonus,orders:[],joinDate:jordanDisplayDate()};
   await saveCustomerToFirebase(newCust);
   customers.push(newCust);
   currentUser={...newCust};
@@ -4383,7 +4386,7 @@ async function submitRating(){
   if(!selectedStars){toast('⭐ يرجى اختيار عدد النجوم');return;}
   const p=products.find(x=>String(x.id)===String(currentRatingProductId));
   if(!p)return;
-  const review={stars:selectedStars,text:document.getElementById('reviewText').value.trim(),author:currentUser?currentUser.name:'زبون',date:new Date().toLocaleDateString('ar-JO')};
+  const review={stars:selectedStars,text:document.getElementById('reviewText').value.trim(),author:currentUser?currentUser.name:'زبون',date:jordanDisplayDate()};
   p.reviews=p.reviews||[];
   p.reviews.push(review);
   await db.collection('products').doc(String(p.id)).update({reviews:p.reviews});
@@ -4542,7 +4545,7 @@ async function transferNewOrders(){
   const newOrders=(window._allOrders||[]).filter(o=>(o.status||'جديد')==='جديد');
   if(!newOrders.length){toast('⚠️ ما في طلبات جديدة');return;}
   if(!confirm(`سيتم ترحيل ${newOrders.length} طلب لواتساب ونقلهم لـ"قيد التجهيز". تأكيد؟`)){return;}
-  const date=new Date().toLocaleDateString('ar-JO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const date=jordanDisplayDate({weekday:'long',year:'numeric',month:'long',day:'numeric'});
   let msg=`📋 *ترحيل الطلبات الجديدة*\n🌿 الكسواني روزميري\n📅 ${date}\n\n`;
   newOrders.forEach((o,i)=>{
     const items=(o.items||[]).map(it=>it.name+' ×'+it.qty+(it.writing?' ✍️ '+it.writing:'')).join('، ');
@@ -4594,7 +4597,7 @@ async function sendDailyReport(){
   try{
     const snap=await db.collection('orders').get();
     const orders=snap.docs.map(d=>d.data());
-    const today=new Date().toLocaleDateString('ar-JO');
+    const today=jordanDisplayDate();
     const todayOrders=orders.filter(o=>o.date===today);
     const totalToday=todayOrders.reduce((s,o)=>s+parseFloat((o.total||'0').replace(/[^0-9.]/g,'')),0);
     const allTotal=orders.reduce((s,o)=>s+parseFloat((o.total||'0').replace(/[^0-9.]/g,'')),0);
@@ -4838,7 +4841,7 @@ function renderOpStoresList(){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد متاجر — أضف متجراً جديداً</div>';
     return;
   }
-  const today=new Date().toISOString().slice(0,10);
+  const today=jordanDateStr();
   wrap.innerHTML=_opStoresList.map(s=>`
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
       <div>
@@ -5184,7 +5187,7 @@ function initSalesTab(){
 }
 
 async function loadTodaySales(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=jordanDateStr();
   const wrap=document.getElementById('opsale_today_list');
   if(!wrap) return;
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ تحميل...</div>';
@@ -5263,7 +5266,7 @@ async function saveSaleEntry(){
   if(isNaN(customSell)||customSell<0){toast('⚠️ أدخل سعر البيع');return;}
   const stOpt=stSel.options[stSel.selectedIndex];
   const prOpt=prSel.options[prSel.selectedIndex];
-  const today=new Date().toISOString().slice(0,10);
+  const today=jordanDateStr();
   try{
     await db.collection('operator_sales').add({
       storeId:stSel.value, storeName:stOpt.text,
@@ -5390,7 +5393,7 @@ function backToAcctList(){
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
 let _opDayRecord=null;
-const _opToday=()=>new Date().toISOString().slice(0,10);
+const _opToday=()=>jordanDateStr();
 
 async function checkOperatorDayStatus(){
   const badge=document.getElementById('opacct_op_status_badge');
@@ -5707,7 +5710,7 @@ tbody tr:nth-child(even){background:#f9fafb;}
 @media print{body{padding:10px;}}
 </style></head><body>
 <h1>🏪 كشف حساب — ${_acctCurrentStore.name}</h1>
-<div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-JO')}</div>
+<div class="meta">تاريخ الطباعة: ${jordanDisplayDate()}</div>
 <table>
 <thead><tr>
   <th style="text-align:right;">التاريخ</th>
@@ -5745,7 +5748,7 @@ function whatsappAcctStatement(){
 
 // ===== OPERATOR LEDGER (existing — kept as-is under "الكشف" sub-tab) =====
 let _opChannels=[];
-function getOpDate(){return document.getElementById('op_date').value||new Date().toISOString().slice(0,10);}
+function getOpDate(){return document.getElementById('op_date').value||jordanDateStr();}
 function _opDefaultChannels(){return [{name:'الموقع الإلكتروني',type:'site',items:[]}];}
 
 async function loadOperatorLedger(){
@@ -5943,7 +5946,7 @@ function shareOperatorReport(){
 // ===== VISITOR TRACKING =====
 async function trackVisit(){
   try{
-    const today=new Date().toISOString().slice(0,10);
+    const today=jordanDateStr();
     const ref=db.collection('settings').doc('visitors');
     const snap=await ref.get();
     const existing=snap.exists?snap.data():{};
@@ -6506,14 +6509,14 @@ async function submitCustomerPhoto(){
     await db.collection('customerPhotos').add({
       name,phone,city:city||'الأردن',img:imgUrl,
       status:'pending',discountCode:discCode,
-      date:new Date().toLocaleDateString('ar-JO')
+      date:jordanDisplayDate()
     });
     // Save discount code in discounts collection (1 use, 5%)
     await db.collection('discounts').doc(discCode).set({
       code:discCode,type:'percent',value:5,limit:1,
       usedCount:0,expiry:'',isWelcome:false,scope:'all',products_allowed:[],
       isPhotoCode:true,phone,
-      createdAt:new Date().toLocaleDateString('ar-JO')
+      createdAt:jordanDisplayDate()
     });
     closePhotoModal();
     document.getElementById('pmName').value='';
@@ -6627,7 +6630,7 @@ function buildGreetingScene(time){
 
 function showWelcome(){
   // مفتاح فريد لكل فترة + يوم
-  const today=new Date().toISOString().slice(0,10); // 2026-04-21
+  const today=jordanDateStr();
   const time=getTimeOfDay();
   const key='ak_greeting_'+today+'_'+time;
   if(localStorage.getItem(key)) return;
@@ -6657,7 +6660,7 @@ function showWelcome(){
 
 function closeGreeting(){
   document.getElementById('greetingOverlay').classList.remove('show');
-  const today=new Date().toISOString().slice(0,10);
+  const today=jordanDateStr();
   const time=getTimeOfDay();
   const key='ak_greeting_'+today+'_'+time;
   localStorage.setItem(key,'1');
@@ -6700,14 +6703,14 @@ async function processReferralOnOrder(phone,name){
   if(refCode==='REF'+phone.replace(/[^0-9]/g,'').slice(-6)) return;
   const existing=await db.collection('referrals').where('refCode','==',refCode).where('phone','==',phone).get();
   if(!existing.empty) return;
-  await db.collection('referrals').add({refCode,phone,name,date:new Date().toLocaleDateString('ar-JO')});
+  await db.collection('referrals').add({refCode,phone,name,date:jordanDisplayDate()});
   localStorage.removeItem('ak_ref');
   const referrerPhone='962'+refCode.replace('REF','');
   const rewardCode='REWARD'+refCode+Date.now().toString().slice(-4);
   await db.collection('discounts').doc(rewardCode).set({
     code:rewardCode,type:'percent',value:10,limit:1,usedCount:0,
     expiry:'',isWelcome:false,scope:'all',products_allowed:[],isReferral:true,
-    createdAt:new Date().toLocaleDateString('ar-JO')
+    createdAt:jordanDisplayDate()
   });
   const msg=`🌿 *الكسواني روزميري*\n\n🎉 مبروك! ${name} طلب من رابط دعوتك!\n\nهديتك كود خصم 10%:\n\n🎁 *${rewardCode}*\n\nاستخدمه على طلبك القادم 💚`;
   setTimeout(()=>window.open(`https://wa.me/${referrerPhone}?text=${encodeURIComponent(msg)}`,'_blank'),2000);
@@ -7399,7 +7402,7 @@ async function loadBalanceTab(){
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el&&!el.value) el.value=new Date().toISOString().slice(0,10);
+    if(el&&!el.value) el.value=jordanDateStr();
   });
   renderBalanceSummary();
   renderBalancePurchases();
