@@ -5216,9 +5216,6 @@ function renderAcctDetail(){
     byDate[s.date].push(s);
   });
   const totalSell=_acctCurrentSales.reduce((sum,s)=>(s.sellPrice||0)*(s.qty||1)+sum,0);
-  const totalCost=_acctCurrentSales.reduce((sum,s)=>((s.rawMaterialCost||0)+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0))*(s.qty||1)+sum,0);
-  const profit=totalSell-totalCost;
-  const isP=profit>=0;
   const dateRows=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,items])=>{
     const dayTotal=items.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
     const rows=items.map(it=>`
@@ -5240,21 +5237,11 @@ function renderAcctDetail(){
   }).join('');
   body.innerHTML=`
     <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;">
-      <div style="background:${isP?'var(--green-dark)':'#991b1b'};padding:12px 14px;color:#fff;font-weight:700;font-size:0.9rem;">📊 ملخص حساب ${_acctCurrentStore.name}</div>
+      <div style="background:var(--green-dark);padding:12px 14px;color:#fff;font-weight:700;font-size:0.9rem;">📊 ملخص حساب ${_acctCurrentStore.name}</div>
       <div style="padding:14px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-          <div style="background:#f0fdf4;border-radius:9px;padding:10px;text-align:center;">
-            <div style="font-size:0.7rem;color:#166534;margin-bottom:2px;">💰 إجمالي المبيعات</div>
-            <div style="font-weight:800;color:#166534;font-size:1.1rem;">${totalSell.toFixed(2)} د.أ</div>
-          </div>
-          <div style="background:#fef2f2;border-radius:9px;padding:10px;text-align:center;">
-            <div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div>
-            <div style="font-weight:800;color:#dc2626;font-size:1.1rem;">${totalCost.toFixed(2)} د.أ</div>
-          </div>
-        </div>
-        <div style="background:${isP?'#dcfce7':'#fee2e2'};border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-weight:800;color:${isP?'#166534':'#991b1b'};">صافي ${isP?'الربح':'الخسارة'}</span>
-          <span style="font-weight:900;color:${isP?'#166534':'#991b1b'};font-size:1.2rem;">${Math.abs(profit).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+        <div style="background:#f0fdf4;border-radius:9px;padding:14px;text-align:center;">
+          <div style="font-size:0.75rem;color:#166534;margin-bottom:4px;">💰 إجمالي المبيعات</div>
+          <div style="font-weight:900;color:#166534;font-size:1.4rem;">${totalSell.toFixed(2)} د.أ</div>
         </div>
       </div>
     </div>
@@ -5568,9 +5555,6 @@ function whatsappOperatorDay(){
 function printAcctStatement(){
   if(!_acctCurrentStore||!_acctCurrentSales.length) return;
   const totalSell=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
-  const totalCost=_acctCurrentSales.reduce((s,it)=>((it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0))*(it.qty||1)+s,0);
-  const profit=totalSell-totalCost;
-  const isP=profit>=0;
   const rows=_acctCurrentSales.map(it=>`
     <tr>
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.date}</td>
@@ -5591,11 +5575,11 @@ h1{font-size:1.5rem;color:#1a3a2a;margin-bottom:4px;}
 table{width:100%;border-collapse:collapse;margin-bottom:20px;}
 thead th{background:#1a3a2a;color:#fff;padding:10px 8px;font-size:0.82rem;}
 tbody tr:nth-child(even){background:#f9fafb;}
-.total{display:flex;justify-content:space-between;padding:14px 16px;border-radius:10px;font-size:1.1rem;font-weight:800;}
+.total{padding:14px 16px;border-radius:10px;font-size:1.1rem;font-weight:800;display:flex;justify-content:space-between;}
 @media print{body{padding:10px;}}
 </style></head><body>
 <h1>🏪 كشف حساب — ${_acctCurrentStore.name}</h1>
-<div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-JO')} | إجمالي الإيرادات: ${totalSell.toFixed(2)} د.أ</div>
+<div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-JO')}</div>
 <table>
 <thead><tr>
   <th style="text-align:right;">التاريخ</th>
@@ -5607,19 +5591,9 @@ tbody tr:nth-child(even){background:#f9fafb;}
 </tr></thead>
 <tbody>${rows}</tbody>
 </table>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-  <div style="background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">
-    <div style="font-size:0.72rem;color:#166534;margin-bottom:3px;">💰 إجمالي المبيعات</div>
-    <div style="font-weight:800;color:#166534;font-size:1.1rem;">${totalSell.toFixed(2)} د.أ</div>
-  </div>
-  <div style="background:#fef2f2;border-radius:8px;padding:10px;text-align:center;">
-    <div style="font-size:0.72rem;color:#dc2626;margin-bottom:3px;">💸 إجمالي التكاليف</div>
-    <div style="font-weight:800;color:#dc2626;font-size:1.1rem;">${totalCost.toFixed(2)} د.أ</div>
-  </div>
-</div>
-<div class="total" style="background:${isP?'#dcfce7':'#fee2e2'};color:${isP?'#166534':'#991b1b'};">
-  <span>صافي ${isP?'الربح':'الخسارة'}</span>
-  <span>${Math.abs(profit).toFixed(2)} د.أ ${isP?'✅':'⚠️'}</span>
+<div class="total" style="background:#dcfce7;color:#166534;">
+  <span>💰 إجمالي المبيعات</span>
+  <span>${totalSell.toFixed(2)} د.أ</span>
 </div>
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
@@ -5630,18 +5604,14 @@ tbody tr:nth-child(even){background:#f9fafb;}
 function whatsappAcctStatement(){
   if(!_acctCurrentStore||!_acctCurrentSales.length) return;
   const totalSell=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
-  const totalCost=_acctCurrentSales.reduce((s,it)=>((it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0))*(it.qty||1)+s,0);
-  const profit=totalSell-totalCost;
-  let msg=`📊 كشف حساب — ${_acctCurrentStore.name}\n━━━━━━━━━━━━\n`;
+  let msg=`🏪 كشف حساب — ${_acctCurrentStore.name}\n━━━━━━━━━━━━\n`;
   const byDate={};
   _acctCurrentSales.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
   Object.entries(byDate).sort().forEach(([date,items])=>{
     msg+=`📅 ${date}:\n`;
     items.forEach(it=>{msg+=`  • ${it.productName} ×${it.qty} = ${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ${it.notes?' ('+it.notes+')':''}\n`;});
   });
-  msg+=`━━━━━━━━━━━━\n💰 إجمالي المبيعات: ${totalSell.toFixed(2)} د.أ\n`;
-  msg+=`💸 إجمالي التكاليف: ${totalCost.toFixed(2)} د.أ\n`;
-  msg+=`${profit>=0?'✅ صافي الربح':'⚠️ الخسارة'}: ${Math.abs(profit).toFixed(2)} د.أ`;
+  msg+=`━━━━━━━━━━━━\n💰 الإجمالي: ${totalSell.toFixed(2)} د.أ`;
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
