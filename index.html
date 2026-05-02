@@ -2282,8 +2282,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <input type="text" id="dlv_notes" placeholder="ملاحظات (اختياري)" style="flex:2;padding:10px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);outline:none;">
           </div>
         </div>
+        <!-- Pending carts summary -->
+        <div id="dlv_pending_wrap" style="margin-bottom:12px;"></div>
         <!-- Save button -->
-        <button onclick="saveDlvOrder()" id="dlv_save_btn" style="width:100%;padding:14px;background:#c9a84c;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:1px;">💾 حفظ التسليم</button>
+        <button onclick="saveDlvOrder()" id="dlv_save_btn" style="width:100%;padding:14px;background:#c9a84c;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:1px;">💾 حفظ الكل للكشف</button>
       </div>
 
       <!-- ========== PRODUCTS SUB-TAB ========== -->
@@ -4895,23 +4897,23 @@ function switchOpTab(tab){
 }
 
 // ===== QUICK DELIVER TAB (تسليم سريع) =====
-let _dlvCart=[];
+// Per-store carts: {storeId: {storeName, items: []}}
+let _dlvCarts={};
+let _dlvCurrentStoreId='';
 
 async function initDlvTab(){
   if(!_opStoresList.length) await loadOpStores();
   if(!_opProductsList.length) await loadOpProducts();
-  // populate store dropdown
   const storeSel=document.getElementById('dlv_store');
   storeSel.innerHTML='<option value="">— اختار المتجر —</option>'+
     _opStoresList.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
-  // reset cart
-  _dlvCart=[];
-  renderDlvCart();
-  // set date
+  // restore previously selected store if any
+  if(_dlvCurrentStoreId) storeSel.value=_dlvCurrentStoreId;
   const dateEl=document.getElementById('dlv_date');
   if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
-  // populate products
-  _fillDlvProdOptions('');
+  _fillDlvProdOptions(_dlvCurrentStoreId);
+  renderDlvCart();
+  renderDlvPending();
 }
 
 function _fillDlvProdOptions(storeId){
@@ -4922,14 +4924,20 @@ function _fillDlvProdOptions(storeId){
       const price=storeId&&storePrices[storeId]?storePrices[storeId]:(p.defaultSellPrice||0);
       return `<option value="${p.id}" data-name="${p.name}" data-price="${price}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}">${p.name} — ${price.toFixed(2)} د.أ</option>`;
     }).join('');
-  document.getElementById('dlv_price_info').textContent='';
+  const info=document.getElementById('dlv_price_info');
+  if(info) info.textContent='';
+}
+
+function _dlvCurrentCart(){
+  if(!_dlvCurrentStoreId) return [];
+  if(!_dlvCarts[_dlvCurrentStoreId]) return [];
+  return _dlvCarts[_dlvCurrentStoreId].items;
 }
 
 function onDlvStoreChange(){
   const sel=document.getElementById('dlv_store');
-  const storeId=sel.value;
-  _fillDlvProdOptions(storeId);
-  _dlvCart=[];
+  _dlvCurrentStoreId=sel.value;
+  _fillDlvProdOptions(_dlvCurrentStoreId);
   renderDlvCart();
 }
 
@@ -4937,8 +4945,7 @@ function onDlvProdChange(){
   const opt=document.getElementById('dlv_prod').selectedOptions[0];
   const info=document.getElementById('dlv_price_info');
   if(!opt||!opt.value){info.textContent='';return;}
-  const price=parseFloat(opt.dataset.price||0);
-  info.textContent=`💰 سعر الوحدة: ${price.toFixed(2)} د.أ`;
+  info.textContent=`💰 سعر الوحدة: ${parseFloat(opt.dataset.price||0).toFixed(2)} د.أ`;
 }
 
 function addDlvItem(){
@@ -4949,35 +4956,39 @@ function addDlvItem(){
   const opt=prodSel.selectedOptions[0];
   if(!opt||!opt.value){toast('⚠️ اختار منتجاً');return;}
   const qty=parseInt(qtyEl.value)||1;
-  if(qty<1){toast('⚠️ الكمية يجب أن تكون 1 أو أكثر');return;}
   const price=parseFloat(opt.dataset.price||0);
-  const existing=_dlvCart.find(i=>i.productId===opt.value);
+  const sid=storeEl.value;
+  const sname=storeEl.selectedOptions[0]?.text||'';
+  if(!_dlvCarts[sid]) _dlvCarts[sid]={storeName:sname,items:[]};
+  const cart=_dlvCarts[sid].items;
+  const existing=cart.find(i=>i.productId===opt.value);
   if(existing){existing.qty+=qty;}
   else{
-    _dlvCart.push({
-      productId:opt.value,
-      productName:opt.dataset.name,
-      qty,
-      sellPrice:price,
+    cart.push({
+      productId:opt.value, productName:opt.dataset.name, qty, sellPrice:price,
       rawMaterialCost:parseFloat(opt.dataset.raw||0),
       machineWorkerWage:parseFloat(opt.dataset.machine||0),
       assemblyWorkerWage:parseFloat(opt.dataset.assembly||0)
     });
   }
-  qtyEl.value=1;
-  prodSel.value='';
+  qtyEl.value=1; prodSel.value='';
   document.getElementById('dlv_price_info').textContent='';
   renderDlvCart();
+  renderDlvPending();
 }
 
 function removeDlvItem(idx){
-  _dlvCart.splice(idx,1);
+  const cart=_dlvCurrentCart();
+  cart.splice(idx,1);
   renderDlvCart();
+  renderDlvPending();
 }
 
 function changeDlvQty(idx, delta){
-  _dlvCart[idx].qty=Math.max(1,(_dlvCart[idx].qty||1)+delta);
+  const cart=_dlvCurrentCart();
+  cart[idx].qty=Math.max(1,(cart[idx].qty||1)+delta);
   renderDlvCart();
+  renderDlvPending();
 }
 
 function renderDlvCart(){
@@ -4985,16 +4996,17 @@ function renderDlvCart(){
   const totalWrap=document.getElementById('dlv_cart_total');
   const totalVal=document.getElementById('dlv_total_val');
   if(!list)return;
-  if(!_dlvCart.length){
+  const cart=_dlvCurrentCart();
+  if(!cart.length){
     list.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">السلة فاضية — اضغط ➕ لإضافة منتج</div>';
     if(totalWrap)totalWrap.style.display='none';
     return;
   }
-  const total=_dlvCart.reduce((s,i)=>(i.sellPrice||0)*(i.qty||1)+s,0);
-  list.innerHTML=_dlvCart.map((item,idx)=>`
+  const total=cart.reduce((s,i)=>(i.sellPrice||0)*(i.qty||1)+s,0);
+  list.innerHTML=cart.map((item,idx)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px dashed var(--border);">
       <div style="flex:1;font-weight:700;color:var(--text-dark);font-size:0.85rem;">${item.productName}</div>
-      <div style="display:flex;align-items:center;gap:0;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0;">
+      <div style="display:flex;align-items:center;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0;">
         <button onclick="changeDlvQty(${idx},-1)" style="padding:5px 11px;border:none;background:#f3f4f6;color:var(--green-dark);font-size:1rem;font-weight:700;cursor:pointer;line-height:1;">−</button>
         <span style="padding:5px 10px;font-weight:800;font-size:0.9rem;min-width:28px;text-align:center;background:var(--card-bg);">${item.qty}</span>
         <button onclick="changeDlvQty(${idx},1)" style="padding:5px 11px;border:none;background:#f3f4f6;color:var(--green-dark);font-size:1rem;font-weight:700;cursor:pointer;line-height:1;">+</button>
@@ -5006,43 +5018,78 @@ function renderDlvCart(){
   if(totalVal){totalVal.textContent=total.toFixed(2)+' د.أ';}
 }
 
+// Shows summary of ALL pending carts above the save button
+function renderDlvPending(){
+  const wrap=document.getElementById('dlv_pending_wrap');
+  if(!wrap)return;
+  const entries=Object.entries(_dlvCarts).filter(([,v])=>v.items.length>0);
+  if(!entries.length){wrap.innerHTML='';return;}
+  const grandTotal=entries.reduce((s,[,v])=>s+v.items.reduce((ss,i)=>(i.sellPrice||0)*(i.qty||1)+ss,0),0);
+  wrap.innerHTML=`
+    <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
+      <div style="font-size:0.82rem;font-weight:700;color:#92400e;margin-bottom:8px;">📋 طلبات معلقة (لم تُحفظ بعد)</div>
+      ${entries.map(([sid,v])=>{
+        const storeTotal=v.items.reduce((s,i)=>(i.sellPrice||0)*(i.qty||1)+s,0);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #fde68a;font-size:0.82rem;">
+          <span style="color:#92400e;font-weight:600;">🏪 ${v.storeName}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#6b7280;font-size:0.75rem;">${v.items.length} منتج</span>
+            <span style="font-weight:800;color:#92400e;">${storeTotal.toFixed(2)} د.أ</span>
+            <button onclick="clearDlvStore('${sid}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 7px;font-size:0.72rem;cursor:pointer;">مسح</button>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;">
+        <span style="font-size:0.8rem;font-weight:700;color:#92400e;">💰 إجمالي الكل</span>
+        <span style="font-weight:900;color:#92400e;font-size:1rem;">${grandTotal.toFixed(2)} د.أ</span>
+      </div>
+    </div>`;
+}
+
+function clearDlvStore(sid){
+  if(!confirm('مسح طلبات هذا المتجر؟'))return;
+  delete _dlvCarts[sid];
+  renderDlvCart();
+  renderDlvPending();
+}
+
 async function saveDlvOrder(){
-  if(!_dlvCart.length){toast('⚠️ السلة فاضية');return;}
-  const storeSel=document.getElementById('dlv_store');
-  const storeId=storeSel.value;
-  const storeName=storeSel.selectedOptions[0]?.text||'';
-  if(!storeId){toast('⚠️ اختار المتجر');return;}
+  const entries=Object.entries(_dlvCarts).filter(([,v])=>v.items.length>0);
+  if(!entries.length){toast('⚠️ ما في طلبات معلقة');return;}
   const date=document.getElementById('dlv_date').value||jordanDateStr();
   const notes=document.getElementById('dlv_notes').value.trim();
   const btn=document.getElementById('dlv_save_btn');
   btn.disabled=true; btn.textContent='⏳ جاري الحفظ...';
   try{
     const batch=db.batch();
-    _dlvCart.forEach(item=>{
-      const ref=db.collection('operator_sales').doc();
-      batch.set(ref,{
-        storeId,storeName,
-        productId:item.productId,
-        productName:item.productName,
-        qty:item.qty,
-        sellPrice:item.sellPrice,
-        rawMaterialCost:item.rawMaterialCost,
-        machineWorkerWage:item.machineWorkerWage,
-        assemblyWorkerWage:item.assemblyWorkerWage,
-        notes,date,
-        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    let totalItems=0, grandTotal=0;
+    entries.forEach(([sid,v])=>{
+      v.items.forEach(item=>{
+        const ref=db.collection('operator_sales').doc();
+        batch.set(ref,{
+          storeId:sid, storeName:v.storeName,
+          productId:item.productId, productName:item.productName,
+          qty:item.qty, sellPrice:item.sellPrice,
+          rawMaterialCost:item.rawMaterialCost,
+          machineWorkerWage:item.machineWorkerWage,
+          assemblyWorkerWage:item.assemblyWorkerWage,
+          notes, date,
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        });
+        totalItems++; grandTotal+=(item.sellPrice||0)*(item.qty||1);
       });
     });
     await batch.commit();
-    const total=_dlvCart.reduce((s,i)=>(i.sellPrice||0)*(i.qty||1)+s,0);
-    toast(`✅ تم حفظ ${_dlvCart.length} منتج — ${total.toFixed(2)} د.أ`);
-    _dlvCart=[];
-    renderDlvCart();
+    toast(`✅ تم حفظ ${totalItems} منتج لـ ${entries.length} متجر — ${grandTotal.toFixed(2)} د.أ`);
+    _dlvCarts={};
+    _dlvCurrentStoreId='';
     document.getElementById('dlv_store').value='';
     document.getElementById('dlv_notes').value='';
     _fillDlvProdOptions('');
+    renderDlvCart();
+    renderDlvPending();
   }catch(e){toast('❌ خطأ: '+e.message);}
-  btn.disabled=false; btn.textContent='💾 حفظ التسليم';
+  btn.disabled=false; btn.textContent='💾 حفظ الكل للكشف';
 }
 
 // --- Operator Products (منتجات المشغل) ---
@@ -8242,7 +8289,7 @@ window.shareOperatorReport=shareOperatorReport;
 // New operator accounting system
 window.switchOpTab=switchOpTab;
 window.onDlvStoreChange=onDlvStoreChange; window.onDlvProdChange=onDlvProdChange;
-window.addDlvItem=addDlvItem; window.removeDlvItem=removeDlvItem; window.changeDlvQty=changeDlvQty; window.saveDlvOrder=saveDlvOrder;
+window.addDlvItem=addDlvItem; window.removeDlvItem=removeDlvItem; window.changeDlvQty=changeDlvQty; window.saveDlvOrder=saveDlvOrder; window.clearDlvStore=clearDlvStore;
 // Sales tab
 window.saveSaleEntry=saveSaleEntry; window.deleteSaleEntry=deleteSaleEntry;
 window.onSaleProdChange=onSaleProdChange;
