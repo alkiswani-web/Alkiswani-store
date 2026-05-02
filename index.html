@@ -5464,12 +5464,254 @@ async function deleteSaleEntry(id){
   }catch(e){toast('❌ خطأ في الحذف');}
 }
 
-// ===== ACCOUNT STATEMENT TAB (كشف حساب) =====
+// ===== STORE ACCOUNT STATEMENT =====
 
 let _acctCurrentStore=null;
 let _acctCurrentSales=[];
+let _acctCurrentPayments=[];
 
-async function loadAcctStoreList(){
+async function openAcctDetail(storeId, storeName){
+  _acctCurrentStore={id:storeId,name:storeName};
+  document.getElementById('opacct_detail_title').textContent='🏪 '+storeName;
+  document.getElementById('opacct-store-list').style.display='none';
+  document.getElementById('opacct-detail-view').style.display='block';
+  const body=document.getElementById('opacct_detail_body');
+  body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
+  // Load sales
+  try{
+    const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
+    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_acctCurrentSales=[];}
+  // Load payments (with orderBy fallback)
+  try{
+    const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).orderBy('date','desc').get();
+    _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    try{
+      const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).get();
+      _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e2){_acctCurrentPayments=[];}
+  }
+  renderAcctDetail();
+}
+
+function renderAcctDetail(){
+  const body=document.getElementById('opacct_detail_body');
+  if(!body) return;
+  const totalOwed=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+  const totalPaid=_acctCurrentPayments.reduce((s,p)=>(p.amount||0)+s,0);
+  const balance=totalOwed-totalPaid;
+  const balColor=balance>0?'#92400e':'#166534';
+  const balBg=balance>0?'#fff7ed':'#f0fdf4';
+
+  // Summary
+  const summaryHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:#fee2e2;border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-size:0.68rem;color:#dc2626;font-weight:700;margin-bottom:4px;">💸 عليه</div>
+        <div style="font-weight:900;color:#dc2626;font-size:1.1rem;">${totalOwed.toFixed(2)}</div>
+        <div style="font-size:0.65rem;color:#dc2626;margin-top:2px;">د.أ</div>
+      </div>
+      <div style="background:#dcfce7;border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-size:0.68rem;color:#166534;font-weight:700;margin-bottom:4px;">✅ دفع</div>
+        <div style="font-weight:900;color:#166534;font-size:1.1rem;">${totalPaid.toFixed(2)}</div>
+        <div style="font-size:0.65rem;color:#166534;margin-top:2px;">د.أ</div>
+      </div>
+      <div style="background:${balBg};border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-size:0.68rem;color:${balColor};font-weight:700;margin-bottom:4px;">${balance>0?'📊 باقي':'💰 رصيد له'}</div>
+        <div style="font-weight:900;color:${balColor};font-size:1.1rem;">${Math.abs(balance).toFixed(2)}</div>
+        <div style="font-size:0.65rem;color:${balColor};margin-top:2px;">د.أ</div>
+      </div>
+    </div>`;
+
+  // Payment form
+  const payFormHTML=`
+    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:0.85rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">💵 تسجيل دفعة</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="number" id="acct_pay_amount" placeholder="المبلغ (د.أ)" min="0" step="0.5"
+          style="padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:var(--card-bg);color:var(--text-dark);"
+          onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+        <input type="date" id="acct_pay_date" value="${jordanDateStr()}"
+          style="padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:var(--card-bg);color:var(--text-dark);"
+          onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="acct_pay_notes" placeholder="ملاحظات (اختياري)"
+          style="flex:1;padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:var(--card-bg);color:var(--text-dark);"
+          onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+        <button onclick="addStorePayment()" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;flex-shrink:0;">💾 حفظ</button>
+      </div>
+    </div>`;
+
+  // Payments list
+  const sortedPays=[..._acctCurrentPayments].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const payRows=sortedPays.map(p=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f0f0f0;font-size:0.82rem;">
+      <div>
+        <span style="font-size:0.75rem;color:#6b7280;font-weight:600;">📅 ${p.date}</span>
+        ${p.notes?`<span style="color:#9ca3af;font-size:0.75rem;margin-right:6px;">— ${p.notes}</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-weight:800;color:#166534;">${(p.amount||0).toFixed(2)} د.أ</span>
+        <button onclick="deleteStorePayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 9px;font-size:0.75rem;cursor:pointer;">🗑</button>
+      </div>
+    </div>`).join('');
+  const paysSectionHTML=`
+    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;">
+        <span>💵 الدفعات</span><span style="color:#6b7280;">${_acctCurrentPayments.length} سجل</span>
+      </div>
+      ${payRows||'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">لا يوجد دفعات مسجلة بعد</div>'}
+    </div>`;
+
+  // Sales grouped by date
+  const byDate={};
+  _acctCurrentSales.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
+  const salesRows=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,items])=>{
+    const dayTotal=items.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+    const rows=items.map(it=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px dashed #f0f0f0;font-size:0.82rem;">
+        <div>
+          <span style="font-weight:600;color:var(--text-dark);">${it.productName}</span>
+          <span style="color:var(--text-mid);margin-right:5px;">×${it.qty}</span>
+          ${it.notes?`<span style="color:#9ca3af;font-size:0.74rem;">— ${it.notes}</span>`:''}
+        </div>
+        <span style="font-weight:700;color:#dc2626;white-space:nowrap;">${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ</span>
+      </div>`).join('');
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;background:#f9fafb;padding:7px 10px;border-radius:8px;margin-bottom:4px;">
+        <span style="font-size:0.77rem;font-weight:700;color:#6b7280;">📅 ${date}</span>
+        <span style="font-size:0.8rem;font-weight:700;color:#dc2626;">${dayTotal.toFixed(2)} د.أ</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+  const salesSectionHTML=`
+    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;">
+        <span>📦 المشتريات</span><span style="color:#6b7280;">${_acctCurrentSales.length} سجل</span>
+      </div>
+      ${salesRows||'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">لا يوجد مبيعات مسجلة لهذا المتجر</div>'}
+    </div>`;
+
+  body.innerHTML=summaryHTML+payFormHTML+paysSectionHTML+salesSectionHTML;
+}
+
+async function addStorePayment(){
+  if(!_acctCurrentStore){return;}
+  const amt=parseFloat(document.getElementById('acct_pay_amount').value);
+  const date=document.getElementById('acct_pay_date').value||jordanDateStr();
+  const notes=document.getElementById('acct_pay_notes').value.trim();
+  if(!amt||amt<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    const doc=await db.collection('operator_store_payments').add({
+      storeId:_acctCurrentStore.id,
+      storeName:_acctCurrentStore.name,
+      amount:amt,date,notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    _acctCurrentPayments.push({id:doc.id,storeId:_acctCurrentStore.id,storeName:_acctCurrentStore.name,amount:amt,date,notes});
+    document.getElementById('acct_pay_amount').value='';
+    document.getElementById('acct_pay_notes').value='';
+    toast('✅ تم تسجيل الدفعة');
+    renderAcctDetail();
+  }catch(e){toast('❌ خطأ: '+e.message);}
+}
+
+async function deleteStorePayment(id){
+  if(!confirm('حذف هذه الدفعة؟'))return;
+  try{
+    await db.collection('operator_store_payments').doc(id).delete();
+    _acctCurrentPayments=_acctCurrentPayments.filter(p=>p.id!==id);
+    toast('🗑 تم الحذف');
+    renderAcctDetail();
+  }catch(e){toast('❌ خطأ: '+e.message);}
+}
+
+function backToAcctList(){
+  document.getElementById('opacct-store-list').style.display='block';
+  document.getElementById('opacct-detail-view').style.display='none';
+  document.getElementById('opacct-operator-view').style.display='none';
+  _acctCurrentStore=null;_acctCurrentSales=[];_acctCurrentPayments=[];
+  _opDailySales=[];_opDayRecord=null;
+  checkOperatorDayStatus();
+}
+
+function printAcctStatement(){
+  if(!_acctCurrentStore)return;
+  const totalOwed=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+  const totalPaid=_acctCurrentPayments.reduce((s,p)=>(p.amount||0)+s,0);
+  const balance=totalOwed-totalPaid;
+  const salesRows=_acctCurrentSales.map(it=>`
+    <tr>
+      <td>${it.date}</td><td>${it.productName}</td>
+      <td style="text-align:center;">${it.qty}</td>
+      <td style="text-align:center;">${(it.sellPrice||0).toFixed(2)}</td>
+      <td style="text-align:center;font-weight:700;color:#dc2626;">${((it.sellPrice||0)*(it.qty||1)).toFixed(2)}</td>
+      <td style="color:#6b7280;font-size:0.8rem;">${it.notes||''}</td>
+    </tr>`).join('');
+  const payRows=[..._acctCurrentPayments].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>`
+    <tr>
+      <td>${p.date}</td>
+      <td style="font-weight:700;color:#166534;">${(p.amount||0).toFixed(2)} د.أ</td>
+      <td style="color:#6b7280;">${p.notes||''}</td>
+    </tr>`).join('');
+  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+<title>كشف حساب — ${_acctCurrentStore.name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
+h1{font-size:1.4rem;color:#1a3a2a;margin-bottom:4px;}h2{font-size:1rem;color:#374151;margin:18px 0 8px;}
+.meta{font-size:0.82rem;color:#6b7280;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #1a3a2a;}
+.summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;}
+.sum-box{border-radius:10px;padding:14px;text-align:center;}
+table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:0.85rem;}
+thead th{background:#1a3a2a;color:#fff;padding:8px;text-align:right;}
+tbody td{padding:7px 8px;border-bottom:1px solid #e5e7eb;}
+@media print{body{padding:12px;}}</style></head><body>
+<h1>🏪 كشف حساب — ${_acctCurrentStore.name}</h1>
+<div class="meta">تاريخ الطباعة: ${jordanDisplayDate()}</div>
+<div class="summary">
+  <div class="sum-box" style="background:#fee2e2;"><div style="font-size:0.75rem;color:#dc2626;margin-bottom:4px;">💸 إجمالي المستحقات</div><div style="font-size:1.3rem;font-weight:900;color:#dc2626;">${totalOwed.toFixed(2)} د.أ</div></div>
+  <div class="sum-box" style="background:#dcfce7;"><div style="font-size:0.75rem;color:#166534;margin-bottom:4px;">✅ إجمالي الدفعات</div><div style="font-size:1.3rem;font-weight:900;color:#166534;">${totalPaid.toFixed(2)} د.أ</div></div>
+  <div class="sum-box" style="background:${balance>0?'#fff7ed':'#f0fdf4'};"><div style="font-size:0.75rem;color:${balance>0?'#92400e':'#166534'};margin-bottom:4px;">${balance>0?'📊 الرصيد المتبقي':'💰 رصيد للمتجر'}</div><div style="font-size:1.3rem;font-weight:900;color:${balance>0?'#92400e':'#166534'};">${Math.abs(balance).toFixed(2)} د.أ</div></div>
+</div>
+<h2>📦 المشتريات</h2>
+<table><thead><tr><th>التاريخ</th><th>المنتج</th><th style="text-align:center;">كمية</th><th style="text-align:center;">سعر</th><th style="text-align:center;">الإجمالي</th><th>ملاحظات</th></tr></thead>
+<tbody>${salesRows||'<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:14px;">لا يوجد مبيعات</td></tr>'}</tbody></table>
+<h2>💵 الدفعات</h2>
+<table><thead><tr><th>التاريخ</th><th>المبلغ</th><th>ملاحظات</th></tr></thead>
+<tbody>${payRows||'<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:14px;">لا يوجد دفعات</td></tr>'}</tbody></table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+}
+
+function whatsappAcctStatement(){
+  if(!_acctCurrentStore)return;
+  const totalOwed=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
+  const totalPaid=_acctCurrentPayments.reduce((s,p)=>(p.amount||0)+s,0);
+  const balance=totalOwed-totalPaid;
+  let msg=`🏪 كشف حساب — ${_acctCurrentStore.name}\n━━━━━━━━━━━━\n`;
+  const byDate={};
+  _acctCurrentSales.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
+  if(Object.keys(byDate).length){
+    msg+=`📦 المشتريات:\n`;
+    Object.entries(byDate).sort().forEach(([date,items])=>{
+      msg+=`📅 ${date}:\n`;
+      items.forEach(it=>{msg+=`  • ${it.productName} ×${it.qty} = ${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ${it.notes?' ('+it.notes+')':''}\n`;});
+    });
+  }
+  if(_acctCurrentPayments.length){
+    msg+=`\n💵 الدفعات:\n`;
+    [..._acctCurrentPayments].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(p=>{
+      msg+=`  ✅ ${p.date}: ${(p.amount||0).toFixed(2)} د.أ${p.notes?' ('+p.notes+')':''}\n`;
+    });
+  }
+  msg+=`━━━━━━━━━━━━\n💸 المستحقات: ${totalOwed.toFixed(2)} د.أ\n✅ المدفوع: ${totalPaid.toFixed(2)} د.أ\n${balance>0?'📊 الباقي عليه':'💰 رصيد للمتجر'}: ${Math.abs(balance).toFixed(2)} د.أ`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
   if(!_opStoresList.length) await loadOpStores();
   const wrap=document.getElementById('opacct_stores_wrap');
   if(!wrap) return;
@@ -5482,77 +5724,6 @@ async function loadAcctStoreList(){
       <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
       <span style="color:var(--text-mid);font-size:1.2rem;">←</span>
     </div>`).join('');
-}
-
-async function openAcctDetail(storeId, storeName){
-  _acctCurrentStore={id:storeId,name:storeName};
-  document.getElementById('opacct_detail_title').textContent='🏪 '+storeName;
-  document.getElementById('opacct-store-list').style.display='none';
-  document.getElementById('opacct-detail-view').style.display='block';
-  const body=document.getElementById('opacct_detail_body');
-  body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
-  try{
-    const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
-    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_acctCurrentSales=[];}
-  renderAcctDetail();
-}
-
-function renderAcctDetail(){
-  const body=document.getElementById('opacct_detail_body');
-  if(!body) return;
-  if(!_acctCurrentSales.length){
-    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;">لا يوجد مبيعات مسجلة لهذا المتجر</div>';
-    return;
-  }
-  // Group by date
-  const byDate={};
-  _acctCurrentSales.forEach(s=>{
-    if(!byDate[s.date]) byDate[s.date]=[];
-    byDate[s.date].push(s);
-  });
-  const totalSell=_acctCurrentSales.reduce((sum,s)=>(s.sellPrice||0)*(s.qty||1)+sum,0);
-  const dateRows=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,items])=>{
-    const dayTotal=items.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
-    const rows=items.map(it=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--border);font-size:0.82rem;">
-        <div>
-          <span style="font-weight:600;color:var(--text-dark);">${it.productName}</span>
-          <span style="color:var(--text-mid);margin-right:6px;">×${it.qty}</span>
-          ${it.notes?`<span style="color:#9ca3af;font-size:0.75rem;">— ${it.notes}</span>`:''}
-        </div>
-        <span style="font-weight:700;color:#166534;white-space:nowrap;">${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ</span>
-      </div>`).join('');
-    return `<div style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;background:#f9fafb;padding:8px 10px;border-radius:8px;margin-bottom:6px;">
-        <span style="font-size:0.78rem;font-weight:700;color:var(--text-mid);">📅 ${date}</span>
-        <span style="font-size:0.8rem;font-weight:700;color:#166534;">${dayTotal.toFixed(2)} د.أ</span>
-      </div>
-      <div style="padding:0 4px;">${rows}</div>
-    </div>`;
-  }).join('');
-  body.innerHTML=`
-    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;">
-      <div style="background:var(--green-dark);padding:12px 14px;color:#fff;font-weight:700;font-size:0.9rem;">📊 ملخص حساب ${_acctCurrentStore.name}</div>
-      <div style="padding:14px;">
-        <div style="background:#f0fdf4;border-radius:9px;padding:14px;text-align:center;">
-          <div style="font-size:0.75rem;color:#166534;margin-bottom:4px;">💰 إجمالي المبيعات</div>
-          <div style="font-weight:900;color:#166534;font-size:1.4rem;">${totalSell.toFixed(2)} د.أ</div>
-        </div>
-      </div>
-    </div>
-    <div style="font-size:0.78rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">تفصيل المشتريات</div>
-    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px;">${dateRows}</div>`;
-}
-
-function backToAcctList(){
-  document.getElementById('opacct-store-list').style.display='block';
-  document.getElementById('opacct-detail-view').style.display='none';
-  document.getElementById('opacct-operator-view').style.display='none';
-  _acctCurrentStore=null; _acctCurrentSales=[];
-  _opDailySales=[]; _opDayRecord=null;
-  // refresh badge
-  checkOperatorDayStatus();
 }
 
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
@@ -5895,69 +6066,6 @@ function whatsappOperatorDay(){
   msg+=`💸 إجمالي التكاليف: ${d.totCost.toFixed(2)} د.أ\n`;
   msg+=`💰 إجمالي البيع: ${d.totSell.toFixed(2)} د.أ\n`;
   msg+=`${d.isP?'✅ صافي الربح':'⚠️ الخسارة'}: ${Math.abs(d.totProfit).toFixed(2)} د.أ`;
-  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
-}
-
-function printAcctStatement(){
-  if(!_acctCurrentStore||!_acctCurrentSales.length) return;
-  const totalSell=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
-  const rows=_acctCurrentSales.map(it=>`
-    <tr>
-      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.date}</td>
-      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.productName}</td>
-      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${it.qty}</td>
-      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${(it.sellPrice||0).toFixed(2)}</td>
-      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:#166534;">${((it.sellPrice||0)*(it.qty||1)).toFixed(2)}</td>
-      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;font-size:0.8rem;color:#6b7280;">${it.notes||''}</td>
-    </tr>`).join('');
-  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-<title>كشف حساب — ${_acctCurrentStore.name}</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
-h1{font-size:1.5rem;color:#1a3a2a;margin-bottom:4px;}
-.meta{font-size:0.85rem;color:#6b7280;margin-bottom:20px;padding-bottom:8px;border-bottom:2px solid #1a3a2a;}
-table{width:100%;border-collapse:collapse;margin-bottom:20px;}
-thead th{background:#1a3a2a;color:#fff;padding:10px 8px;font-size:0.82rem;}
-tbody tr:nth-child(even){background:#f9fafb;}
-.total{padding:14px 16px;border-radius:10px;font-size:1.1rem;font-weight:800;display:flex;justify-content:space-between;}
-@media print{body{padding:10px;}}
-</style></head><body>
-<h1>🏪 كشف حساب — ${_acctCurrentStore.name}</h1>
-<div class="meta">تاريخ الطباعة: ${jordanDisplayDate()}</div>
-<table>
-<thead><tr>
-  <th style="text-align:right;">التاريخ</th>
-  <th style="text-align:right;">المنتج</th>
-  <th>كمية</th>
-  <th>سعر الوحدة</th>
-  <th>الإجمالي</th>
-  <th style="text-align:right;">ملاحظات</th>
-</tr></thead>
-<tbody>${rows}</tbody>
-</table>
-<div class="total" style="background:#dcfce7;color:#166534;">
-  <span>💰 إجمالي المبيعات</span>
-  <span>${totalSell.toFixed(2)} د.أ</span>
-</div>
-<script>window.onload=function(){window.print();}<\/script>
-</body></html>`;
-  const win=window.open('','_blank');
-  if(win){win.document.write(html);win.document.close();}
-}
-
-function whatsappAcctStatement(){
-  if(!_acctCurrentStore||!_acctCurrentSales.length) return;
-  const totalSell=_acctCurrentSales.reduce((s,it)=>(it.sellPrice||0)*(it.qty||1)+s,0);
-  let msg=`🏪 كشف حساب — ${_acctCurrentStore.name}\n━━━━━━━━━━━━\n`;
-  const byDate={};
-  _acctCurrentSales.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
-  Object.entries(byDate).sort().forEach(([date,items])=>{
-    msg+=`📅 ${date}:\n`;
-    items.forEach(it=>{msg+=`  • ${it.productName} ×${it.qty} = ${((it.sellPrice||0)*(it.qty||1)).toFixed(2)} د.أ${it.notes?' ('+it.notes+')':''}\n`;});
-  });
-  msg+=`━━━━━━━━━━━━\n💰 الإجمالي: ${totalSell.toFixed(2)} د.أ`;
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
@@ -7911,8 +8019,9 @@ window.onSaleProdChange=onSaleProdChange;
 window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 // Account statement tab
 window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail;
-window.backToAcctList=backToAcctList; window.printAcctStatement=printAcctStatement;
-window.whatsappAcctStatement=whatsappAcctStatement;
+window.backToAcctList=backToAcctList;
+window.printAcctStatement=printAcctStatement; window.whatsappAcctStatement=whatsappAcctStatement;
+window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePayment;
 // Operator daily account
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
