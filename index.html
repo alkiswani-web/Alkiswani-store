@@ -5712,6 +5712,8 @@ function whatsappAcctStatement(){
   msg+=`━━━━━━━━━━━━\n💸 المستحقات: ${totalOwed.toFixed(2)} د.أ\n✅ المدفوع: ${totalPaid.toFixed(2)} د.أ\n${balance>0?'📊 الباقي عليه':'💰 رصيد للمتجر'}: ${Math.abs(balance).toFixed(2)} د.أ`;
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
+
+async function loadAcctStoreList(){
   if(!_opStoresList.length) await loadOpStores();
   const wrap=document.getElementById('opacct_stores_wrap');
   if(!wrap) return;
