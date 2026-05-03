@@ -4242,6 +4242,8 @@ let _empPagesCache=[];
 let _empSharedProducts=null;
 let _empOrderCart=[];
 let _empDeliveryFee=0;
+let _empOrdersUnsub=null;
+let _opOrdersUnsub=null;
 
 // ===== STATUS SYSTEM =====
 const EMP_STATUSES={
@@ -4761,37 +4763,36 @@ function _renderKanban(orders, isOperator, filterStatus){
   }).join('');
 }
 
-async function loadEmpOrders(){
+function loadEmpOrders(){
   const wrap=document.getElementById('empOrdersAdminWrap');
   if(!wrap)return;
+  if(_empOrdersUnsub){_empOrdersUnsub();_empOrdersUnsub=null;}
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
   const filter=document.getElementById('empOrdersFilter')?.value||'all';
   const dateVal=document.getElementById('empOrdersDate')?.value||jordanDateStr();
-  try{
-    let q=db.collection('employee_orders').where('date','==',dateVal);
-    if(filter!=='all') q=q.where('status','==',filter);
-    let snap;
-    try{snap=await q.orderBy('createdAt','asc').get();}
-    catch(e){snap=await q.get();}
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
+  let q=db.collection('employee_orders').where('date','==',dateVal);
+  if(filter!=='all') q=q.where('status','==',filter);
+  _empOrdersUnsub=q.onSnapshot(snap=>{
+    const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
     if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
     wrap.innerHTML=_renderKanban(orders,false,filter);
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
+  },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
 }
 
-async function loadOperatorOrders(){
+function loadOperatorOrders(){
   const wrap=document.getElementById('opOrdersWrap');
   if(!wrap)return;
-  const dateVal=document.getElementById('opOrdersDate')?.value||jordanDateStr();
+  if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
-  try{
-    let snap;
-    try{snap=await db.collection('employee_orders').where('date','==',dateVal).orderBy('createdAt','asc').get();}
-    catch(e){snap=await db.collection('employee_orders').where('date','==',dateVal).get();}
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
-    if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-    wrap.innerHTML=_renderKanban(orders,true,'all');
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
+  const dateVal=document.getElementById('opOrdersDate')?.value||jordanDateStr();
+  _opOrdersUnsub=db.collection('employee_orders').where('date','==',dateVal)
+    .onSnapshot(snap=>{
+      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+      if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
+      wrap.innerHTML=_renderKanban(orders,true,'all');
+    },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
 }
 
 async function updateEmpOrderStatus(id,newStatus){
@@ -4805,10 +4806,6 @@ async function updateEmpOrderStatus(id,newStatus){
     const editHistory=[...(data.editHistory||[]),editEntry];
     await docRef.update({status:newStatus,editHistory,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
-    const trackEl=document.getElementById('emp-subtab-tracking');
-    const opEl=document.getElementById('emp-subtab-operator');
-    if(trackEl&&trackEl.style.display!=='none')loadEmpOrders();
-    if(opEl&&opEl.style.display!=='none')loadOperatorOrders();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -4871,6 +4868,8 @@ ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.7
 }
 
 function switchEmpSubTab(tab){
+  if(tab!=='tracking'&&_empOrdersUnsub){_empOrdersUnsub();_empOrdersUnsub=null;}
+  if(tab!=='operator'&&_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
   ['tracking','operator','workers','settings'].forEach(t=>{
     const el=document.getElementById('emp-subtab-'+t);
     const btn=document.getElementById('emp-subtab-btn-'+t);
