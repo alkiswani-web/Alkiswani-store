@@ -2773,7 +2773,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:18px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="font-size:0.88rem;font-weight:700;color:#374151;margin-bottom:12px;">➕ إضافة موظف</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-              <input id="newWorkerUsername" placeholder="اسم المستخدم" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+              <input id="newWorkerName" placeholder="الاسم الكامل" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+              <input id="newWorkerUsername" placeholder="اسم المستخدم (للدخول)" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
               <input id="newWorkerPassword" type="text" placeholder="كلمة المرور" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
             </div>
             <select id="newWorkerPage" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;margin-bottom:10px;box-sizing:border-box;">
@@ -2901,12 +2902,34 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="emp_img_preview"></div>
       </div>
 
-      <!-- Total -->
-      <div style="display:flex;align-items:center;justify-content:space-between;background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:14px;border:1.5px solid #bbf7d0;">
-        <div style="font-size:0.85rem;font-weight:700;color:#374151;">الإجمالي</div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <input type="number" id="emp_total" value="0.00" min="0" step="0.5" style="width:80px;padding:6px 8px;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:left;outline:none;font-weight:700;" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#86efac'">
-          <span style="font-size:0.82rem;color:#166534;font-weight:700;">د.أ</span>
+      <!-- Delivery fee -->
+      <div style="margin-bottom:12px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">🚗 أجور التوصيل</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="empDeliveryBtns">
+          <button onclick="setEmpDeliveryFee(0,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">بدون</button>
+          <button onclick="setEmpDeliveryFee(2,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">2 د.أ</button>
+          <button onclick="setEmpDeliveryFee(3,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">3 د.أ</button>
+          <button onclick="setEmpDeliveryFee(-1,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">اختياري</button>
+        </div>
+        <input type="number" id="emp_delivery_custom" placeholder="أجور التوصيل (د.أ)" min="0" step="0.5" style="display:none;margin-top:6px;width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+      </div>
+
+      <!-- Total + Net -->
+      <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:14px;border:1.5px solid #bbf7d0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.8rem;color:#374151;">إجمالي المنتجات</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <input type="number" id="emp_total" value="0.00" min="0" step="0.5" style="width:76px;padding:5px 7px;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#86efac'">
+            <span style="font-size:0.78rem;color:#374151;">د.أ</span>
+          </div>
+        </div>
+        <div id="empDeliveryRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</div>
+          <span id="empDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;">0.00 د.أ</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px dashed #86efac;padding-top:8px;margin-top:2px;">
+          <div style="font-size:0.85rem;font-weight:800;color:#166534;">الصافي <span style="font-weight:400;font-size:0.72rem;">(للحساب الداخلي)</span></div>
+          <span id="empNetLabel" style="font-weight:900;color:#166534;font-size:1rem;">0.00 د.أ</span>
         </div>
       </div>
 
@@ -4216,8 +4239,9 @@ function closeEmpLogin(){
   document.getElementById('empPass').value='';
 }
 let _empPagesCache=[];
-let _empSharedProducts=null; // shared across all pages
-let _empOrderCart=[]; // current order being built by employee
+let _empSharedProducts=null;
+let _empOrderCart=[];
+let _empDeliveryFee=0;
 
 // ===== STATUS SYSTEM =====
 const EMP_STATUSES={
@@ -4237,8 +4261,9 @@ async function openEmpPanel(){
   document.getElementById('empPanel').style.display='block';
   document.body.style.overflow='hidden';
   const lbl=document.getElementById('empNameLabel');
-  if(lbl)lbl.textContent=_empCurrentUser.username;
+  if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
   _empOrderCart=[];
+  _empDeliveryFee=0;
   await _loadEmpPagesIntoPanel();
   await onEmpPageChange();
   renderEmpOrderCart();
@@ -4309,11 +4334,12 @@ function calcEmpOrderTotal(){return _empOrderCart.reduce((s,i)=>s+(i.price*i.qty
 
 function renderEmpOrderCart(){
   const wrap=document.getElementById('empCartItems');
-  const totalEl=document.getElementById('emp_total');
   if(!wrap)return;
   if(!_empOrderCart.length){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;border:1.5px dashed #e5e7eb;border-radius:9px;">أضف منتجاً للطلب</div>';
-    if(totalEl)totalEl.value='0.00';
+    const t=document.getElementById('emp_total');
+    if(t)t.value='0.00';
+    updateEmpNet();
     return;
   }
   wrap.innerHTML=_empOrderCart.map((item,i)=>`
@@ -4330,7 +4356,40 @@ function renderEmpOrderCart(){
       <div style="font-weight:800;color:#166534;font-size:0.85rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
       <button onclick="removeFromEmpCart(${i})" style="width:22px;height:22px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
     </div>`).join('');
-  if(totalEl)totalEl.value=calcEmpOrderTotal().toFixed(2);
+  const t=document.getElementById('emp_total');
+  if(t)t.value=calcEmpOrderTotal().toFixed(2);
+  updateEmpNet();
+}
+
+function setEmpDeliveryFee(val,btn){
+  const customEl=document.getElementById('emp_delivery_custom');
+  document.querySelectorAll('#empDeliveryBtns button').forEach(b=>{
+    b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';
+  });
+  if(btn){btn.style.background='#1a3a2a';btn.style.color='#fff';btn.style.borderColor='#1a3a2a';}
+  if(val===-1){
+    if(customEl){customEl.style.display='block';customEl.focus();}
+    _empDeliveryFee=parseFloat(customEl?.value||0)||0;
+  }else{
+    if(customEl)customEl.style.display='none';
+    _empDeliveryFee=val;
+  }
+  updateEmpNet();
+}
+
+function updateEmpNet(){
+  const customEl=document.getElementById('emp_delivery_custom');
+  if(customEl&&customEl.style.display!=='none'){
+    _empDeliveryFee=parseFloat(customEl.value)||0;
+  }
+  const total=parseFloat(document.getElementById('emp_total')?.value||0)||calcEmpOrderTotal();
+  const net=Math.max(0,total-_empDeliveryFee);
+  const netEl=document.getElementById('empNetLabel');
+  const dlvRow=document.getElementById('empDeliveryRow');
+  const dlvLbl=document.getElementById('empDeliveryLabel');
+  if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
+  if(dlvRow)dlvRow.style.display=_empDeliveryFee>0?'flex':'none';
+  if(dlvLbl)dlvLbl.textContent=_empDeliveryFee.toFixed(2)+' د.أ';
 }
 function closeEmpPanel(){
   document.getElementById('empPanel').style.display='none';
@@ -4354,7 +4413,7 @@ async function doEmpLogin(){
     const doc=snap.docs[0];
     const data=doc.data();
     if(data.password!==password){errEl.textContent='❌ كلمة المرور غلط';return;}
-    _empCurrentUser={id:doc.id,username:data.username,defaultPage:data.defaultPage||'',permissions:data.permissions||{}};
+    _empCurrentUser={id:doc.id,username:data.username,displayName:data.name||data.username,defaultPage:data.defaultPage||'',permissions:data.permissions||{}};
     _saveEmpSession(_empCurrentUser);
     closeEmpLogin();
     openEmpPanel();
@@ -4401,26 +4460,29 @@ async function submitEmpOrder(){
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   const totalPrice=parseFloat(document.getElementById('emp_total')?.value)||calcEmpOrderTotal();
+  const deliveryFee=_empDeliveryFee||0;
+  const netPrice=Math.max(0,totalPrice-deliveryFee);
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
     await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
-      workerName:_empCurrentUser.username,
+      workerName:_empCurrentUser.displayName||_empCurrentUser.username,
       pageId,pageName,
       products:_empOrderCart.map(i=>({id:i.id,name:i.name,price:i.price,qty:i.qty})),
       customerPhone:phone,
       address,notes,
       imageDataUrl:_empCurrentImage||null,
       status:'pending',
-      totalPrice,
+      totalPrice,deliveryFee,netPrice,
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
     toast('✅ تم تسجيل الطلب بنجاح');
-    _empOrderCart=[];
+    _empOrderCart=[];_empDeliveryFee=0;
     renderEmpOrderCart();
+    setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
     document.getElementById('emp_phone').value='';
     document.getElementById('emp_address').value='';
     document.getElementById('emp_notes').value='';
@@ -4493,8 +4555,8 @@ async function loadEmpWorkers(){
       return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
           <div>
-            <div style="font-weight:700;color:#1a3a2a;font-size:0.9rem;">👤 ${w.username}</div>
-            <div style="font-size:0.75rem;color:#6b7280;">${w.defaultPage?'📄 '+w.defaultPage:'بدون صفحة'} &nbsp;·&nbsp; 🔑 ${w.password}</div>
+            <div style="font-weight:700;color:#1a3a2a;font-size:0.9rem;">👤 ${w.name||w.username}</div>
+            <div style="font-size:0.75rem;color:#6b7280;">@${w.username} &nbsp;·&nbsp; 🔑 ${w.password} ${w.defaultPage?'&nbsp;·&nbsp; 📄 '+w.defaultPage:''}</div>
           </div>
           <button onclick="deleteEmpWorker('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.8rem;flex-shrink:0;">🗑</button>
         </div>
@@ -4505,11 +4567,12 @@ async function loadEmpWorkers(){
 }
 
 async function addEmpWorker(){
+  const name=document.getElementById('newWorkerName').value.trim();
   const username=document.getElementById('newWorkerUsername').value.trim();
   const password=document.getElementById('newWorkerPassword').value.trim();
   const pageSel=document.getElementById('newWorkerPage');
   const defaultPage=pageSel?.value||'';
-  if(!username||!password){toast('⚠️ أدخل اسم المستخدم وكلمة المرور');return;}
+  if(!name||!username||!password){toast('⚠️ أدخل الاسم الكامل واسم المستخدم وكلمة المرور');return;}
   const permissions={
     canAddOrders:document.getElementById('perm_addOrders')?.checked!==false,
     canEditOrders:document.getElementById('perm_editOrders')?.checked!==false,
@@ -4520,7 +4583,8 @@ async function addEmpWorker(){
   try{
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
     if(!exists.empty){toast('⚠️ اسم المستخدم موجود مسبقاً');return;}
-    await db.collection('employee_workers').add({username,password,defaultPage,permissions,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await db.collection('employee_workers').add({name,username,password,defaultPage,permissions,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('newWorkerName').value='';
     document.getElementById('newWorkerUsername').value='';
     document.getElementById('newWorkerPassword').value='';
     if(pageSel)pageSel.value='';
@@ -4630,6 +4694,8 @@ function _renderAdminOrderCard(o,isOperator){
   const st=_empSt(o.status);
   const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
   const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
+  const dlv=o.deliveryFee||0;
+  const net=o.netPrice!=null?o.netPrice:total-dlv;
   const nextSt=EMP_STATUS_NEXT[o.status];
   let statusBtns='';
   if(!isOperator){
@@ -4651,7 +4717,7 @@ function _renderAdminOrderCard(o,isOperator){
         <div style="font-size:0.75rem;color:#6b7280;margin-top:2px;">👤 ${o.workerName} &nbsp;·&nbsp; 📞 ${o.customerPhone}</div>
       </div>
       <div style="text-align:left;flex-shrink:0;">
-        <div style="font-weight:900;color:#166534;font-size:0.95rem;">${total.toFixed(2)} د.أ</div>
+        <div style="font-weight:900;color:#166534;font-size:0.92rem;">${total.toFixed(2)} د.أ${dlv>0?` <span style="font-size:0.68rem;color:#f97316;">(صافي ${net.toFixed(2)})</span>`:''}</div>
         <div style="font-size:0.72rem;font-weight:700;color:${st.color};">${st.label}</div>
       </div>
     </div>
@@ -4667,6 +4733,34 @@ function _renderAdminOrderCard(o,isOperator){
   </div>`;
 }
 
+function _renderKanban(orders, isOperator, filterStatus){
+  const STATUS_ORDER=['pending','preparing','prepared','delivering','delivered','cancelled','returned','refused'];
+  const groups={};
+  STATUS_ORDER.forEach(s=>groups[s]=[]);
+  orders.forEach(o=>{ if(groups[o.status])groups[o.status].push(o); else groups['pending'].push(o); });
+  if(filterStatus&&filterStatus!=='all'){
+    const st=_empSt(filterStatus);
+    const grp=groups[filterStatus]||[];
+    return `<div style="margin-bottom:6px;padding:10px 14px;background:${st.bg};border-radius:10px;border:1.5px solid ${st.border};display:flex;align-items:center;gap:8px;">
+      <span style="font-weight:800;color:${st.color};font-size:0.9rem;">${st.label}</span>
+      <span style="background:${st.color};color:#fff;border-radius:20px;padding:1px 8px;font-size:0.75rem;font-weight:700;">${grp.length}</span>
+    </div>
+    ${grp.length?grp.map(o=>_renderAdminOrderCard(o,isOperator)).join(''):'<div style="color:#9ca3af;font-size:0.82rem;padding:12px;text-align:center;">لا يوجد طلبات</div>'}`;
+  }
+  return STATUS_ORDER.map(status=>{
+    const grp=groups[status];
+    if(!grp.length)return '';
+    const st=_empSt(status);
+    return `<div style="margin-bottom:18px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:${st.bg};border-radius:10px;border:1.5px solid ${st.border};margin-bottom:8px;">
+        <span style="font-weight:800;color:${st.color};font-size:0.9rem;">${st.label}</span>
+        <span style="background:${st.color};color:#fff;border-radius:20px;padding:1px 8px;font-size:0.75rem;font-weight:700;">${grp.length}</span>
+      </div>
+      ${grp.map(o=>_renderAdminOrderCard(o,isOperator)).join('')}
+    </div>`;
+  }).join('');
+}
+
 async function loadEmpOrders(){
   const wrap=document.getElementById('empOrdersAdminWrap');
   if(!wrap)return;
@@ -4677,50 +4771,26 @@ async function loadEmpOrders(){
     let q=db.collection('employee_orders').where('date','==',dateVal);
     if(filter!=='all') q=q.where('status','==',filter);
     let snap;
-    try{snap=await q.orderBy('createdAt','desc').get();}
+    try{snap=await q.orderBy('createdAt','asc').get();}
     catch(e){snap=await q.get();}
     const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
     if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-    wrap.innerHTML=orders.map(o=>_renderAdminOrderCard(o,false)).join('');
+    wrap.innerHTML=_renderKanban(orders,false,filter);
   }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
 }
 
 async function loadOperatorOrders(){
   const wrap=document.getElementById('opOrdersWrap');
   if(!wrap)return;
-  const dateEl=document.getElementById('opOrdersDate');
-  const dateVal=dateEl?.value||jordanDateStr();
+  const dateVal=document.getElementById('opOrdersDate')?.value||jordanDateStr();
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
   try{
     let snap;
     try{snap=await db.collection('employee_orders').where('date','==',dateVal).orderBy('createdAt','asc').get();}
     catch(e){snap=await db.collection('employee_orders').where('date','==',dateVal).get();}
     const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
-    const active=orders.filter(o=>!['cancelled','returned','refused'].includes(o.status));
-    const terminal=orders.filter(o=>['cancelled','returned','refused'].includes(o.status));
     if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-    let html=active.map(o=>_renderAdminOrderCard(o,true)).join('');
-    if(terminal.length){
-      html+=`<div style="font-size:0.82rem;font-weight:700;color:#6b7280;margin:16px 0 10px;padding-top:10px;border-top:1px solid #e5e7eb;">📁 الطلبات المغلقة</div>`;
-      html+=terminal.map(o=>{
-        const st=_empSt(o.status);
-        const prods=o.products||[{name:o.productName||'?',qty:1,price:o.price||0}];
-        const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
-        return `<div style="background:${st.bg};border:1.5px solid ${st.border};border-radius:10px;padding:11px 14px;margin-bottom:7px;opacity:0.75;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div style="font-weight:700;color:#374151;font-size:0.85rem;">📄 ${o.pageName} — ${prods.map(p=>p.name+(p.qty>1?' ×'+p.qty:'')).join(', ')}</div>
-              <div style="font-size:0.75rem;color:#9ca3af;">📞 ${o.customerPhone}</div>
-            </div>
-            <div>
-              <div style="font-weight:800;color:#374151;font-size:0.88rem;">${total.toFixed(2)} د.أ</div>
-              <div style="font-size:0.7rem;font-weight:700;color:${st.color};">${st.label}</div>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
-    }
-    wrap.innerHTML=html;
+    wrap.innerHTML=_renderKanban(orders,true,'all');
   }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
 }
 
@@ -4757,6 +4827,8 @@ function printEmpOrder(orderId,withPhoto){
     const st=_empSt(o.status);
     const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
     const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
+    const dlv=o.deliveryFee||0;
+    const net=o.netPrice!=null?o.netPrice:Math.max(0,total-dlv);
     const pw=window.open('','_blank','width=620,height=750');
     pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>فاتورة #${o.id.slice(-6).toUpperCase()}</title>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
@@ -4785,7 +4857,9 @@ ${o.notes?`<div class="row"><span class="lbl">ملاحظات</span><span class="
 <div class="row"><span class="lbl">الحالة</span><span class="badge" style="background:${st.bg};color:${st.color};">${st.label}</span></div>
 <div class="pt">📦 المنتجات</div>
 ${prods.map(p=>`<div class="pr"><span>${p.name}</span><span>${p.qty||1} × ${p.price.toFixed(2)} = <strong>${(p.price*(p.qty||1)).toFixed(2)} د.أ</strong></span></div>`).join('')}
-<div class="tot"><span>الإجمالي</span><span>${total.toFixed(2)} د.أ</span></div>
+<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
+${dlv>0?`<div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#ef4444;">- ${dlv.toFixed(2)} د.أ</span></div>
+<div class="tot"><span>الصافي (للحساب الداخلي)</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الإجمالي</span><span>${total.toFixed(2)} د.أ</span></div>`}
 ${withPhoto&&o.imageDataUrl?`<div style="margin-top:16px;text-align:center;"><img src="${o.imageDataUrl}" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;"></div>`:''}
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
 <div class="foot">
@@ -8928,6 +9002,7 @@ window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct;
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
+window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
 window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
