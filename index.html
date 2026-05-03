@@ -1673,7 +1673,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <div id="adminPanel">
   <div class="admin-nav">
     <div class="admin-nav-title"><span>لوحة التحكم</span>الكسواني روزميري <span id="adminLoggedUser" style="font-size:0.7rem;color:rgba(201,168,76,0.7);"></span></div>
-    <button class="btn-back-store" onclick="closeAdmin()">← العودة للمتجر</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button onclick="logoutAdmin()" style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.2);padding:7px 13px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">🚪 خروج</button>
+      <button class="btn-back-store" onclick="closeAdmin()">← العودة للمتجر</button>
+    </div>
   </div>
   <div class="admin-content">
     <div class="admin-tabs">
@@ -4010,8 +4013,14 @@ function openAdmin(){
 function closeAdmin(){
   document.getElementById('adminPanel').classList.remove('open');
   document.body.style.overflow='';
+  stopOrderListener();renderStore();
+  // session intentionally kept — only logoutAdmin() clears it
+}
+function logoutAdmin(){
   _clearAdminSession();
   _currentAdminUser=null;_currentAdminPerms=null;
+  document.getElementById('adminPanel').classList.remove('open');
+  document.body.style.overflow='';
   stopOrderListener();renderStore();
 }
 
@@ -8702,7 +8711,7 @@ window.openProfile=openProfile; window.closeProfile=closeProfile;
 window.logoutCustomer=logoutCustomer;
 window.openAdminLogin=openAdminLogin; window.closeAdminLogin=closeAdminLogin;
 window.doAdminLogin=doAdminLogin;
-window.openAdmin=openAdmin; window.closeAdmin=closeAdmin;
+window.openAdmin=openAdmin; window.closeAdmin=closeAdmin; window.logoutAdmin=logoutAdmin;
 window.switchAdminTab=switchAdminTab;
 window.loadAdminUsers=loadAdminUsers; window.addAdminUser=addAdminUser; window.deleteAdminUser=deleteAdminUser;
 window.openEmpLogin=openEmpLogin; window.closeEmpLogin=closeEmpLogin; window.doEmpLogin=doEmpLogin;
