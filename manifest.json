@@ -1,9 +1,9 @@
 {
   "name": "الكسواني روزميري",
-  "short_name": "روزميري",
+  "short_name": "الكسواني",
   "description": "متجر الكسواني روزميري للخشبيات وأشجار الزينة",
-  "start_url": "/Alkiswani-store/",
-  "scope": "/Alkiswani-store/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1a3a2a",
@@ -24,6 +24,5 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["shopping", "lifestyle"],
-  "screenshots": []
+  "categories": ["shopping", "lifestyle"]
 }
