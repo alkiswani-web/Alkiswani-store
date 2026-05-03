@@ -1829,6 +1829,41 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
         </div>
         <div class="fg">
+          <label>📐 الأحجام والأسعار</label>
+          <input type="hidden" id="pSizes" value="[]">
+          <div id="sizesContainer" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+          <button type="button" onclick="showAddSizeUI()" style="width:100%;padding:10px;background:#eff6ff;border:2px dashed #93c5fd;border-radius:10px;color:#1d4ed8;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">📐 + إضافة حجم وسعر</button>
+          <div id="addSizeUI" style="display:none;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;margin-top:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newSizeName" placeholder="الحجم (مثال: صغير، وسط، كبير)" style="padding:10px;border:1px solid #ddd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;box-sizing:border-box;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" id="newSizePrice" placeholder="السعر" min="0" step="0.5" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;">
+                <span style="color:#6b7280;font-size:0.85rem;white-space:nowrap;">د.أ</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" onclick="confirmAddSize()" style="flex:1;padding:10px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">✅ إضافة</button>
+              <button type="button" onclick="document.getElementById('addSizeUI').style.display='none'" style="flex:1;padding:10px;background:#fff;color:#666;border:1px solid #ddd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">إلغاء</button>
+            </div>
+          </div>
+        </div>
+        <!-- Visibility toggles -->
+        <div style="background:#f8f8ff;border:1.5px solid #c7d2fe;border-radius:12px;padding:14px;margin-bottom:4px;">
+          <div style="font-size:0.82rem;font-weight:700;color:#3730a3;margin-bottom:12px;">⚙️ ما يظهر للزبون على صفحة المنتج</div>
+          <div class="toggle-row">
+            <label>🎨 إظهار الألوان (إذا وُجدت)</label>
+            <label class="toggle"><input type="checkbox" id="pShowColors" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <label>📐 إظهار الأحجام والأسعار (إذا وُجدت)</label>
+            <label class="toggle"><input type="checkbox" id="pShowSizes" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <label>🪴 إظهار القوارير (إذا وُجدت)</label>
+            <label class="toggle"><input type="checkbox" id="pShowPots" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="fg">
           <label>🎬 فيديو المنتج (اختياري)</label>
           <div style="display:flex;gap:8px;margin-bottom:8px;">
             <button type="button" onclick="switchVideoTab('upload')" id="vTabUpload" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--green-dark);background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">📤 رفع فيديو</button>
@@ -2837,6 +2872,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <!-- Tab Buttons -->
         <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid #e0e0e0;margin-bottom:14px;">
           <button id="ppTabColorBtn" onclick="switchPPTab('color')" style="flex:1;padding:11px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;transition:all 0.3s;">🎨 اللون</button>
+          <button id="ppTabSizeBtn" onclick="switchPPTab('size')" style="flex:1;padding:11px;border:none;background:#fff;color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;transition:all 0.3s;">📐 الحجم</button>
           <button id="ppTabPotBtn" onclick="switchPPTab('pot')" style="flex:1;padding:11px;border:none;background:#fff;color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;transition:all 0.3s;">🪴 القوار</button>
           <button id="ppTabWriteBtn" onclick="switchPPTab('write')" style="flex:1;padding:11px;border:none;background:#fff;color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;transition:all 0.3s;">✍️ كتابة</button>
         </div>
@@ -2844,6 +2880,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="ppTabColor">
           <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:10px;">اختر اللون المناسب لمنتجك:</div>
           <div id="ppColorsList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+        <!-- Size Tab -->
+        <div id="ppTabSize" style="display:none;">
+          <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:10px;">اختر الحجم المناسب — السعر يتغير حسب الاختيار:</div>
+          <div id="ppSizesList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
         </div>
         <!-- Writing Tab -->
         <div id="ppTabWrite" style="display:none;">
@@ -4334,6 +4375,43 @@ function openEmpOrderImage(orderId){
   document.body.appendChild(ov);
 }
 
+// ===== SIZES =====
+function showAddSizeUI(){document.getElementById('addSizeUI').style.display='block';document.getElementById('newSizeName').focus();}
+
+function confirmAddSize(){
+  const name=document.getElementById('newSizeName').value.trim();
+  const price=parseFloat(document.getElementById('newSizePrice').value);
+  if(!name){toast('⚠️ أدخل اسم الحجم');return;}
+  if(isNaN(price)||price<0){toast('⚠️ أدخل سعراً صحيحاً');return;}
+  if(currentSizes.find(s=>s.name===name)){toast('⚠️ هذا الحجم موجود مسبقاً');return;}
+  currentSizes.push({name,price});
+  document.getElementById('pSizes').value=JSON.stringify(currentSizes);
+  document.getElementById('newSizeName').value='';
+  document.getElementById('newSizePrice').value='';
+  document.getElementById('addSizeUI').style.display='none';
+  renderSizeTags();
+}
+
+function removeSizeItem(name){
+  currentSizes=currentSizes.filter(s=>s.name!==name);
+  document.getElementById('pSizes').value=JSON.stringify(currentSizes);
+  renderSizeTags();
+}
+
+function renderSizeTags(){
+  const c=document.getElementById('sizesContainer');
+  if(!c)return;
+  if(!currentSizes.length){c.innerHTML='';return;}
+  c.innerHTML=currentSizes.map(s=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px;">
+      <div style="font-weight:700;color:#1d4ed8;font-size:0.9rem;">📐 ${s.name}</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-weight:800;color:#1e40af;font-size:1rem;">${parseFloat(s.price).toFixed(2)} د.أ</span>
+        <button type="button" onclick="removeSizeItem('${s.name}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>
+      </div>
+    </div>`).join('');
+}
+
 let currentOrderStatus='جديد';
 
 function switchOrderTab(status, btn){
@@ -4580,6 +4658,7 @@ async function changeColorImg(color, input){
 // ===== POTS (قوارير) =====
 let currentPots=[];
 let potImages={};
+let currentSizes=[];
 let newPotImgFile=null;
 
 function showAddPotUI(){
@@ -4767,6 +4846,13 @@ async function addProduct(){
   let pots=currentPots;
   const potsRaw=document.getElementById('pPots')?.value;
   if(potsRaw){try{pots=JSON.parse(potsRaw);}catch(e){pots=currentPots;}}
+  // Get sizes
+  let sizes=currentSizes;
+  const sizesRaw=document.getElementById('pSizes')?.value;
+  if(sizesRaw&&sizesRaw!=='[]'){try{sizes=JSON.parse(sizesRaw);}catch(e){sizes=currentSizes;}}
+  const showColors=document.getElementById('pShowColors')?.checked!==false;
+  const showSizes=document.getElementById('pShowSizes')?.checked!==false;
+  const showPots=document.getElementById('pShowPots')?.checked!==false;
   const pHeight=document.getElementById('pHeight')?.value.trim()||'';
   const pWidth=document.getElementById('pWidth')?.value.trim()||'';
   const pMaterial=document.getElementById('pMaterial')?.value.trim()||'';
@@ -4783,6 +4869,8 @@ async function addProduct(){
     colorImages:colorImages,
     pots:pots,
     potImages:potImages,
+    sizes:sizes,
+    showColors,showSizes,showPots,
     height:pHeight,
     width:pWidth,
     material:pMaterial,
@@ -4838,6 +4926,12 @@ function resetForm(){
   document.getElementById('vPrevName').style.display='none';
   document.getElementById('vUpPh').innerHTML='🎬<br><span style="font-size:0.78rem;color:#aaa;">اضغط لرفع فيديو</span>';
   currentColors=[];
+  currentSizes=[];
+  const sizesEl=document.getElementById('pSizes');if(sizesEl)sizesEl.value='[]';
+  const sizesC=document.getElementById('sizesContainer');if(sizesC)sizesC.innerHTML='';
+  const showColors=document.getElementById('pShowColors');if(showColors)showColors.checked=true;
+  const showSizes=document.getElementById('pShowSizes');if(showSizes)showSizes.checked=true;
+  const showPots=document.getElementById('pShowPots');if(showPots)showPots.checked=true;
 }
 
 async function delProduct(id){
@@ -4883,6 +4977,17 @@ function editProduct(id){
   const pPotsEl=document.getElementById('pPots');
   if(pPotsEl) pPotsEl.value=JSON.stringify(pPotsEdit);
   renderPotTags();
+  // Load sizes
+  let pSizesEdit=p.sizes||[];
+  if(typeof pSizesEdit==='string'){try{pSizesEdit=JSON.parse(pSizesEdit);}catch(e){pSizesEdit=[];}}
+  currentSizes=pSizesEdit;
+  const pSizesEl=document.getElementById('pSizes');
+  if(pSizesEl)pSizesEl.value=JSON.stringify(currentSizes);
+  renderSizeTags();
+  // Visibility toggles
+  const showColorsEl=document.getElementById('pShowColors');if(showColorsEl)showColorsEl.checked=p.showColors!==false;
+  const showSizesEl=document.getElementById('pShowSizes');if(showSizesEl)showSizesEl.checked=p.showSizes!==false;
+  const showPotsEl=document.getElementById('pShowPots');if(showPotsEl)showPotsEl.checked=p.showPots!==false;
   // Show existing images
   const prevContainer=document.getElementById('imgsPrevContainer');
   const upPh=document.getElementById('upPh');
@@ -7289,6 +7394,7 @@ async function confirmCancelOrder(){
 let currentProductPage=null;
 let currentSlide=0;
 let selectedColor='';
+let selectedSize=null;
 
 function openProductPage(id){
   try{
@@ -7298,6 +7404,7 @@ function openProductPage(id){
   currentProductPage=p;
   currentSlide=0;
   selectedColor='';
+  selectedSize=null;
   document.getElementById('ppTitle').textContent=p.name;
   document.getElementById('ppCat').textContent=p.cat;
   // نفذ المخزون
@@ -7339,31 +7446,41 @@ function openProductPage(id){
   const slider=document.getElementById('ppSlider');
   if(slider){slider.innerHTML='';}
   const colorsSection=document.getElementById('ppOptionsSection');
-  // Fix: colors might be stored as string or array
   let pColors=p.colors||[];
   if(typeof pColors==='string'){try{pColors=JSON.parse(pColors);}catch(e){pColors=pColors?[pColors]:[];}}
-  const hasColors=pColors&&pColors.length>0;
+  const hasColors=(pColors&&pColors.length>0)&&(p.showColors!==false);
   const hasWriting=p.writing;
   let pPots=p.pots||[];
   if(typeof pPots==='string'){try{pPots=JSON.parse(pPots);}catch(e){pPots=[];}}
-  const hasPots=pPots&&pPots.length>0;
+  const hasPots=(pPots&&pPots.length>0)&&(p.showPots!==false);
+  let pSizes=p.sizes||[];
+  if(typeof pSizes==='string'){try{pSizes=JSON.parse(pSizes);}catch(e){pSizes=[];}}
+  const hasSizes=(pSizes&&pSizes.length>0)&&(p.showSizes!==false);
   selectedPot='';
-  if(hasColors||hasWriting||hasPots){
+  if(hasColors||hasWriting||hasPots||hasSizes){
     colorsSection.style.display='block';
     const colorBtn=document.getElementById('ppTabColorBtn');
+    const sizeBtn=document.getElementById('ppTabSizeBtn');
     const potBtn=document.getElementById('ppTabPotBtn');
     const writeBtn=document.getElementById('ppTabWriteBtn');
     if(colorBtn) colorBtn.style.display=hasColors?'block':'none';
+    if(sizeBtn) sizeBtn.style.display=hasSizes?'block':'none';
     if(potBtn) potBtn.style.display=hasPots?'block':'none';
     if(writeBtn) writeBtn.style.display=hasWriting?'block':'none';
     if(hasColors){
       document.getElementById('ppColorsList').innerHTML=pColors.map(c=>`<button onclick="selectColor('${c}',this)" style="padding:9px 20px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;">${c}</button>`).join('');
     }
-    if(hasPots){
-      renderPpPots(pPots, p.potImages||{});
+    if(hasSizes){
+      document.getElementById('ppSizesList').innerHTML=pSizes.map(s=>`
+        <button onclick="selectSize(${JSON.stringify(s).replace(/"/g,'&quot;')},this)"
+          style="padding:10px 18px;border-radius:20px;border:2px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;transition:all 0.3s;display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <span style="font-weight:700;">${s.name}</span>
+          <span style="font-size:0.78rem;color:#1d4ed8;font-weight:800;">${parseFloat(s.price).toFixed(2)} د.أ</span>
+        </button>`).join('');
     }
-    // فتح أول تبويب متاح
+    if(hasPots) renderPpPots(pPots, p.potImages||{});
     if(hasColors) switchPPTab('color');
+    else if(hasSizes) switchPPTab('size');
     else if(hasPots) switchPPTab('pot');
     else switchPPTab('write');
   } else {
@@ -7486,19 +7603,32 @@ function getVideoEmbed(url){
 }
 
 function switchPPTab(tab){
-  const colorTab=document.getElementById('ppTabColor');
-  const writeTab=document.getElementById('ppTabWrite');
-  const potTab=document.getElementById('ppTabPot');
-  const colorBtn=document.getElementById('ppTabColorBtn');
-  const writeBtn=document.getElementById('ppTabWriteBtn');
-  const potBtn=document.getElementById('ppTabPotBtn');
-  // Reset all
-  [colorTab,writeTab,potTab].forEach(t=>{if(t)t.style.display='none';});
-  [colorBtn,writeBtn,potBtn].forEach(b=>{if(b){b.style.background='#fff';b.style.color='var(--text-mid)';}});
-  // Activate selected
-  if(tab==='color'&&colorTab){colorTab.style.display='block';if(colorBtn){colorBtn.style.background='var(--green-dark)';colorBtn.style.color='#fff';}}
-  if(tab==='write'&&writeTab){writeTab.style.display='block';if(writeBtn){writeBtn.style.background='var(--green-dark)';writeBtn.style.color='#fff';}}
-  if(tab==='pot'&&potTab){potTab.style.display='block';if(potBtn){potBtn.style.background='#c9a84c';potBtn.style.color='#fff';}}
+  ['Color','Size','Write','Pot'].forEach(t=>{
+    const el=document.getElementById('ppTab'+t);
+    if(el)el.style.display='none';
+    const btn=document.getElementById('ppTab'+t+'Btn');
+    if(btn){btn.style.background='#fff';btn.style.color='var(--text-mid)';btn.style.fontWeight='400';}
+  });
+  const activeEl=document.getElementById('ppTab'+tab.charAt(0).toUpperCase()+tab.slice(1));
+  if(activeEl)activeEl.style.display='block';
+  const activeBtn=document.getElementById('ppTab'+tab.charAt(0).toUpperCase()+tab.slice(1)+'Btn');
+  if(activeBtn){
+    activeBtn.style.background=tab==='pot'?'#c9a84c':tab==='size'?'#1d4ed8':'var(--green-dark)';
+    activeBtn.style.color='#fff';
+    activeBtn.style.fontWeight='700';
+  }
+}
+
+function selectSize(sizeObj,btn){
+  selectedSize=sizeObj;
+  document.querySelectorAll('#ppSizesList button').forEach(b=>{b.style.borderColor='#e0e0e0';b.style.background='#fff';});
+  btn.style.borderColor='#1d4ed8';btn.style.background='#eff6ff';
+  const priceEl=document.getElementById('ppPrice');
+  if(priceEl){
+    const p=currentProductPage;
+    if(p&&p.oldPrice){const disc=Math.round((1-sizeObj.price/p.oldPrice)*100);priceEl.innerHTML=`<span style="text-decoration:line-through;color:#aaa;font-size:1rem;">${p.oldPrice} دينار أردني</span> <span style="background:#e53e3e;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.8rem;">-${disc}%</span><br>${sizeObj.price} دينار أردني`;}
+    else{priceEl.innerHTML=`${sizeObj.price} دينار أردني`;}
+  }
 }
 
 function selectColor(color,btn){
@@ -7516,13 +7646,21 @@ function addToCartFromPage(){
   const p=currentProductPage;if(!p)return;
   let pPots=p.pots||[];
   if(typeof pPots==='string'){try{pPots=JSON.parse(pPots);}catch(e){pPots=[];}}
-  if(p.colors&&p.colors.length&&!selectedColor){toast('🎨 يرجى اختيار اللون أولاً');return;}
-  if(pPots.length&&!selectedPot){toast('🪴 يرجى اختيار شكل القوار أولاً');return;}
+  let pSizes=p.sizes||[];
+  if(typeof pSizes==='string'){try{pSizes=JSON.parse(pSizes);}catch(e){pSizes=[];}}
+  const hasSizes=(pSizes&&pSizes.length>0)&&(p.showSizes!==false);
+  const hasColors=(p.colors&&p.colors.length)&&(p.showColors!==false);
+  const hasPots=pPots.length&&(p.showPots!==false);
+  if(hasColors&&!selectedColor){toast('🎨 يرجى اختيار اللون أولاً');return;}
+  if(hasSizes&&!selectedSize){toast('📐 يرجى اختيار الحجم أولاً');return;}
+  if(hasPots&&!selectedPot){toast('🪴 يرجى اختيار شكل القوار أولاً');return;}
   const writing=p.writing?document.getElementById('ppWritingInput').value.trim():'';
   let extras=writing;
   if(selectedColor) extras+=(extras?' | ':'')+' لون: '+selectedColor;
+  if(selectedSize) extras+=(extras?' | ':'')+' حجم: '+selectedSize.name;
   if(selectedPot) extras+=(extras?' | ':'')+' قوار: '+selectedPot;
-  addToCartDirect(p,extras);
+  const productForCart=selectedSize?{...p,price:selectedSize.price}:p;
+  addToCartDirect(productForCart,extras);
   closeProductPage();
   toast('✅ تمت الإضافة للسلة!');
 }
@@ -8354,7 +8492,8 @@ window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
 window.openProductPage=openProductPage; window.closeProductPage=closeProductPage;
 window.goToSlide=goToSlide; window.slideImg=slideImg;
-window.selectColor=selectColor; window.switchPPTab=switchPPTab; window.addToCartFromPage=addToCartFromPage;
+window.selectColor=selectColor; window.selectSize=selectSize; window.switchPPTab=switchPPTab; window.addToCartFromPage=addToCartFromPage;
+window.showAddSizeUI=showAddSizeUI; window.confirmAddSize=confirmAddSize; window.removeSizeItem=removeSizeItem;
 window.openRatingFromPage=openRatingFromPage;
 window.handleColorsInput=function(){}; window.removeColorTag=removeColorTag;
 window.prevImgs=prevImgs; window.prevVideo=prevVideo;
