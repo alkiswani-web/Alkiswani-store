@@ -1691,6 +1691,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button id="admin-tab-btn-operator" class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
       <button id="admin-tab-btn-adminusers" class="admin-tab-btn" onclick="switchAdminTab('adminusers')">🔑 المستخدمون</button>
       <button id="admin-tab-btn-empworkers" class="admin-tab-btn" onclick="switchAdminTab('empworkers')">👥 موظفو الطلبات</button>
+      <button id="admin-tab-btn-empageprod" class="admin-tab-btn" onclick="switchAdminTab('empageprod')">📄 منتجات الصفحة</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -2721,6 +2722,26 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       </div>
     </div>
 
+    <!-- ===== PAGE PRODUCTS TAB ===== -->
+    <div class="admin-tab-content" id="tab-empageprod">
+      <div style="max-width:720px;">
+        <h2 style="color:var(--green-dark);margin-bottom:4px;">📄 منتجات الصفحة</h2>
+        <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">أضف الصفحات ومنتجاتها — الموظفون يختارون منها عند تسجيل الطلبات</p>
+
+        <!-- Add page -->
+        <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:20px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:12px;">➕ إضافة صفحة جديدة</div>
+          <div style="display:flex;gap:10px;">
+            <input id="newEmpPageName" placeholder="اسم الصفحة (مثال: الكسواني للخشبيات)" style="flex:1;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <button onclick="addEmpPage()" style="padding:10px 20px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+          </div>
+        </div>
+
+        <!-- Pages list with products -->
+        <div id="empPagesAdminWrap"></div>
+      </div>
+    </div>
+
     <!-- ===== EMPLOYEE WORKERS TAB ===== -->
     <div class="admin-tab-content" id="tab-empworkers">
       <div style="max-width:820px;">
@@ -2733,7 +2754,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
             <input id="newWorkerUsername" placeholder="اسم المستخدم" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
             <input id="newWorkerPassword" type="text" placeholder="كلمة المرور" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-            <input id="newWorkerPage" placeholder="الصفحة الافتراضية (اختياري)" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <select id="newWorkerPage" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+              <option value="">— الصفحة الافتراضية (اختياري) —</option>
+            </select>
           </div>
           <button onclick="addEmpWorker()" style="padding:10px 22px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">+ إضافة</button>
         </div>
@@ -2787,15 +2810,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
       <div style="font-size:0.95rem;font-weight:700;color:#1a3a2a;margin-bottom:14px;">➕ طلب جديد</div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-        <div>
-          <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">اسم الصفحة</div>
-          <input type="text" id="emp_page" placeholder="اسم الصفحة..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        </div>
-        <div>
-          <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">المنتج</div>
-          <input type="text" id="emp_product" placeholder="اسم المنتج..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">اسم الصفحة</div>
+        <select id="emp_page" onchange="onEmpPageChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;">
+          <option value="">— اختار الصفحة —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">المنتج</div>
+        <select id="emp_product" onchange="onEmpProductChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;">
+          <option value="">— اختار الصفحة أولاً —</option>
+        </select>
       </div>
 
       <div style="margin-bottom:10px;">
@@ -3993,17 +4018,17 @@ function closeAdmin(){
 function applyAdminPerms(){
   const isMain=_currentAdminUser==='MAIN';
   const perms=_currentAdminPerms;
-  const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers','empworkers'];
+  const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers','empworkers','empageprod'];
   allTabs.forEach(tab=>{
     const btn=document.getElementById('admin-tab-btn-'+tab);
     if(!btn)return;
     if(isMain){btn.style.display='';}
-    else if(tab==='adminusers'||tab==='empworkers'){btn.style.display='none';}
+    else if(tab==='adminusers'||tab==='empworkers'||tab==='empageprod'){btn.style.display='none';}
     else if(perms&&perms.includes(tab)){btn.style.display='';}
     else{btn.style.display='none';}
   });
   const firstTab=allTabs.find(tab=>{
-    if(tab==='adminusers'||tab==='empworkers')return isMain;
+    if(tab==='adminusers'||tab==='empworkers'||tab==='empageprod')return isMain;
     return isMain||(perms&&perms.includes(tab));
   });
   if(firstTab){
@@ -4037,6 +4062,7 @@ function switchAdminTab(tab){
     if(dateEl&&!dateEl.value)dateEl.value=jordanDateStr();
     loadEmpWorkers();
   }
+  if(tab==='empageprod') loadEmpPagesAdmin();
 }
 
 // ===== ADMIN USERS MANAGEMENT =====
@@ -4132,14 +4158,66 @@ function closeEmpLogin(){
   document.getElementById('empUser').value='';
   document.getElementById('empPass').value='';
 }
-function openEmpPanel(){
+let _empPagesCache=[]; // [{id, name}]
+let _empPageProductsCache={}; // {pageId: [{id, productName, price}]}
+
+async function openEmpPanel(){
   document.getElementById('empPanel').style.display='block';
   document.body.style.overflow='hidden';
   const lbl=document.getElementById('empNameLabel');
-  if(lbl)lbl.textContent=_empCurrentUser.username+(_empCurrentUser.defaultPage?' · '+_empCurrentUser.defaultPage:'');
-  const pageEl=document.getElementById('emp_page');
-  if(pageEl&&_empCurrentUser.defaultPage&&!pageEl.value) pageEl.value=_empCurrentUser.defaultPage;
+  if(lbl)lbl.textContent=_empCurrentUser.username;
+  await _loadEmpPagesIntoPanel();
   loadEmpTodayOrders();
+}
+
+async function _loadEmpPagesIntoPanel(){
+  try{
+    const snap=await db.collection('employee_pages').orderBy('name').get();
+    _empPagesCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    try{const snap=await db.collection('employee_pages').get();_empPagesCache=snap.docs.map(d=>({id:d.id,...d.data()}));}catch(e2){_empPagesCache=[];}
+  }
+  const sel=document.getElementById('emp_page');
+  if(!sel)return;
+  sel.innerHTML='<option value="">— اختار الصفحة —</option>'+
+    _empPagesCache.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  // pre-select default page
+  if(_empCurrentUser.defaultPage){
+    const match=_empPagesCache.find(p=>p.id===_empCurrentUser.defaultPage||p.name===_empCurrentUser.defaultPage);
+    if(match){sel.value=match.id;onEmpPageChange();}
+  }
+}
+
+async function onEmpPageChange(){
+  const pageId=document.getElementById('emp_page').value;
+  const prodSel=document.getElementById('emp_product');
+  if(!prodSel)return;
+  if(!pageId){
+    prodSel.innerHTML='<option value="">— اختار الصفحة أولاً —</option>';
+    document.getElementById('emp_price').value='';
+    return;
+  }
+  prodSel.innerHTML='<option value="">⏳ جاري التحميل...</option>';
+  if(!_empPageProductsCache[pageId]){
+    try{
+      const snap=await db.collection('employee_page_products').where('pageId','==',pageId).orderBy('productName').get();
+      _empPageProductsCache[pageId]=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){
+      try{const snap=await db.collection('employee_page_products').where('pageId','==',pageId).get();_empPageProductsCache[pageId]=snap.docs.map(d=>({id:d.id,...d.data()}));}
+      catch(e2){_empPageProductsCache[pageId]=[];}
+    }
+  }
+  const prods=_empPageProductsCache[pageId]||[];
+  prodSel.innerHTML='<option value="">— اختار المنتج —</option>'+
+    prods.map(p=>`<option value="${p.id}" data-price="${p.price||0}">${p.productName}</option>`).join('');
+}
+
+function onEmpProductChange(){
+  const sel=document.getElementById('emp_product');
+  const opt=sel.selectedOptions[0];
+  if(opt&&opt.value&&opt.dataset.price){
+    document.getElementById('emp_price').value=opt.dataset.price;
+  }
 }
 function closeEmpPanel(){
   document.getElementById('empPanel').style.display='none';
@@ -4199,14 +4277,18 @@ function clearEmpImage(){
 
 async function submitEmpOrder(){
   if(!_empCurrentUser){toast('⚠️ يجب تسجيل الدخول أولاً');return;}
-  const page=document.getElementById('emp_page').value.trim();
-  const product=document.getElementById('emp_product').value.trim();
+  const pageSel=document.getElementById('emp_page');
+  const prodSel=document.getElementById('emp_product');
+  const pageId=pageSel.value;
+  const pageName=pageSel.selectedOptions[0]?.text||'';
+  const productId=prodSel.value;
+  const productName=prodSel.selectedOptions[0]?.text||'';
   const phone=document.getElementById('emp_phone').value.trim();
   const address=document.getElementById('emp_address').value.trim();
   const price=parseFloat(document.getElementById('emp_price').value)||0;
   const notes=document.getElementById('emp_notes').value.trim();
-  if(!page){toast('⚠️ أدخل اسم الصفحة');return;}
-  if(!product){toast('⚠️ أدخل اسم المنتج');return;}
+  if(!pageId){toast('⚠️ اختار الصفحة');return;}
+  if(!productId){toast('⚠️ اختار المنتج');return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
@@ -4215,19 +4297,16 @@ async function submitEmpOrder(){
     await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.username,
-      pageName:page,
-      productName:product,
+      pageId,pageName,productId,productName,
       customerPhone:phone,
-      address,
-      price,
-      notes,
+      address,price,notes,
       imageDataUrl:_empCurrentImage||null,
       status:'pending',
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     toast('✅ تم تسجيل الطلب بنجاح');
-    document.getElementById('emp_product').value='';
+    prodSel.value='';
     document.getElementById('emp_phone').value='';
     document.getElementById('emp_address').value='';
     document.getElementById('emp_price').value='';
@@ -4299,7 +4378,8 @@ async function loadEmpWorkers(){
 async function addEmpWorker(){
   const username=document.getElementById('newWorkerUsername').value.trim();
   const password=document.getElementById('newWorkerPassword').value.trim();
-  const defaultPage=document.getElementById('newWorkerPage').value.trim();
+  const pageSel=document.getElementById('newWorkerPage');
+  const defaultPage=pageSel?.value||'';
   if(!username||!password){toast('⚠️ أدخل اسم المستخدم وكلمة المرور');return;}
   try{
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
@@ -4307,9 +4387,151 @@ async function addEmpWorker(){
     await db.collection('employee_workers').add({username,password,defaultPage,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     document.getElementById('newWorkerUsername').value='';
     document.getElementById('newWorkerPassword').value='';
-    document.getElementById('newWorkerPage').value='';
+    if(pageSel)pageSel.value='';
     toast('✅ تم إضافة الموظف');
     loadEmpWorkers();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// ===== EMPLOYEE PAGES & PAGE PRODUCTS =====
+async function _loadEmpPagesForAdmin(){
+  try{
+    const snap=await db.collection('employee_pages').orderBy('name').get();
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    try{const snap=await db.collection('employee_pages').get();return snap.docs.map(d=>({id:d.id,...d.data()}));}
+    catch(e2){return [];}
+  }
+}
+
+async function _refreshWorkerPageDropdown(){
+  const pages=await _loadEmpPagesForAdmin();
+  const sel=document.getElementById('newWorkerPage');
+  if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— الصفحة الافتراضية (اختياري) —</option>'+
+    pages.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  if(cur)sel.value=cur;
+}
+
+async function loadEmpPagesAdmin(){
+  const wrap=document.getElementById('empPagesAdminWrap');
+  if(!wrap)return;
+  wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ جاري التحميل...</div>';
+  const pages=await _loadEmpPagesForAdmin();
+  await _refreshWorkerPageDropdown();
+  if(!pages.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد صفحات بعد — أضف صفحة أولاً</div>';return;}
+  wrap.innerHTML=pages.map(pg=>`
+    <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:#f8fafc;" onclick="toggleEmpPageSection('${pg.id}')">
+        <div style="font-weight:700;color:#1a3a2a;font-size:0.95rem;">📄 ${pg.name}</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:0.72rem;color:#6b7280;" id="empPageCount_${pg.id}">...</span>
+          <button onclick="event.stopPropagation();deleteEmpPage('${pg.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;">🗑 حذف</button>
+          <span id="empPageArrow_${pg.id}" style="color:#6b7280;font-size:0.8rem;">▼</span>
+        </div>
+      </div>
+      <div id="empPageSection_${pg.id}" style="display:none;padding:14px;border-top:1px solid #e5e7eb;">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input id="newProd_name_${pg.id}" placeholder="اسم المنتج" style="flex:2;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+          <input id="newProd_price_${pg.id}" type="number" placeholder="السعر" min="0" step="0.5" style="flex:1;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+          <span style="color:#6b7280;font-size:0.8rem;align-self:center;white-space:nowrap;">د.أ</span>
+          <button onclick="addEmpPageProduct('${pg.id}','${pg.name.replace(/'/g,"\\'")}',this)" style="padding:9px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+        </div>
+        <div id="empPageProdsList_${pg.id}">⏳</div>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleEmpPageSection(pageId){
+  const sec=document.getElementById('empPageSection_'+pageId);
+  const arrow=document.getElementById('empPageArrow_'+pageId);
+  if(!sec)return;
+  const isOpen=sec.style.display==='block';
+  sec.style.display=isOpen?'none':'block';
+  if(arrow)arrow.textContent=isOpen?'▼':'▲';
+  if(!isOpen) await loadEmpPageProducts(pageId);
+}
+
+async function loadEmpPageProducts(pageId){
+  const wrap=document.getElementById('empPageProdsList_'+pageId);
+  const countEl=document.getElementById('empPageCount_'+pageId);
+  if(!wrap)return;
+  wrap.innerHTML='<div style="color:#9ca3af;font-size:0.78rem;">⏳...</div>';
+  try{
+    let snap;
+    try{snap=await db.collection('employee_page_products').where('pageId','==',pageId).orderBy('productName').get();}
+    catch(e){snap=await db.collection('employee_page_products').where('pageId','==',pageId).get();}
+    const prods=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(countEl)countEl.textContent=prods.length+' منتج';
+    _empPageProductsCache[pageId]=prods;
+    if(!prods.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.78rem;padding:8px;">لا يوجد منتجات — أضف منتجاً أعلاه</div>';return;}
+    wrap.innerHTML=prods.map(p=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;font-size:0.85rem;">
+        <span style="font-weight:600;color:#1a3a2a;">${p.productName}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-weight:800;color:#166534;">${parseFloat(p.price||0).toFixed(2)} د.أ</span>
+          <button onclick="deleteEmpPageProduct('${p.id}','${pageId}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.75rem;">✕</button>
+        </div>
+      </div>`).join('');
+  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.78rem;">❌ '+e.message+'</div>';}
+}
+
+async function addEmpPage(){
+  const name=document.getElementById('newEmpPageName').value.trim();
+  if(!name){toast('⚠️ أدخل اسم الصفحة');return;}
+  try{
+    const exists=await db.collection('employee_pages').where('name','==',name).limit(1).get();
+    if(!exists.empty){toast('⚠️ الصفحة موجودة مسبقاً');return;}
+    await db.collection('employee_pages').add({name,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('newEmpPageName').value='';
+    toast('✅ تم إضافة الصفحة');
+    loadEmpPagesAdmin();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteEmpPage(id){
+  if(!confirm('حذف هذه الصفحة وكل منتجاتها؟'))return;
+  try{
+    // delete products first
+    const snap=await db.collection('employee_page_products').where('pageId','==',id).get();
+    const batch=db.batch();
+    snap.docs.forEach(d=>batch.delete(d.ref));
+    batch.delete(db.collection('employee_pages').doc(id));
+    await batch.commit();
+    delete _empPageProductsCache[id];
+    toast('🗑 تم الحذف');
+    loadEmpPagesAdmin();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function addEmpPageProduct(pageId, pageName, btn){
+  const nameEl=document.getElementById('newProd_name_'+pageId);
+  const priceEl=document.getElementById('newProd_price_'+pageId);
+  const productName=nameEl.value.trim();
+  const price=parseFloat(priceEl.value)||0;
+  if(!productName){toast('⚠️ أدخل اسم المنتج');return;}
+  btn.disabled=true;
+  try{
+    await db.collection('employee_page_products').add({
+      pageId,pageName,productName,price,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    nameEl.value='';priceEl.value='';
+    delete _empPageProductsCache[pageId];
+    await loadEmpPageProducts(pageId);
+    toast('✅ تم إضافة المنتج');
+  }catch(e){toast('❌ '+e.message);}
+  btn.disabled=false;
+}
+
+async function deleteEmpPageProduct(id, pageId){
+  if(!confirm('حذف هذا المنتج؟'))return;
+  try{
+    await db.collection('employee_page_products').doc(id).delete();
+    delete _empPageProductsCache[pageId];
+    await loadEmpPageProducts(pageId);
+    toast('🗑 تم الحذف');
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -8488,6 +8710,9 @@ window.closeEmpPanel=closeEmpPanel; window.logoutEmp=logoutEmp;
 window.onEmpImageChange=onEmpImageChange; window.clearEmpImage=clearEmpImage;
 window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.loadEmpOrders=loadEmpOrders; window.markEmpOrderDone=markEmpOrderDone; window.openEmpOrderImage=openEmpOrderImage;
+window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
+window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage;
+window.toggleEmpPageSection=toggleEmpPageSection; window.addEmpPageProduct=addEmpPageProduct; window.deleteEmpPageProduct=deleteEmpPageProduct;
 window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
 window.openProductPage=openProductPage; window.closeProductPage=closeProductPage;
