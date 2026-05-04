@@ -4638,6 +4638,7 @@ let _empDlvProductsList=[];
 let _empDlvCart=[];
 let _empDlvCurrentImage=null;
 let _empDlvTodayUnsub=null;
+let _todaySalesUnsub=null;
 
 async function initEmpDeliveryPanel(){
   const dateEl=document.getElementById('empDlv_date');
@@ -6405,6 +6406,7 @@ function switchOpTab(tab){
       btn.style.fontWeight=isActive?'700':'400';
     }
   });
+  if(tab!=='sales'&&_todaySalesUnsub){_todaySalesUnsub();_todaySalesUnsub=null;}
   if(tab==='deliver') initDlvTab();
   if(tab==='products') loadOpProducts();
   if(tab==='stores') loadOpStores();
@@ -7263,32 +7265,43 @@ function initSalesTab(){
   loadTodaySales();
 }
 
-async function loadTodaySales(){
+function loadTodaySales(){
   const today=jordanDateStr();
   const wrap=document.getElementById('opsale_today_list');
   if(!wrap) return;
+  if(_todaySalesUnsub){_todaySalesUnsub();_todaySalesUnsub=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ تحميل...</div>';
-  try{
-    const snap=await db.collection('operator_sales').where('date','==',today).get();
-    if(snap.empty){
-      wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات اليوم بعد</div>';
-      return;
-    }
-    wrap.innerHTML=snap.docs.map(d=>{
-      const s=d.data();
-      const total=(s.sellPrice||0)*(s.qty||1);
-      return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-weight:700;font-size:0.88rem;color:var(--green-dark);">${s.productName} ×${s.qty}</div>
-          <div style="font-size:0.75rem;color:var(--text-mid);">🏪 ${s.storeName}${s.notes?' — '+s.notes:''}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-weight:800;color:#166534;font-size:0.9rem;">${total.toFixed(2)} د.أ</span>
-          <button onclick="deleteSaleEntry('${d.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:0.8rem;">✕</button>
-        </div>
-      </div>`;
-    }).join('');
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;text-align:center;padding:10px;">خطأ في التحميل</div>';}
+  _todaySalesUnsub=db.collection('operator_sales').where('date','==',today)
+    .onSnapshot(snap=>{
+      const pending=snap.docs.filter(d=>!d.data().delivered);
+      if(!pending.length){
+        wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات معلقة اليوم</div>';
+        return;
+      }
+      wrap.innerHTML=pending.map(d=>{
+        const s=d.data();
+        const total=(s.sellPrice||0)*(s.qty||1);
+        const imgHtml=s.imageDataUrl?`<img src="${s.imageDataUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" />`:'';
+        const byHtml=s.addedBy?`<span style="font-size:0.72rem;color:#6b7280;">👤 ${s.addedBy}</span>`:'';
+        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            ${imgHtml}
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:0.88rem;color:var(--green-dark);">${s.productName} ×${s.qty}</div>
+              <div style="font-size:0.75rem;color:var(--text-mid);">🏪 ${s.storeName}${s.notes?' — '+s.notes:''}</div>
+              ${byHtml}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+              <span style="font-weight:800;color:#166534;font-size:0.9rem;">${total.toFixed(2)} د.أ</span>
+              <div style="display:flex;gap:6px;">
+                <button onclick="confirmSaleDelivery('${d.id}')" style="background:#dcfce7;color:#166534;border:1.5px solid #86efac;padding:4px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✅ تسليم</button>
+                <button onclick="deleteSaleEntry('${d.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:0.8rem;">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    },()=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;text-align:center;padding:10px;">خطأ في التحميل</div>';});
 }
 
 // Auto-fill sell price + show cost info when product or store selected
@@ -7363,7 +7376,6 @@ async function saveSaleEntry(){
     const infoBox=document.getElementById('opsale_cost_info');
     if(infoBox) infoBox.style.display='none';
     toast('✅ تم حفظ المبيعة');
-    loadTodaySales();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
 
@@ -7372,8 +7384,17 @@ async function deleteSaleEntry(id){
   try{
     await db.collection('operator_sales').doc(id).delete();
     toast('✅ تم الحذف');
-    loadTodaySales();
   }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+async function confirmSaleDelivery(id){
+  try{
+    await db.collection('operator_sales').doc(id).update({
+      delivered:true,
+      deliveredAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم التسليم وإضافته لكشف الحساب');
+  }catch(e){toast('❌ خطأ في التسليم');}
 }
 
 // ===== STORE ACCOUNT STATEMENT =====
@@ -7389,10 +7410,10 @@ async function openAcctDetail(storeId, storeName){
   document.getElementById('opacct-detail-view').style.display='block';
   const body=document.getElementById('opacct_detail_body');
   body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
-  // Load sales
+  // Load delivered sales for this store's account
   try{
     const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
-    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()}));
+    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered);
   }catch(e){_acctCurrentSales=[];}
   // Load payments (with orderBy fallback)
   try{
@@ -7687,7 +7708,7 @@ async function _loadOpDayData(date){
   }catch(e){_opDayRecord=null;}
   try{
     const snap=await db.collection('operator_sales').where('date','==',date).get();
-    _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()}));
+    _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered);
   }catch(e){_opDailySales=[];}
   renderOperatorDailyView();
 }
@@ -9987,7 +10008,7 @@ window.addDlvItem=addDlvItem; window.removeDlvItem=removeDlvItem; window.changeD
 window.addPendingOrder=addPendingOrder; window.deliverOrder=deliverOrder; window.deliverAllOrders=deliverAllOrders; window.deletePendingOrder=deletePendingOrder;
 window.onDlvImageChange=onDlvImageChange; window.clearDlvImage=clearDlvImage; window.openDlvImage=openDlvImage;
 // Sales tab
-window.saveSaleEntry=saveSaleEntry; window.deleteSaleEntry=deleteSaleEntry;
+window.saveSaleEntry=saveSaleEntry; window.deleteSaleEntry=deleteSaleEntry; window.confirmSaleDelivery=confirmSaleDelivery;
 window.onSaleProdChange=onSaleProdChange;
 window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 // Account statement tab
