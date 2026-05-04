@@ -4400,7 +4400,7 @@ async function onEmpPageChange(){
     }catch(e){_empSharedProducts=[];}
   }
   prodSel.innerHTML='<option value="">— اختار المنتج —</option>'+
-    (_empSharedProducts||[]).map(p=>`<option value="${p.id}" data-price="${p.rawMaterialCost||0}" data-name="${(p.name||'').replace(/"/g,'&quot;')}">${p.name}</option>`).join('');
+    (_empSharedProducts||[]).map(p=>`<option value="${p.id}" data-price="${p.sellPrice||0}" data-name="${(p.name||'').replace(/"/g,'&quot;')}">${p.name}</option>`).join('');
 }
 
 function onEmpProductChange(){}
@@ -7097,7 +7097,7 @@ function renderOpProductsList(){
           <div style="font-weight:800;color:#7c3aed;">${(p.assemblyWorkerWage||0).toFixed(2)}</div>
         </div>
         <div style="background:#f0fdf4;border-radius:7px;padding:7px;text-align:center;">
-          <div style="color:#166534;margin-bottom:2px;">💰 افتراضي</div>
+          <div style="color:#166534;margin-bottom:2px;">💰 سعر المنتج</div>
           <div style="font-weight:800;color:#166534;">${(p.sellPrice||0).toFixed(2)}</div>
         </div>
       </div>
