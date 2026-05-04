@@ -10014,9 +10014,9 @@ function renderBalanceSummary(){
           style="background:var(--border);border:none;padding:4px 10px;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;color:var(--text-mid);">✏️ تعديل المستحقات</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div style="background:${milkDebt>0?'#fef3c7':'#f0fdf4'};border:1.5px solid ${milkDebt>0?'#fcd34d':'#86efac'};border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:0.72rem;font-weight:700;color:${milkDebt>0?'#92400e':'#166534'};margin-bottom:4px;">🔴 مستحقات عليك</div>
-          <div style="font-size:1.2rem;font-weight:900;color:${milkDebt>0?'#92400e':'#166534'};">${milkDebt.toFixed(2)}</div>
+        <div style="background:${milkDebt>0?'#fef3c7':milkDebt<0?'#eff6ff':'#f0fdf4'};border:1.5px solid ${milkDebt>0?'#fcd34d':milkDebt<0?'#93c5fd':'#86efac'};border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:0.72rem;font-weight:700;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};margin-bottom:4px;">${milkDebt>0?'🔴 مستحقات عليك':milkDebt<0?'💰 رصيد لك عند ملك':'✅ مسوي'}</div>
+          <div style="font-size:1.2rem;font-weight:900;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};">${Math.abs(milkDebt).toFixed(2)}</div>
           <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
         </div>
         <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center;">
