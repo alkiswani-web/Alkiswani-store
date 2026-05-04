@@ -7779,6 +7779,15 @@ async function openAcctDetail(storeId, storeName){
     const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
     _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_acctCurrentSales=[];}
+  // Enrich rawMaterialCost from operator_products for records where it's 0/missing
+  if(_acctCurrentSales.some(s=>!(s.rawMaterialCost>0))){
+    if(!_opProductsList.length) await loadOpProducts();
+    _acctCurrentSales=_acctCurrentSales.map(s=>{
+      if(s.rawMaterialCost>0) return s;
+      const p=_opProductsList.find(p=>p.id===s.productId);
+      return p?{...s,rawMaterialCost:p.rawMaterialCost||0}:s;
+    });
+  }
   // Load payments (with orderBy fallback)
   try{
     const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).orderBy('date','desc').get();
