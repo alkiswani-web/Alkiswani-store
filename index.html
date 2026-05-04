@@ -2737,32 +2737,40 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- TRACKING sub-tab -->
         <div id="emp-subtab-tracking">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">📋 متابعة الطلبات</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <select id="empOrdersFilter" onchange="loadEmpOrders()" style="padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;">
-                <option value="all">كل الطلبات</option>
-                <option value="pending">جديد</option>
-                <option value="preparing">قيد التجهيز</option>
-                <option value="prepared">تم التجهيز</option>
-                <option value="delivering">قيد التوصيل</option>
-                <option value="delivered">تم التوصيل</option>
-                <option value="cancelled">ملغي</option>
-                <option value="returned">مرتجع</option>
-                <option value="refused">رفض الاستلام</option>
-              </select>
-              <input type="date" id="empOrdersDate" onchange="loadEmpOrders()" style="padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;">
-            </div>
+            <input type="date" id="empOrdersDate" onchange="loadEmpOrders()" style="padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;">
+          </div>
+          <div id="empOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+            <button class="order-stab active" onclick="setEmpOrderFilter('all',this)">الكل <span id="eoc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('pending',this)">جديد <span id="eoc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('preparing',this)">تجهيز <span id="eoc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('prepared',this)">تم التجهيز <span id="eoc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('delivering',this)">توصيل <span id="eoc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('delivered',this)">مسلّم <span id="eoc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('cancelled',this)">ملغي <span id="eoc-cancelled" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('returned',this)">مرتجع <span id="eoc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('refused',this)">رفض <span id="eoc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
           </div>
           <div id="empOrdersAdminWrap"></div>
         </div>
 
         <!-- OPERATOR sub-tab -->
         <div id="emp-subtab-operator" style="display:none;">
-          <div style="font-size:0.95rem;font-weight:700;color:#374151;margin-bottom:16px;">🔧 شاشة المشغل — تحديث حالة الطلبات</div>
-          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
             <input type="date" id="opOrdersDate" onchange="loadOperatorOrders()" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
-            <button onclick="loadOperatorOrders()" style="padding:8px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">🔄 تحديث</button>
+          </div>
+          <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+            <button class="order-stab active" onclick="setOpOrderFilter('all',this)">الكل <span id="ooc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('pending',this)">جديد <span id="ooc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('preparing',this)">تجهيز <span id="ooc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('prepared',this)">تم التجهيز <span id="ooc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('delivering',this)">توصيل <span id="ooc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('delivered',this)">مسلّم <span id="ooc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('cancelled',this)">ملغي <span id="ooc-cancelled" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('returned',this)">مرتجع <span id="ooc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('refused',this)">رفض <span id="ooc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
           </div>
           <div id="opOrdersWrap"></div>
         </div>
@@ -4290,6 +4298,10 @@ let _empTodayUnsub=null;
 let _empEditOrderId=null;
 let _empEditCart=[];
 let _empEditDeliveryFee=0;
+let _empOrdersAllData=[];
+let _empOrdersFilter='all';
+let _opOrdersAllData=[];
+let _opOrdersFilter='all';
 
 // ===== STATUS SYSTEM =====
 const EMP_STATUSES={
@@ -4939,6 +4951,7 @@ function _renderAdminOrderCard(o,isOperator){
       <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
       <button onclick="printEmpOrder('${o.id}',false)" style="padding:5px 10px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨 طباعة</button>
       ${o.imageDataUrl?`<button onclick="printEmpOrder('${o.id}',true)" style="padding:5px 10px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨📷 مع صورة</button>`:''}
+      <button onclick="deleteEmpOrder('${o.id}')" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🗑</button>
     </div>
   </div>`;
 }
@@ -4971,21 +4984,41 @@ function _renderKanban(orders, isOperator, filterStatus){
   }).join('');
 }
 
+function _updateEmpChipCounts(data, prefix){
+  const counts={all:data.length};
+  Object.keys(EMP_STATUSES).forEach(s=>counts[s]=0);
+  data.forEach(o=>{if(counts[o.status]!==undefined)counts[o.status]++;});
+  Object.keys(counts).forEach(s=>{const el=document.getElementById(prefix+s);if(el)el.textContent=counts[s];});
+}
+
 function loadEmpOrders(){
   const wrap=document.getElementById('empOrdersAdminWrap');
   if(!wrap)return;
   if(_empOrdersUnsub){_empOrdersUnsub();_empOrdersUnsub=null;}
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
-  const filter=document.getElementById('empOrdersFilter')?.value||'all';
   const dateVal=document.getElementById('empOrdersDate')?.value||jordanDateStr();
-  let q=db.collection('employee_orders').where('date','==',dateVal);
-  if(filter!=='all') q=q.where('status','==',filter);
-  _empOrdersUnsub=q.onSnapshot(snap=>{
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
-    if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-    wrap.innerHTML=_renderKanban(orders,false,filter);
-  },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
+  _empOrdersUnsub=db.collection('employee_orders').where('date','==',dateVal)
+    .onSnapshot(snap=>{
+      _empOrdersAllData=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+      _renderEmpOrdersView();
+    },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
+}
+
+function _renderEmpOrdersView(){
+  const wrap=document.getElementById('empOrdersAdminWrap');
+  if(!wrap)return;
+  _updateEmpChipCounts(_empOrdersAllData,'eoc-');
+  const orders=_empOrdersFilter==='all'?_empOrdersAllData:_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
+  if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
+  wrap.innerHTML=_renderKanban(orders,false,_empOrdersFilter);
+}
+
+function setEmpOrderFilter(filter,btn){
+  _empOrdersFilter=filter;
+  document.querySelectorAll('#empOrdersChips .order-stab').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  _renderEmpOrdersView();
 }
 
 function loadOperatorOrders(){
@@ -4996,11 +5029,34 @@ function loadOperatorOrders(){
   const dateVal=document.getElementById('opOrdersDate')?.value||jordanDateStr();
   _opOrdersUnsub=db.collection('employee_orders').where('date','==',dateVal)
     .onSnapshot(snap=>{
-      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
+      _opOrdersAllData=snap.docs.map(d=>({id:d.id,...d.data()}))
         .sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
-      if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-      wrap.innerHTML=_renderKanban(orders,true,'all');
+      _renderOpOrdersView();
     },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
+}
+
+function _renderOpOrdersView(){
+  const wrap=document.getElementById('opOrdersWrap');
+  if(!wrap)return;
+  _updateEmpChipCounts(_opOrdersAllData,'ooc-');
+  const orders=_opOrdersFilter==='all'?_opOrdersAllData:_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
+  if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
+  wrap.innerHTML=_renderKanban(orders,true,_opOrdersFilter);
+}
+
+function setOpOrderFilter(filter,btn){
+  _opOrdersFilter=filter;
+  document.querySelectorAll('#opOrdersChips .order-stab').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  _renderOpOrdersView();
+}
+
+async function deleteEmpOrder(id){
+  if(!confirm('حذف هذا الطلب نهائياً؟'))return;
+  try{
+    await db.collection('employee_orders').doc(id).delete();
+    toast('🗑 تم حذف الطلب');
+  }catch(e){toast('❌ '+e.message);}
 }
 
 async function updateEmpOrderStatus(id,newStatus){
@@ -5083,8 +5139,8 @@ function switchEmpSubTab(tab){
     if(el)el.style.display=(t===tab?'':'none');
     if(btn){btn.style.background=(t===tab?'var(--green-dark)':'#fff');btn.style.color=(t===tab?'#fff':'#374151');}
   });
-  if(tab==='tracking'){const d=document.getElementById('empOrdersDate');if(d&&!d.value)d.value=jordanDateStr();loadEmpOrders();}
-  if(tab==='operator'){const d=document.getElementById('opOrdersDate');if(d&&!d.value)d.value=jordanDateStr();loadOperatorOrders();}
+  if(tab==='tracking'){const d=document.getElementById('empOrdersDate');if(d&&!d.value)d.value=jordanDateStr();_empOrdersFilter='all';document.querySelectorAll('#empOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadEmpOrders();}
+  if(tab==='operator'){const d=document.getElementById('opOrdersDate');if(d&&!d.value)d.value=jordanDateStr();_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
   if(tab==='workers')loadEmpWorkers();
   if(tab==='settings')loadEmpPagesAdmin();
 }
@@ -9207,6 +9263,7 @@ window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; wi
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
+window.setEmpOrderFilter=setEmpOrderFilter; window.setOpOrderFilter=setOpOrderFilter; window.deleteEmpOrder=deleteEmpOrder;
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
