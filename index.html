@@ -2928,7 +2928,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <span id="empDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;">0.00 د.أ</span>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px dashed #86efac;padding-top:8px;margin-top:2px;">
-          <div style="font-size:0.85rem;font-weight:800;color:#166534;">الصافي <span style="font-weight:400;font-size:0.72rem;">(للحساب الداخلي)</span></div>
+          <div style="font-size:0.85rem;font-weight:800;color:#166534;">الحساب النهائي</div>
           <span id="empNetLabel" style="font-weight:900;color:#166534;font-size:1rem;">0.00 د.أ</span>
         </div>
       </div>
@@ -2939,6 +2939,48 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <!-- Today's orders -->
     <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;margin-bottom:10px;">📦 طلباتي اليوم</div>
     <div id="empOrdersList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات اليوم</div></div>
+  </div>
+</div>
+
+<!-- ===== EMP ORDER EDIT MODAL ===== -->
+<div id="empOrderEditModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:950;display:none;align-items:center;justify-content:center;font-family:'Tajawal',sans-serif;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+    <div style="background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:16px 16px 0 0;position:sticky;top:0;z-index:2;">
+      <button onclick="closeEmpOrderEdit()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;">✕</button>
+      <div style="color:#c9a84c;font-weight:800;font-size:0.95rem;">✏️ تعديل الطلب</div>
+      <div style="width:50px;"></div>
+    </div>
+    <div style="padding:16px;">
+      <div id="empEditCartWrap" style="margin-bottom:12px;"></div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.8rem;color:#374151;font-weight:700;margin-bottom:6px;">🚗 أجور التوصيل</div>
+        <div id="empEditDeliveryBtns" style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button onclick="setEmpEditDelivery(0,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">بدون</button>
+          <button onclick="setEmpEditDelivery(2,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">2 د.أ</button>
+          <button onclick="setEmpEditDelivery(3,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">3 د.أ</button>
+          <button onclick="setEmpEditDelivery(-1,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">اختياري</button>
+        </div>
+        <input type="number" id="empEdit_delivery_custom" placeholder="أجور التوصيل" min="0" step="0.5" style="display:none;margin-top:6px;width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" oninput="updateEmpEditNet()">
+      </div>
+      <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:12px;border:1.5px solid #bbf7d0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:0.8rem;color:#374151;">إجمالي المنتجات</span>
+          <span id="empEditTotalLabel" style="font-weight:800;color:#166534;">0.00 د.أ</span>
+        </div>
+        <div id="empEditDeliveryRow" style="display:none;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</span>
+          <span id="empEditDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #86efac;padding-top:6px;margin-top:4px;">
+          <span style="font-size:0.85rem;font-weight:800;color:#166534;">الحساب النهائي</span>
+          <span id="empEditNetLabel" style="font-weight:900;color:#166534;font-size:1rem;">0.00 د.أ</span>
+        </div>
+      </div>
+      <input type="tel" id="empEdit_phone" placeholder="رقم الزبون *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;" dir="ltr">
+      <input type="text" id="empEdit_address" placeholder="العنوان *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;">
+      <textarea id="empEdit_notes" placeholder="ملاحظات" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:12px;box-sizing:border-box;resize:none;"></textarea>
+      <button onclick="saveEmpOrderEdit()" style="width:100%;padding:12px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:800;cursor:pointer;">💾 حفظ التعديلات</button>
+    </div>
   </div>
 </div>
 
@@ -4244,6 +4286,10 @@ let _empOrderCart=[];
 let _empDeliveryFee=0;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
+let _empTodayUnsub=null;
+let _empEditOrderId=null;
+let _empEditCart=[];
+let _empEditDeliveryFee=0;
 
 // ===== STATUS SYSTEM =====
 const EMP_STATUSES={
@@ -4385,7 +4431,7 @@ function updateEmpNet(){
     _empDeliveryFee=parseFloat(customEl.value)||0;
   }
   const total=parseFloat(document.getElementById('emp_total')?.value||0)||calcEmpOrderTotal();
-  const net=Math.max(0,total-_empDeliveryFee);
+  const net=total+_empDeliveryFee;
   const netEl=document.getElementById('empNetLabel');
   const dlvRow=document.getElementById('empDeliveryRow');
   const dlvLbl=document.getElementById('empDeliveryLabel');
@@ -4396,6 +4442,7 @@ function updateEmpNet(){
 function closeEmpPanel(){
   document.getElementById('empPanel').style.display='none';
   document.body.style.overflow='';
+  if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
 }
 function logoutEmp(){
   _clearEmpSession();
@@ -4461,9 +4508,10 @@ async function submitEmpOrder(){
   if(!_empOrderCart.length){toast('⚠️ أضف منتجاً للطلب أولاً');return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
-  const totalPrice=parseFloat(document.getElementById('emp_total')?.value)||calcEmpOrderTotal();
+  const prodsTotal=parseFloat(document.getElementById('emp_total')?.value)||calcEmpOrderTotal();
   const deliveryFee=_empDeliveryFee||0;
-  const netPrice=Math.max(0,totalPrice-deliveryFee);
+  const totalPrice=prodsTotal+deliveryFee;
+  const netPrice=totalPrice;
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -4494,47 +4542,44 @@ async function submitEmpOrder(){
   if(btn){btn.disabled=false;btn.textContent='✅ تسجيل الطلب';}
 }
 
-async function loadEmpTodayOrders(){
+function loadEmpTodayOrders(){
   const wrap=document.getElementById('empOrdersList');
   if(!wrap||!_empCurrentUser)return;
+  if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">⏳</div>';
   const today=jordanDateStr();
-  try{
-    let snap;
-    try{
-      snap=await db.collection('employee_orders')
-        .where('workerId','==',_empCurrentUser.id)
-        .where('date','==',today)
-        .orderBy('createdAt','desc').get();
-    }catch(e){
-      snap=await db.collection('employee_orders')
-        .where('workerId','==',_empCurrentUser.id)
-        .where('date','==',today).get();
-    }
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
-    if(!orders.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات اليوم</div>';return;}
-    wrap.innerHTML=orders.map(o=>{
-      const st=_empSt(o.status);
-      const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
-      const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
-      return `<div style="background:#fff;border:1.5px solid ${st.border};border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-          <div>
-            <div style="font-weight:700;color:#1a3a2a;font-size:0.88rem;">📄 ${o.pageName}</div>
-            <div style="font-size:0.72rem;color:#6b7280;">📞 ${o.customerPhone}</div>
+  _empTodayUnsub=db.collection('employee_orders')
+    .where('workerId','==',_empCurrentUser.id)
+    .where('date','==',today)
+    .onSnapshot(snap=>{
+      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+      if(!orders.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات اليوم</div>';return;}
+      wrap.innerHTML=orders.map(o=>{
+        const st=_empSt(o.status);
+        const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
+        const prodsTotal=prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
+        const dlv=o.deliveryFee||0;
+        const final=o.netPrice!=null?o.netPrice:prodsTotal+dlv;
+        return `<div style="background:#fff;border:1.5px solid ${st.border};border-radius:12px;padding:14px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+            <div>
+              <div style="font-weight:700;color:#1a3a2a;font-size:0.88rem;">📄 ${o.pageName}</div>
+              <div style="font-size:0.72rem;color:#6b7280;">📞 ${o.customerPhone}</div>
+            </div>
+            <div style="text-align:left;">
+              <div style="font-weight:800;color:#166534;font-size:0.88rem;">${final.toFixed(2)} د.أ</div>
+              <div style="font-size:0.7rem;font-weight:700;color:${st.color};">${st.label}</div>
+            </div>
           </div>
-          <div style="text-align:left;">
-            <div style="font-weight:800;color:#166534;font-size:0.88rem;">${total.toFixed(2)} د.أ</div>
-            <div style="font-size:0.7rem;font-weight:700;color:${st.color};">${st.label}</div>
-          </div>
-        </div>
-        <div style="font-size:0.78rem;color:#374151;margin-bottom:4px;">${prods.map(p=>`• ${p.name} × ${p.qty||1}`).join(' &nbsp; ')}</div>
-        <div style="font-size:0.75rem;color:#6b7280;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>
-        ${o.imageDataUrl?`<img src="${o.imageDataUrl}" style="width:100%;max-height:70px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;margin-top:6px;">`:'' }
-        ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.7rem;color:#f97316;margin-top:4px;">✏️ تم التعديل</div>`:''}
-      </div>`;
-    }).join('');
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ خطأ في التحميل</div>';}
+          <div style="font-size:0.78rem;color:#374151;margin-bottom:4px;">${prods.map(p=>`• ${p.name} × ${p.qty||1}`).join(' &nbsp; ')}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>
+          ${o.imageDataUrl?`<img src="${o.imageDataUrl}" style="width:100%;max-height:70px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;margin-top:6px;">`:'' }
+          ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.7rem;color:#f97316;margin-top:4px;">✏️ تم التعديل</div>`:''}
+          <button onclick="openEmpOrderEdit('${o.id}')" style="margin-top:8px;padding:6px 14px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;width:100%;">✏️ تعديل الطلب</button>
+        </div>`;
+      }).join('');
+    },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ خطأ في التحميل</div>';});
 }
 
 // ===== EMPLOYEE WORKERS ADMIN =====
@@ -4560,7 +4605,10 @@ async function loadEmpWorkers(){
             <div style="font-weight:700;color:#1a3a2a;font-size:0.9rem;">👤 ${w.name||w.username}</div>
             <div style="font-size:0.75rem;color:#6b7280;">@${w.username} &nbsp;·&nbsp; 🔑 ${w.password} ${w.defaultPage?'&nbsp;·&nbsp; 📄 '+w.defaultPage:''}</div>
           </div>
-          <button onclick="deleteEmpWorker('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.8rem;flex-shrink:0;">🗑</button>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button onclick="editEmpWorker('${w.id}')" style="background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.8rem;">✏️</button>
+            <button onclick="deleteEmpWorker('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.8rem;">🗑</button>
+          </div>
         </div>
         ${tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;">${tags.map(t=>`<span style="font-size:0.68rem;padding:3px 8px;background:#f0fdf4;color:#166534;border-radius:20px;border:1px solid #bbf7d0;">${t}</span>`).join('')}</div>`:''}
       </div>`;
@@ -4625,7 +4673,10 @@ async function loadEmpPagesAdmin(){
   wrap.innerHTML=pages.map(pg=>`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f8fafc;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
       <span style="font-weight:600;color:#1a3a2a;font-size:0.88rem;">📄 ${pg.name}</span>
-      <button onclick="deleteEmpPage('${pg.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;">🗑 حذف</button>
+      <div style="display:flex;gap:5px;">
+        <button onclick="editEmpPage('${pg.id}','${pg.name.replace(/'/g,"\\'")}')" style="background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;">✏️</button>
+        <button onclick="deleteEmpPage('${pg.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;">🗑</button>
+      </div>
     </div>`).join('');
   loadEmpProductsAdmin();
 }
@@ -4665,6 +4716,7 @@ async function loadEmpProductsAdmin(){
         <span style="font-weight:600;color:#1a3a2a;font-size:0.88rem;">📦 ${p.productName}</span>
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-weight:800;color:#166534;font-size:0.9rem;">${parseFloat(p.price||0).toFixed(2)} د.أ</span>
+          <button onclick="editEmpProduct('${p.id}','${p.productName.replace(/'/g,"\\'").replace(/"/g,'&quot;')}',${parseFloat(p.price||0)})" style="background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:0.78rem;">✏️</button>
           <button onclick="deleteEmpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:0.78rem;">✕</button>
         </div>
       </div>`).join('');
@@ -4691,13 +4743,168 @@ async function deleteEmpProduct(id){
   catch(e){toast('❌ '+e.message);}
 }
 
+// ===== EDIT WORKERS / PAGES / PRODUCTS =====
+async function editEmpWorker(id){
+  const snap=await db.collection('employee_workers').doc(id).get();
+  if(!snap.exists)return;
+  const w=snap.data();
+  const name=prompt('الاسم الكامل:',w.name||'');
+  if(name===null)return;
+  const password=prompt('كلمة المرور:',w.password||'');
+  if(password===null)return;
+  if(!name.trim()||!password.trim()){toast('⚠️ الاسم وكلمة المرور مطلوبان');return;}
+  try{
+    await db.collection('employee_workers').doc(id).update({name:name.trim(),password:password.trim()});
+    toast('✅ تم التعديل');loadEmpWorkers();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function editEmpPage(id,currentName){
+  const name=prompt('اسم الصفحة:',currentName);
+  if(name===null||!name.trim())return;
+  try{
+    await db.collection('employee_pages').doc(id).update({name:name.trim()});
+    toast('✅ تم التعديل');loadEmpPagesAdmin();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function editEmpProduct(id,currentName,currentPrice){
+  const name=prompt('اسم المنتج:',currentName);
+  if(name===null||!name.trim())return;
+  const priceStr=prompt('السعر (د.أ):',currentPrice);
+  if(priceStr===null)return;
+  const price=parseFloat(priceStr)||0;
+  try{
+    await db.collection('employee_products').doc(id).update({productName:name.trim(),price});
+    _empSharedProducts=null;
+    toast('✅ تم التعديل');loadEmpProductsAdmin();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// ===== ORDER EDIT MODAL =====
+function openEmpOrderEdit(orderId){
+  _empEditOrderId=orderId;
+  _empEditCart=[];
+  _empEditDeliveryFee=0;
+  const modal=document.getElementById('empOrderEditModal');
+  modal.style.display='flex';
+  db.collection('employee_orders').doc(orderId).get().then(snap=>{
+    if(!snap.exists){toast('❌ الطلب غير موجود');closeEmpOrderEdit();return;}
+    const o=snap.data();
+    _empEditCart=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]).map(p=>({...p}));
+    _empEditDeliveryFee=o.deliveryFee||0;
+    document.getElementById('empEdit_phone').value=o.customerPhone||'';
+    document.getElementById('empEdit_address').value=o.address||'';
+    document.getElementById('empEdit_notes').value=o.notes||'';
+    const dlv=_empEditDeliveryFee;
+    const btns=document.querySelectorAll('#empEditDeliveryBtns button');
+    btns.forEach(b=>{b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';});
+    const customEl=document.getElementById('empEdit_delivery_custom');
+    if(dlv===0){btns[0].style.background='#1a3a2a';btns[0].style.color='#fff';btns[0].style.borderColor='#1a3a2a';customEl.style.display='none';}
+    else if(dlv===2){btns[1].style.background='#1a3a2a';btns[1].style.color='#fff';btns[1].style.borderColor='#1a3a2a';customEl.style.display='none';}
+    else if(dlv===3){btns[2].style.background='#1a3a2a';btns[2].style.color='#fff';btns[2].style.borderColor='#1a3a2a';customEl.style.display='none';}
+    else if(dlv>0){btns[3].style.background='#1a3a2a';btns[3].style.color='#fff';btns[3].style.borderColor='#1a3a2a';customEl.style.display='block';customEl.value=dlv;}
+    renderEmpEditCart();
+  }).catch(e=>{toast('❌ '+e.message);closeEmpOrderEdit();});
+}
+
+function closeEmpOrderEdit(){
+  document.getElementById('empOrderEditModal').style.display='none';
+  _empEditOrderId=null;_empEditCart=[];_empEditDeliveryFee=0;
+}
+
+function renderEmpEditCart(){
+  const wrap=document.getElementById('empEditCartWrap');
+  if(!wrap)return;
+  if(!_empEditCart.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;text-align:center;">لا يوجد منتجات</div>';updateEmpEditNet();return;}
+  wrap.innerHTML=`<div style="font-size:0.8rem;font-weight:700;color:#1a3a2a;margin-bottom:6px;">📦 المنتجات</div>`+
+    _empEditCart.map((item,i)=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;">
+        <div style="flex:1;font-size:0.85rem;font-weight:600;color:#1a3a2a;">${item.name}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">${parseFloat(item.price||0).toFixed(2)} د.أ</div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <button onclick="changeEmpEditQty(${i},-1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
+          <span style="min-width:22px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty||1}</span>
+          <button onclick="changeEmpEditQty(${i},1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
+        </div>
+        <button onclick="removeEmpEditItem(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
+      </div>`).join('');
+  updateEmpEditNet();
+}
+
+function changeEmpEditQty(i,delta){
+  if(!_empEditCart[i])return;
+  _empEditCart[i].qty=Math.max(1,(_empEditCart[i].qty||1)+delta);
+  renderEmpEditCart();
+}
+
+function removeEmpEditItem(i){
+  _empEditCart.splice(i,1);
+  renderEmpEditCart();
+}
+
+function setEmpEditDelivery(val,btn){
+  const customEl=document.getElementById('empEdit_delivery_custom');
+  document.querySelectorAll('#empEditDeliveryBtns button').forEach(b=>{b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';});
+  if(btn){btn.style.background='#1a3a2a';btn.style.color='#fff';btn.style.borderColor='#1a3a2a';}
+  if(val===-1){customEl.style.display='block';customEl.focus();_empEditDeliveryFee=parseFloat(customEl.value)||0;}
+  else{customEl.style.display='none';_empEditDeliveryFee=val;}
+  updateEmpEditNet();
+}
+
+function updateEmpEditNet(){
+  const customEl=document.getElementById('empEdit_delivery_custom');
+  if(customEl&&customEl.style.display!=='none')_empEditDeliveryFee=parseFloat(customEl.value)||0;
+  const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
+  const net=prodsTotal+_empEditDeliveryFee;
+  const totalLbl=document.getElementById('empEditTotalLabel');
+  const netEl=document.getElementById('empEditNetLabel');
+  const dlvRow=document.getElementById('empEditDeliveryRow');
+  const dlvLbl=document.getElementById('empEditDeliveryLabel');
+  if(totalLbl)totalLbl.textContent=prodsTotal.toFixed(2)+' د.أ';
+  if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
+  if(dlvRow)dlvRow.style.display=_empEditDeliveryFee>0?'flex':'none';
+  if(dlvLbl)dlvLbl.textContent=_empEditDeliveryFee.toFixed(2)+' د.أ';
+}
+
+async function saveEmpOrderEdit(){
+  if(!_empEditOrderId){toast('⚠️ خطأ: لا يوجد طلب');return;}
+  if(!_empEditCart.length){toast('⚠️ يجب أن يكون هناك منتج واحد على الأقل');return;}
+  const phone=document.getElementById('empEdit_phone').value.trim();
+  const address=document.getElementById('empEdit_address').value.trim();
+  if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
+  if(!address){toast('⚠️ أدخل العنوان');return;}
+  const notes=document.getElementById('empEdit_notes').value.trim();
+  const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
+  const deliveryFee=_empEditDeliveryFee;
+  const netPrice=prodsTotal+deliveryFee;
+  const btn=document.querySelector('#empOrderEditModal button[onclick="saveEmpOrderEdit()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
+  try{
+    const docRef=db.collection('employee_orders').doc(_empEditOrderId);
+    const prev=(await docRef.get()).data();
+    const by=_empCurrentUser?.displayName||_empCurrentUser?.username||_currentAdminUser||'admin';
+    const editEntry={by,at:jordanDisplayDate(),note:'تعديل تفاصيل الطلب'};
+    await docRef.update({
+      products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
+      customerPhone:phone,address,notes,
+      totalPrice:prodsTotal,deliveryFee,netPrice,
+      editHistory:[...(prev.editHistory||[]),editEntry],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم حفظ التعديلات');
+    closeEmpOrderEdit();
+  }catch(e){toast('❌ '+e.message);}
+  if(btn){btn.disabled=false;btn.textContent='💾 حفظ التعديلات';}
+}
+
 // ===== ORDER TRACKING & OPERATOR =====
 function _renderAdminOrderCard(o,isOperator){
   const st=_empSt(o.status);
   const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
   const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
   const dlv=o.deliveryFee||0;
-  const net=o.netPrice!=null?o.netPrice:total-dlv;
+  const net=o.netPrice!=null?o.netPrice:total+dlv;
   const nextSt=EMP_STATUS_NEXT[o.status];
   let statusBtns='';
   if(!isOperator){
@@ -4719,7 +4926,7 @@ function _renderAdminOrderCard(o,isOperator){
         <div style="font-size:0.75rem;color:#6b7280;margin-top:2px;">👤 ${o.workerName} &nbsp;·&nbsp; 📞 ${o.customerPhone}</div>
       </div>
       <div style="text-align:left;flex-shrink:0;">
-        <div style="font-weight:900;color:#166534;font-size:0.92rem;">${total.toFixed(2)} د.أ${dlv>0?` <span style="font-size:0.68rem;color:#f97316;">(صافي ${net.toFixed(2)})</span>`:''}</div>
+        <div style="font-weight:900;color:#166534;font-size:0.92rem;">${dlv>0?net.toFixed(2):total.toFixed(2)} د.أ${dlv>0?` <span style="font-size:0.68rem;color:#9ca3af;">(منتجات ${total.toFixed(2)})</span>`:''}</div>
         <div style="font-size:0.72rem;font-weight:700;color:${st.color};">${st.label}</div>
       </div>
     </div>
@@ -4729,6 +4936,7 @@ function _renderAdminOrderCard(o,isOperator){
     ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.72rem;color:#f97316;margin-bottom:6px;">✏️ ${o.editHistory.map(e=>e.note).join(' | ')}</div>`:''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
       ${statusBtns}
+      <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
       <button onclick="printEmpOrder('${o.id}',false)" style="padding:5px 10px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨 طباعة</button>
       ${o.imageDataUrl?`<button onclick="printEmpOrder('${o.id}',true)" style="padding:5px 10px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨📷 مع صورة</button>`:''}
     </div>
@@ -4825,7 +5033,7 @@ function printEmpOrder(orderId,withPhoto){
     const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
     const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
     const dlv=o.deliveryFee||0;
-    const net=o.netPrice!=null?o.netPrice:Math.max(0,total-dlv);
+    const net=o.netPrice!=null?o.netPrice:total+dlv;
     const pw=window.open('','_blank','width=620,height=750');
     pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>فاتورة #${o.id.slice(-6).toUpperCase()}</title>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
@@ -4847,16 +5055,15 @@ body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:
 <div class="hd"><div class="hd-title">الكسواني روزميري</div><div class="hd-sub">فاتورة طلب &nbsp;·&nbsp; ${jordanDisplayDate()}</div></div>
 <div class="row"><span class="lbl">رقم الطلب</span><span class="val">#${o.id.slice(-6).toUpperCase()}</span></div>
 <div class="row"><span class="lbl">الصفحة</span><span class="val">${o.pageName}</span></div>
-<div class="row"><span class="lbl">الموظف</span><span class="val">${o.workerName}</span></div>
 <div class="row"><span class="lbl">رقم الزبون</span><span class="val" dir="ltr">${o.customerPhone}</span></div>
 <div class="row"><span class="lbl">العنوان</span><span class="val">${o.address}</span></div>
 ${o.notes?`<div class="row"><span class="lbl">ملاحظات</span><span class="val">${o.notes}</span></div>`:''}
 <div class="row"><span class="lbl">الحالة</span><span class="badge" style="background:${st.bg};color:${st.color};">${st.label}</span></div>
 <div class="pt">📦 المنتجات</div>
 ${prods.map(p=>`<div class="pr"><span>${p.name}</span><span>${p.qty||1} × ${p.price.toFixed(2)} = <strong>${(p.price*(p.qty||1)).toFixed(2)} د.أ</strong></span></div>`).join('')}
-<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
-${dlv>0?`<div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#ef4444;">- ${dlv.toFixed(2)} د.أ</span></div>
-<div class="tot"><span>الصافي (للحساب الداخلي)</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الإجمالي</span><span>${total.toFixed(2)} د.أ</span></div>`}
+${dlv>0?`<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;font-weight:700;font-size:0.88rem;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
+<div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#f97316;">+ ${dlv.toFixed(2)} د.أ</span></div>
+<div class="tot"><span>الحساب النهائي</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الحساب النهائي</span><span>${total.toFixed(2)} د.أ</span></div>`}
 ${withPhoto&&o.imageDataUrl?`<div style="margin-top:16px;text-align:center;"><img src="${o.imageDataUrl}" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;"></div>`:''}
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
 <div class="foot">
@@ -8994,15 +9201,18 @@ window.openEmpLogin=openEmpLogin; window.closeEmpLogin=closeEmpLogin; window.doE
 window.closeEmpPanel=closeEmpPanel; window.logoutEmp=logoutEmp;
 window.onEmpImageChange=onEmpImageChange; window.clearEmpImage=clearEmpImage;
 window.submitEmpOrder=submitEmpOrder;
-window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker;
+window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty;
-window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage;
-window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct;
+window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
+window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
+window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit;
+window.renderEmpEditCart=renderEmpEditCart; window.changeEmpEditQty=changeEmpEditQty; window.removeEmpEditItem=removeEmpEditItem;
+window.setEmpEditDelivery=setEmpEditDelivery; window.updateEmpEditNet=updateEmpEditNet;
 window.addProduct=addProduct; window.delProduct=delProduct;
 window.editProduct=editProduct; window.cancelEdit=cancelEdit;
 window.openProductPage=openProductPage; window.closeProductPage=closeProductPage;
