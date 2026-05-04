@@ -2836,6 +2836,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Customer info -->
       <div style="margin-bottom:10px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">رقم الطلب <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
+        <input type="text" id="emp_order_num" placeholder="مثال: 1234 أو #ABC..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+      </div>
+      <div style="margin-bottom:10px;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">رقم الزبون</div>
         <input type="tel" id="emp_phone" placeholder="07xxxxxxxx" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;direction:ltr;text-align:right;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
       </div>
@@ -4534,6 +4538,7 @@ async function submitEmpOrder(){
   const phone=document.getElementById('emp_phone').value.trim();
   const address=document.getElementById('emp_address').value.trim();
   const notes=document.getElementById('emp_notes').value.trim();
+  const orderNumInput=document.getElementById('emp_order_num').value.trim();
   if(!pageId){toast('⚠️ اختار الصفحة');return;}
   if(!_empOrderCart.length){toast('⚠️ أضف منتجاً للطلب أولاً');return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
@@ -4552,6 +4557,7 @@ async function submitEmpOrder(){
       products:_empOrderCart.map(i=>({id:i.id,name:i.name,price:i.price,qty:i.qty})),
       customerPhone:phone,
       address,notes,
+      ...(orderNumInput?{orderNum:orderNumInput}:{}),
       imageDataUrl:_empCurrentImage||null,
       status:'pending',
       totalPrice,deliveryFee,netPrice,
@@ -4566,6 +4572,7 @@ async function submitEmpOrder(){
     document.getElementById('emp_phone').value='';
     document.getElementById('emp_address').value='';
     document.getElementById('emp_notes').value='';
+    document.getElementById('emp_order_num').value='';
     clearEmpImage();
     loadEmpTodayOrders();
   }catch(e){toast('❌ خطأ: '+e.message);}
@@ -5348,7 +5355,7 @@ body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:
 @media print{.no-print{display:none;}}
 </style></head><body>
 <div class="hd"><div class="hd-title">الكسواني روزميري</div><div class="hd-sub">فاتورة طلب &nbsp;·&nbsp; ${jordanDisplayDate()}</div></div>
-<div class="row"><span class="lbl">رقم الطلب</span><span class="val">#${o.id.slice(-6).toUpperCase()}</span></div>
+<div class="row"><span class="lbl">رقم الطلب</span><span class="val">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())}</span></div>
 <div class="row"><span class="lbl">الصفحة</span><span class="val">${o.pageName}</span></div>
 <div class="row"><span class="lbl">رقم الزبون</span><span class="val" dir="ltr">${o.customerPhone}</span></div>
 <div class="row"><span class="lbl">العنوان</span><span class="val">${o.address}</span></div>
