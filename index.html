@@ -9948,7 +9948,7 @@ async function loadBalanceTab(){
   // Load total raw material costs from all sales
   try{
     const snap=await db.collection('operator_sales').get();
-    _opBalSalesRaw=snap.docs.reduce((sum,d)=>{
+    _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false).reduce((sum,d)=>{
       const s=d.data();
       return sum+((s.rawMaterialCost||0)*(s.qty||1));
     },0);
