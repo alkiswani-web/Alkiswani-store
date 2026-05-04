@@ -2751,6 +2751,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setEmpOrderFilter('cancelled',this)">ملغي <span id="eoc-cancelled" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('returned',this)">مرتجع <span id="eoc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('refused',this)">رفض <span id="eoc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('edited',this)">✏️ معدّل <span id="eoc-edited" style="background:#854d0e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
           </div>
           <div id="empOrdersAdminWrap"></div>
         </div>
@@ -2771,6 +2772,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setOpOrderFilter('cancelled',this)">ملغي <span id="ooc-cancelled" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('returned',this)">مرتجع <span id="ooc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('refused',this)">رفض <span id="ooc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('edited',this)">✏️ معدّل <span id="ooc-edited" style="background:#854d0e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
           </div>
           <div id="opOrdersWrap"></div>
         </div>
@@ -4901,6 +4903,7 @@ async function saveEmpOrderEdit(){
       products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
       customerPhone:phone,address,notes,
       totalPrice:prodsTotal,deliveryFee,netPrice,
+      needsReview:true,
       editHistory:[...(prev.editHistory||[]),editEntry],
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -4945,7 +4948,8 @@ function _renderAdminOrderCard(o,isOperator){
     <div style="margin-bottom:8px;">${prods.map(p=>`<div style="font-size:0.82rem;color:#374151;">• ${p.name} <span style="color:#6b7280;">× ${p.qty||1}</span> — <span style="font-weight:700;">${(p.price*(p.qty||1)).toFixed(2)} د.أ</span></div>`).join('')}</div>
     <div style="font-size:0.78rem;color:#4b5563;margin-bottom:8px;">📍 ${o.address}${o.notes?` <span style="color:#9ca3af;">· ${o.notes}</span>`:''}</div>
     ${o.imageDataUrl?`<img src="${o.imageDataUrl}" onclick="openEmpOrderImage('${o.imageDataUrl}')" style="width:100%;max-height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px;border:1px solid #e5e7eb;cursor:pointer;">`:'' }
-    ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.72rem;color:#f97316;margin-bottom:6px;">✏️ ${o.editHistory.map(e=>e.note).join(' | ')}</div>`:''}
+    ${o.needsReview?`<div style="display:inline-block;background:#fef3c7;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;margin-bottom:6px;">✏️ تعديل من الموظف — يحتاج مراجعة</div>`:''}
+    ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.72rem;color:#f97316;margin-bottom:6px;">📝 ${o.editHistory.map(e=>e.note).join(' | ')}</div>`:''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
       ${statusBtns}
       <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
@@ -4985,9 +4989,12 @@ function _renderKanban(orders, isOperator, filterStatus){
 }
 
 function _updateEmpChipCounts(data, prefix){
-  const counts={all:data.length};
+  const counts={all:data.length,edited:0};
   Object.keys(EMP_STATUSES).forEach(s=>counts[s]=0);
-  data.forEach(o=>{if(counts[o.status]!==undefined)counts[o.status]++;});
+  data.forEach(o=>{
+    if(counts[o.status]!==undefined)counts[o.status]++;
+    if(o.needsReview)counts.edited++;
+  });
   Object.keys(counts).forEach(s=>{const el=document.getElementById(prefix+s);if(el)el.textContent=counts[s];});
 }
 
@@ -5009,9 +5016,12 @@ function _renderEmpOrdersView(){
   const wrap=document.getElementById('empOrdersAdminWrap');
   if(!wrap)return;
   _updateEmpChipCounts(_empOrdersAllData,'eoc-');
-  const orders=_empOrdersFilter==='all'?_empOrdersAllData:_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
+  let orders;
+  if(_empOrdersFilter==='all') orders=_empOrdersAllData;
+  else if(_empOrdersFilter==='edited') orders=_empOrdersAllData.filter(o=>o.needsReview);
+  else orders=_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
   if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-  wrap.innerHTML=_renderKanban(orders,false,_empOrdersFilter);
+  wrap.innerHTML=_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter);
 }
 
 function setEmpOrderFilter(filter,btn){
@@ -5039,9 +5049,12 @@ function _renderOpOrdersView(){
   const wrap=document.getElementById('opOrdersWrap');
   if(!wrap)return;
   _updateEmpChipCounts(_opOrdersAllData,'ooc-');
-  const orders=_opOrdersFilter==='all'?_opOrdersAllData:_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
+  let orders;
+  if(_opOrdersFilter==='all') orders=_opOrdersAllData;
+  else if(_opOrdersFilter==='edited') orders=_opOrdersAllData.filter(o=>o.needsReview);
+  else orders=_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
   if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
-  wrap.innerHTML=_renderKanban(orders,true,_opOrdersFilter);
+  wrap.innerHTML=_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter);
 }
 
 function setOpOrderFilter(filter,btn){
@@ -5068,7 +5081,7 @@ async function updateEmpOrderStatus(id,newStatus){
     if(prevStatus===newStatus)return;
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(prevStatus).label} ← ${_empSt(newStatus).label}`};
     const editHistory=[...(data.editHistory||[]),editEntry];
-    await docRef.update({status:newStatus,editHistory,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await docRef.update({status:newStatus,editHistory,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
   }catch(e){toast('❌ '+e.message);}
 }
