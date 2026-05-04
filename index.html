@@ -2331,10 +2331,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="opstore-list-view">
           <div class="form-card" style="margin-bottom:14px;">
             <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">➕ إضافة متجر/عميل جديد</div>
-            <div style="display:flex;gap:8px;">
-              <input id="opstore_name_inp" placeholder="اسم المتجر أو الصفحة..." style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-              <button onclick="addOpStore()" style="padding:10px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">+ إضافة</button>
-            </div>
+            <input id="opstore_name_inp" placeholder="اسم المتجر أو الصفحة..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;margin-bottom:8px;">
+            <select id="opstore_page_sel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);margin-bottom:8px;">
+              <option value="">🔗 اربط بصفحة (اختياري)</option>
+            </select>
+            <button onclick="addOpStore()" style="width:100%;padding:10px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;">+ إضافة</button>
           </div>
           <div id="opstore_list"></div>
         </div>
@@ -5358,7 +5359,53 @@ async function updateEmpOrderStatus(id,newStatus){
     const editHistory=[...(data.editHistory||[]),editEntry];
     await docRef.update({status:newStatus,editHistory,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
+    if(newStatus==='delivered') syncOrderToAccounting(id,data);
   }catch(e){toast('❌ '+e.message);}
+}
+
+async function syncOrderToAccounting(orderId,orderData){
+  // Find store linked to this page
+  if(!_opStoresList.length) await loadOpStores();
+  const store=_opStoresList.find(s=>s.pageId===orderData.pageId);
+  if(!store) return; // no linked store — skip silently
+
+  // Prevent duplicate sync
+  try{
+    const dup=await db.collection('operator_sales').where('fromOrderId','==',orderId).limit(1).get();
+    if(!dup.empty) return;
+  }catch(e){}
+
+  // Ensure products list is loaded for cost lookup
+  if(!_opProductsList.length) await loadOpProducts();
+
+  const products=orderData.products||[];
+  if(!products.length) return;
+
+  try{
+    const batch=db.batch();
+    products.forEach(product=>{
+      const opProd=_opProductsList.find(p=>p.id===product.id);
+      const ref=db.collection('operator_sales').doc();
+      batch.set(ref,{
+        storeId:store.id,
+        storeName:store.name,
+        productId:product.id||'',
+        productName:product.name||'',
+        qty:product.qty||1,
+        sellPrice:product.price||0,
+        rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
+        machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
+        assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
+        notes:orderData.notes||'',
+        date:orderData.date||jordanDateStr(),
+        delivered:true,
+        fromOrderId:orderId,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    toast(`✅ تم تسجيل الطلب في حساب "${store.name}"`);
+  }catch(e){console.error('syncOrderToAccounting error:',e);}
 }
 
 function openEmpOrderImage(src){
@@ -7169,6 +7216,19 @@ async function loadOpStores(){
     _opStoresList=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opStoresList=[];}
   renderOpStoresList();
+  _fillOpStorePageSel();
+}
+
+async function _fillOpStorePageSel(){
+  const sel=document.getElementById('opstore_page_sel');
+  if(!sel)return;
+  try{
+    const snap=await db.collection('employee_pages').orderBy('name').get();
+    const pages=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const linked=new Set(_opStoresList.filter(s=>s.pageId).map(s=>s.pageId));
+    sel.innerHTML='<option value="">🔗 اربط بصفحة (اختياري)</option>'+
+      pages.map(p=>`<option value="${p.id}" ${linked.has(p.id)?'disabled style="color:#9ca3af"':''}>${p.name}${linked.has(p.id)?' (مرتبطة)':''}</option>`).join('');
+  }catch(e){}
 }
 
 function renderOpStoresList(){
@@ -7178,26 +7238,48 @@ function renderOpStoresList(){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد متاجر — أضف متجراً جديداً</div>';
     return;
   }
-  const today=jordanDateStr();
   wrap.innerHTML=_opStoresList.map(s=>`
-    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
-        <div style="font-size:0.75rem;color:var(--text-mid);margin-top:2px;">اليوم: ${today}</div>
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
+          ${s.pageId
+            ?`<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#dcfce7;border:1px solid #86efac;border-radius:20px;padding:2px 8px;">
+                <span style="font-size:0.72rem;color:#166534;font-weight:600;">🔗 ${s.pageName}</span>
+                <button onclick="promptLinkStore('${s.id}')" style="background:none;border:none;color:#166534;cursor:pointer;font-size:0.7rem;padding:0;">✏️</button>
+              </div>`
+            :`<button onclick="promptLinkStore('${s.id}')" style="margin-top:4px;background:#f1f5f9;border:1px dashed #94a3b8;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#64748b;cursor:pointer;">+ ربط بصفحة</button>`
+          }
+        </div>
+        <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
       </div>
-      <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
+      <div id="link_form_${s.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+        <select id="link_page_sel_${s.id}" style="width:100%;padding:8px 10px;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);margin-bottom:6px;">
+          <option value="">— بدون ربط —</option>
+        </select>
+        <div style="display:flex;gap:6px;">
+          <button onclick="saveLinkStore('${s.id}')" style="flex:1;padding:8px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">💾 حفظ</button>
+          <button onclick="document.getElementById('link_form_${s.id}').style.display='none'" style="padding:8px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">✕</button>
+        </div>
+      </div>
     </div>`).join('');
 }
 
 async function addOpStore(){
   const name=document.getElementById('opstore_name_inp').value.trim();
   if(!name){toast('⚠️ أدخل اسم المتجر');return;}
+  const pageSel=document.getElementById('opstore_page_sel');
+  const pageId=pageSel?.value||'';
+  const pageName=pageId?(pageSel.options[pageSel.selectedIndex].text.replace(' (مرتبطة)','')):'';
   try{
     await db.collection('operator_stores').add({
-      name,createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      name,
+      ...(pageId?{pageId,pageName}:{}),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     document.getElementById('opstore_name_inp').value='';
-    toast('✅ تم إضافة المتجر');
+    if(pageSel)pageSel.value='';
+    toast('✅ تم إضافة المتجر'+(pageId?` مربوط بـ "${pageName}"`:''));
     loadOpStores();
   }catch(e){toast('❌ خطأ في الإضافة');}
 }
@@ -7209,6 +7291,37 @@ async function deleteOpStore(id){
     toast('✅ تم الحذف');
     loadOpStores();
   }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+async function promptLinkStore(storeId){
+  const form=document.getElementById(`link_form_${storeId}`);
+  if(!form)return;
+  const sel=document.getElementById(`link_page_sel_${storeId}`);
+  if(!sel)return;
+  // Load pages into the inline dropdown
+  try{
+    const snap=await db.collection('employee_pages').orderBy('name').get();
+    const pages=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const linked=new Set(_opStoresList.filter(s=>s.pageId&&s.id!==storeId).map(s=>s.pageId));
+    const cur=_opStoresList.find(s=>s.id===storeId);
+    sel.innerHTML='<option value="">— بدون ربط —</option>'+
+      pages.map(p=>`<option value="${p.id}" ${linked.has(p.id)?'disabled style="color:#9ca3af"':''} ${cur&&cur.pageId===p.id?'selected':''}>${p.name}${linked.has(p.id)?' (مرتبطة)':''}</option>`).join('');
+  }catch(e){}
+  form.style.display='block';
+}
+
+async function saveLinkStore(storeId){
+  const sel=document.getElementById(`link_page_sel_${storeId}`);
+  if(!sel)return;
+  const pageId=sel.value;
+  const pageName=pageId?sel.options[sel.selectedIndex].text.replace(' (مرتبطة)',''):'';
+  try{
+    await db.collection('operator_stores').doc(storeId).update(
+      pageId?{pageId,pageName}:{pageId:firebase.firestore.FieldValue.delete(),pageName:firebase.firestore.FieldValue.delete()}
+    );
+    toast(pageId?`✅ تم الربط بـ "${pageName}"`:'✅ تم إزالة الربط');
+    loadOpStores();
+  }catch(e){toast('❌ خطأ: '+e.message);}
 }
 
 // --- Store Daily Account (حسابات المتاجر اليومية) ---
@@ -9791,6 +9904,7 @@ window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpPro
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
 window.setEmpOrderFilter=setEmpOrderFilter; window.setOpOrderFilter=setOpOrderFilter; window.deleteEmpOrder=deleteEmpOrder;
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
+window.syncOrderToAccounting=syncOrderToAccounting;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
 window.loadDaySheet=loadDaySheet; window.printDaySheet=printDaySheet;
@@ -10319,6 +10433,7 @@ window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
 window.loadOpProducts=loadOpProducts;
 window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore;
 window.loadOpStores=loadOpStores;
+window.promptLinkStore=promptLinkStore; window.saveLinkStore=saveLinkStore;
 window.openStoreAccount=openStoreAccount; window.backToStoreList=backToStoreList;
 window.addItemToStoreOrder=addItemToStoreOrder; window.removeItemFromStoreOrder=removeItemFromStoreOrder;
 window.calcStoreOrderSummary=calcStoreOrderSummary;
