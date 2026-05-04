@@ -7519,7 +7519,7 @@ function loadTodaySales(){
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ تحميل...</div>';
   _todaySalesUnsub=db.collection('operator_sales').where('date','==',today)
     .onSnapshot(snap=>{
-      const pending=snap.docs.filter(d=>d.data().delivered===false);
+      const pending=snap.docs.filter(d=>d.data().delivered!==true);
       if(!pending.length){
         wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات معلقة اليوم</div>';
         return;
