@@ -2782,14 +2782,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
             <div id="empPagesAdminWrap"></div>
           </div>
-          <!-- Shared products -->
+          <!-- Shared products — managed from حساب المشغل -->
           <div style="background:#fff;border-radius:14px;padding:18px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-            <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:12px;">📦 المنتجات المشتركة <span style="font-weight:400;color:#6b7280;font-size:0.78rem;">(تظهر لكل الموظفين)</span></div>
-            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-              <input id="newEmpProdName" placeholder="اسم المنتج" style="flex:2;min-width:120px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-              <input id="newEmpProdPrice" type="number" placeholder="السعر" min="0" step="0.5" style="flex:1;min-width:80px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-              <span style="color:#6b7280;font-size:0.8rem;align-self:center;white-space:nowrap;">د.أ</span>
-              <button onclick="addEmpProduct()" style="padding:10px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+            <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:8px;">📦 المنتجات المشتركة</div>
+            <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:0.8rem;color:#166534;">
+              🔗 المنتجات الآن مُدارة من <strong>حساب المشغل ← المنتجات</strong> — أضف منتجاتك من هناك وستظهر تلقائياً هنا
             </div>
             <div id="empProductsAdminWrap"></div>
           </div>
@@ -4397,13 +4394,13 @@ async function onEmpPageChange(){
   if(!_empSharedProducts){
     try{
       let snap;
-      try{snap=await db.collection('employee_products').orderBy('productName').get();}
-      catch(e){snap=await db.collection('employee_products').get();}
+      try{snap=await db.collection('operator_products').orderBy('name').get();}
+      catch(e){snap=await db.collection('operator_products').get();}
       _empSharedProducts=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e){_empSharedProducts=[];}
   }
   prodSel.innerHTML='<option value="">— اختار المنتج —</option>'+
-    (_empSharedProducts||[]).map(p=>`<option value="${p.id}" data-price="${p.price||0}">${p.productName}</option>`).join('');
+    (_empSharedProducts||[]).map(p=>`<option value="${p.id}" data-price="${p.rawMaterialCost||0}" data-name="${(p.name||'').replace(/"/g,'&quot;')}">${p.name}</option>`).join('');
 }
 
 function onEmpProductChange(){}
@@ -4414,7 +4411,7 @@ function addToEmpCart(){
   if(!prodSel||!prodSel.value){toast('⚠️ اختار المنتج أولاً');return;}
   const opt=prodSel.selectedOptions[0];
   const id=prodSel.value;
-  const name=opt.text;
+  const name=opt.dataset.name||opt.text;
   const price=parseFloat(opt.dataset.price||0);
   const qty=Math.max(1,parseInt(qtyEl?.value||1));
   const existing=_empOrderCart.findIndex(i=>i.id===id);
@@ -4990,19 +4987,15 @@ async function loadEmpProductsAdmin(){
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.78rem;padding:6px;">⏳...</div>';
   try{
     let snap;
-    try{snap=await db.collection('employee_products').orderBy('productName').get();}
-    catch(e){snap=await db.collection('employee_products').get();}
+    try{snap=await db.collection('operator_products').orderBy('name').get();}
+    catch(e){snap=await db.collection('operator_products').get();}
     const prods=snap.docs.map(d=>({id:d.id,...d.data()}));
     _empSharedProducts=prods;
-    if(!prods.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.78rem;padding:8px;">لا يوجد منتجات — أضف منتجاً أعلاه</div>';return;}
+    if(!prods.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.78rem;padding:8px;">لا يوجد منتجات — أضفها من حساب المشغل ← المنتجات</div>';return;}
     wrap.innerHTML=prods.map(p=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;">
-        <span style="font-weight:600;color:#1a3a2a;font-size:0.88rem;">📦 ${p.productName}</span>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-weight:800;color:#166534;font-size:0.9rem;">${parseFloat(p.price||0).toFixed(2)} د.أ</span>
-          <button onclick="editEmpProduct('${p.id}','${p.productName.replace(/'/g,"\\'").replace(/"/g,'&quot;')}',${parseFloat(p.price||0)})" style="background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:0.78rem;">✏️</button>
-          <button onclick="deleteEmpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:0.78rem;">✕</button>
-        </div>
+        <span style="font-weight:600;color:#1a3a2a;font-size:0.88rem;">📦 ${p.name}</span>
+        <span style="font-weight:800;color:#92400e;font-size:0.88rem;">${parseFloat(p.rawMaterialCost||0).toFixed(2)} د.أ تكلفة</span>
       </div>`).join('');
   }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.78rem;">❌ '+e.message+'</div>';}
 }
@@ -5392,7 +5385,7 @@ async function syncOrderToAccounting(orderId,orderData){
         productId:product.id||'',
         productName:product.name||'',
         qty:product.qty||1,
-        sellPrice:product.price||0,
+        sellPrice:opProd?(opProd.rawMaterialCost||0):(product.price||0),
         rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
         assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
@@ -7194,6 +7187,7 @@ async function saveOpProduct(){
       toast('✅ تم حفظ المنتج');
     }
     cancelEditProduct();
+    _empSharedProducts=null; // invalidate cache so orders picks up the change
     loadOpProducts();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
@@ -7202,6 +7196,7 @@ async function deleteOpProduct(id){
   if(!confirm('حذف هذا المنتج؟')) return;
   try{
     await db.collection('operator_products').doc(id).delete();
+    _empSharedProducts=null;
     toast('✅ تم الحذف');
     loadOpProducts();
   }catch(e){toast('❌ خطأ في الحذف');}
