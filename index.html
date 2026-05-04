@@ -4590,10 +4590,30 @@ function loadEmpTodayOrders(){
           <div style="font-size:0.75rem;color:#6b7280;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>
           ${o.imageDataUrl?`<img src="${o.imageDataUrl}" style="width:100%;max-height:70px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;margin-top:6px;">`:'' }
           ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.7rem;color:#f97316;margin-top:4px;">✏️ تم التعديل</div>`:''}
-          <button onclick="openEmpOrderEdit('${o.id}')" style="margin-top:8px;padding:6px 14px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;width:100%;">✏️ تعديل الطلب</button>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button onclick="openEmpOrderEdit('${o.id}')" style="flex:1;padding:6px 14px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✏️ تعديل</button>
+            ${o.status!=='cancelled'?`<button onclick="cancelEmpOrder('${o.id}')" style="padding:6px 14px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">🚫 ملغي</button>`:''}
+          </div>
         </div>`;
       }).join('');
     },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ خطأ في التحميل</div>';});
+}
+
+async function cancelEmpOrder(id){
+  if(!confirm('إلغاء هذا الطلب؟'))return;
+  try{
+    const docRef=db.collection('employee_orders').doc(id);
+    const snap=await docRef.get();
+    const prev=snap.data();
+    const by=_empCurrentUser?.displayName||_empCurrentUser?.username||'موظف';
+    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(prev.status).label} ← ${_empSt('cancelled').label}`};
+    await docRef.update({
+      status:'cancelled',
+      editHistory:[...(prev.editHistory||[]),editEntry],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('🚫 تم إلغاء الطلب');
+  }catch(e){toast('❌ '+e.message);}
 }
 
 // ===== EMPLOYEE WORKERS ADMIN =====
@@ -9280,7 +9300,7 @@ window.setEmpOrderFilter=setEmpOrderFilter; window.setOpOrderFilter=setOpOrderFi
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
-window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit;
+window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit;
 window.renderEmpEditCart=renderEmpEditCart; window.changeEmpEditQty=changeEmpEditQty; window.removeEmpEditItem=removeEmpEditItem;
 window.setEmpEditDelivery=setEmpEditDelivery; window.updateEmpEditNet=updateEmpEditNet;
 window.addProduct=addProduct; window.delProduct=delProduct;
