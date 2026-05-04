@@ -7660,7 +7660,7 @@ async function openAcctDetail(storeId, storeName){
   // Load delivered sales for this store's account
   try{
     const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
-    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
+    _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered===true);
   }catch(e){_acctCurrentSales=[];}
   // Load payments (with orderBy fallback)
   try{
@@ -7969,7 +7969,7 @@ async function _loadOpDayData(date){
   }catch(e){_opDayRecord=null;}
   try{
     const snap=await db.collection('operator_sales').where('date','==',date).get();
-    _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
+    _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered===true);
   }catch(e){_opDailySales=[];}
   renderOperatorDailyView();
 }
@@ -9970,7 +9970,7 @@ async function loadBalanceTab(){
   // Load total raw material costs from all sales
   try{
     const snap=await db.collection('operator_sales').get();
-    _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false).reduce((sum,d)=>{
+    _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered===true).reduce((sum,d)=>{
       const s=d.data();
       return sum+((s.rawMaterialCost||0)*(s.qty||1));
     },0);
