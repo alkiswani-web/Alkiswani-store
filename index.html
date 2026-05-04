@@ -2279,8 +2279,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Sub-tabs -->
       <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:20px;">
-        <button id="optab-btn-deliver" onclick="switchOpTab('deliver')" style="flex:1;padding:10px 2px;border:none;background:#c9a84c;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">🚀 تسليم</button>
-        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-right:1px solid var(--border);border-left:1px solid var(--border);">📦 منتجات</button>
+        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 2px;border:none;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;border-right:1px solid var(--border);">📦 منتجات</button>
         <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">🏪 متاجر</button>
         <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">🛒 مبيعات</button>
         <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">📋 كشف</button>
@@ -2288,59 +2287,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       </div>
 
       <!-- ========== QUICK DELIVER SUB-TAB ========== -->
-      <div id="optab-deliver" style="display:none;">
-        <!-- Step 1: Store -->
-        <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
-          <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">1️⃣ اختار المتجر</div>
-          <select id="dlv_store" onchange="onDlvStoreChange()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);outline:none;">
-            <option value="">— اختار المتجر —</option>
-          </select>
-        </div>
-        <!-- Step 2: Add products -->
-        <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
-          <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">2️⃣ مكونات الطلب</div>
-          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:stretch;">
-            <select id="dlv_prod" onchange="onDlvProdChange()" style="flex:2;padding:10px 8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);outline:none;">
-              <option value="">— المنتج —</option>
-            </select>
-            <input type="number" id="dlv_qty" value="1" min="1" style="flex:1;padding:10px 8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:center;background:var(--card-bg);color:var(--text-dark);outline:none;" placeholder="كمية">
-            <button onclick="addDlvItem()" style="padding:10px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-size:1rem;cursor:pointer;flex-shrink:0;">➕</button>
-          </div>
-          <div id="dlv_price_info" style="font-size:0.78rem;color:var(--text-mid);margin-bottom:8px;min-height:16px;"></div>
-          <div id="dlv_cart_list"></div>
-          <div id="dlv_cart_total" style="display:none;background:#f0fdf4;border-radius:9px;padding:10px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:0.85rem;font-weight:700;color:#166534;">💰 الإجمالي</span>
-            <span id="dlv_total_val" style="font-weight:900;color:#166534;font-size:1.1rem;">0.00 د.أ</span>
-          </div>
-        </div>
-        <!-- Step 3: Invoice photo (optional) -->
-        <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
-          <div style="font-size:0.82rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">3️⃣ صورة الفاتورة <span style="font-weight:400;color:var(--text-mid);font-size:0.75rem;">(اختياري)</span></div>
-          <div style="display:flex;gap:8px;">
-            <label for="dlv_img_camera" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:9px;cursor:pointer;font-size:0.85rem;font-weight:700;color:#166534;">📷 تصوير</label>
-            <label for="dlv_img_file" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:9px;cursor:pointer;font-size:0.85rem;font-weight:700;color:#1d4ed8;">🖼 رفع صورة</label>
-          </div>
-          <input type="file" id="dlv_img_camera" accept="image/*" capture="camera" style="display:none;" onchange="onDlvImageChange(this)">
-          <input type="file" id="dlv_img_file" accept="image/*" style="display:none;" onchange="onDlvImageChange(this)">
-          <div id="dlv_img_preview" style="margin-top:10px;"></div>
-        </div>
-        <!-- Date & Notes -->
-        <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
-          <div style="display:flex;gap:8px;">
-            <input type="date" id="dlv_date" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);outline:none;">
-            <input type="text" id="dlv_notes" placeholder="ملاحظات (اختياري)" style="flex:2;padding:10px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);outline:none;">
-          </div>
-        </div>
-        <!-- Add order button -->
-        <button onclick="addPendingOrder()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;margin-bottom:18px;">➕ إضافة الطلب</button>
-        <!-- Pending orders list -->
-        <div id="dlv_pending_wrap"></div>
-        <!-- Deliver all -->
-        <div id="dlv_deliver_all_wrap" style="display:none;margin-top:4px;">
-          <button onclick="deliverAllOrders()" style="width:100%;padding:13px;background:#c9a84c;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسليم الكل للكشف</button>
-        </div>
-      </div>
-
       <!-- ========== PRODUCTS SUB-TAB ========== -->
       <div id="optab-products" style="display:block;">
         <div class="form-card" style="margin-bottom:16px;">
@@ -2797,6 +2743,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_operator" style="accent-color:var(--green-dark);"> مشغل (تغيير حالة)</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_viewAll" style="accent-color:var(--green-dark);"> عرض كل الطلبات</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_print" checked style="accent-color:var(--green-dark);"> طباعة الفاتورة</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isDelivery" style="accent-color:#c9a84c;"> 🚀 موظف تسليم (مبيعات مباشرة)</label>
             </div>
             <button onclick="addEmpWorker()" style="padding:10px 22px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">+ إضافة</button>
           </div>
@@ -2857,7 +2804,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
   <div style="max-width:560px;margin:0 auto;padding:16px;">
 
-    <!-- New order form -->
+    <!-- Normal order form (hidden for delivery workers) -->
+    <div id="empNormalOrderSection">
     <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
       <div style="font-size:0.95rem;font-weight:700;color:#1a3a2a;margin-bottom:14px;">➕ طلب جديد</div>
 
@@ -2949,6 +2897,59 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <!-- Today's orders -->
     <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;margin-bottom:10px;">📦 طلباتي اليوم</div>
     <div id="empOrdersList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات اليوم</div></div>
+    </div><!-- end empNormalOrderSection -->
+
+    <!-- Delivery form (shown only for delivery workers) -->
+    <div id="empDeliverySection" style="display:none;">
+      <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <div style="font-size:0.95rem;font-weight:700;color:#1a3a2a;margin-bottom:14px;">🚀 تسليم مبيعات</div>
+        <!-- Store -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🏪 المتجر</div>
+          <select id="empDlv_store" onchange="onEmpDlvStoreChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;">
+            <option value="">— اختار المتجر —</option>
+          </select>
+        </div>
+        <!-- Product adder -->
+        <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">
+          <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:8px;">📦 إضافة منتج</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <select id="empDlv_prod" style="flex:1;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;min-width:0;">
+              <option value="">— المنتج —</option>
+            </select>
+            <input type="number" id="empDlv_qty" value="1" min="1" style="width:58px;padding:9px 6px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;">
+            <button onclick="addEmpDlvItem()" style="padding:9px 13px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;flex-shrink:0;">➕</button>
+          </div>
+          <div id="empDlv_price_info" style="font-size:0.75rem;color:#6b7280;min-height:14px;"></div>
+          <div id="empDlv_cart_list"></div>
+          <div id="empDlv_cart_total" style="display:none;background:#f0fdf4;border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.82rem;font-weight:700;color:#166534;">💰 الإجمالي</span>
+            <span id="empDlv_total_val" style="font-weight:900;color:#166534;">0.00 د.أ</span>
+          </div>
+        </div>
+        <!-- Photo -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">📷 صورة الفاتورة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
+          <div style="display:flex;gap:8px;">
+            <label for="empDlv_img_camera" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#166534;">📷 تصوير</label>
+            <label for="empDlv_img_file" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#1d4ed8;">🖼 رفع صورة</label>
+          </div>
+          <input type="file" id="empDlv_img_camera" accept="image/*" capture="camera" style="display:none;" onchange="onEmpDlvImageChange(this)">
+          <input type="file" id="empDlv_img_file" accept="image/*" style="display:none;" onchange="onEmpDlvImageChange(this)">
+          <div id="empDlv_img_preview" style="margin-top:8px;"></div>
+        </div>
+        <!-- Date + Notes -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <input type="date" id="empDlv_date" style="flex:1;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;">
+          <input type="text" id="empDlv_notes" placeholder="ملاحظات" style="flex:2;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;">
+        </div>
+        <button onclick="submitEmpDelivery()" style="width:100%;padding:13px;background:#c9a84c;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسليم للمبيعات</button>
+      </div>
+      <!-- Today's deliveries -->
+      <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;margin-bottom:10px;">📦 تسليماتي اليوم</div>
+      <div id="empDlvTodayList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد تسليمات اليوم</div></div>
+    </div><!-- end empDeliverySection -->
+
   </div>
 </div>
 
@@ -4195,7 +4196,7 @@ function switchAdminTab(tab){
   if(tab==='categories'){ renderCategoriesAdmin(); }
   if(tab==='aboutedit'){ loadAboutSettingsForm(); }
   if(tab==='operator'){
-    switchOpTab('deliver');
+    switchOpTab('products');
   }
   if(tab==='adminusers')loadAdminUsers();
   if(tab==='emporders') switchEmpSubTab('tracking');
@@ -4328,12 +4329,22 @@ async function openEmpPanel(){
   document.body.style.overflow='hidden';
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
-  _empOrderCart=[];
-  _empDeliveryFee=0;
-  await _loadEmpPagesIntoPanel();
-  await onEmpPageChange();
-  renderEmpOrderCart();
-  loadEmpTodayOrders();
+  const isDelivery=_empCurrentUser.permissions?.isDelivery||false;
+  const hdr=document.querySelector('#empPanel .admin-tab-content, #empPanel > div:first-child div:nth-child(2)');
+  const titleEl=document.querySelector('#empPanel [style*="c9a84c"]');
+  if(titleEl)titleEl.textContent=isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
+  document.getElementById('empNormalOrderSection').style.display=isDelivery?'none':'block';
+  document.getElementById('empDeliverySection').style.display=isDelivery?'block':'none';
+  if(isDelivery){
+    initEmpDeliveryPanel();
+  }else{
+    _empOrderCart=[];
+    _empDeliveryFee=0;
+    await _loadEmpPagesIntoPanel();
+    await onEmpPageChange();
+    renderEmpOrderCart();
+    loadEmpTodayOrders();
+  }
 }
 
 async function _loadEmpPagesIntoPanel(){
@@ -4461,6 +4472,7 @@ function closeEmpPanel(){
   document.getElementById('empPanel').style.display='none';
   document.body.style.overflow='';
   if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
+  if(_empDlvTodayUnsub){_empDlvTodayUnsub();_empDlvTodayUnsub=null;}
 }
 function logoutEmp(){
   _clearEmpSession();
@@ -4620,6 +4632,186 @@ async function cancelEmpOrder(id){
   }catch(e){toast('❌ '+e.message);}
 }
 
+// ===== DELIVERY EMPLOYEE PANEL =====
+let _empDlvStoresList=[];
+let _empDlvProductsList=[];
+let _empDlvCart=[];
+let _empDlvCurrentImage=null;
+let _empDlvTodayUnsub=null;
+
+async function initEmpDeliveryPanel(){
+  const dateEl=document.getElementById('empDlv_date');
+  if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
+  if(!_empDlvStoresList.length){
+    try{const s=await db.collection('operator_stores').orderBy('name').get();_empDlvStoresList=s.docs.map(d=>({id:d.id,...d.data()}));}
+    catch(e){try{const s=await db.collection('operator_stores').get();_empDlvStoresList=s.docs.map(d=>({id:d.id,...d.data()}));}catch(e2){_empDlvStoresList=[];}}
+  }
+  if(!_empDlvProductsList.length){
+    try{const s=await db.collection('operator_products').orderBy('name').get();_empDlvProductsList=s.docs.map(d=>({id:d.id,...d.data()}));}
+    catch(e){try{const s=await db.collection('operator_products').get();_empDlvProductsList=s.docs.map(d=>({id:d.id,...d.data()}));}catch(e2){_empDlvProductsList=[];}}
+  }
+  const storeSel=document.getElementById('empDlv_store');
+  if(storeSel) storeSel.innerHTML='<option value="">— اختار المتجر —</option>'+
+    _empDlvStoresList.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
+  _fillEmpDlvProdOptions('');
+  renderEmpDlvCart();
+  loadEmpDlvTodayList();
+}
+
+function _fillEmpDlvProdOptions(storeId){
+  const prodSel=document.getElementById('empDlv_prod');
+  if(!prodSel)return;
+  prodSel.innerHTML='<option value="">— المنتج —</option>'+
+    _empDlvProductsList.map(p=>{
+      const price=storeId&&p.storePrices?.[storeId]?p.storePrices[storeId]:(p.defaultSellPrice||0);
+      return `<option value="${p.id}" data-name="${p.name}" data-price="${price}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}">${p.name} — ${parseFloat(price).toFixed(2)} د.أ</option>`;
+    }).join('');
+  const info=document.getElementById('empDlv_price_info');
+  if(info)info.textContent='';
+}
+
+function onEmpDlvStoreChange(){
+  const sel=document.getElementById('empDlv_store');
+  _fillEmpDlvProdOptions(sel?.value||'');
+  renderEmpDlvCart();
+}
+
+function addEmpDlvItem(){
+  const storeSel=document.getElementById('empDlv_store');
+  const prodSel=document.getElementById('empDlv_prod');
+  const qtyEl=document.getElementById('empDlv_qty');
+  if(!storeSel?.value){toast('⚠️ اختار المتجر أولاً');return;}
+  const opt=prodSel?.selectedOptions[0];
+  if(!opt||!opt.value){toast('⚠️ اختار منتجاً');return;}
+  const qty=parseInt(qtyEl?.value)||1;
+  const price=parseFloat(opt.dataset.price||0);
+  const existing=_empDlvCart.find(i=>i.productId===opt.value);
+  if(existing){existing.qty+=qty;}
+  else{_empDlvCart.push({productId:opt.value,productName:opt.dataset.name,qty,sellPrice:price,rawMaterialCost:parseFloat(opt.dataset.raw||0),machineWorkerWage:parseFloat(opt.dataset.machine||0),assemblyWorkerWage:parseFloat(opt.dataset.assembly||0)});}
+  if(qtyEl)qtyEl.value=1;
+  if(prodSel)prodSel.value='';
+  const info=document.getElementById('empDlv_price_info');
+  if(info)info.textContent='';
+  renderEmpDlvCart();
+}
+
+function removeEmpDlvItem(i){_empDlvCart.splice(i,1);renderEmpDlvCart();}
+function changeEmpDlvQty(i,d){_empDlvCart[i].qty=Math.max(1,(_empDlvCart[i].qty||1)+d);renderEmpDlvCart();}
+
+function renderEmpDlvCart(){
+  const list=document.getElementById('empDlv_cart_list');
+  const totalWrap=document.getElementById('empDlv_cart_total');
+  const totalVal=document.getElementById('empDlv_total_val');
+  if(!list)return;
+  if(!_empDlvCart.length){
+    list.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:12px;">أضف منتجاً ➕</div>';
+    if(totalWrap)totalWrap.style.display='none';return;
+  }
+  const total=_empDlvCart.reduce((s,i)=>(i.sellPrice||0)*(i.qty||1)+s,0);
+  list.innerHTML=_empDlvCart.map((item,idx)=>`
+    <div style="display:flex;align-items:center;gap:6px;padding:8px 4px;border-bottom:1px dashed #e5e7eb;">
+      <div style="flex:1;font-weight:700;color:#1a3a2a;font-size:0.82rem;">${item.productName}</div>
+      <div style="display:flex;align-items:center;border:1.5px solid #e5e7eb;border-radius:7px;overflow:hidden;flex-shrink:0;">
+        <button onclick="changeEmpDlvQty(${idx},-1)" style="padding:4px 10px;border:none;background:#f3f4f6;cursor:pointer;font-size:0.9rem;font-weight:700;">−</button>
+        <span style="padding:4px 8px;font-weight:800;font-size:0.85rem;min-width:24px;text-align:center;">${item.qty}</span>
+        <button onclick="changeEmpDlvQty(${idx},1)" style="padding:4px 10px;border:none;background:#f3f4f6;cursor:pointer;font-size:0.9rem;font-weight:700;">+</button>
+      </div>
+      <span style="font-weight:700;color:#166534;font-size:0.82rem;min-width:50px;text-align:left;">${((item.sellPrice||0)*(item.qty||1)).toFixed(2)} د.أ</span>
+      <button onclick="removeEmpDlvItem(${idx})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 8px;font-size:0.75rem;cursor:pointer;">✕</button>
+    </div>`).join('');
+  if(totalWrap)totalWrap.style.display='flex';
+  if(totalVal)totalVal.textContent=total.toFixed(2)+' د.أ';
+}
+
+async function onEmpDlvImageChange(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    _empDlvCurrentImage=await _compressImage(e.target.result);
+    renderEmpDlvImagePreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderEmpDlvImagePreview(){
+  const wrap=document.getElementById('empDlv_img_preview');if(!wrap)return;
+  if(!_empDlvCurrentImage){wrap.innerHTML='';return;}
+  wrap.innerHTML=`<div style="position:relative;display:inline-block;width:100%;">
+    <img src="${_empDlvCurrentImage}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;">
+    <button onclick="clearEmpDlvImage()" style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>
+  </div>`;
+}
+
+function clearEmpDlvImage(){
+  _empDlvCurrentImage=null;renderEmpDlvImagePreview();
+  const c=document.getElementById('empDlv_img_camera');const f=document.getElementById('empDlv_img_file');
+  if(c)c.value='';if(f)f.value='';
+}
+
+async function submitEmpDelivery(){
+  const storeSel=document.getElementById('empDlv_store');
+  if(!storeSel?.value){toast('⚠️ اختار المتجر');return;}
+  if(!_empDlvCart.length){toast('⚠️ أضف منتجاً على الأقل');return;}
+  const storeId=storeSel.value;
+  const storeName=storeSel.selectedOptions[0]?.text||'';
+  const date=document.getElementById('empDlv_date')?.value||jordanDateStr();
+  const notes=document.getElementById('empDlv_notes')?.value.trim()||'';
+  const btn=document.querySelector('#empDeliverySection button[onclick="submitEmpDelivery()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
+  try{
+    const batch=db.batch();
+    _empDlvCart.forEach(item=>{
+      const ref=db.collection('operator_sales').doc();
+      batch.set(ref,{
+        storeId,storeName,
+        productId:item.productId,productName:item.productName,
+        qty:item.qty,sellPrice:item.sellPrice,
+        rawMaterialCost:item.rawMaterialCost||0,
+        machineWorkerWage:item.machineWorkerWage||0,
+        assemblyWorkerWage:item.assemblyWorkerWage||0,
+        notes,date,
+        imageDataUrl:_empDlvCurrentImage||null,
+        addedBy:_empCurrentUser.displayName||_empCurrentUser.username,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    toast('✅ تم التسليم للمبيعات');
+    _empDlvCart=[];_empDlvCurrentImage=null;
+    if(storeSel)storeSel.value='';
+    const notesEl=document.getElementById('empDlv_notes');if(notesEl)notesEl.value='';
+    renderEmpDlvCart();renderEmpDlvImagePreview();
+    clearEmpDlvImage();
+    loadEmpDlvTodayList();
+  }catch(e){toast('❌ '+e.message);}
+  if(btn){btn.disabled=false;btn.textContent='✅ تسليم للمبيعات';}
+}
+
+function loadEmpDlvTodayList(){
+  const wrap=document.getElementById('empDlvTodayList');
+  if(!wrap||!_empCurrentUser)return;
+  const today=jordanDateStr();
+  if(_empDlvTodayUnsub){_empDlvTodayUnsub();_empDlvTodayUnsub=null;}
+  _empDlvTodayUnsub=db.collection('operator_sales').where('date','==',today).where('addedBy','==',_empCurrentUser.displayName||_empCurrentUser.username)
+    .onSnapshot(snap=>{
+      const sales=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+      if(!sales.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد تسليمات اليوم</div>';return;}
+      const grouped={};
+      sales.forEach(s=>{const k=s.storeId+'_'+s.date;if(!grouped[k])grouped[k]={storeName:s.storeName,date:s.date,items:[],imageDataUrl:s.imageDataUrl};grouped[k].items.push(s);});
+      wrap.innerHTML=Object.values(grouped).map(g=>{
+        const total=g.items.reduce((s,i)=>(i.sellPrice||0)*(i.qty||1)+s,0);
+        return `<div style="background:#fff;border:1.5px solid #fcd34d;border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-weight:700;color:#1a3a2a;font-size:0.88rem;">🏪 ${g.storeName}</div>
+            <span style="font-weight:900;color:#92400e;">${total.toFixed(2)} د.أ</span>
+          </div>
+          <div style="font-size:0.75rem;color:#6b7280;margin-bottom:4px;">${g.items.map(i=>`${i.productName} × ${i.qty}`).join(' · ')}</div>
+          ${g.imageDataUrl?`<img src="${g.imageDataUrl}" style="width:100%;max-height:80px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;margin-top:6px;">`:'' }
+        </div>`;
+      }).join('');
+    },()=>{});
+}
+
 // ===== EMPLOYEE WORKERS ADMIN =====
 async function loadEmpWorkers(){
   const wrap=document.getElementById('empWorkersList');
@@ -4635,6 +4827,7 @@ async function loadEmpWorkers(){
       if(perms.canAddOrders!==false)tags.push('📝 إضافة');
       if(perms.canEditOrders!==false)tags.push('✏️ تعديل');
       if(perms.isOperator)tags.push('🔧 مشغل');
+      if(perms.isDelivery)tags.push('🚀 تسليم');
       if(perms.canViewAll)tags.push('👁 عرض الكل');
       if(perms.canPrint!==false)tags.push('🖨 طباعة');
       return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
@@ -4667,6 +4860,7 @@ async function addEmpWorker(){
     isOperator:document.getElementById('perm_operator')?.checked||false,
     canViewAll:document.getElementById('perm_viewAll')?.checked||false,
     canPrint:document.getElementById('perm_print')?.checked!==false,
+    isDelivery:document.getElementById('perm_isDelivery')?.checked||false,
   };
   try{
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
@@ -6200,7 +6394,7 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  ['deliver','products','stores','sales','account','balance'].forEach(t=>{
+  ['products','stores','sales','account','balance'].forEach(t=>{
     const el=document.getElementById(`optab-${t}`);
     const btn=document.getElementById(`optab-btn-${t}`);
     if(el) el.style.display=t===tab?'block':'none';
@@ -9308,6 +9502,10 @@ window.setEmpOrderFilter=setEmpOrderFilter; window.setOpOrderFilter=setOpOrderFi
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
+window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvItem;
+window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
+window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
+window.submitEmpDelivery=submitEmpDelivery;
 window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit;
 window.renderEmpEditCart=renderEmpEditCart; window.changeEmpEditQty=changeEmpEditQty; window.removeEmpEditItem=removeEmpEditItem;
 window.setEmpEditDelivery=setEmpEditDelivery; window.updateEmpEditNet=updateEmpEditNet;
