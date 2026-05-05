@@ -5363,7 +5363,11 @@ async function updateEmpOrderStatus(id,newStatus){
     if(prevStatus===newStatus)return;
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(prevStatus).label} ← ${_empSt(newStatus).label}`};
     const editHistory=[...(data.editHistory||[]),editEntry];
-    await docRef.update({status:newStatus,editHistory,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const extraFields={};
+    if(newStatus==='delivered') extraFields.deliveredDate=jordanDateStr();
+    if(['cancelled','returned','refused'].includes(newStatus)||!['cancelled','returned','refused','delivered'].includes(newStatus))
+      extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
+    await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
     if(newStatus==='delivered') syncOrderToAccounting(id,data);
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
@@ -5572,7 +5576,7 @@ async function loadDaySheet(){
     if(!_opProductsList.length) await loadOpProducts();
     if(!_opStoresList.length) await loadOpStores();
     const [ordersSnap,refundsSnap]=await Promise.all([
-      db.collection('employee_orders').where('date','==',date).get(),
+      db.collection('employee_orders').where('deliveredDate','==',date).get(),
       db.collection('page_refunds').where('date','==',date).get()
     ]);
     const orders=ordersSnap.docs.map(d=>({id:d.id,...d.data()}));
