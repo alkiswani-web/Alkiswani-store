@@ -5336,8 +5336,10 @@ async function deleteEmpOrder(id){
     const snap=await db.collection('employee_orders').doc(id).get();
     const data=snap.exists?snap.data():null;
     await db.collection('employee_orders').doc(id).delete();
-    unsyncOrderFromAccounting(id);
-    if(data) addPageRefundEntry(id,data,'deleted');
+    if(data?.status==='delivered'){
+      unsyncOrderFromAccounting(id);
+      addPageRefundEntry(id,data,'deleted');
+    }
     toast('🗑 تم حذف الطلب');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -5354,11 +5356,11 @@ async function updateEmpOrderStatus(id,newStatus){
     await docRef.update({status:newStatus,editHistory,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
     if(newStatus==='delivered') syncOrderToAccounting(id,data);
-    if(['cancelled','returned','refused'].includes(newStatus)){
-      if(prevStatus==='delivered') unsyncOrderFromAccounting(id);
+    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
+      unsyncOrderFromAccounting(id);
       addPageRefundEntry(id,data,newStatus);
     }
-    if(!['cancelled','returned','refused','delivered'].includes(newStatus)&&['cancelled','returned','refused'].includes(prevStatus)){
+    if(!['cancelled','returned','refused','delivered'].includes(newStatus)){
       removePageRefundEntry(id);
     }
   }catch(e){toast('❌ '+e.message);}
