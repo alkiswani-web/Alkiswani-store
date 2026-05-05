@@ -5560,6 +5560,7 @@ async function loadDaySheet(){
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
   try{
     if(!_opProductsList.length) await loadOpProducts();
+    if(!_opStoresList.length) await loadOpStores();
     const [ordersSnap,refundsSnap]=await Promise.all([
       db.collection('employee_orders').where('date','==',date).get(),
       db.collection('page_refunds').where('date','==',date).get()
@@ -5586,40 +5587,52 @@ function _renderDaySheet(orders,refunds,date){
     const op=_opProductsList.find(p=>p.name===name);
     return op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
   }
+  function _storeForPage(pageId){
+    return _opStoresList.find(s=>s.pageId===pageId)||null;
+  }
 
-  const pages={};
-  orders.forEach(o=>{
-    const key=o.pageName||'بدون صفحة';
-    if(!pages[key])pages[key]={name:key,delivered:[],active:[],failed:[],refunds:[]};
-    if(DONE.includes(o.status)) pages[key].delivered.push(o);
-    else if(FAILED.includes(o.status)) pages[key].failed.push(o);
-    else pages[key].active.push(o);
+  // Group delivered orders by store
+  const stores={};
+  const noStoreKey='__no_store__';
+  orders.filter(o=>DONE.includes(o.status)).forEach(o=>{
+    const store=_storeForPage(o.pageId);
+    const key=store?store.id:noStoreKey;
+    if(!stores[key])stores[key]={id:key,name:store?store.name:'بدون متجر',delivered:[],refunds:[]};
+    stores[key].delivered.push(o);
   });
+  // Attach refunds to stores
   refunds.forEach(r=>{
-    const key=r.pageName||'بدون صفحة';
-    if(!pages[key])pages[key]={name:key,delivered:[],active:[],failed:[],refunds:[]};
-    pages[key].refunds.push(r);
+    const key=r.storeId||noStoreKey;
+    if(!stores[key])stores[key]={id:key,name:r.storeName||'بدون متجر',delivered:[],refunds:[]};
+    stores[key].refunds.push(r);
   });
+
+  // Count totals for header
+  const totalDelivered=orders.filter(o=>DONE.includes(o.status)).length;
+  const totalFailed=orders.filter(o=>FAILED.includes(o.status)).length;
+  const totalActive=orders.length-totalDelivered-totalFailed;
 
   let grandSale=0,grandCost=0,grandCount=0;
 
-  const pageCards=Object.values(pages).map(pg=>{
-    let pageSale=0,pageCost=0;
+  const storeCards=Object.values(stores).map(st=>{
+    let storeSale=0,storeCost=0;
 
-    const orderRows=pg.delivered.map(o=>{
+    const orderRows=st.delivered.map(o=>{
       const dlv=o.deliveryFee||0;
       const excessDlv=Math.max(0,dlv-2);
       const effectiveSale=(o.totalPrice||0)-excessDlv;
-      pageSale+=effectiveSale;
+      storeSale+=effectiveSale;
       let orderCost=0;
       (o.products||[]).forEach(p=>{orderCost+=_prodCost(p.name)*(p.qty||1);});
-      pageCost+=orderCost;
+      storeCost+=orderCost;
       const prodsStr=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join(' · ');
       const dlvNote=dlv>2?`<span style="color:#f59e0b;font-size:0.68rem;"> (توصيل ${dlv} — خصم ${excessDlv.toFixed(2)} د.أ)</span>`:'';
+      const locationStr=[o.area,o.address].filter(Boolean).join(' — ');
       return `<div style="padding:8px 12px;border-bottom:1px dashed #e5f0e8;font-size:0.8rem;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div style="flex:1;">
-            <div style="font-weight:700;color:#1a3a2a;">${o.name||'—'}${o.area?` <span style="color:#6b7280;font-weight:400;font-size:0.72rem;">📍${o.area}</span>`:''}${dlvNote}</div>
+            <div style="font-weight:700;color:#1a3a2a;">${o.name||'—'}${dlvNote}</div>
+            ${locationStr?`<div style="color:#6b7280;font-size:0.72rem;margin-top:1px;">📍 ${locationStr}</div>`:''}
             <div style="color:#374151;margin-top:2px;">${prodsStr}</div>
             ${o.notes?`<div style="color:#9ca3af;font-size:0.7rem;margin-top:1px;">📝 ${o.notes}</div>`:''}
           </div>
@@ -5631,55 +5644,31 @@ function _renderDaySheet(orders,refunds,date){
       </div>`;
     }).join('');
 
-    const pageProfit=pageSale-pageCost;
-    const refundTotal=(pg.refunds||[]).reduce((s,r)=>s+(r.totalCost||0),0);
-    grandSale+=pageSale; grandCost+=pageCost; grandCount+=pg.delivered.length;
-
-    const statusBadges=[
-      pg.delivered.length?`<span style="background:#dcfce7;color:#166534;padding:3px 9px;border-radius:20px;font-size:0.72rem;font-weight:700;">✅ مسلّم ${pg.delivered.length}</span>`:'',
-      pg.active.length?`<span style="background:#fef9c3;color:#854d0e;padding:3px 9px;border-radius:20px;font-size:0.72rem;font-weight:700;">🔄 قيد التنفيذ ${pg.active.length}</span>`:'',
-      pg.failed.length?`<span style="background:#fee2e2;color:#dc2626;padding:3px 9px;border-radius:20px;font-size:0.72rem;font-weight:700;">❌ ملغي/مرتجع ${pg.failed.length}</span>`:'',
-    ].filter(Boolean).join('');
-
-    const activeRows=pg.active.map(o=>{
-      const prods=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join(' · ');
-      return `<div style="padding:6px 12px;border-bottom:1px dashed #fef3c7;font-size:0.78rem;color:#92400e;">
-        <span style="font-weight:600;">${o.name||'—'}</span>${o.area?` <span style="font-size:0.7rem;">📍${o.area}</span>`:''} — ${prods}${o.notes?` <span style="color:#9ca3af;font-size:0.7rem;">📝${o.notes}</span>`:''}
-      </div>`;
-    }).join('');
-
-    const failedRows=pg.failed.map(o=>{
-      const prods=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join(' · ');
-      return `<div style="padding:6px 12px;border-bottom:1px dashed #fecaca;font-size:0.78rem;color:#991b1b;">
-        <span style="font-weight:600;">${o.name||'—'}</span>${o.area?` <span style="font-size:0.7rem;">📍${o.area}</span>`:''} — ${prods}
-      </div>`;
-    }).join('');
+    const storeProfit=storeSale-storeCost;
+    const refundTotal=(st.refunds||[]).reduce((s,r)=>s+(r.totalCost||0),0);
+    grandSale+=storeSale; grandCost+=storeCost; grandCount+=st.delivered.length;
 
     return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.04);">
       <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);padding:12px 14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-weight:800;color:#fff;font-size:0.95rem;">📄 ${pg.name}</div>
-        </div>
+        <div style="font-weight:800;color:#fff;font-size:0.95rem;margin-bottom:8px;">🏪 ${st.name}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
           <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:7px;text-align:center;">
             <div style="font-size:0.6rem;color:rgba(255,255,255,0.6);margin-bottom:2px;">صافي البيع</div>
-            <div style="font-weight:800;color:#a7f3d0;font-size:0.92rem;">${pageSale.toFixed(2)}</div>
+            <div style="font-weight:800;color:#a7f3d0;font-size:0.92rem;">${storeSale.toFixed(2)}</div>
           </div>
           <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:7px;text-align:center;">
             <div style="font-size:0.6rem;color:rgba(255,255,255,0.6);margin-bottom:2px;">تكلفة المنتجات</div>
-            <div style="font-weight:800;color:#fca5a5;font-size:0.92rem;">${pageCost.toFixed(2)}</div>
+            <div style="font-weight:800;color:#fca5a5;font-size:0.92rem;">${storeCost.toFixed(2)}</div>
           </div>
           <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
             <div style="font-size:0.6rem;color:rgba(255,255,255,0.6);margin-bottom:2px;">صافي الربح</div>
-            <div style="font-weight:800;color:${pageProfit>=0?'#86efac':'#fca5a5'};font-size:0.92rem;">${pageProfit.toFixed(2)}</div>
+            <div style="font-weight:800;color:${storeProfit>=0?'#86efac':'#fca5a5'};font-size:0.92rem;">${storeProfit.toFixed(2)}</div>
           </div>
         </div>
-        ${refundTotal>0?`<div style="margin-top:7px;background:rgba(253,242,248,0.12);border-radius:8px;padding:5px 10px;font-size:0.72rem;color:#fce7f3;">↩️ رصيد له من المشغل (للمعلومية فقط): ${refundTotal.toFixed(2)} د.أ</div>`:''}
+        ${refundTotal>0?`<div style="margin-top:7px;background:rgba(253,242,248,0.12);border-radius:8px;padding:5px 10px;font-size:0.72rem;color:#fce7f3;">↩️ رصيد له من المشغل (للمعلومية): ${refundTotal.toFixed(2)} د.أ</div>`:''}
       </div>
-      ${statusBadges?`<div style="padding:8px 12px;display:flex;flex-wrap:wrap;gap:5px;border-bottom:1px solid #f0f0f0;">${statusBadges}</div>`:''}
-      ${orderRows?`<div>${orderRows}</div>`:'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:10px;">لا يوجد طلبات مسلّمة</div>'}
-      ${activeRows?`<div style="background:#fffbeb;border-top:1px solid #fef3c7;"><div style="padding:4px 12px;font-size:0.68rem;font-weight:700;color:#92400e;">🔄 قيد التنفيذ</div>${activeRows}</div>`:''}
-      ${failedRows?`<div style="background:#fff5f5;border-top:1px solid #fecaca;"><div style="padding:4px 12px;font-size:0.68rem;font-weight:700;color:#dc2626;">❌ ملغي / مرتجع</div>${failedRows}</div>`:''}
+      <div style="padding:5px 12px 3px;font-size:0.7rem;color:#6b7280;font-weight:600;">✅ ${st.delivered.length} طلب مسلّم</div>
+      ${orderRows||'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:10px;">لا يوجد طلبات مسلّمة</div>'}
     </div>`;
   }).join('');
 
@@ -5703,10 +5692,15 @@ function _renderDaySheet(orders,refunds,date){
         <div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">د.أ</div>
       </div>
     </div>
-    <div style="border-top:1px solid rgba(255,255,255,0.15);padding-top:10px;text-align:center;color:rgba(255,255,255,0.5);font-size:0.72rem;">${grandCount} طلب مسلّم · ${orders.length} إجمالي طلبات اليوم</div>
+    <div style="border-top:1px solid rgba(255,255,255,0.15);padding-top:10px;display:flex;justify-content:space-around;color:rgba(255,255,255,0.5);font-size:0.7rem;">
+      <span>✅ مسلّم ${totalDelivered}</span>
+      ${totalActive>0?`<span>🔄 تنفيذ ${totalActive}</span>`:''}
+      ${totalFailed>0?`<span>❌ ملغي ${totalFailed}</span>`:''}
+      <span>📦 إجمالي ${orders.length}</span>
+    </div>
   </div>`;
 
-  return pageCards+totalCard;
+  return (storeCards||'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">لا يوجد طلبات مسلّمة لهذا اليوم</div>')+totalCard;
 }
 
 function printDaySheet(){
