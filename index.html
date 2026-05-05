@@ -2912,6 +2912,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</div>
           <span id="empDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;">0.00 د.أ</span>
         </div>
+        <div id="empExcessRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.78rem;color:#dc2626;">📉 خصم توصيل زائد</div>
+          <span id="empExcessLabel" style="font-size:0.8rem;color:#dc2626;font-weight:700;">0.00 د.أ</span>
+        </div>
         <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px dashed #86efac;padding-top:8px;margin-top:2px;">
           <div style="font-size:0.85rem;font-weight:800;color:#166534;">الحساب النهائي</div>
           <span id="empNetLabel" style="font-weight:900;color:#166534;font-size:1rem;">0.00 د.أ</span>
@@ -4486,14 +4490,20 @@ function updateEmpNet(){
   if(customEl&&customEl.style.display!=='none'){
     _empDeliveryFee=parseFloat(customEl.value)||0;
   }
-  const total=parseFloat(document.getElementById('emp_total')?.value||0)||calcEmpOrderTotal();
-  const net=total+_empDeliveryFee;
+  const prodsTotal=parseFloat(document.getElementById('emp_total')?.value||0)||calcEmpOrderTotal();
+  const dlv=_empDeliveryFee;
+  const excess=Math.max(0,dlv-2);
+  const net=prodsTotal-excess;
   const netEl=document.getElementById('empNetLabel');
   const dlvRow=document.getElementById('empDeliveryRow');
   const dlvLbl=document.getElementById('empDeliveryLabel');
+  const excessRow=document.getElementById('empExcessRow');
+  const excessLbl=document.getElementById('empExcessLabel');
+  if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
+  if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
+  if(excessRow)excessRow.style.display=excess>0?'flex':'none';
+  if(excessLbl)excessLbl.textContent='-'+excess.toFixed(2)+' د.أ';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
-  if(dlvRow)dlvRow.style.display=_empDeliveryFee>0?'flex':'none';
-  if(dlvLbl)dlvLbl.textContent=_empDeliveryFee.toFixed(2)+' د.أ';
 }
 function closeEmpPanel(){
   document.getElementById('empPanel').style.display='none';
@@ -5619,8 +5629,9 @@ function _renderDaySheet(orders,refunds,date){
 
     const orderRows=st.delivered.map(o=>{
       const dlv=o.deliveryFee||0;
+      const prodsTotal=(o.totalPrice||0)-(o.deliveryFee||0);
       const excessDlv=Math.max(0,dlv-2);
-      const effectiveSale=(o.totalPrice||0)-excessDlv;
+      const effectiveSale=prodsTotal-excessDlv;
       storeSale+=effectiveSale;
       let orderCost=0;
       (o.products||[]).forEach(p=>{orderCost+=_prodCost(p.name)*(p.qty||1);});
