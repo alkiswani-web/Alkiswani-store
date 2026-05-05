@@ -5394,7 +5394,7 @@ async function syncOrderToAccounting(orderId,orderData){
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
         assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
         notes:orderData.notes||'',
-        date:orderData.date||jordanDateStr(),
+        date:jordanDateStr(),
         delivered:true,
         fromOrderId:orderId,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
