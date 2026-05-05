@@ -5358,6 +5358,9 @@ async function updateEmpOrderStatus(id,newStatus){
       if(prevStatus==='delivered') unsyncOrderFromAccounting(id);
       addPageRefundEntry(id,data,newStatus);
     }
+    if(!['cancelled','returned','refused','delivered'].includes(newStatus)&&['cancelled','returned','refused'].includes(prevStatus)){
+      removePageRefundEntry(id);
+    }
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -5453,6 +5456,16 @@ async function addPageRefundEntry(orderId, orderData, reason){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
   }catch(e){console.error('addPageRefundEntry error:',e);}
+}
+
+async function removePageRefundEntry(orderId){
+  try{
+    const snap=await db.collection('page_refunds').where('orderId','==',orderId).get();
+    if(snap.empty) return;
+    const batch=db.batch();
+    snap.docs.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+  }catch(e){console.error('removePageRefundEntry error:',e);}
 }
 
 function openEmpOrderImage(src){
