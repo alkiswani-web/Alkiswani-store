@@ -2722,7 +2722,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="emp-subtab-operator" style="display:none;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
-            <input type="date" id="opOrdersDate" onchange="loadOperatorOrders()" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
           </div>
           <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <button class="order-stab active" onclick="setOpOrderFilter('all',this)">الكل <span id="ooc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -5307,16 +5306,12 @@ function setEmpOrderFilter(filter,btn){
 function loadOperatorOrders(){
   const wrap=document.getElementById('opOrdersWrap');
   if(!wrap)return;
-  const dateVal=document.getElementById('opOrdersDate')?.value||jordanDateStr();
-  if(_opOrdersUnsub&&_opOrdersAllData.length&&document.getElementById('opOrdersDate')?.value===dateVal){
-    _renderOpOrdersView();return;
-  }
+  if(_opOrdersUnsub&&_opOrdersAllData.length){_renderOpOrdersView();return;}
   if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
-  _opOrdersUnsub=db.collection('employee_orders').where('date','==',dateVal)
+  _opOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
     .onSnapshot(snap=>{
-      _opOrdersAllData=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+      _opOrdersAllData=snap.docs.map(d=>({id:d.id,...d.data()}));
       _renderOpOrdersView();
     },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
 }
@@ -5491,7 +5486,7 @@ function switchEmpSubTab(tab){
     if(btn){btn.style.background=(t===tab?'var(--green-dark)':'#fff');btn.style.color=(t===tab?'#fff':'#374151');btn.style.fontWeight=(t===tab?'700':'400');}
   });
   if(tab==='tracking'){const d=document.getElementById('empOrdersDate');if(d&&!d.value)d.value=jordanDateStr();_empOrdersFilter='all';document.querySelectorAll('#empOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadEmpOrders();}
-  if(tab==='operator'){const d=document.getElementById('opOrdersDate');if(d&&!d.value)d.value=jordanDateStr();_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
+  if(tab==='operator'){_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
   if(tab==='settings')loadEmpPagesAdmin();
