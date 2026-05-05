@@ -4490,19 +4490,20 @@ function updateEmpNet(){
   if(customEl&&customEl.style.display!=='none'){
     _empDeliveryFee=parseFloat(customEl.value)||0;
   }
-  const prodsTotal=parseFloat(document.getElementById('emp_total')?.value||0)||calcEmpOrderTotal();
+  const realTotal=calcEmpOrderTotal()||parseFloat(document.getElementById('emp_total')?.value||0);
   const dlv=_empDeliveryFee;
   const excess=Math.max(0,dlv-2);
-  const net=prodsTotal+dlv;
+  const adjustedProds=realTotal-excess;
+  const net=adjustedProds+dlv;
+  const totalEl=document.getElementById('emp_total');
   const netEl=document.getElementById('empNetLabel');
   const dlvRow=document.getElementById('empDeliveryRow');
   const dlvLbl=document.getElementById('empDeliveryLabel');
   const excessRow=document.getElementById('empExcessRow');
-  const excessLbl=document.getElementById('empExcessLabel');
+  if(totalEl)totalEl.value=adjustedProds.toFixed(2);
   if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
-  if(excessRow)excessRow.style.display=excess>0?'flex':'none';
-  if(excessLbl)excessLbl.textContent='خصم زائد من ربحك: -'+excess.toFixed(2)+' د.أ';
+  if(excessRow)excessRow.style.display='none';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
 }
 function closeEmpPanel(){
@@ -4576,7 +4577,7 @@ async function submitEmpOrder(){
   if(!_empOrderCart.length){toast('⚠️ أضف منتجاً للطلب أولاً');return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
-  const prodsTotal=parseFloat(document.getElementById('emp_total')?.value)||calcEmpOrderTotal();
+  const prodsTotal=calcEmpOrderTotal()||parseFloat(document.getElementById('emp_total')?.value)||0;
   const deliveryFee=_empDeliveryFee||0;
   const totalPrice=prodsTotal+deliveryFee;
   const netPrice=totalPrice;
