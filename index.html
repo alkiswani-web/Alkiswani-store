@@ -4493,7 +4493,7 @@ function updateEmpNet(){
   const prodsTotal=parseFloat(document.getElementById('emp_total')?.value||0)||calcEmpOrderTotal();
   const dlv=_empDeliveryFee;
   const excess=Math.max(0,dlv-2);
-  const net=prodsTotal-excess;
+  const net=prodsTotal+dlv;
   const netEl=document.getElementById('empNetLabel');
   const dlvRow=document.getElementById('empDeliveryRow');
   const dlvLbl=document.getElementById('empDeliveryLabel');
@@ -4502,7 +4502,7 @@ function updateEmpNet(){
   if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
   if(excessRow)excessRow.style.display=excess>0?'flex':'none';
-  if(excessLbl)excessLbl.textContent='-'+excess.toFixed(2)+' د.أ';
+  if(excessLbl)excessLbl.textContent='خصم زائد من ربحك: -'+excess.toFixed(2)+' د.أ';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
 }
 function closeEmpPanel(){
