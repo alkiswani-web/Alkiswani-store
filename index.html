@@ -10410,31 +10410,37 @@ async function migrateOldSales(){
 }
 
 async function migrateRawMaterialCosts(){
-  if(!confirm('سيتم تحديث تكلفة المواد الخام لكل السجلات التي تكلفتها صفر بناءً على أسعار المنتجات الحالية. متابعة؟')) return;
+  if(!confirm('سيتم تحديث أسعار كل سجلات المبيعات بناءً على أسعار المتاجر الحالية في قائمة المنتجات. متابعة؟')) return;
   const btn=document.getElementById('migrate_costs_btn');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري التحديث...';}
   try{
     if(!_opProductsList.length) await loadOpProducts();
+    if(!_opStoresList.length) await loadOpStores();
     const snap=await db.collection('operator_sales').get();
-    const toFix=snap.docs.filter(d=>d.data().productId);
-    if(!toFix.length){toast('✅ لا يوجد سجلات');if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}return;}
+    const docs=snap.docs.filter(d=>d.data().productId);
+    if(!docs.length){toast('✅ لا يوجد سجلات');if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}return;}
     let updated=0;
     const BATCH_SIZE=400;
-    for(let i=0;i<toFix.length;i+=BATCH_SIZE){
+    for(let i=0;i<docs.length;i+=BATCH_SIZE){
       const batch=db.batch();
-      toFix.slice(i,i+BATCH_SIZE).forEach(doc=>{
+      docs.slice(i,i+BATCH_SIZE).forEach(doc=>{
         const s=doc.data();
         const prod=_opProductsList.find(p=>p.id===s.productId);
         if(!prod) return;
-        const storeSpecificPrice=s.storeId&&prod.storePrices?.[s.storeId]?prod.storePrices[s.storeId]:null;
+        // سعر المتجر المحدد من قائمة المنتجات
+        const storePrice=s.storeId&&prod.storePrices?.[s.storeId]||0;
         const totalCost=(prod.rawMaterialCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
-        const correctSellPrice=storeSpecificPrice||totalCost||s.sellPrice||0;
+        // للسجلات من الصفحات (fromOrderId): دائماً نحدّث السعر لسعر المتجر
+        // للسجلات اليدوية: نحدّث فقط التكاليف وليس السعر
         const update={
           rawMaterialCost:prod.rawMaterialCost||0,
           machineWorkerWage:prod.machineWorkerWage||0,
-          assemblyWorkerWage:prod.assemblyWorkerWage||0,
-          sellPrice:correctSellPrice
+          assemblyWorkerWage:prod.assemblyWorkerWage||0
         };
+        if(s.fromOrderId){
+          // سجل صفحة — نصحح السعر لسعر المتجر الصحيح
+          update.sellPrice=storePrice||totalCost||(s.sellPrice||0);
+        }
         batch.update(doc.ref,update);
         updated++;
       });
