@@ -5360,6 +5360,7 @@ async function updateEmpOrderStatus(id,newStatus){
     await docRef.update({status:newStatus,editHistory,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
     if(newStatus==='delivered') syncOrderToAccounting(id,data);
+    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered') unsyncOrderFromAccounting(id);
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -5411,6 +5412,17 @@ async function syncOrderToAccounting(orderId,orderData){
     await batch.commit();
     toast(`✅ تم تسجيل الطلب في حساب "${store.name}"`);
   }catch(e){console.error('syncOrderToAccounting error:',e);}
+}
+
+async function unsyncOrderFromAccounting(orderId){
+  try{
+    const snap=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
+    if(snap.empty) return;
+    const batch=db.batch();
+    snap.docs.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    toast('🗑 تم حذف السجلات من كشف الحساب');
+  }catch(e){console.error('unsyncOrderFromAccounting error:',e);}
 }
 
 function openEmpOrderImage(src){
