@@ -5385,6 +5385,9 @@ async function syncOrderToAccounting(orderId,orderData){
     const batch=db.batch();
     products.forEach(product=>{
       const opProd=_opProductsList.find(p=>p.id===product.id);
+      const storeSpecificPrice=opProd?.storePrices?.[store.id]||null;
+      const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
+      const sellPrice=storeSpecificPrice||totalCost||(product.price||0);
       const ref=db.collection('operator_sales').doc();
       batch.set(ref,{
         storeId:store.id,
@@ -5392,7 +5395,7 @@ async function syncOrderToAccounting(orderId,orderData){
         productId:product.id||'',
         productName:product.name||'',
         qty:product.qty||1,
-        sellPrice:opProd?(opProd.rawMaterialCost||0):(product.price||0),
+        sellPrice,
         rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
         assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
@@ -7818,7 +7821,7 @@ async function openAcctDetail(storeId, storeName){
   renderAcctDetail();
 }
 
-function _acctItemCost(it){const c=(it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);return c||(it.sellPrice||0);}
+function _acctItemCost(it){if(it.sellPrice>0)return it.sellPrice;return(it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);}
 
 function renderAcctDetail(){
   const body=document.getElementById('opacct_detail_body');
@@ -10413,8 +10416,8 @@ async function migrateRawMaterialCosts(){
   try{
     if(!_opProductsList.length) await loadOpProducts();
     const snap=await db.collection('operator_sales').get();
-    const toFix=snap.docs.filter(d=>{const s=d.data();return (!s.rawMaterialCost||s.rawMaterialCost===0)&&s.productId;});
-    if(!toFix.length){toast('✅ لا يوجد سجلات بتكلفة صفر');if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}return;}
+    const toFix=snap.docs.filter(d=>d.data().productId);
+    if(!toFix.length){toast('✅ لا يوجد سجلات');if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}return;}
     let updated=0;
     const BATCH_SIZE=400;
     for(let i=0;i<toFix.length;i+=BATCH_SIZE){
@@ -10422,17 +10425,22 @@ async function migrateRawMaterialCosts(){
       toFix.slice(i,i+BATCH_SIZE).forEach(doc=>{
         const s=doc.data();
         const prod=_opProductsList.find(p=>p.id===s.productId);
-        if(prod&&prod.rawMaterialCost>0){
-          const update={rawMaterialCost:prod.rawMaterialCost,machineWorkerWage:prod.machineWorkerWage||0,assemblyWorkerWage:prod.assemblyWorkerWage||0};
-          // for synced records (fromOrderId), also fix sellPrice which was set = rawMaterialCost
-          if(s.fromOrderId||s.sellPrice===0||s.sellPrice===s.rawMaterialCost) update.sellPrice=prod.rawMaterialCost;
-          batch.update(doc.ref,update);
-          updated++;
-        }
+        if(!prod) return;
+        const storeSpecificPrice=s.storeId&&prod.storePrices?.[s.storeId]?prod.storePrices[s.storeId]:null;
+        const totalCost=(prod.rawMaterialCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
+        const correctSellPrice=storeSpecificPrice||totalCost||s.sellPrice||0;
+        const update={
+          rawMaterialCost:prod.rawMaterialCost||0,
+          machineWorkerWage:prod.machineWorkerWage||0,
+          assemblyWorkerWage:prod.assemblyWorkerWage||0,
+          sellPrice:correctSellPrice
+        };
+        batch.update(doc.ref,update);
+        updated++;
       });
       await batch.commit();
     }
-    toast(`✅ تم تحديث ${updated} سجل من أصل ${toFix.length}`);
+    toast(`✅ تم تحديث ${updated} سجل`);
     loadBalanceTab();
   }catch(e){toast('❌ خطأ: '+e.message);}
   if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}
