@@ -2396,6 +2396,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <!-- Action buttons -->
           <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
             <button onclick="saveStoreOrder()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+            <button onclick="refreshStoreOrderCosts()" style="flex:1;min-width:100px;padding:12px;background:#92400e;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔄 تحديث التكاليف</button>
             <button onclick="printStoreOrder()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
             <button onclick="closeStoreOrder()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 إغلاق</button>
           </div>
@@ -7515,6 +7516,25 @@ async function saveStoreOrder(){
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
 
+async function refreshStoreOrderCosts(){
+  if(!_currentStoreOrder){return;}
+  if(_currentStoreOrder.status==='closed'){toast('🔒 الحساب مغلق');return;}
+  if(!_opProductsList.length) await loadOpProducts();
+  let updated=0;
+  _currentStoreOrder.items=_currentStoreOrder.items.map(item=>{
+    const prod=_opProductsList.find(p=>p.id===item.productId);
+    if(prod&&(prod.rawMaterialCost||prod.machineWorkerWage||prod.assemblyWorkerWage)){
+      updated++;
+      return{...item,rawMaterialCost:prod.rawMaterialCost||0,machineWorkerWage:prod.machineWorkerWage||0,assemblyWorkerWage:prod.assemblyWorkerWage||0,sellPrice:prod.sellPrice||item.sellPrice||0};
+    }
+    return item;
+  });
+  await saveStoreOrder();
+  renderStoreOrderItems();
+  calcStoreOrderSummary();
+  toast(`✅ تم تحديث تكاليف ${updated} منتج من قائمة المنتجات`);
+}
+
 async function closeStoreOrder(){
   if(!_currentStoreOrder) return;
   if(_currentStoreOrder.status==='closed'){toast('🔒 الحساب مغلق مسبقاً');return;}
@@ -10090,7 +10110,7 @@ async function loadBalanceTab(){
     const snap=await db.collection('operator_sales').get();
     _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false).reduce((sum,d)=>{
       const s=d.data();
-      return sum+((s.rawMaterialCost||0)*(s.qty||1));
+      return sum+((s.rawMaterialCost||s.sellPrice||0)*(s.qty||1));
     },0);
   }catch(e){_opBalSalesRaw=0;}
   // Set today's date in forms
@@ -10434,7 +10454,7 @@ window.addItemToStoreOrder=addItemToStoreOrder; window.removeItemFromStoreOrder=
 window.calcStoreOrderSummary=calcStoreOrderSummary;
 window.setDeliveryFee=setDeliveryFee;
 window.saveStoreOrder=saveStoreOrder; window.closeStoreOrder=closeStoreOrder;
-window.printStoreOrder=printStoreOrder;
+window.printStoreOrder=printStoreOrder; window.refreshStoreOrderCosts=refreshStoreOrderCosts;
 
 function addAdvisorProduct(docId){
   const p=products.find(x=>(x._docId||x.id)===docId);
