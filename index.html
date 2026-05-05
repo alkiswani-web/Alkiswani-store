@@ -5425,8 +5425,11 @@ async function unsyncOrderFromAccounting(orderId){
 async function addPageRefundEntry(orderId, orderData, reason){
   try{
     if(!_opProductsList.length) await loadOpProducts();
+    if(!_opStoresList.length) await loadOpStores();
     const products=orderData.products||[];
     if(!products.length) return;
+    // find linked store
+    const store=_opStoresList.find(s=>s.pageId===orderData.pageId)||null;
     let totalCost=0;
     const items=products.map(p=>{
       const op=_opProductsList.find(x=>x.id===p.id)||_opProductsList.find(x=>x.name===p.name);
@@ -5439,6 +5442,8 @@ async function addPageRefundEntry(orderId, orderData, reason){
     await db.collection('page_refunds').add({
       pageId:orderData.pageId||'',
       pageName:orderData.pageName||'بدون صفحة',
+      storeId:store?store.id:'',
+      storeName:store?store.name:'',
       orderId,
       orderNum:orderData.orderNum||orderData.id||'',
       items,
@@ -7865,6 +7870,7 @@ async function confirmSaleDelivery(id){
 let _acctCurrentStore=null;
 let _acctCurrentSales=[];
 let _acctCurrentPayments=[];
+let _acctCurrentRefunds=[];
 
 async function openAcctDetail(storeId, storeName){
   _acctCurrentStore={id:storeId,name:storeName};
@@ -7873,14 +7879,11 @@ async function openAcctDetail(storeId, storeName){
   document.getElementById('opacct-detail-view').style.display='block';
   const body=document.getElementById('opacct_detail_body');
   body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
-  // تحميل المنتجات عشان _acctItemCost يلاقي السعر الصحيح حتى للسجلات القديمة
   if(!_opProductsList.length) await loadOpProducts();
-  // Load delivered sales for this store's account
   try{
     const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
     _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_acctCurrentSales=[];}
-  // Load payments (with orderBy fallback)
   try{
     const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).orderBy('date','desc').get();
     _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -7890,6 +7893,10 @@ async function openAcctDetail(storeId, storeName){
       _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e2){_acctCurrentPayments=[];}
   }
+  try{
+    const snap=await db.collection('page_refunds').where('storeId','==',storeId).get();
+    _acctCurrentRefunds=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_acctCurrentRefunds=[];}
   renderAcctDetail();
 }
 
@@ -7910,14 +7917,15 @@ function renderAcctDetail(){
   if(!body) return;
   const totalOwed=_acctCurrentSales.reduce((s,it)=>_acctItemCost(it)*(it.qty||1)+s,0);
   const totalPaid=_acctCurrentPayments.reduce((s,p)=>(p.amount||0)+s,0);
-  const balance=totalOwed-totalPaid;
+  const totalRefund=(_acctCurrentRefunds||[]).reduce((s,r)=>(r.totalCost||0)+s,0);
+  const balance=totalOwed-totalPaid-totalRefund;
   const balColor=balance>0?'#92400e':balance<0?'#166534':'#374151';
   const balBg=balance>0?'#fff7ed':balance<0?'#f0fdf4':'#f9fafb';
   const balLabel=balance>0?'📊 باقي عليه':balance<0?'💰 رصيد له':'✅ مسوي';
 
   // Summary
   const summaryHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:${totalRefund>0?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr'};gap:8px;margin-bottom:16px;">
       <div style="background:#fee2e2;border-radius:12px;padding:12px 8px;text-align:center;">
         <div style="font-size:0.68rem;color:#dc2626;font-weight:700;margin-bottom:4px;">💸 عليه</div>
         <div style="font-weight:900;color:#dc2626;font-size:1.1rem;">${totalOwed.toFixed(2)}</div>
@@ -7928,6 +7936,11 @@ function renderAcctDetail(){
         <div style="font-weight:900;color:#166534;font-size:1.1rem;">${totalPaid.toFixed(2)}</div>
         <div style="font-size:0.65rem;color:#166534;margin-top:2px;">د.أ</div>
       </div>
+      ${totalRefund>0?`<div style="background:#fce7f3;border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-size:0.68rem;color:#9d174d;font-weight:700;margin-bottom:4px;">↩️ رصيد له</div>
+        <div style="font-weight:900;color:#9d174d;font-size:1.1rem;">${totalRefund.toFixed(2)}</div>
+        <div style="font-size:0.65rem;color:#9d174d;margin-top:2px;">د.أ</div>
+      </div>`:''}
       <div style="background:${balBg};border-radius:12px;padding:12px 8px;text-align:center;">
         <div style="font-size:0.68rem;color:${balColor};font-weight:700;margin-bottom:4px;">${balLabel}</div>
         <div style="font-weight:900;color:${balColor};font-size:1.1rem;">${Math.abs(balance).toFixed(2)}</div>
@@ -8010,7 +8023,27 @@ function renderAcctDetail(){
       ${salesRows||'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">لا يوجد مبيعات مسجلة لهذا المتجر</div>'}
     </div>`;
 
-  body.innerHTML=summaryHTML+payFormHTML+paysSectionHTML+salesSectionHTML;
+  const refundRows=(_acctCurrentRefunds||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>{
+    const reasonLabel={'cancelled':'ملغي','returned':'مرتجع','refused':'مرفوض','deleted':'محذوف'}[r.reason]||r.reason;
+    const itemsStr=(r.items||[]).map(i=>`${i.name}×${i.qty}`).join('، ');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 4px;border-bottom:1px dashed #fce7f3;font-size:0.82rem;">
+      <div>
+        <span style="color:#374151;">${itemsStr}</span>
+        <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-size:0.7rem;margin-right:4px;">${reasonLabel}</span>
+        <span style="font-size:0.72rem;color:#9ca3af;">📅 ${r.date||''}</span>
+      </div>
+      <span style="font-weight:800;color:#9d174d;flex-shrink:0;">${(r.totalCost||0).toFixed(2)} د.أ</span>
+    </div>`;
+  }).join('');
+  const refundSectionHTML=totalRefund>0?`
+    <div style="background:#fdf2f8;border:1.5px solid #f9a8d4;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:0.82rem;font-weight:700;color:#9d174d;margin-bottom:10px;display:flex;justify-content:space-between;">
+        <span>↩️ رصيد له من المشغل</span><span style="color:#9d174d;">${totalRefund.toFixed(2)} د.أ</span>
+      </div>
+      ${refundRows}
+    </div>`:'';
+
+  body.innerHTML=summaryHTML+payFormHTML+paysSectionHTML+refundSectionHTML+salesSectionHTML;
 }
 
 async function addStorePayment(){
@@ -8071,7 +8104,7 @@ function backToAcctList(){
   document.getElementById('opacct-store-list').style.display='block';
   document.getElementById('opacct-detail-view').style.display='none';
   document.getElementById('opacct-operator-view').style.display='none';
-  _acctCurrentStore=null;_acctCurrentSales=[];_acctCurrentPayments=[];
+  _acctCurrentStore=null;_acctCurrentSales=[];_acctCurrentPayments=[];_acctCurrentRefunds=[];
   _opDailySales=[];_opDayRecord=null;
   checkOperatorDayStatus();
 }
