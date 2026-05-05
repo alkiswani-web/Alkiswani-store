@@ -5333,8 +5333,11 @@ function setOpOrderFilter(filter,btn){
 async function deleteEmpOrder(id){
   if(!confirm('حذف هذا الطلب نهائياً؟'))return;
   try{
+    const snap=await db.collection('employee_orders').doc(id).get();
+    const data=snap.exists?snap.data():null;
     await db.collection('employee_orders').doc(id).delete();
     unsyncOrderFromAccounting(id);
+    if(data) addPageRefundEntry(id,data,'deleted');
     toast('🗑 تم حذف الطلب');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -5351,7 +5354,10 @@ async function updateEmpOrderStatus(id,newStatus){
     await docRef.update({status:newStatus,editHistory,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
     if(newStatus==='delivered') syncOrderToAccounting(id,data);
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered') unsyncOrderFromAccounting(id);
+    if(['cancelled','returned','refused'].includes(newStatus)){
+      if(prevStatus==='delivered') unsyncOrderFromAccounting(id);
+      addPageRefundEntry(id,data,newStatus);
+    }
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -5414,6 +5420,34 @@ async function unsyncOrderFromAccounting(orderId){
     await batch.commit();
     toast('🗑 تم حذف السجلات من كشف الحساب');
   }catch(e){console.error('unsyncOrderFromAccounting error:',e);}
+}
+
+async function addPageRefundEntry(orderId, orderData, reason){
+  try{
+    if(!_opProductsList.length) await loadOpProducts();
+    const products=orderData.products||[];
+    if(!products.length) return;
+    let totalCost=0;
+    const items=products.map(p=>{
+      const op=_opProductsList.find(x=>x.id===p.id)||_opProductsList.find(x=>x.name===p.name);
+      const unitCost=op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
+      const qty=p.qty||1;
+      totalCost+=unitCost*qty;
+      return {name:p.name||'',qty,unitCost};
+    });
+    if(totalCost<=0) return;
+    await db.collection('page_refunds').add({
+      pageId:orderData.pageId||'',
+      pageName:orderData.pageName||'بدون صفحة',
+      orderId,
+      orderNum:orderData.orderNum||orderData.id||'',
+      items,
+      totalCost,
+      date:jordanDateStr(),
+      reason,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){console.error('addPageRefundEntry error:',e);}
 }
 
 function openEmpOrderImage(src){
@@ -5494,32 +5528,43 @@ async function loadDaySheet(){
   const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
   try{
-    const snap=await db.collection('employee_orders').where('date','==',date).get();
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const [ordersSnap,refundsSnap]=await Promise.all([
+      db.collection('employee_orders').where('date','==',date).get(),
+      db.collection('page_refunds').where('date','==',date).get()
+    ]);
+    const orders=ordersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const refunds=refundsSnap.docs.map(d=>({id:d.id,...d.data()}));
     window._dsOrdersCache=orders;
-    if(!orders.length){
+    if(!orders.length&&!refunds.length){
       wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">لا يوجد طلبات في هذا اليوم</div>';
       return;
     }
-    wrap.innerHTML=_renderDaySheet(orders,date);
+    wrap.innerHTML=_renderDaySheet(orders,refunds,date);
   }catch(e){
     wrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;padding:30px;">❌ خطأ في التحميل</div>';
   }
 }
 
-function _renderDaySheet(orders,date){
+function _renderDaySheet(orders,refunds,date){
+  if(!Array.isArray(refunds)){date=refunds;refunds=[];}// backward compat
   const DONE=['delivered'];
   const FAILED=['cancelled','returned','refused'];
   const ACTIVE=['pending','preparing','prepared','delivering'];
 
-  // Group by page
+  // Group orders by page
   const pages={};
   orders.forEach(o=>{
     const key=o.pageName||'بدون صفحة';
-    if(!pages[key])pages[key]={name:key,delivered:[],active:[],failed:[]};
+    if(!pages[key])pages[key]={name:key,delivered:[],active:[],failed:[],refunds:[]};
     if(DONE.includes(o.status)) pages[key].delivered.push(o);
     else if(FAILED.includes(o.status)) pages[key].failed.push(o);
     else pages[key].active.push(o);
+  });
+  // Group refunds by page
+  refunds.forEach(r=>{
+    const key=r.pageName||'بدون صفحة';
+    if(!pages[key])pages[key]={name:key,delivered:[],active:[],failed:[],refunds:[]};
+    pages[key].refunds.push(r);
   });
 
   // Per-page cards
@@ -5551,10 +5596,23 @@ function _renderDaySheet(orders,date){
       </div>`
     ).join('');
 
+    // Refunds section
+    const pageRefunds=pg.refunds||[];
+    const refundTotal=pageRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
+    const refundRows=pageRefunds.map(r=>{
+      const reasonLabel={'cancelled':'ملغي','returned':'مرتجع','refused':'مرفوض','deleted':'محذوف'}[r.reason]||r.reason;
+      const itemsStr=(r.items||[]).map(i=>`${i.name}×${i.qty}`).join('، ');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-bottom:1px dashed #fde;font-size:0.78rem;">
+        <span style="color:#374151;">${itemsStr} <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-size:0.7rem;">${reasonLabel}</span></span>
+        <span style="font-weight:700;color:#dc2626;">${(r.totalCost||0).toFixed(2)} د.أ</span>
+      </div>`;
+    }).join('');
+
     const statusRow=[
       dlvOrders.length?`<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">✅ مسلّم ${dlvOrders.length}</span>`:'',
       pg.active.length?`<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">🔄 قيد التنفيذ ${pg.active.length}</span>`:'',
-      pg.failed.length?`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">❌ ملغي/مرتجع ${pg.failed.length}</span>`:''
+      pg.failed.length?`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">❌ ملغي/مرتجع ${pg.failed.length}</span>`:'',
+      pageRefunds.length?`<span style="background:#fce7f3;color:#9d174d;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">↩️ دين مشغل ${refundTotal.toFixed(2)} د.أ</span>`:''
     ].filter(Boolean).join('');
 
     return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.04);">
@@ -5568,6 +5626,13 @@ function _renderDaySheet(orders,date){
       <div style="padding:10px 14px 6px;display:flex;flex-wrap:wrap;gap:6px;">${statusRow||'<span style="color:#9ca3af;font-size:0.78rem;">لا يوجد طلبات</span>'}</div>
       ${prodRows?`<div style="border-top:1px solid #f0f0f0;margin-top:4px;">${prodRows}</div>`:''}
       ${!dlvOrders.length?`<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:10px;">لا يوجد طلبات مسلّمة</div>`:''}
+      ${refundRows?`<div style="border-top:2px solid #fce7f3;margin-top:4px;background:#fdf2f8;">
+        <div style="padding:4px 10px;font-size:0.72rem;font-weight:700;color:#9d174d;">↩️ دين المشغل للصفحة (تكلفة مرتجعات)</div>
+        ${refundRows}
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;font-size:0.82rem;font-weight:700;">
+          <span style="color:#9d174d;">الإجمالي</span><span style="color:#dc2626;">${refundTotal.toFixed(2)} د.أ</span>
+        </div>
+      </div>`:''}
     </div>`;
   }).join('');
 
