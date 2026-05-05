@@ -7805,6 +7805,8 @@ async function openAcctDetail(storeId, storeName){
   document.getElementById('opacct-detail-view').style.display='block';
   const body=document.getElementById('opacct_detail_body');
   body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
+  // تحميل المنتجات عشان _acctItemCost يلاقي السعر الصحيح حتى للسجلات القديمة
+  if(!_opProductsList.length) await loadOpProducts();
   // Load delivered sales for this store's account
   try{
     const snap=await db.collection('operator_sales').where('storeId','==',storeId).get();
@@ -7823,7 +7825,17 @@ async function openAcctDetail(storeId, storeName){
   renderAcctDetail();
 }
 
-function _acctItemCost(it){if(it.sellPrice>0)return it.sellPrice;return(it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);}
+function _acctItemCost(it){
+  if(it.sellPrice>0) return it.sellPrice;
+  // sellPrice=0 — ابحث في قائمة المنتجات عن السعر الصحيح لهذا المتجر
+  const prod=_opProductsList.find(p=>p.id===it.productId)||_opProductsList.find(p=>p.name===it.productName);
+  if(prod){
+    const sp=it.storeId&&prod.storePrices?.[it.storeId]||0;
+    const tc=(prod.rawMaterialCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
+    if(sp||tc) return sp||tc;
+  }
+  return(it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);
+}
 
 function renderAcctDetail(){
   const body=document.getElementById('opacct_detail_body');
