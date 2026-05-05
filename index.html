@@ -5344,6 +5344,7 @@ async function deleteEmpOrder(id){
   if(!confirm('حذف هذا الطلب نهائياً؟'))return;
   try{
     await db.collection('employee_orders').doc(id).delete();
+    unsyncOrderFromAccounting(id);
     toast('🗑 تم حذف الطلب');
   }catch(e){toast('❌ '+e.message);}
 }
