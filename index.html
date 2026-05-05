@@ -5467,7 +5467,18 @@ async function removePageRefundEntry(orderId){
     const batch=db.batch();
     snap.docs.forEach(d=>batch.delete(d.ref));
     await batch.commit();
+    toast('↩️ تم حذف رصيد المرتجع');
   }catch(e){console.error('removePageRefundEntry error:',e);}
+}
+
+async function deletePageRefund(refundId){
+  if(!confirm('حذف هذا الرصيد؟')) return;
+  try{
+    await db.collection('page_refunds').doc(refundId).delete();
+    _acctCurrentRefunds=(_acctCurrentRefunds||[]).filter(r=>r.id!==refundId);
+    renderAcctDetail();
+    toast('🗑 تم الحذف');
+  }catch(e){toast('❌ '+e.message);}
 }
 
 function openEmpOrderImage(src){
@@ -8042,12 +8053,15 @@ function renderAcctDetail(){
     const reasonLabel={'cancelled':'ملغي','returned':'مرتجع','refused':'مرفوض','deleted':'محذوف'}[r.reason]||r.reason;
     const itemsStr=(r.items||[]).map(i=>`${i.name}×${i.qty}`).join('، ');
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 4px;border-bottom:1px dashed #fce7f3;font-size:0.82rem;">
-      <div>
+      <div style="flex:1;min-width:0;">
         <span style="color:#374151;">${itemsStr}</span>
         <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-size:0.7rem;margin-right:4px;">${reasonLabel}</span>
         <span style="font-size:0.72rem;color:#9ca3af;">📅 ${r.date||''}</span>
       </div>
-      <span style="font-weight:800;color:#9d174d;flex-shrink:0;">${(r.totalCost||0).toFixed(2)} د.أ</span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <span style="font-weight:800;color:#9d174d;">${(r.totalCost||0).toFixed(2)} د.أ</span>
+        <button onclick="deletePageRefund('${r.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;cursor:pointer;">🗑</button>
+      </div>
     </div>`;
   }).join('');
   const refundSectionHTML=totalRefund>0?`
@@ -10650,7 +10664,7 @@ window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail;
 window.backToAcctList=backToAcctList;
 window.printAcctStatement=printAcctStatement; window.whatsappAcctStatement=whatsappAcctStatement;
-window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePayment; window.deleteStoreSale=deleteStoreSale; window.editStoreSalePrice=editStoreSalePrice;
+window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePayment; window.deleteStoreSale=deleteStoreSale; window.editStoreSalePrice=editStoreSalePrice; window.deletePageRefund=deletePageRefund;
 // Operator daily account
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
