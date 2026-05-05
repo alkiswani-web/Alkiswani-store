@@ -7920,8 +7920,9 @@ function renderAcctDetail(){
           <span style="color:var(--text-mid);margin-right:5px;">×${it.qty}</span>
           ${it.notes?`<span style="color:#9ca3af;font-size:0.74rem;">— ${it.notes}</span>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-          <span style="font-weight:700;color:#dc2626;white-space:nowrap;">${(_acctItemCost(it)*(it.qty||1)).toFixed(2)} د.أ</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <span style="font-weight:700;color:${_acctItemCost(it)===0?'#f59e0b':'#dc2626'};white-space:nowrap;">${(_acctItemCost(it)*(it.qty||1)).toFixed(2)} د.أ</span>
+          <button onclick="editStoreSalePrice('${it.id}',${_acctItemCost(it)},${it.qty||1})" style="background:#fef3c7;color:#92400e;border:none;border-radius:6px;padding:3px 7px;font-size:0.72rem;cursor:pointer;">✏️</button>
           <button onclick="deleteStoreSale('${it.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;cursor:pointer;">🗑</button>
         </div>
       </div>`).join('');
@@ -7982,6 +7983,19 @@ async function deleteStoreSale(id){
     _acctCurrentSales=_acctCurrentSales.filter(s=>s.id!==id);
     toast('🗑 تم الحذف');
     renderAcctDetail();
+  }catch(e){toast('❌ خطأ: '+e.message);}
+}
+
+async function editStoreSalePrice(id,currentUnitPrice,qty){
+  const newPrice=prompt(`سعر الوحدة الجديد (الإجمالي الحالي: ${(currentUnitPrice*qty).toFixed(2)})`,currentUnitPrice.toFixed(2));
+  if(newPrice===null)return;
+  const v=parseFloat(newPrice);
+  if(isNaN(v)||v<0){toast('⚠️ سعر غير صحيح');return;}
+  try{
+    await db.collection('operator_sales').doc(id).update({sellPrice:v});
+    _acctCurrentSales=_acctCurrentSales.map(s=>s.id===id?{...s,sellPrice:v}:s);
+    renderAcctDetail();
+    toast('✅ تم تحديث السعر');
   }catch(e){toast('❌ خطأ: '+e.message);}
 }
 
@@ -10503,7 +10517,7 @@ window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail;
 window.backToAcctList=backToAcctList;
 window.printAcctStatement=printAcctStatement; window.whatsappAcctStatement=whatsappAcctStatement;
-window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePayment; window.deleteStoreSale=deleteStoreSale;
+window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePayment; window.deleteStoreSale=deleteStoreSale; window.editStoreSalePrice=editStoreSalePrice;
 // Operator daily account
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
