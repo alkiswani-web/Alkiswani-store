@@ -5384,10 +5384,12 @@ async function syncOrderToAccounting(orderId,orderData){
   try{
     const batch=db.batch();
     products.forEach(product=>{
-      const opProd=_opProductsList.find(p=>p.id===product.id);
-      const storeSpecificPrice=opProd?.storePrices?.[store.id]||null;
+      // بحث بالـ ID أولاً، فإذا ما لاقى يبحث بالاسم (للطلبات القديمة)
+      const opProd=_opProductsList.find(p=>p.id===product.id)||_opProductsList.find(p=>p.name===product.name);
+      const storePrice=opProd?.storePrices?.[store.id]||0;
       const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
-      const sellPrice=storeSpecificPrice||totalCost||(product.price||0);
+      // لا نستخدم أبداً سعر الزبون (product.price) — نستخدم سعر المتجر أو التكلفة فقط
+      const sellPrice=storePrice||totalCost||0;
       const ref=db.collection('operator_sales').doc();
       batch.set(ref,{
         storeId:store.id,
@@ -10425,21 +10427,19 @@ async function migrateRawMaterialCosts(){
       const batch=db.batch();
       docs.slice(i,i+BATCH_SIZE).forEach(doc=>{
         const s=doc.data();
-        const prod=_opProductsList.find(p=>p.id===s.productId);
+        // بحث بالـ ID أولاً، فإذا ما لاقى يبحث بالاسم
+        const prod=_opProductsList.find(p=>p.id===s.productId)||_opProductsList.find(p=>p.name===s.productName);
         if(!prod) return;
-        // سعر المتجر المحدد من قائمة المنتجات
         const storePrice=s.storeId&&prod.storePrices?.[s.storeId]||0;
         const totalCost=(prod.rawMaterialCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
-        // للسجلات من الصفحات (fromOrderId): دائماً نحدّث السعر لسعر المتجر
-        // للسجلات اليدوية: نحدّث فقط التكاليف وليس السعر
         const update={
           rawMaterialCost:prod.rawMaterialCost||0,
           machineWorkerWage:prod.machineWorkerWage||0,
           assemblyWorkerWage:prod.assemblyWorkerWage||0
         };
         if(s.fromOrderId){
-          // سجل صفحة — نصحح السعر لسعر المتجر الصحيح
-          update.sellPrice=storePrice||totalCost||(s.sellPrice||0);
+          // سجل صفحة — سعر المتجر الصحيح (لا نستخدم سعر الزبون)
+          update.sellPrice=storePrice||totalCost||0;
         }
         batch.update(doc.ref,update);
         updated++;
