@@ -5559,6 +5559,7 @@ async function loadDaySheet(){
   const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
   try{
+    if(!_opProductsList.length) await loadOpProducts();
     const [ordersSnap,refundsSnap]=await Promise.all([
       db.collection('employee_orders').where('date','==',date).get(),
       db.collection('page_refunds').where('date','==',date).get()
@@ -5577,12 +5578,15 @@ async function loadDaySheet(){
 }
 
 function _renderDaySheet(orders,refunds,date){
-  if(!Array.isArray(refunds)){date=refunds;refunds=[];}// backward compat
+  if(!Array.isArray(refunds)){date=refunds;refunds=[];}
   const DONE=['delivered'];
   const FAILED=['cancelled','returned','refused'];
-  const ACTIVE=['pending','preparing','prepared','delivering'];
 
-  // Group orders by page
+  function _prodCost(name){
+    const op=_opProductsList.find(p=>p.name===name);
+    return op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
+  }
+
   const pages={};
   orders.forEach(o=>{
     const key=o.pageName||'بدون صفحة';
@@ -5591,105 +5595,115 @@ function _renderDaySheet(orders,refunds,date){
     else if(FAILED.includes(o.status)) pages[key].failed.push(o);
     else pages[key].active.push(o);
   });
-  // Group refunds by page
   refunds.forEach(r=>{
     const key=r.pageName||'بدون صفحة';
     if(!pages[key])pages[key]={name:key,delivered:[],active:[],failed:[],refunds:[]};
     pages[key].refunds.push(r);
   });
 
-  // Per-page cards
-  let grandTotal=0;
-  let grandCount=0;
-  let grandDelivery=0;
+  let grandSale=0,grandCost=0,grandCount=0;
 
   const pageCards=Object.values(pages).map(pg=>{
-    const dlvOrders=pg.delivered;
-    const prodsTotal=dlvOrders.reduce((s,o)=>s+(o.totalPrice||0),0);
-    const dlvFees=dlvOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
-    grandTotal+=prodsTotal;
-    grandCount+=dlvOrders.length;
-    grandDelivery+=dlvFees;
+    let pageSale=0,pageCost=0;
 
-    // Products breakdown
-    const prodMap={};
-    dlvOrders.forEach(o=>{
-      (o.products||[]).forEach(p=>{
-        if(!prodMap[p.name])prodMap[p.name]={name:p.name,qty:0,revenue:0};
-        prodMap[p.name].qty+=(p.qty||1);
-        prodMap[p.name].revenue+=(p.price||0)*(p.qty||1);
-      });
-    });
-    const prodRows=Object.values(prodMap).map(p=>
-      `<div style="display:flex;justify-content:space-between;padding:5px 10px;border-bottom:1px dashed #f0f4f0;font-size:0.8rem;">
-        <span style="color:#374151;">${p.name} <span style="color:#9ca3af;">×${p.qty}</span></span>
-        <span style="font-weight:700;color:#1a3a2a;">${p.revenue.toFixed(2)} د.أ</span>
-      </div>`
-    ).join('');
-
-    // Refunds section
-    const pageRefunds=pg.refunds||[];
-    const refundTotal=pageRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
-    const refundRows=pageRefunds.map(r=>{
-      const reasonLabel={'cancelled':'ملغي','returned':'مرتجع','refused':'مرفوض','deleted':'محذوف'}[r.reason]||r.reason;
-      const itemsStr=(r.items||[]).map(i=>`${i.name}×${i.qty}`).join('، ');
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-bottom:1px dashed #fde;font-size:0.78rem;">
-        <span style="color:#374151;">${itemsStr} <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-size:0.7rem;">${reasonLabel}</span></span>
-        <span style="font-weight:700;color:#dc2626;">${(r.totalCost||0).toFixed(2)} د.أ</span>
+    const orderRows=pg.delivered.map(o=>{
+      const dlv=o.deliveryFee||0;
+      const excessDlv=Math.max(0,dlv-2);
+      const effectiveSale=(o.totalPrice||0)-excessDlv;
+      pageSale+=effectiveSale;
+      let orderCost=0;
+      (o.products||[]).forEach(p=>{orderCost+=_prodCost(p.name)*(p.qty||1);});
+      pageCost+=orderCost;
+      const prodsStr=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join(' · ');
+      const dlvNote=dlv>2?`<span style="color:#f59e0b;font-size:0.68rem;"> (توصيل ${dlv} — خصم ${excessDlv.toFixed(2)} د.أ)</span>`:'';
+      return `<div style="padding:8px 12px;border-bottom:1px dashed #e5f0e8;font-size:0.8rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="flex:1;">
+            <div style="font-weight:700;color:#1a3a2a;">${o.name||'—'}${o.area?` <span style="color:#6b7280;font-weight:400;font-size:0.72rem;">📍${o.area}</span>`:''}${dlvNote}</div>
+            <div style="color:#374151;margin-top:2px;">${prodsStr}</div>
+            ${o.notes?`<div style="color:#9ca3af;font-size:0.7rem;margin-top:1px;">📝 ${o.notes}</div>`:''}
+          </div>
+          <div style="text-align:left;flex-shrink:0;">
+            <div style="font-weight:800;color:#166534;">${effectiveSale.toFixed(2)} د.أ</div>
+            ${orderCost>0?`<div style="font-size:0.68rem;color:#dc2626;">تكلفة: ${orderCost.toFixed(2)}</div>`:''}
+          </div>
+        </div>
       </div>`;
     }).join('');
 
-    const statusRow=[
-      dlvOrders.length?`<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">✅ مسلّم ${dlvOrders.length}</span>`:'',
-      pg.active.length?`<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">🔄 قيد التنفيذ ${pg.active.length}</span>`:'',
-      pg.failed.length?`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">❌ ملغي/مرتجع ${pg.failed.length}</span>`:'',
-      pageRefunds.length?`<span style="background:#fce7f3;color:#9d174d;padding:3px 10px;border-radius:20px;font-size:0.76rem;font-weight:700;">↩️ دين مشغل ${refundTotal.toFixed(2)} د.أ</span>`:''
+    const pageProfit=pageSale-pageCost;
+    const refundTotal=(pg.refunds||[]).reduce((s,r)=>s+(r.totalCost||0),0);
+    grandSale+=pageSale; grandCost+=pageCost; grandCount+=pg.delivered.length;
+
+    const statusBadges=[
+      pg.delivered.length?`<span style="background:#dcfce7;color:#166534;padding:3px 9px;border-radius:20px;font-size:0.72rem;font-weight:700;">✅ مسلّم ${pg.delivered.length}</span>`:'',
+      pg.active.length?`<span style="background:#fef9c3;color:#854d0e;padding:3px 9px;border-radius:20px;font-size:0.72rem;font-weight:700;">🔄 قيد التنفيذ ${pg.active.length}</span>`:'',
+      pg.failed.length?`<span style="background:#fee2e2;color:#dc2626;padding:3px 9px;border-radius:20px;font-size:0.72rem;font-weight:700;">❌ ملغي/مرتجع ${pg.failed.length}</span>`:'',
     ].filter(Boolean).join('');
 
+    const activeRows=pg.active.map(o=>{
+      const prods=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join(' · ');
+      return `<div style="padding:6px 12px;border-bottom:1px dashed #fef3c7;font-size:0.78rem;color:#92400e;">
+        <span style="font-weight:600;">${o.name||'—'}</span>${o.area?` <span style="font-size:0.7rem;">📍${o.area}</span>`:''} — ${prods}${o.notes?` <span style="color:#9ca3af;font-size:0.7rem;">📝${o.notes}</span>`:''}
+      </div>`;
+    }).join('');
+
+    const failedRows=pg.failed.map(o=>{
+      const prods=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join(' · ');
+      return `<div style="padding:6px 12px;border-bottom:1px dashed #fecaca;font-size:0.78rem;color:#991b1b;">
+        <span style="font-weight:600;">${o.name||'—'}</span>${o.area?` <span style="font-size:0.7rem;">📍${o.area}</span>`:''} — ${prods}
+      </div>`;
+    }).join('');
+
     return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.04);">
-      <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-weight:800;color:#fff;font-size:0.95rem;">📄 ${pg.name}</div>
-        <div style="text-align:left;">
-          <div style="font-weight:900;color:#a7f3d0;font-size:1.1rem;">${prodsTotal.toFixed(2)} <span style="font-size:0.72rem;font-weight:600;">د.أ</span></div>
-          ${dlvFees>0?`<div style="font-size:0.7rem;color:rgba(255,255,255,0.6);">+ توصيل ${dlvFees.toFixed(2)} د.أ</div>`:''}
+      <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);padding:12px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-weight:800;color:#fff;font-size:0.95rem;">📄 ${pg.name}</div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:7px;text-align:center;">
+            <div style="font-size:0.6rem;color:rgba(255,255,255,0.6);margin-bottom:2px;">صافي البيع</div>
+            <div style="font-weight:800;color:#a7f3d0;font-size:0.92rem;">${pageSale.toFixed(2)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:7px;text-align:center;">
+            <div style="font-size:0.6rem;color:rgba(255,255,255,0.6);margin-bottom:2px;">تكلفة المنتجات</div>
+            <div style="font-weight:800;color:#fca5a5;font-size:0.92rem;">${pageCost.toFixed(2)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+            <div style="font-size:0.6rem;color:rgba(255,255,255,0.6);margin-bottom:2px;">صافي الربح</div>
+            <div style="font-weight:800;color:${pageProfit>=0?'#86efac':'#fca5a5'};font-size:0.92rem;">${pageProfit.toFixed(2)}</div>
+          </div>
+        </div>
+        ${refundTotal>0?`<div style="margin-top:7px;background:rgba(253,242,248,0.12);border-radius:8px;padding:5px 10px;font-size:0.72rem;color:#fce7f3;">↩️ رصيد له من المشغل (للمعلومية فقط): ${refundTotal.toFixed(2)} د.أ</div>`:''}
       </div>
-      <div style="padding:10px 14px 6px;display:flex;flex-wrap:wrap;gap:6px;">${statusRow||'<span style="color:#9ca3af;font-size:0.78rem;">لا يوجد طلبات</span>'}</div>
-      ${prodRows?`<div style="border-top:1px solid #f0f0f0;margin-top:4px;">${prodRows}</div>`:''}
-      ${!dlvOrders.length?`<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:10px;">لا يوجد طلبات مسلّمة</div>`:''}
-      ${refundRows?`<div style="border-top:2px solid #fce7f3;margin-top:4px;background:#fdf2f8;">
-        <div style="padding:4px 10px;font-size:0.72rem;font-weight:700;color:#9d174d;">↩️ دين المشغل للصفحة (تكلفة مرتجعات)</div>
-        ${refundRows}
-        <div style="display:flex;justify-content:space-between;padding:6px 10px;font-size:0.82rem;font-weight:700;">
-          <span style="color:#9d174d;">الإجمالي</span><span style="color:#dc2626;">${refundTotal.toFixed(2)} د.أ</span>
-        </div>
-      </div>`:''}
+      ${statusBadges?`<div style="padding:8px 12px;display:flex;flex-wrap:wrap;gap:5px;border-bottom:1px solid #f0f0f0;">${statusBadges}</div>`:''}
+      ${orderRows?`<div>${orderRows}</div>`:'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:10px;">لا يوجد طلبات مسلّمة</div>'}
+      ${activeRows?`<div style="background:#fffbeb;border-top:1px solid #fef3c7;"><div style="padding:4px 12px;font-size:0.68rem;font-weight:700;color:#92400e;">🔄 قيد التنفيذ</div>${activeRows}</div>`:''}
+      ${failedRows?`<div style="background:#fff5f5;border-top:1px solid #fecaca;"><div style="padding:4px 12px;font-size:0.68rem;font-weight:700;color:#dc2626;">❌ ملغي / مرتجع</div>${failedRows}</div>`:''}
     </div>`;
   }).join('');
 
-  // Grand total card
+  const grandProfit=grandSale-grandCost;
   const totalCard=`<div style="background:linear-gradient(135deg,#0f2419,#1a3a2a);border-radius:14px;padding:16px 18px;margin-top:6px;">
-    <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-bottom:10px;letter-spacing:1px;">📊 إجمالي اليوم — ${date}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-bottom:10px;">📊 إجمالي اليوم — ${date}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
       <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:10px;text-align:center;">
-        <div style="font-size:0.68rem;color:rgba(255,255,255,0.5);margin-bottom:4px;">طلبات مسلّمة</div>
-        <div style="font-size:1.4rem;font-weight:900;color:#a7f3d0;">${grandCount}</div>
+        <div style="font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:3px;">صافي البيع</div>
+        <div style="font-size:1.2rem;font-weight:900;color:#a7f3d0;">${grandSale.toFixed(2)}</div>
+        <div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">د.أ</div>
       </div>
       <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:10px;text-align:center;">
-        <div style="font-size:0.68rem;color:rgba(255,255,255,0.5);margin-bottom:4px;">إجمالي الطلبات</div>
-        <div style="font-size:1.4rem;font-weight:900;color:#fff;">${orders.length}</div>
+        <div style="font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:3px;">تكلفة المنتجات</div>
+        <div style="font-size:1.2rem;font-weight:900;color:#fca5a5;">${grandCost.toFixed(2)}</div>
+        <div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">د.أ</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:3px;">صافي الربح</div>
+        <div style="font-size:1.2rem;font-weight:900;color:${grandProfit>=0?'#86efac':'#fca5a5'};">${grandProfit.toFixed(2)}</div>
+        <div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">د.أ</div>
       </div>
     </div>
-    <div style="border-top:1px solid rgba(255,255,255,0.15);padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <div style="font-size:0.72rem;color:rgba(255,255,255,0.5);">صافي المنتجات</div>
-        <div style="font-size:1.5rem;font-weight:900;color:#a7f3d0;">${grandTotal.toFixed(2)} <span style="font-size:0.8rem;">د.أ</span></div>
-      </div>
-      ${grandDelivery>0?`<div style="text-align:left;">
-        <div style="font-size:0.72rem;color:rgba(255,255,255,0.5);">أجور توصيل</div>
-        <div style="font-size:1rem;font-weight:700;color:rgba(255,255,255,0.7);">${grandDelivery.toFixed(2)} <span style="font-size:0.72rem;">د.أ</span></div>
-      </div>`:''}
-    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.15);padding-top:10px;text-align:center;color:rgba(255,255,255,0.5);font-size:0.72rem;">${grandCount} طلب مسلّم · ${orders.length} إجمالي طلبات اليوم</div>
   </div>`;
 
   return pageCards+totalCard;
