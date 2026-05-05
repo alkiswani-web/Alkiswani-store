@@ -2568,6 +2568,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button id="migrate_sales_btn" onclick="migrateOldSales()" style="width:100%;padding:10px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔧 تصحيح السجلات القديمة</button>
         </div>
 
+        <div style="margin-bottom:14px;padding:12px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:12px;">
+          <div style="font-size:0.78rem;color:#92400e;margin-bottom:8px;font-weight:600;">💰 تحديث تكاليف المواد من قائمة المنتجات</div>
+          <div style="font-size:0.72rem;color:#6b7280;margin-bottom:8px;">يجدد rawMaterialCost لكل السجلات اللي تكلفتها صفر بناءً على سعر المنتج الحالي</div>
+          <button id="migrate_costs_btn" onclick="migrateRawMaterialCosts()" style="width:100%;padding:10px;background:#92400e;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔄 تحديث تكاليف المواد</button>
+        </div>
+
         <!-- Pay Malik Form -->
         <div class="form-card" style="margin-top:16px;margin-bottom:14px;border:1.5px solid #fde68a;background:#fffbeb;">
           <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:12px;">💸 دفع الى ملك</div>
@@ -10398,9 +10404,42 @@ async function migrateOldSales(){
   if(btn){btn.disabled=false;btn.textContent='🔧 تصحيح السجلات القديمة';}
 }
 
+async function migrateRawMaterialCosts(){
+  if(!confirm('سيتم تحديث تكلفة المواد الخام لكل السجلات التي تكلفتها صفر بناءً على أسعار المنتجات الحالية. متابعة؟')) return;
+  const btn=document.getElementById('migrate_costs_btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري التحديث...';}
+  try{
+    if(!_opProductsList.length) await loadOpProducts();
+    const snap=await db.collection('operator_sales').get();
+    const toFix=snap.docs.filter(d=>{const s=d.data();return (!s.rawMaterialCost||s.rawMaterialCost===0)&&s.productId;});
+    if(!toFix.length){toast('✅ لا يوجد سجلات بتكلفة صفر');if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}return;}
+    let updated=0;
+    const BATCH_SIZE=400;
+    for(let i=0;i<toFix.length;i+=BATCH_SIZE){
+      const batch=db.batch();
+      toFix.slice(i,i+BATCH_SIZE).forEach(doc=>{
+        const s=doc.data();
+        const prod=_opProductsList.find(p=>p.id===s.productId);
+        if(prod&&prod.rawMaterialCost>0){
+          const update={rawMaterialCost:prod.rawMaterialCost,machineWorkerWage:prod.machineWorkerWage||0,assemblyWorkerWage:prod.assemblyWorkerWage||0};
+          // for synced records (fromOrderId), also fix sellPrice which was set = rawMaterialCost
+          if(s.fromOrderId||s.sellPrice===0||s.sellPrice===s.rawMaterialCost) update.sellPrice=prod.rawMaterialCost;
+          batch.update(doc.ref,update);
+          updated++;
+        }
+      });
+      await batch.commit();
+    }
+    toast(`✅ تم تحديث ${updated} سجل من أصل ${toFix.length}`);
+    loadBalanceTab();
+  }catch(e){toast('❌ خطأ: '+e.message);}
+  if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}
+}
+
 window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
 window.saveMalikDuties=saveMalikDuties;
 window.migrateOldSales=migrateOldSales;
+window.migrateRawMaterialCosts=migrateRawMaterialCosts;
 window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=deleteBalancePurchase;
 window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
 window.setStoreBalType=setStoreBalType; window.addStoreTx=addStoreTx; window.deleteStoreTx=deleteStoreTx;
