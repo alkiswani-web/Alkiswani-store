@@ -10391,8 +10391,29 @@ window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; 
 // ===== DELIVERY REPS =====
 let _deliveryModalOrder=null;
 let _deliveryBatchOrders=[];
-function _getDeliveryReps(){try{return JSON.parse(localStorage.getItem('delivery_reps')||'[]');}catch(e){return[];}}
-function _saveDeliveryReps(reps){localStorage.setItem('delivery_reps',JSON.stringify(reps));}
+let _deliveryRepsCache=null; // null = not loaded yet
+
+async function _loadDeliveryReps(){
+  if(_deliveryRepsCache!==null)return _deliveryRepsCache;
+  try{
+    const snap=await db.collection('operator_config').doc('delivery_reps').get();
+    if(snap.exists&&snap.data().reps){
+      _deliveryRepsCache=snap.data().reps;
+    }else{
+      // one-time migration from localStorage
+      const legacy=JSON.parse(localStorage.getItem('delivery_reps')||'[]');
+      _deliveryRepsCache=legacy;
+      if(legacy.length) await db.collection('operator_config').doc('delivery_reps').set({reps:legacy});
+      localStorage.removeItem('delivery_reps');
+    }
+  }catch(e){_deliveryRepsCache=JSON.parse(localStorage.getItem('delivery_reps')||'[]');}
+  return _deliveryRepsCache;
+}
+
+async function _saveDeliveryReps(reps){
+  _deliveryRepsCache=reps;
+  await db.collection('operator_config').doc('delivery_reps').set({reps});
+}
 
 function _buildDeliveryMsg(o){
   const orderLabel=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
@@ -10411,7 +10432,7 @@ function _buildDeliveryMsg(o){
   return msg;
 }
 
-function _renderDeliveryModal(){
+async function _renderDeliveryModal(){
   const o=_deliveryModalOrder;
   if(!o)return;
   const isBatch=_deliveryBatchOrders.length>1;
@@ -10432,7 +10453,7 @@ function _renderDeliveryModal(){
         <div style="font-size:0.78rem;color:#6b7280;margin-top:3px;">📦 ${prodsStr}</div>`;
     }
   }
-  const reps=_getDeliveryReps();
+  const reps=await _loadDeliveryReps();
   const msg=isBatch?_buildBatchDeliveryMsg(_deliveryBatchOrders):_buildDeliveryMsg(o);
   const encoded=encodeURIComponent(msg);
   const listEl=document.getElementById('deliveryRepsList');
@@ -10473,23 +10494,23 @@ function closeDeliveryModal(){
   _deliveryBatchOrders=[];
 }
 
-function addDeliveryRep(){
+async function addDeliveryRep(){
   const name=(document.getElementById('newRepName').value||'').trim();
   const phone=(document.getElementById('newRepPhone').value||'').trim();
   if(!name||!phone){toast('⚠️ أدخل الاسم والرقم');return;}
-  const reps=_getDeliveryReps();
+  const reps=await _loadDeliveryReps();
   reps.push({name,phone});
-  _saveDeliveryReps(reps);
+  await _saveDeliveryReps(reps);
   document.getElementById('newRepName').value='';
   document.getElementById('newRepPhone').value='';
   _renderDeliveryModal();
   toast('✅ تم إضافة المندوب');
 }
 
-function removeDeliveryRep(idx){
-  const reps=_getDeliveryReps();
+async function removeDeliveryRep(idx){
+  const reps=await _loadDeliveryReps();
   reps.splice(idx,1);
-  _saveDeliveryReps(reps);
+  await _saveDeliveryReps(reps);
   _renderDeliveryModal();
 }
 
