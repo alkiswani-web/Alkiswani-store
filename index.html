@@ -5578,6 +5578,12 @@ function _renderEmpOrdersView(){
     wrap.innerHTML=_renderKanbanBoard(orders,false,customerHist);
     return;
   }
+  // Special combined view for delivering/queued tabs (queued + delivering)
+  if(_empOrdersFilter==='delivering'||_empOrdersFilter==='queued'){
+    const combined=_empOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
+    wrap.innerHTML=_renderDeliveryQueue(combined);
+    return;
+  }
   let orders;
   if(_empOrdersFilter==='all') orders=_empOrdersAllData;
   else if(_empOrdersFilter==='edited') orders=_empOrdersAllData.filter(o=>o.needsReview);
@@ -5630,8 +5636,8 @@ function _renderOpOrdersView(){
     wrap.innerHTML=_renderKanbanBoard(orders,true,customerHist);
     return;
   }
-  // Special combined view for delivering tab (shows queued + delivering)
-  if(_opOrdersFilter==='delivering'){
+  // Special combined view for delivering/queued tabs
+  if(_opOrdersFilter==='delivering'||_opOrdersFilter==='queued'){
     const combined=_opOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
     wrap.innerHTML=_renderDeliveryQueue(combined);
     const repWrap=document.getElementById('opCancelReport');
@@ -12542,7 +12548,7 @@ function _buildBatchRepMsg(orders,repName){
 }
 
 async function sendQueuedRepOrders(repName,waUrl){
-  const data=_opOrdersAllData.length?_opOrdersAllData:_empOrdersAllData;
+  const data=(_opOrdersAllData.length>=_empOrdersAllData.length)?_opOrdersAllData:_empOrdersAllData;
   const ids=data.filter(o=>o.status==='queued'&&o.deliveryRepName===repName).map(o=>o.id);
   if(!ids.length){toast('⚠️ لا توجد طلبات لهذا المندوب');return;}
   if(waUrl)window.open(waUrl,'_blank');
