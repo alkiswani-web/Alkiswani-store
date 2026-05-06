@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>الكسواني روزميري | خشبيات وأشجار زينة</title>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 :root{
   --green-dark:#1a3a2a;
@@ -2740,6 +2741,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setEmpOrderFilter('pending',this)">جديد <span id="eoc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('preparing',this)">تجهيز <span id="eoc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('prepared',this)">تم التجهيز <span id="eoc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('queued',this)">🧍 قائمة مناديب <span id="eoc-queued" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('delivering',this)">توصيل <span id="eoc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('delivered',this)">مسلّم <span id="eoc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('onhold',this)">معلّق <span id="eoc-onhold" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -2759,6 +2761,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <button id="opKanbanBtn" onclick="toggleOpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
               <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
               <button onclick="toggleOpAdvFilter(this)" id="opAdvFilterBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🔍 فلتر متقدم</button>
+              <button onclick="openQRScanner()" style="padding:6px 12px;background:#0ea5e9;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📷 مسح QR</button>
               <button onclick="openTVMode()" style="padding:6px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📺 TV</button>
             </div>
           </div>
@@ -2784,6 +2787,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setOpOrderFilter('pending',this)">جديد <span id="ooc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('preparing',this)">تجهيز <span id="ooc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('prepared',this)">تم التجهيز <span id="ooc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('queued',this)">🧍 قائمة مناديب <span id="ooc-queued" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('delivering',this)">توصيل <span id="ooc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('delivered',this)">مسلّم <span id="ooc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('onhold',this)">معلّق <span id="ooc-onhold" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -4474,6 +4478,7 @@ const EMP_STATUSES={
   prepared:  {label:'تم التجهيز',  color:'#3b82f6',bg:'#eff6ff',border:'#bfdbfe'},
   delivering:{label:'قيد التوصيل',color:'#8b5cf6',bg:'#f5f3ff',border:'#ddd6fe'},
   delivered: {label:'تم التوصيل', color:'#22c55e',bg:'#f0fdf4',border:'#86efac'},
+  queued:    {label:'قائمة توصيل', color:'#0ea5e9',bg:'#f0f9ff',border:'#bae6fd'},
   onhold:    {label:'معلّق',        color:'#d97706',bg:'#fef3c7',border:'#fde68a'},
   cancelled: {label:'ملغي',        color:'#ef4444',bg:'#fef2f2',border:'#fecaca'},
   returned:  {label:'مرتجع',       color:'#6b7280',bg:'#f9fafb',border:'#e5e7eb'},
@@ -5518,6 +5523,8 @@ function _updateEmpChipCounts(data, prefix){
     if(counts[o.status]!==undefined)counts[o.status]++;
     if(o.needsReview)counts.edited++;
   });
+  // delivering chip shows queued+delivering combined count
+  counts.delivering=(counts.delivering||0)+(counts.queued||0);
   Object.keys(counts).forEach(s=>{const el=document.getElementById(prefix+s);if(el)el.textContent=counts[s];});
 }
 
@@ -5621,6 +5628,14 @@ function _renderOpOrdersView(){
     if(_opAdvFilter) orders=_applyAdvFilter(orders,_opAdvFilter);
     if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
     wrap.innerHTML=_renderKanbanBoard(orders,true,customerHist);
+    return;
+  }
+  // Special combined view for delivering tab (shows queued + delivering)
+  if(_opOrdersFilter==='delivering'){
+    const combined=_opOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
+    wrap.innerHTML=_renderDeliveryQueue(combined);
+    const repWrap=document.getElementById('opCancelReport');
+    if(repWrap)repWrap.style.display='none';
     return;
   }
   let orders;
@@ -5836,6 +5851,10 @@ function printEmpOrder(orderId,withPhoto){
   db.collection('employee_orders').doc(orderId).get().then(snap=>{
     if(!snap.exists){toast('❌ الطلب غير موجود');return;}
     const o={id:snap.id,...snap.data()};
+    if(o.status==='pending'){
+      updateEmpOrderStatus(orderId,'preparing');
+      o.status='preparing';
+    }
     const st=_empSt(o.status);
     const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
     const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
@@ -5873,6 +5892,10 @@ ${dlv>0?`<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;font-
 <div class="tot"><span>الحساب النهائي</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الحساب النهائي</span><span>${total.toFixed(2)} د.أ</span></div>`}
 ${withPhoto?(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);return imgs.length?`<div style="margin-top:16px;display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`).join('')}</div>`:''})():''}
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px dashed #e5e7eb;">
+  <div style="font-size:0.72rem;color:#9ca3af;">امسح الكود لتحديث الطلب</div>
+  <img src="https://chart.googleapis.com/chart?chs=90x90&cht=qr&chl=${encodeURIComponent(orderId)}&choe=UTF-8&chld=M|1" alt="QR" style="width:90px;height:90px;border:1px solid #e5e7eb;border-radius:6px;">
+</div>
 <div class="foot">
 <button class="no-print" onclick="window.print()" style="padding:10px 28px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:0.9rem;cursor:pointer;margin-bottom:12px;">🖨 طباعة</button>
 <div>الكسواني روزميري © ${new Date().getFullYear()}</div></div>
@@ -11531,6 +11554,10 @@ window.applyEmpAdvFilter=applyEmpAdvFilter; window.applyOpAdvFilter=applyOpAdvFi
 window.clearEmpAdvFilter=clearEmpAdvFilter; window.clearOpAdvFilter=clearOpAdvFilter;
 window.openTVMode=openTVMode; window.closeTVMode=closeTVMode;
 window.copyOrderTrackingLink=copyOrderTrackingLink;
+window.openQRScanner=openQRScanner; window.closeQRScanner=closeQRScanner;
+window.closeQRRepAssignModal=closeQRRepAssignModal;
+window.qrAssignToRep=qrAssignToRep; window.qrAssignManualSend=qrAssignManualSend;
+window.sendQueuedRepOrders=sendQueuedRepOrders;
 
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
@@ -12322,6 +12349,202 @@ function showAdvisorResults(){
 }
 
 init();
+
+// ===== QR SCANNER =====
+let _qrScanActive=false, _qrScanStream=null, _qrScanRaf=null;
+let _qrAssignOrderId=null, _qrAssignOrder=null;
+
+async function openQRScanner(){
+  const overlay=document.getElementById('qrScannerOverlay');
+  if(!overlay)return;
+  overlay.style.display='block';
+  _qrScanActive=true;
+  try{
+    _qrScanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video=document.getElementById('qrVideo');
+    video.srcObject=_qrScanStream;
+    video.play();
+    _qrScanLoop();
+  }catch(e){
+    document.getElementById('qrScanStatus').textContent='❌ تعذّر الوصول للكاميرا: '+e.message;
+  }
+}
+
+function closeQRScanner(){
+  _qrScanActive=false;
+  if(_qrScanRaf){cancelAnimationFrame(_qrScanRaf);_qrScanRaf=null;}
+  if(_qrScanStream){_qrScanStream.getTracks().forEach(t=>t.stop());_qrScanStream=null;}
+  const overlay=document.getElementById('qrScannerOverlay');
+  if(overlay)overlay.style.display='none';
+}
+
+function _qrScanLoop(){
+  if(!_qrScanActive)return;
+  const video=document.getElementById('qrVideo');
+  const canvas=document.getElementById('qrCanvas');
+  if(!video||!canvas||video.readyState!==video.HAVE_ENOUGH_DATA){
+    _qrScanRaf=requestAnimationFrame(_qrScanLoop);return;
+  }
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const code=jsQR(imageData.data,imageData.width,imageData.height,{inversionAttempts:'dontInvert'});
+  if(code&&code.data){
+    const orderId=code.data.trim();
+    closeQRScanner();
+    _handleQRResult(orderId);
+    return;
+  }
+  _qrScanRaf=requestAnimationFrame(_qrScanLoop);
+}
+
+async function _handleQRResult(orderId){
+  try{
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(!snap.exists){toast('⚠️ طلب غير موجود: '+orderId.slice(-6));return;}
+    const o={id:snap.id,...snap.data()};
+    _qrAssignOrderId=orderId;
+    _qrAssignOrder=o;
+    _openQRRepAssignModal(o);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function _openQRRepAssignModal(o){
+  const modal=document.getElementById('qrRepAssignModal');
+  if(!modal)return;
+  modal.style.display='flex';
+  const st=_empSt(o.status);
+  const prods=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]);
+  const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0)+(o.deliveryFee||0)));
+  document.getElementById('qrAssignOrderInfo').textContent=`${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} · ${o.customerName||o.pageName} · ${total.toFixed(2)} د.أ`;
+  document.getElementById('qrAssignStatusBadge').innerHTML=`<div style="display:inline-block;padding:5px 14px;background:${st.bg};color:${st.color};border:1.5px solid ${st.border};border-radius:20px;font-size:0.82rem;font-weight:700;">${st.label}</div>`;
+  const repSection=document.getElementById('qrAssignRepSection');
+  const actionBtns=document.getElementById('qrAssignActionBtns');
+  repSection.style.display='none';
+  actionBtns.innerHTML='';
+  if(o.status==='prepared'){
+    repSection.style.display='block';
+    const reps=await _loadDeliveryReps();
+    const repList=document.getElementById('qrAssignRepList');
+    repList.innerHTML=reps.length
+      ?reps.map((r,i)=>`<button onclick="qrAssignToRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;text-align:right;">
+        <div><div style="font-weight:700;color:#0369a1;">${r.name}</div><div style="font-size:0.72rem;color:#6b7280;">${r.phone||''}</div></div>
+        <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;">اختيار ←</span>
+      </button>`).join('')
+      :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد مناديب — أضفهم من الإعدادات</div>';
+  } else if(o.status==='queued'){
+    actionBtns.innerHTML=`
+      <div style="background:#e0f2fe;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#0369a1;margin-bottom:8px;">🧍 مُسنَد لـ: <strong>${o.deliveryRepName||'—'}</strong></div>
+      <button onclick="updateEmpOrderStatus('${o.id}','delivering');closeQRRepAssignModal();" style="width:100%;padding:10px;background:#8b5cf6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">← نقل مباشر لقيد التوصيل</button>`;
+  } else if(o.status==='delivering'){
+    actionBtns.innerHTML=`
+      <div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#166534;margin-bottom:8px;">🚚 الطلب قيد التوصيل ${o.deliveryRepName?'مع '+o.deliveryRepName:''}</div>
+      <button onclick="updateEmpOrderStatus('${o.id}','delivered');closeQRRepAssignModal();" style="width:100%;padding:10px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✅ تسليم الطلب</button>`;
+  } else {
+    actionBtns.innerHTML=`<div style="text-align:center;color:#6b7280;font-size:0.85rem;padding:10px;">الطلب في حالة: ${st.label}</div>`;
+  }
+}
+
+function closeQRRepAssignModal(){
+  const modal=document.getElementById('qrRepAssignModal');
+  if(modal)modal.style.display='none';
+  _qrAssignOrderId=null;_qrAssignOrder=null;
+}
+
+async function qrAssignToRep(repName,repPhone){
+  if(!_qrAssignOrderId)return;
+  try{
+    const docRef=db.collection('employee_orders').doc(_qrAssignOrderId);
+    const snap=await docRef.get();
+    const data=snap.data();
+    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`تم التجهيز ← قائمة توصيل (${repName})`};
+    await docRef.update({status:'queued',deliveryRepName:repName,deliveryRepPhone:repPhone||'',editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast(`✅ أُسند لـ ${repName}`);
+    closeQRRepAssignModal();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function qrAssignManualSend(){
+  if(!_qrAssignOrder)return;
+  const o=_qrAssignOrder;
+  const prods=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]);
+  const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0)+(o.deliveryFee||0)));
+  const msg=`طلب توصيل 🚚\nالاسم: ${o.customerName||o.pageName}\nالهاتف: ${o.customerPhone}\nالعنوان: ${o.address}\nالمبلغ: ${total.toFixed(2)} د.أ`;
+  closeQRRepAssignModal();
+  updateEmpOrderStatus(o.id,'delivering');
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+// ===== DELIVERY QUEUE (queued orders grouped by rep) =====
+function _renderDeliveryQueue(orders){
+  const queued=orders.filter(o=>o.status==='queued');
+  const delivering=orders.filter(o=>o.status==='delivering');
+  const customerHist=_buildCustomerHistoryMap(orders);
+  let html='';
+  if(queued.length){
+    const byRep={};
+    queued.forEach(o=>{const k=o.deliveryRepName||'—';if(!byRep[k])byRep[k]={name:k,phone:o.deliveryRepPhone||'',orders:[]};byRep[k].orders.push(o);});
+    html+=`<div style="background:#e0f2fe;border:1.5px solid #bae6fd;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-weight:800;color:#0369a1;font-size:0.92rem;margin-bottom:12px;">🧍 قائمة المناديب (${queued.length} طلب)</div>
+      ${Object.values(byRep).map(rep=>{
+        const repOrders=rep.orders;
+        const totalAmt=repOrders.reduce((s,o)=>{const pr=o.products||[{price:o.price||0,qty:1}];const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);return s+(o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0));},0);
+        const encoded=encodeURIComponent(_buildBatchRepMsg(repOrders,rep.name));
+        const phone=(rep.phone||'').replace(/[^\d+]/g,'');
+        const waUrl=phone?`https://wa.me/${phone}?text=${encoded}`:'';
+        return `<div style="background:#fff;border:1.5px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div>
+              <div style="font-weight:700;color:#0369a1;font-size:0.88rem;">🧍 ${rep.name}</div>
+              <div style="font-size:0.73rem;color:#6b7280;">${repOrders.length} طلب · إجمالي: ${totalAmt.toFixed(2)} د.أ</div>
+            </div>
+            <button onclick="sendQueuedRepOrders('${rep.name.replace(/'/g,"\\'")}','${(waUrl).replace(/'/g,"\\'")}')" style="padding:8px 14px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">📱 إرسال واتساب</button>
+          </div>
+          ${repOrders.map(o=>{const pr=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);const net=o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0);return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #e0f2fe;font-size:0.8rem;"><span>${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} · ${o.customerName||o.pageName}</span><span style="font-weight:700;color:#0369a1;">${net.toFixed(2)} د.أ</span></div>`;}).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+  if(delivering.length){
+    html+=`<div style="margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border-radius:10px;border:1.5px solid #ddd6fe;">
+      <div style="font-weight:700;color:#7c3aed;font-size:0.88rem;margin-bottom:10px;">🚚 قيد التوصيل (${delivering.length} طلب)</div>
+      ${delivering.map(o=>_renderAdminOrderCard(o,true,customerHist)).join('')}
+    </div>`;
+  }
+  if(!queued.length&&!delivering.length){
+    html='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">لا يوجد طلبات في التوصيل</div>';
+  }
+  return html;
+}
+
+function _buildBatchRepMsg(orders,repName){
+  const lines=orders.map((o,i)=>{
+    const pr=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
+    const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);
+    const net=o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0);
+    return `${i+1}. ${o.customerName||o.pageName} · ${o.customerPhone}\n   ${o.address}\n   المبلغ: ${net.toFixed(2)} د.أ`;
+  });
+  return `طلبات توصيل 🚚\nالمندوب: ${repName}\nعدد الطلبات: ${orders.length}\n\n${lines.join('\n\n')}`;
+}
+
+async function sendQueuedRepOrders(repName,waUrl){
+  const data=_opOrdersAllData.length?_opOrdersAllData:_empOrdersAllData;
+  const ids=data.filter(o=>o.status==='queued'&&o.deliveryRepName===repName).map(o=>o.id);
+  if(!ids.length){toast('⚠️ لا توجد طلبات لهذا المندوب');return;}
+  if(waUrl)window.open(waUrl,'_blank');
+  for(const id of ids){
+    try{
+      const docRef=db.collection('employee_orders').doc(id);
+      const snap=await docRef.get();
+      const d=snap.data();
+      const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`قائمة توصيل ← قيد التوصيل`};
+      await docRef.update({status:'delivering',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    }catch(e){}
+  }
+  toast(`✅ تم إرسال ${ids.length} طلب لـ ${repName}`);
+}
 </script>
 
 <!-- PRODUCT ADVISOR -->
@@ -12561,6 +12784,44 @@ init();
     </div>
     <div id="trackingContent" style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
       <div style="text-align:center;color:#9ca3af;padding:30px;">⏳ جاري التحميل...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== QR SCANNER OVERLAY ===== -->
+<div id="qrScannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:10500;font-family:'Tajawal',sans-serif;">
+  <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:space-between;z-index:2;">
+    <div style="color:#fff;font-weight:700;font-size:0.95rem;">📷 مسح QR الطلب</div>
+    <button onclick="closeQRScanner()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:7px 14px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">✕ إغلاق</button>
+  </div>
+  <video id="qrVideo" style="width:100%;height:100%;object-fit:cover;" playsinline autoplay muted></video>
+  <canvas id="qrCanvas" style="display:none;"></canvas>
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+    <div style="width:220px;height:220px;border:3px solid #0ea5e9;border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);"></div>
+  </div>
+  <div id="qrScanStatus" style="position:absolute;bottom:40px;left:0;right:0;text-align:center;color:#fff;font-size:0.85rem;opacity:0.8;">وجّه الكاميرا نحو QR Code على الفاتورة</div>
+</div>
+
+<!-- ===== QR REP ASSIGN MODAL ===== -->
+<div id="qrRepAssignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10600;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:18px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+    <div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="color:#fff;font-weight:800;font-size:1rem;">📦 طلب محدد</div>
+        <div id="qrAssignOrderInfo" style="color:rgba(255,255,255,0.8);font-size:0.78rem;margin-top:2px;"></div>
+      </div>
+      <button onclick="closeQRRepAssignModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div style="padding:16px;font-family:'Tajawal',sans-serif;">
+      <div id="qrAssignStatusBadge" style="margin-bottom:14px;"></div>
+      <div id="qrAssignRepSection" style="display:none;">
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">اختر مندوب التوصيل:</div>
+        <div id="qrAssignRepList" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
+        <div style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:12px;">
+          <button onclick="qrAssignManualSend()" style="width:100%;padding:10px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 إرسال مباشر عبر واتساب</button>
+        </div>
+      </div>
+      <div id="qrAssignActionBtns" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;"></div>
     </div>
   </div>
 </div>
