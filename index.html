@@ -10880,22 +10880,21 @@ async function loadWorkerAccounts(date){
 
 function openAddWorkerModal(){
   document.getElementById('addWorkerModal').style.display='flex';
-  setTimeout(()=>document.getElementById('newWorkerName').focus(),100);
+  setTimeout(()=>document.getElementById('newAssemblyWorkerName').focus(),100);
 }
 function closeAddWorkerModal(){
   document.getElementById('addWorkerModal').style.display='none';
-  document.getElementById('newWorkerName').value='';
-  document.getElementById('newWorkerPhone').value='';
+  document.getElementById('newAssemblyWorkerName').value='';
+  document.getElementById('newAssemblyWorkerPhone').value='';
 }
 async function saveNewWorker(){
-  const name=(document.getElementById('newWorkerName').value||'').trim();
+  const name=(document.getElementById('newAssemblyWorkerName').value||'').trim();
   if(!name){toast('⚠️ أدخل اسم العامل');return;}
-  const phone=(document.getElementById('newWorkerPhone').value||'').trim();
+  const phone=(document.getElementById('newAssemblyWorkerPhone').value||'').trim();
   try{
     await db.collection('operator_assembly_workers').add({name,phone,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     closeAddWorkerModal();
-    const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
-    loadWorkerAccounts(date);
+    loadWorkerAccounts(jordanDateStr());
     toast('✅ تم إضافة العامل');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -10907,8 +10906,7 @@ async function deleteWorker(id){
     txns.docs.forEach(d=>batch.delete(d.ref));
     batch.delete(db.collection('operator_assembly_workers').doc(id));
     await batch.commit();
-    const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
-    loadWorkerAccounts(date);
+    loadWorkerAccounts(jordanDateStr());
     toast('✅ تم حذف العامل');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -10969,18 +10967,18 @@ async function saveWorkerTxn(){
   const amount=parseFloat(document.getElementById('workerTxnAmount').value)||0;
   if(amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   const note=(document.getElementById('workerTxnNote').value||'').trim();
-  const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
+  const today=jordanDateStr();
   try{
     await db.collection('operator_worker_transactions').add({
       workerId:_activeWorkerTxnId,
       workerName:_activeWorkerTxnName,
-      date,type:_workerTxnType,amount,note,
+      date:today,type:_workerTxnType,amount,note,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     document.getElementById('workerTxnAmount').value='';
     document.getElementById('workerTxnNote').value='';
     await _loadWorkerTxnHistory();
-    loadWorkerAccounts(date);
+    loadWorkerAccounts(today);
     toast('✅ تم تسجيل الحركة');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -10989,8 +10987,7 @@ async function deleteWorkerTxn(txnId){
   try{
     await db.collection('operator_worker_transactions').doc(txnId).delete();
     await _loadWorkerTxnHistory();
-    const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
-    loadWorkerAccounts(date);
+    loadWorkerAccounts(jordanDateStr());
     toast('✅ تم حذف الحركة');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -11914,8 +11911,8 @@ init();
 <div id="addWorkerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:4000;align-items:center;justify-content:center;padding:16px;">
   <div style="background:#fff;border-radius:14px;max-width:400px;width:100%;padding:20px;">
     <div style="font-weight:800;font-size:0.95rem;color:#1a3a2a;margin-bottom:14px;">👷 إضافة عامل تركيب</div>
-    <input type="text" id="newWorkerName" placeholder="اسم العامل *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;">
-    <input type="tel" id="newWorkerPhone" placeholder="رقم الهاتف (اختياري)" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:14px;box-sizing:border-box;" dir="ltr">
+    <input type="text" id="newAssemblyWorkerName" placeholder="اسم العامل *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;">
+    <input type="tel" id="newAssemblyWorkerPhone" placeholder="رقم الهاتف (اختياري)" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:14px;box-sizing:border-box;" dir="ltr">
     <div style="display:flex;gap:8px;">
       <button onclick="saveNewWorker()" style="flex:1;padding:11px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">حفظ</button>
       <button onclick="closeAddWorkerModal()" style="padding:11px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">إلغاء</button>
