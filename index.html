@@ -2909,7 +2909,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <label for="emp_img_file" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px;background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#1d4ed8;">🖼 رفع صورة</label>
         </div>
         <input type="file" id="emp_img_camera" accept="image/*" capture="camera" style="display:none;" onchange="onEmpImageChange(this)">
-        <input type="file" id="emp_img_file" accept="image/*" style="display:none;" onchange="onEmpImageChange(this)">
+        <input type="file" id="emp_img_file" accept="image/*" multiple style="display:none;" onchange="onEmpImageChange(this)">
         <div id="emp_img_preview"></div>
       </div>
 
@@ -4359,7 +4359,7 @@ async function deleteAdminUser(id){
 const _EMP_SESSION_KEY='ak_emp_session';
 const _EMP_SESSION_DAYS=7;
 let _empCurrentUser=null; // {id, username, defaultPage}
-let _empCurrentImage=null;
+let _empCurrentImages=[];
 
 function _saveEmpSession(u){localStorage.setItem(_EMP_SESSION_KEY,JSON.stringify({...u,ts:Date.now()}));}
 function _clearEmpSession(){localStorage.removeItem(_EMP_SESSION_KEY);}
@@ -4601,26 +4601,42 @@ async function doEmpLogin(){
 }
 
 async function onEmpImageChange(input){
-  const file=input.files[0];
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=async e=>{
-    _empCurrentImage=await _compressImage(e.target.result);
-    renderEmpImagePreview();
-  };
-  reader.readAsDataURL(file);
+  const files=[...input.files];
+  if(!files.length)return;
+  const MAX=6;
+  const remaining=MAX-_empCurrentImages.length;
+  if(remaining<=0){toast('⚠️ الحد الأقصى ٦ صور');input.value='';return;}
+  const toProcess=files.slice(0,remaining);
+  if(files.length>remaining)toast(`⚠️ تم إضافة ${remaining} صورة فقط (الحد الأقصى ${MAX})`);
+  for(const file of toProcess){
+    await new Promise(res=>{
+      const reader=new FileReader();
+      reader.onload=async e=>{
+        const compressed=await _compressImage(e.target.result);
+        _empCurrentImages.push(compressed);
+        res();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  input.value='';
+  renderEmpImagePreview();
 }
 function renderEmpImagePreview(){
   const wrap=document.getElementById('emp_img_preview');
   if(!wrap)return;
-  if(!_empCurrentImage){wrap.innerHTML='';return;}
-  wrap.innerHTML=`<div style="position:relative;display:inline-block;width:100%;">
-    <img src="${_empCurrentImage}" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;">
-    <button onclick="clearEmpImage()" style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:0.75rem;">✕</button>
-  </div>`;
+  if(!_empCurrentImages.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;">
+    ${_empCurrentImages.map((src,i)=>`<div style="position:relative;">
+      <img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;cursor:zoom-in;">
+      <button onclick="clearEmpImage(${i})" style="position:absolute;top:3px;left:3px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:0.65rem;display:flex;align-items:center;justify-content:center;padding:0;">✕</button>
+    </div>`).join('')}
+  </div>
+  <div style="font-size:0.68rem;color:#9ca3af;text-align:center;margin-top:4px;">${_empCurrentImages.length}/6 صور</div>`;
 }
-function clearEmpImage(){
-  _empCurrentImage=null;
+function clearEmpImage(idx){
+  if(idx===undefined)_empCurrentImages=[];
+  else _empCurrentImages.splice(idx,1);
   renderEmpImagePreview();
   const c=document.getElementById('emp_img_camera');
   const f=document.getElementById('emp_img_file');
@@ -4657,7 +4673,8 @@ async function submitEmpOrder(){
       customerPhone:phone,
       address,notes,
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
-      imageDataUrl:_empCurrentImage||null,
+      imageDataUrls:_empCurrentImages.length?_empCurrentImages:firebase.firestore.FieldValue.delete(),
+      imageDataUrl:_empCurrentImages[0]||null,
       status:'pending',
       totalPrice,deliveryFee,netPrice,...(discount>0?{discount}:{}),
       date:jordanDateStr(),
@@ -4665,7 +4682,7 @@ async function submitEmpOrder(){
       editHistory:[]
     });
     toast('✅ تم تسجيل الطلب بنجاح');
-    _empOrderCart=[];_empDeliveryFee=0;
+    _empOrderCart=[];_empDeliveryFee=0;_empCurrentImages=[];
     const dEl=document.getElementById('emp_discount');if(dEl)dEl.value='';
     renderEmpOrderCart();
     setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
@@ -5322,7 +5339,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     </div>
     <div style="margin-bottom:8px;">${prods.map(p=>`<div style="font-size:0.82rem;color:#374151;">• ${p.name} <span style="color:#6b7280;">× ${p.qty||1}</span> — <span style="font-weight:700;">${(p.price*(p.qty||1)).toFixed(2)} د.أ</span></div>`).join('')}</div>
     <div style="font-size:0.78rem;color:#4b5563;margin-bottom:8px;">📍 ${o.address}${o.notes?` <span style="color:#9ca3af;">· ${o.notes}</span>`:''}</div>
-    ${o.imageDataUrl?`<img src="${o.imageDataUrl}" onclick="openEmpOrderImage('${o.imageDataUrl}')" style="width:100%;max-height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px;border:1px solid #e5e7eb;cursor:pointer;">`:'' }
+    ${(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);return imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:4px;margin-bottom:8px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:7px;border:1px solid #e5e7eb;cursor:zoom-in;">`).join('')}</div>`:''})()}
     ${o.needsReview?`<div style="display:inline-block;background:#fef3c7;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;margin-bottom:6px;">✏️ تعديل من الموظف — يحتاج مراجعة</div>`:''}
     ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.72rem;color:#f97316;margin-bottom:6px;">📝 ${o.editHistory.map(e=>e.note).join(' | ')}</div>`:''}
     ${isOperator?`<div style="margin-bottom:6px;">${o.internalNote?`<div style="display:flex;align-items:center;gap:6px;background:#fefce8;border:1px solid #fde68a;border-radius:7px;padding:5px 10px;font-size:0.76rem;color:#854d0e;"><span style="flex:1;">🔒 ${o.internalNote}</span><button onclick="openInternalNote('${o.id}','${(o.internalNote||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="background:none;border:none;cursor:pointer;font-size:0.72rem;color:#6b7280;padding:0;">✏️</button></div>`:`<button onclick="openInternalNote('${o.id}','')" style="padding:4px 10px;background:#fefce8;color:#92400e;border:1px dashed #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.73rem;cursor:pointer;">🔒 ملاحظة داخلية</button>`}</div>`:''}
@@ -5331,7 +5348,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
       ${statusBtns}
       <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
       <button onclick="printEmpOrder('${o.id}',false)" style="padding:5px 10px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨 طباعة</button>
-      ${o.imageDataUrl?`<button onclick="printEmpOrder('${o.id}',true)" style="padding:5px 10px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨📷 مع صورة</button>`:''}
+      ${(o.imageDataUrl||(o.imageDataUrls&&o.imageDataUrls.length))?`<button onclick="printEmpOrder('${o.id}',true)" style="padding:5px 10px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🖨📷 مع صورة</button>`:''}
       <button onclick="deleteEmpOrder('${o.id}')" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🗑</button>
     </div>
   </div>`;
@@ -5737,7 +5754,7 @@ ${prods.map(p=>`<div class="pr"><span>${p.name}</span><span>${p.qty||1} × ${p.p
 ${dlv>0?`<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;font-weight:700;font-size:0.88rem;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
 <div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#f97316;">+ ${dlv.toFixed(2)} د.أ</span></div>
 <div class="tot"><span>الحساب النهائي</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الحساب النهائي</span><span>${total.toFixed(2)} د.أ</span></div>`}
-${withPhoto&&o.imageDataUrl?`<div style="margin-top:16px;text-align:center;"><img src="${o.imageDataUrl}" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;"></div>`:''}
+${withPhoto?(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);return imgs.length?`<div style="margin-top:16px;display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`).join('')}</div>`:''})():''}
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
 <div class="foot">
 <button class="no-print" onclick="window.print()" style="padding:10px 28px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:0.9rem;cursor:pointer;margin-bottom:12px;">🖨 طباعة</button>
