@@ -4589,8 +4589,9 @@ async function submitEmpOrder(){
   if(!address){toast('⚠️ أدخل العنوان');return;}
   const prodsTotal=calcEmpOrderTotal()||parseFloat(document.getElementById('emp_total')?.value)||0;
   const deliveryFee=_empDeliveryFee||0;
+  const excess=Math.max(0,deliveryFee-2);
   const totalPrice=prodsTotal+deliveryFee;
-  const netPrice=totalPrice;
+  const netPrice=prodsTotal-excess+deliveryFee;
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -4641,7 +4642,9 @@ function loadEmpTodayOrders(){
         const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
         const prodsTotal=prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
         const dlv=o.deliveryFee||0;
-        const final=o.netPrice!=null?o.netPrice:prodsTotal+dlv;
+        const excess=Math.max(0,dlv-2);
+        const adjProds=prodsTotal-excess;
+        const final=o.netPrice!=null?o.netPrice:adjProds+dlv;
         const orderLabel=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
         const canEdit=!['delivered','cancelled','returned','refused'].includes(o.status);
         const canCancel=!['cancelled','returned','refused','delivered'].includes(o.status);
@@ -4661,7 +4664,7 @@ function loadEmpTodayOrders(){
               </div>
               <div style="text-align:left;">
                 <div style="font-weight:900;color:#166534;font-size:1rem;">${final.toFixed(2)} <span style="font-size:0.7rem;">د.أ</span></div>
-                ${dlv>0?`<div style="font-size:0.68rem;color:#9ca3af;">منتجات ${prodsTotal.toFixed(2)} + توصيل ${dlv.toFixed(2)}</div>`:''}
+                ${dlv>0?`<div style="font-size:0.68rem;color:#9ca3af;">منتجات ${adjProds.toFixed(2)} + توصيل ${dlv.toFixed(2)}</div>`:''}
               </div>
             </div>
             <!-- Products -->
@@ -5159,12 +5162,15 @@ function updateEmpEditNet(){
   const customEl=document.getElementById('empEdit_delivery_custom');
   if(customEl&&customEl.style.display!=='none')_empEditDeliveryFee=parseFloat(customEl.value)||0;
   const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
-  const net=prodsTotal+_empEditDeliveryFee;
+  const dlv=_empEditDeliveryFee;
+  const excess=Math.max(0,dlv-2);
+  const adjProds=prodsTotal-excess;
+  const net=adjProds+dlv;
   const totalLbl=document.getElementById('empEditTotalLabel');
   const netEl=document.getElementById('empEditNetLabel');
   const dlvRow=document.getElementById('empEditDeliveryRow');
   const dlvLbl=document.getElementById('empEditDeliveryLabel');
-  if(totalLbl)totalLbl.textContent=prodsTotal.toFixed(2)+' د.أ';
+  if(totalLbl)totalLbl.textContent=adjProds.toFixed(2)+' د.أ';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
   if(dlvRow)dlvRow.style.display=_empEditDeliveryFee>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=_empEditDeliveryFee.toFixed(2)+' د.أ';
@@ -5180,7 +5186,8 @@ async function saveEmpOrderEdit(){
   const notes=document.getElementById('empEdit_notes').value.trim();
   const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
   const deliveryFee=_empEditDeliveryFee;
-  const netPrice=prodsTotal+deliveryFee;
+  const excess=Math.max(0,deliveryFee-2);
+  const netPrice=prodsTotal-excess+deliveryFee;
   const btn=document.querySelector('#empOrderEditModal button[onclick="saveEmpOrderEdit()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -5191,7 +5198,7 @@ async function saveEmpOrderEdit(){
     await docRef.update({
       products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
       customerPhone:phone,address,notes,
-      totalPrice:prodsTotal,deliveryFee,netPrice,
+      totalPrice:prodsTotal+deliveryFee,deliveryFee,netPrice,
       needsReview:true,
       editHistory:[...(prev.editHistory||[]),editEntry],
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
