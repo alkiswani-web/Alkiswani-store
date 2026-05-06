@@ -11501,7 +11501,7 @@ async function _initTrackingPage(){
           <div style="position:absolute;top:12px;left:10px;height:3px;background:#22c55e;z-index:1;width:${Math.max(0,activeIdx/4*100)}%;transition:width 0.5s;"></div>
           ${STEPS.map((s,i)=>{const sst=_empSt(s);const done=i<activeIdx;const active=i===activeIdx;return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2;">
             <div style="width:24px;height:24px;border-radius:50%;background:${active?sst.color:done?'#22c55e':'#e5e7eb'};border:2px solid ${active||done?'transparent':'#e5e7eb'};display:flex;align-items:center;justify-content:center;">
-              ${done?'<span style="color:#fff;font-size:0.7rem;">✓</span>':'<span style="width:8px;height:8px;border-radius:50%;background:${active?'#fff':'#9ca3af'};"></span>'}
+              ${done?'<span style="color:#fff;font-size:0.7rem;">✓</span>':`<span style="width:8px;height:8px;border-radius:50%;background:${active?'#fff':'#9ca3af'};"></span>`}
             </div>
             <div style="font-size:0.62rem;color:${active?sst.color:done?'#22c55e':'#9ca3af'};font-weight:${active||done?'700':'400'};white-space:nowrap;">${sst.label}</div>
           </div>`}).join('')}
