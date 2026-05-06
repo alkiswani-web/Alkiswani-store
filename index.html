@@ -10939,8 +10939,8 @@ async function _loadWorkerTxnHistory(){
   if(!histEl||!_activeWorkerTxnId)return;
   histEl.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">⏳ تحميل...</div>';
   try{
-    const snap=await db.collection('operator_worker_transactions').where('workerId','==',_activeWorkerTxnId).orderBy('createdAt','desc').get();
-    const txns=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const snap=await db.collection('operator_worker_transactions').where('workerId','==',_activeWorkerTxnId).get();
+    const txns=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.toMillis?.()??0)-(a.createdAt?.toMillis?.()??0));
     const totalBalance=txns.reduce((s,t)=>t.type==='deposit'?s+t.amount:s-t.amount,0);
     const balColor=totalBalance>=0?'#a7f3d0':'#fca5a5';
     if(balEl)balEl.innerHTML=`الرصيد الإجمالي: <span style="font-weight:900;color:${balColor};">${totalBalance.toFixed(2)} د.أ</span>`;
