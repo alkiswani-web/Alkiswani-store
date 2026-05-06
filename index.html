@@ -2472,6 +2472,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <div style="font-size:0.78rem;font-weight:700;color:var(--text-mid);letter-spacing:1px;margin-bottom:8px;">🏪 حسابات المتاجر</div>
           <div id="opacct_stores_wrap"></div>
+
+          <!-- Worker Accounts Section -->
+          <div style="margin-top:20px;border-top:1.5px solid #e5e7eb;padding-top:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="font-weight:700;color:#374151;font-size:0.9rem;">👷 حسابات عمال التركيب</div>
+              <button onclick="openAddWorkerModal()" style="padding:5px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">+ إضافة عامل</button>
+            </div>
+            <div id="worker_accounts_wrap">
+              <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">⏳ تحميل...</div>
+            </div>
+          </div>
         </div>
 
         <!-- ===== OPERATOR DAILY VIEW ===== -->
@@ -2790,16 +2801,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
             <div id="daysheet_stores_wrap">
               <div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">اختر تاريخاً لعرض المتاجر</div>
-            </div>
-            <!-- Worker Accounts Section -->
-            <div style="margin-top:18px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                <div style="font-weight:700;color:#374151;font-size:0.9rem;">👷 حسابات عمال التركيب</div>
-                <button onclick="openAddWorkerModal()" style="padding:5px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">+ إضافة عامل</button>
-              </div>
-              <div id="worker_accounts_wrap">
-                <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">اختر تاريخاً لعرض الحسابات</div>
-              </div>
             </div>
           </div>
           <!-- Store detail view -->
@@ -5811,7 +5812,6 @@ async function loadDaySheet(){
     window._dsDate=date;
     if(!orders.length&&!refunds.length){
       storesWrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">لا يوجد طلبات في هذا اليوم</div>';
-      loadWorkerAccounts(date);
       return;
     }
     const DONE=['delivered'];
@@ -5861,7 +5861,6 @@ async function loadDaySheet(){
       </div>
     </div>`;
     storesWrap.innerHTML=cards+totalCard;
-    loadWorkerAccounts(date);
   }catch(e){
     storesWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;padding:30px;">❌ خطأ في التحميل</div>';
   }
@@ -8546,6 +8545,7 @@ async function loadAcctStoreList(){
   if(!_opStoresList.length) await loadOpStores();
   const wrap=document.getElementById('opacct_stores_wrap');
   if(!wrap) return;
+  loadWorkerAccounts(jordanDateStr());
   if(!_opStoresList.length){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد متاجر — أضف متجراً من تبويب المتاجر</div>';
     return;
