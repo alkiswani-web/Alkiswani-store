@@ -2767,13 +2767,23 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <!-- SETTINGS sub-tab -->
         <!-- ===== DAY SHEET TAB ===== -->
         <div id="emp-subtab-daysheet" style="display:none;">
-          <!-- Date bar -->
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-            <input type="date" id="daysheet_date" onchange="loadDaySheet()" style="flex:1;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-            <button onclick="printDaySheet()" style="padding:9px 16px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">🖨️ طباعة</button>
+          <!-- Store list view -->
+          <div id="daysheet-store-list">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+              <input type="date" id="daysheet_date" onchange="loadDaySheet()" style="flex:1;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            </div>
+            <div id="daysheet_stores_wrap">
+              <div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">اختر تاريخاً لعرض المتاجر</div>
+            </div>
           </div>
-          <div id="daysheet_wrap">
-            <div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">اختر تاريخاً لعرض الكشف</div>
+          <!-- Store detail view -->
+          <div id="daysheet-detail-view" style="display:none;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <button onclick="backToDaysheetList()" style="padding:8px 14px;background:#f3f4f6;color:#374151;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
+              <div id="daysheet_detail_title" style="font-weight:700;color:var(--green-dark);font-size:0.95rem;flex:1;"></div>
+              <button onclick="printDaySheet()" style="padding:8px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
+            </div>
+            <div id="daysheet_wrap"></div>
           </div>
         </div>
 
@@ -5569,10 +5579,14 @@ function switchEmpSubTab(tab){
 
 // ===== DAILY PAGE ACCOUNT SHEET (كشف الحساب اليومي) =====
 async function loadDaySheet(){
-  const wrap=document.getElementById('daysheet_wrap');
-  if(!wrap)return;
+  const storesWrap=document.getElementById('daysheet_stores_wrap');
+  if(!storesWrap)return;
   const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
-  wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
+  const listView=document.getElementById('daysheet-store-list');
+  const detailView=document.getElementById('daysheet-detail-view');
+  if(listView)listView.style.display='block';
+  if(detailView)detailView.style.display='none';
+  storesWrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
   try{
     if(!_opProductsList.length) await loadOpProducts();
     if(!_opStoresList.length) await loadOpStores();
@@ -5586,15 +5600,93 @@ async function loadDaySheet(){
       .filter(d=>{if(seen.has(d.id))return false;seen.add(d.id);return true;})
       .map(d=>({id:d.id,...d.data()}));
     const refunds=refundsSnap.docs.map(d=>({id:d.id,...d.data()}));
-    window._dsOrdersCache=orders;
+    window._dsAllOrders=orders;
+    window._dsAllRefunds=refunds;
+    window._dsDate=date;
     if(!orders.length&&!refunds.length){
-      wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">لا يوجد طلبات في هذا اليوم</div>';
+      storesWrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">لا يوجد طلبات في هذا اليوم</div>';
       return;
     }
-    wrap.innerHTML=_renderDaySheet(orders,refunds,date);
+    const DONE=['delivered'];
+    function _storeForPage(pageId){return _opStoresList.find(s=>s.pageId===pageId)||null;}
+    function _prodCost(name){
+      const op=_opProductsList.find(p=>p.name===name);
+      return op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
+    }
+    const noStoreKey='__no_store__';
+    const storeMap={};
+    orders.filter(o=>DONE.includes(o.status)).forEach(o=>{
+      const store=_storeForPage(o.pageId);
+      const key=store?store.id:noStoreKey;
+      if(!storeMap[key])storeMap[key]={id:key,name:store?store.name:'بدون متجر',deliveredCount:0,totalSale:0,refundTotal:0};
+      const dlv=o.deliveryFee||0;
+      const prodsTotal=(o.totalPrice||0)-(o.deliveryFee||0);
+      const excessDlv=Math.max(0,dlv-2);
+      storeMap[key].deliveredCount++;
+      storeMap[key].totalSale+=prodsTotal-excessDlv;
+    });
+    refunds.forEach(r=>{
+      const key=r.storeId||noStoreKey;
+      if(!storeMap[key])storeMap[key]={id:key,name:r.storeName||'بدون متجر',deliveredCount:0,totalSale:0,refundTotal:0};
+      storeMap[key].refundTotal+=(r.totalCost||0);
+    });
+    let grandSale=0,grandCount=0;
+    const cards=Object.values(storeMap).map(st=>{
+      grandSale+=st.totalSale;grandCount+=st.deliveredCount;
+      const safeId=st.id.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeName=st.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div onclick="openDaysheetStoreDetail('${safeId}','${safeName}')" style="background:#fff;border:1.5px solid #d1fae5;border-radius:13px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,0.05);" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'">
+        <div>
+          <div style="font-weight:800;color:#1a3a2a;font-size:0.92rem;margin-bottom:3px;">🏪 ${st.name}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">✅ ${st.deliveredCount} طلب مسلّم${st.refundTotal>0?` · ↩️ ${st.refundTotal.toFixed(2)} د.أ رصيد`:''}</div>
+        </div>
+        <div style="text-align:left;">
+          <div style="font-weight:900;color:#166534;font-size:1rem;">${st.totalSale.toFixed(2)}</div>
+          <div style="font-size:0.65rem;color:#6b7280;">صافي البيع · د.أ</div>
+        </div>
+      </div>`;
+    }).join('');
+    const totalCard=`<div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:13px;padding:13px 16px;margin-top:4px;">
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);margin-bottom:8px;">📊 إجمالي اليوم — ${date}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:rgba(255,255,255,0.7);font-size:0.8rem;">✅ ${grandCount} طلب مسلّم</div>
+        <div style="font-weight:900;color:#a7f3d0;font-size:1.1rem;">${grandSale.toFixed(2)} د.أ</div>
+      </div>
+    </div>`;
+    storesWrap.innerHTML=cards+totalCard;
   }catch(e){
-    wrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;padding:30px;">❌ خطأ في التحميل</div>';
+    storesWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;padding:30px;">❌ خطأ في التحميل</div>';
   }
+}
+
+function openDaysheetStoreDetail(storeId,storeName){
+  const listView=document.getElementById('daysheet-store-list');
+  const detailView=document.getElementById('daysheet-detail-view');
+  const titleEl=document.getElementById('daysheet_detail_title');
+  const wrap=document.getElementById('daysheet_wrap');
+  if(!wrap||!detailView||!listView)return;
+  if(listView)listView.style.display='none';
+  detailView.style.display='block';
+  if(titleEl)titleEl.textContent='🏪 '+storeName;
+  const allOrders=window._dsAllOrders||[];
+  const allRefunds=window._dsAllRefunds||[];
+  const noStoreKey='__no_store__';
+  function _storeForPage(pageId){return _opStoresList.find(s=>s.pageId===pageId)||null;}
+  const storeOrders=allOrders.filter(o=>{
+    const st=_storeForPage(o.pageId);
+    if(storeId===noStoreKey) return !st;
+    return st&&st.id===storeId;
+  });
+  const storeRefunds=allRefunds.filter(r=>(r.storeId||noStoreKey)===storeId);
+  window._dsOrdersCache=storeOrders;
+  wrap.innerHTML=_renderDaySheet(storeOrders,storeRefunds,window._dsDate||jordanDateStr());
+}
+
+function backToDaysheetList(){
+  const listView=document.getElementById('daysheet-store-list');
+  const detailView=document.getElementById('daysheet-detail-view');
+  if(detailView)detailView.style.display='none';
+  if(listView)listView.style.display='block';
 }
 
 function _renderDaySheet(orders,refunds,date){
@@ -10137,6 +10229,7 @@ window.syncOrderToAccounting=syncOrderToAccounting;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
 window.loadDaySheet=loadDaySheet; window.printDaySheet=printDaySheet;
+window.openDaysheetStoreDetail=openDaysheetStoreDetail; window.backToDaysheetList=backToDaysheetList;
 window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvItem;
 window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
