@@ -5894,11 +5894,13 @@ ${withPhoto?(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageData
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px dashed #e5e7eb;">
   <div style="font-size:0.72rem;color:#9ca3af;">امسح الكود لتحديث الطلب</div>
-  <img src="https://chart.googleapis.com/chart?chs=90x90&cht=qr&chl=${encodeURIComponent(orderId)}&choe=UTF-8&chld=M|1" alt="QR" style="width:90px;height:90px;border:1px solid #e5e7eb;border-radius:6px;">
+  <div id="qr-print" style="width:90px;height:90px;"></div>
 </div>
 <div class="foot">
 <button class="no-print" onclick="window.print()" style="padding:10px 28px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:0.9rem;cursor:pointer;margin-bottom:12px;">🖨 طباعة</button>
 <div>الكسواني روزميري © ${new Date().getFullYear()}</div></div>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+<script>window.addEventListener('load',function(){try{new QRCode(document.getElementById('qr-print'),{text:'${orderId}',width:90,height:90,colorDark:'#000',colorLight:'#fff'});}catch(e){}});<\/script>
 </body></html>`);
     pw.document.close();
   }).catch(e=>toast('❌ '+e.message));
