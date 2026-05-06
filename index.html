@@ -2791,6 +2791,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <div id="daysheet_stores_wrap">
               <div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">اختر تاريخاً لعرض المتاجر</div>
             </div>
+            <!-- Worker Accounts Section -->
+            <div style="margin-top:18px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <div style="font-weight:700;color:#374151;font-size:0.9rem;">👷 حسابات عمال التركيب</div>
+                <button onclick="openAddWorkerModal()" style="padding:5px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">+ إضافة عامل</button>
+              </div>
+              <div id="worker_accounts_wrap">
+                <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">اختر تاريخاً لعرض الحسابات</div>
+              </div>
+            </div>
           </div>
           <!-- Store detail view -->
           <div id="daysheet-detail-view" style="display:none;">
@@ -5801,6 +5811,7 @@ async function loadDaySheet(){
     window._dsDate=date;
     if(!orders.length&&!refunds.length){
       storesWrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;">لا يوجد طلبات في هذا اليوم</div>';
+      loadWorkerAccounts(date);
       return;
     }
     const DONE=['delivered'];
@@ -5850,6 +5861,7 @@ async function loadDaySheet(){
       </div>
     </div>`;
     storesWrap.innerHTML=cards+totalCard;
+    loadWorkerAccounts(date);
   }catch(e){
     storesWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;padding:30px;">❌ خطأ في التحميل</div>';
   }
@@ -10808,6 +10820,181 @@ function saveAcctThreshold(val){
   if(!isNaN(v)&&v>=0){localStorage.setItem('acct_balance_threshold',v);loadAcctStoreList();}
 }
 
+// ===== ASSEMBLY WORKER ACCOUNTS =====
+let _workersList=[];
+let _activeWorkerTxnId=null;
+let _activeWorkerTxnName=null;
+let _workerTxnType='deposit';
+
+async function _loadWorkersList(){
+  try{
+    const snap=await db.collection('operator_assembly_workers').orderBy('createdAt').get();
+    _workersList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_workersList=[];}
+  return _workersList;
+}
+
+async function loadWorkerAccounts(date){
+  const wrap=document.getElementById('worker_accounts_wrap');
+  if(!wrap)return;
+  wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">⏳ تحميل...</div>';
+  try{
+    await _loadWorkersList();
+    if(!_workersList.length){
+      wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد عمال — اضغط "+ إضافة عامل"</div>';
+      return;
+    }
+    const [allSnap,daySnap]=await Promise.all([
+      db.collection('operator_worker_transactions').get(),
+      db.collection('operator_worker_transactions').where('date','==',date).get()
+    ]);
+    const allTxns=allSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const dayTxns=daySnap.docs.map(d=>({id:d.id,...d.data()}));
+    wrap.innerHTML=_workersList.map(w=>{
+      const wAll=allTxns.filter(t=>t.workerId===w.id);
+      const wDay=dayTxns.filter(t=>t.workerId===w.id);
+      const totalBalance=wAll.reduce((s,t)=>t.type==='deposit'?s+t.amount:s-t.amount,0);
+      const dayNet=wDay.reduce((s,t)=>t.type==='deposit'?s+t.amount:s-t.amount,0);
+      const balColor=totalBalance>=0?'#166534':'#dc2626';
+      const dayColor=dayNet>0?'#166534':dayNet<0?'#dc2626':'#9ca3af';
+      const safeName=w.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:13px 14px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:#1a3a2a;font-size:0.88rem;">👷 ${w.name}</div>
+          ${w.phone?`<div style="font-size:0.72rem;color:#6b7280;">📞 ${w.phone}</div>`:''}
+          <div style="display:flex;gap:10px;margin-top:5px;">
+            <div style="font-size:0.72rem;color:#6b7280;">اليوم: <span style="font-weight:700;color:${dayColor};">${dayNet>0?'+':''}${dayNet.toFixed(2)} د.أ</span></div>
+            <div style="font-size:0.72rem;color:#6b7280;">الرصيد: <span style="font-weight:800;color:${balColor};">${totalBalance.toFixed(2)} د.أ</span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0;">
+          <button onclick="openWorkerTxnModal('${w.id}','${safeName}')" style="padding:7px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">📒 سجل</button>
+          <button onclick="deleteWorker('${w.id}')" style="padding:7px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    wrap.innerHTML=`<div style="text-align:center;color:#dc2626;font-size:0.82rem;padding:20px;">❌ ${e.message}</div>`;
+  }
+}
+
+function openAddWorkerModal(){
+  document.getElementById('addWorkerModal').style.display='flex';
+  setTimeout(()=>document.getElementById('newWorkerName').focus(),100);
+}
+function closeAddWorkerModal(){
+  document.getElementById('addWorkerModal').style.display='none';
+  document.getElementById('newWorkerName').value='';
+  document.getElementById('newWorkerPhone').value='';
+}
+async function saveNewWorker(){
+  const name=(document.getElementById('newWorkerName').value||'').trim();
+  if(!name){toast('⚠️ أدخل اسم العامل');return;}
+  const phone=(document.getElementById('newWorkerPhone').value||'').trim();
+  try{
+    await db.collection('operator_assembly_workers').add({name,phone,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    closeAddWorkerModal();
+    const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
+    loadWorkerAccounts(date);
+    toast('✅ تم إضافة العامل');
+  }catch(e){toast('❌ '+e.message);}
+}
+async function deleteWorker(id){
+  if(!confirm('حذف هذا العامل وكل سجلاته؟'))return;
+  try{
+    const txns=await db.collection('operator_worker_transactions').where('workerId','==',id).get();
+    const batch=db.batch();
+    txns.docs.forEach(d=>batch.delete(d.ref));
+    batch.delete(db.collection('operator_assembly_workers').doc(id));
+    await batch.commit();
+    const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
+    loadWorkerAccounts(date);
+    toast('✅ تم حذف العامل');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function openWorkerTxnModal(workerId,workerName){
+  _activeWorkerTxnId=workerId;
+  _activeWorkerTxnName=workerName;
+  _workerTxnType='deposit';
+  document.getElementById('workerTxnModalTitle').textContent='👷 '+workerName;
+  document.getElementById('workerTxnAmount').value='';
+  document.getElementById('workerTxnNote').value='';
+  setWorkerTxnType('deposit');
+  document.getElementById('workerTxnModal').style.display='flex';
+  await _loadWorkerTxnHistory();
+}
+function closeWorkerTxnModal(){
+  document.getElementById('workerTxnModal').style.display='none';
+  _activeWorkerTxnId=null;
+}
+function setWorkerTxnType(type){
+  _workerTxnType=type;
+  const dep=document.getElementById('txnTypeDeposit');
+  const wit=document.getElementById('txnTypeWithdrawal');
+  if(dep){dep.style.background=type==='deposit'?'#d1fae5':'#f3f4f6';dep.style.borderColor=type==='deposit'?'#86efac':'#e5e7eb';dep.style.color=type==='deposit'?'#166534':'#374151';}
+  if(wit){wit.style.background=type==='withdrawal'?'#fee2e2':'#f3f4f6';wit.style.borderColor=type==='withdrawal'?'#fca5a5':'#e5e7eb';wit.style.color=type==='withdrawal'?'#dc2626':'#374151';}
+}
+async function _loadWorkerTxnHistory(){
+  const histEl=document.getElementById('workerTxnHistory');
+  const balEl=document.getElementById('workerTxnModalBalance');
+  if(!histEl||!_activeWorkerTxnId)return;
+  histEl.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">⏳ تحميل...</div>';
+  try{
+    const snap=await db.collection('operator_worker_transactions').where('workerId','==',_activeWorkerTxnId).orderBy('createdAt','desc').get();
+    const txns=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const totalBalance=txns.reduce((s,t)=>t.type==='deposit'?s+t.amount:s-t.amount,0);
+    const balColor=totalBalance>=0?'#a7f3d0':'#fca5a5';
+    if(balEl)balEl.innerHTML=`الرصيد الإجمالي: <span style="font-weight:900;color:${balColor};">${totalBalance.toFixed(2)} د.أ</span>`;
+    if(!txns.length){histEl.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد حركات بعد</div>';return;}
+    histEl.innerHTML=txns.map(t=>{
+      const isD=t.type==='deposit';
+      const dt=t.createdAt?.toDate?t.createdAt.toDate().toLocaleString('ar-JO',{dateStyle:'short',timeStyle:'short'}):(t.date||'—');
+      return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid #f3f4f6;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:5px;">
+            <span style="font-size:0.78rem;font-weight:700;color:${isD?'#166534':'#dc2626'};">${isD?'⬆️ إيداع':'⬇️ سحب'}</span>
+            <span style="font-weight:800;color:${isD?'#166534':'#dc2626'};font-size:0.85rem;">${isD?'+':'−'}${t.amount.toFixed(2)} د.أ</span>
+          </div>
+          ${t.note?`<div style="font-size:0.72rem;color:#6b7280;margin-top:2px;">📝 ${t.note}</div>`:''}
+          <div style="font-size:0.68rem;color:#9ca3af;margin-top:1px;">🕐 ${dt}</div>
+        </div>
+        <button onclick="deleteWorkerTxn('${t.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:3px 7px;font-size:0.65rem;cursor:pointer;flex-shrink:0;">🗑</button>
+      </div>`;
+    }).join('');
+  }catch(e){histEl.innerHTML=`<div style="color:#dc2626;font-size:0.8rem;padding:12px;">❌ ${e.message}</div>`;}
+}
+async function saveWorkerTxn(){
+  if(!_activeWorkerTxnId){toast('⚠️ خطأ');return;}
+  const amount=parseFloat(document.getElementById('workerTxnAmount').value)||0;
+  if(amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  const note=(document.getElementById('workerTxnNote').value||'').trim();
+  const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
+  try{
+    await db.collection('operator_worker_transactions').add({
+      workerId:_activeWorkerTxnId,
+      workerName:_activeWorkerTxnName,
+      date,type:_workerTxnType,amount,note,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('workerTxnAmount').value='';
+    document.getElementById('workerTxnNote').value='';
+    await _loadWorkerTxnHistory();
+    loadWorkerAccounts(date);
+    toast('✅ تم تسجيل الحركة');
+  }catch(e){toast('❌ '+e.message);}
+}
+async function deleteWorkerTxn(txnId){
+  if(!confirm('حذف هذه الحركة؟'))return;
+  try{
+    await db.collection('operator_worker_transactions').doc(txnId).delete();
+    await _loadWorkerTxnHistory();
+    const date=document.getElementById('daysheet_date')?.value||jordanDateStr();
+    loadWorkerAccounts(date);
+    toast('✅ تم حذف الحركة');
+  }catch(e){toast('❌ '+e.message);}
+}
+
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
 window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone; window.sendAndMarkDelivering=sendAndMarkDelivering;
@@ -11719,5 +11906,49 @@ init();
     </div>
   </div>
 </div>
+
+<!-- Add Worker Modal -->
+<div id="addWorkerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:4000;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:14px;max-width:400px;width:100%;padding:20px;">
+    <div style="font-weight:800;font-size:0.95rem;color:#1a3a2a;margin-bottom:14px;">👷 إضافة عامل تركيب</div>
+    <input type="text" id="newWorkerName" placeholder="اسم العامل *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;">
+    <input type="tel" id="newWorkerPhone" placeholder="رقم الهاتف (اختياري)" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:14px;box-sizing:border-box;" dir="ltr">
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveNewWorker()" style="flex:1;padding:11px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">حفظ</button>
+      <button onclick="closeAddWorkerModal()" style="padding:11px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Worker Transaction Modal -->
+<div id="workerTxnModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:4000;align-items:center;justify-content:center;padding:12px;">
+  <div style="background:#fff;border-radius:14px;max-width:480px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:14px 16px;background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:800;font-size:0.95rem;" id="workerTxnModalTitle">👷 اسم العامل</div>
+        <div style="font-size:0.75rem;opacity:0.8;margin-top:2px;" id="workerTxnModalBalance">الرصيد الإجمالي: 0 د.أ</div>
+      </div>
+      <button onclick="closeWorkerTxnModal()" style="background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:1rem;cursor:pointer;">✕</button>
+    </div>
+    <!-- Add transaction form -->
+    <div style="padding:12px 14px;border-bottom:1.5px solid #e5e7eb;background:#f9fafb;">
+      <div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:8px;">إضافة حركة</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button id="txnTypeDeposit" onclick="setWorkerTxnType('deposit')" style="flex:1;padding:8px;background:#d1fae5;color:#166534;border:2px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">⬆️ إيداع</button>
+        <button id="txnTypeWithdrawal" onclick="setWorkerTxnType('withdrawal')" style="flex:1;padding:8px;background:#f3f4f6;color:#374151;border:2px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">⬇️ سحب</button>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <input type="number" id="workerTxnAmount" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;">
+        <input type="text" id="workerTxnNote" placeholder="ملاحظة (اختياري)" style="flex:2;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;">
+        <button onclick="saveWorkerTxn()" style="padding:9px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✓</button>
+      </div>
+    </div>
+    <!-- Transaction history -->
+    <div style="flex:1;overflow-y:auto;padding:12px 14px;" id="workerTxnHistory">
+      <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">⏳ تحميل...</div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
