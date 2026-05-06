@@ -4666,12 +4666,12 @@ async function submitEmpOrder(){
     });
     toast('✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=0;
+    const dEl=document.getElementById('emp_discount');if(dEl)dEl.value='';
     renderEmpOrderCart();
     setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
     document.getElementById('emp_phone').value='';
     document.getElementById('emp_address').value='';
     document.getElementById('emp_notes').value='';
-    const dEl=document.getElementById('emp_discount');if(dEl)dEl.value='';
     document.getElementById('emp_order_num').value='';
     clearEmpImage();
     loadEmpTodayOrders();
