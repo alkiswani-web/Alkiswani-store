@@ -10286,10 +10286,10 @@ function _renderDeliveryModal(){
   const listEl=document.getElementById('deliveryRepsList');
   if(listEl){
     listEl.innerHTML=reps.length
-      ?reps.map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;margin-bottom:7px;">
+      ?reps.map((r,i)=>{const waUrl=`https://wa.me/${r.phone.replace(/[^\d+]/g,'')}?text=${encoded}`;return`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;margin-bottom:7px;">
           <div><div style="font-weight:700;color:#1a3a2a;font-size:0.85rem;">${r.name}</div><div style="font-size:0.73rem;color:#6b7280;">${r.phone}</div></div>
-          <a href="https://wa.me/${r.phone.replace(/[^\d+]/g,'')}?text=${encoded}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#25D366;color:#fff;border-radius:9px;text-decoration:none;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:700;">📱 إرسال</a>
-        </div>`).join('')
+          <button onclick="sendAndMarkDelivering('${waUrl.replace(/'/g,"\\'")}')" style="display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:700;cursor:pointer;">📱 إرسال</button>
+        </div>`;}).join('')
       :'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:12px 0;">لا يوجد مناديب محفوظون — أضف أدناه</div>';
   }
   const manageEl=document.getElementById('deliveryRepsManage');
@@ -10340,17 +10340,24 @@ function removeDeliveryRep(idx){
   _renderDeliveryModal();
 }
 
+function sendAndMarkDelivering(waUrl){
+  window.open(waUrl,'_blank');
+  const id=_deliveryModalOrder?.id;
+  closeDeliveryModal();
+  if(id) updateEmpOrderStatus(id,'delivering');
+}
+
 function sendDeliveryToCustomPhone(){
   const raw=(document.getElementById('deliveryCustomPhone').value||'').trim();
   if(!raw){toast('⚠️ أدخل رقم الهاتف');return;}
   const phone=raw.replace(/[^\d+]/g,'');
   const msg=_buildDeliveryMsg(_deliveryModalOrder);
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  sendAndMarkDelivering(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`);
 }
 
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
-window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone;
+window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone; window.sendAndMarkDelivering=sendAndMarkDelivering;
 window.renderEmpEditCart=renderEmpEditCart; window.changeEmpEditQty=changeEmpEditQty; window.removeEmpEditItem=removeEmpEditItem;
 window.setEmpEditDelivery=setEmpEditDelivery; window.updateEmpEditNet=updateEmpEditNet;
 window.addProduct=addProduct; window.delProduct=delProduct;
