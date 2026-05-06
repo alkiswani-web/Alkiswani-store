@@ -2699,9 +2699,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- TRACKING sub-tab -->
         <div id="emp-subtab-tracking">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">📋 متابعة الطلبات</div>
             <button id="empGroupAreaBtn" onclick="toggleEmpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
+          </div>
+          <div style="position:relative;margin-bottom:12px;">
+            <input id="empOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setEmpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <span id="empSearchClear" onclick="clearEmpSearch()" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:1rem;">✕</span>
           </div>
           <div id="empOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <button class="order-stab active" onclick="setEmpOrderFilter('all',this)">الكل <span id="eoc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -2720,9 +2724,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- OPERATOR sub-tab -->
         <div id="emp-subtab-operator" style="display:none;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
             <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
+          </div>
+          <div style="position:relative;margin-bottom:12px;">
+            <input id="opOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setOpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <span id="opSearchClear" onclick="clearOpSearch()" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:1rem;">✕</span>
           </div>
           <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <button class="order-stab active" onclick="setOpOrderFilter('all',this)">الكل <span id="ooc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -5344,7 +5352,8 @@ function _renderEmpOrdersView(){
   if(_empOrdersFilter==='all') orders=_empOrdersAllData;
   else if(_empOrdersFilter==='edited') orders=_empOrdersAllData.filter(o=>o.needsReview);
   else orders=_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
-  if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
+  if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
+  if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_empOrdersSearch?'لا توجد نتائج للبحث':'لا يوجد طلبات'}</div>`;return;}
   wrap.innerHTML=_empGroupByArea
     ?_renderGroupedByArea(orders,false)
     :_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter);
@@ -5384,7 +5393,8 @@ function _renderOpOrdersView(){
   if(_opOrdersFilter==='all') orders=_opOrdersAllData;
   else if(_opOrdersFilter==='edited') orders=_opOrdersAllData.filter(o=>o.needsReview);
   else orders=_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
-  if(!orders.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">لا يوجد طلبات</div>';return;}
+  if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
+  if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch?'لا توجد نتائج للبحث':'لا يوجد طلبات'}</div>`;return;}
   wrap.innerHTML=_opGroupByArea
     ?_renderGroupedByArea(orders,true)
     :_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter);
@@ -8154,6 +8164,7 @@ function renderAcctDetail(){
           onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
         <button onclick="addStorePayment()" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;flex-shrink:0;">💾 حفظ</button>
       </div>
+      <button onclick="whatsappStoreSummary()" style="margin-top:8px;width:100%;padding:9px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:700;cursor:pointer;">📱 إرسال كشف الرصيد للمتجر عبر واتساب</button>
     </div>`;
 
   // Payments list
@@ -10550,6 +10561,68 @@ window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliv
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
 window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone; window.sendAndMarkDelivering=sendAndMarkDelivering;
 window.openInternalNote=openInternalNote;
+
+// ===== ORDER SEARCH (Feature 2) =====
+let _empOrdersSearch='', _opOrdersSearch='';
+
+function _matchesSearch(o, q){
+  if(!q)return true;
+  const s=q.toLowerCase();
+  return (o.customerPhone||'').includes(s)
+    ||(o.pageName||'').toLowerCase().includes(s)
+    ||(o.address||'').toLowerCase().includes(s)
+    ||(o.workerName||'').toLowerCase().includes(s)
+    ||String(o.orderNum||'').includes(s)
+    ||(o.products||[]).some(p=>(p.name||'').toLowerCase().includes(s));
+}
+
+function setEmpSearch(val){
+  _empOrdersSearch=val.trim();
+  const clr=document.getElementById('empSearchClear');
+  if(clr)clr.style.display=_empOrdersSearch?'block':'none';
+  _renderEmpOrdersView();
+}
+function clearEmpSearch(){
+  _empOrdersSearch='';
+  const inp=document.getElementById('empOrderSearch');
+  if(inp)inp.value='';
+  const clr=document.getElementById('empSearchClear');
+  if(clr)clr.style.display='none';
+  _renderEmpOrdersView();
+}
+function setOpSearch(val){
+  _opOrdersSearch=val.trim();
+  const clr=document.getElementById('opSearchClear');
+  if(clr)clr.style.display=_opOrdersSearch?'block':'none';
+  _renderOpOrdersView();
+}
+function clearOpSearch(){
+  _opOrdersSearch='';
+  const inp=document.getElementById('opOrderSearch');
+  if(inp)inp.value='';
+  const clr=document.getElementById('opSearchClear');
+  if(clr)clr.style.display='none';
+  _renderOpOrdersView();
+}
+
+// ===== WHATSAPP STORE SUMMARY (Feature 4) =====
+function whatsappStoreSummary(){
+  const totalOwed=_acctCurrentSales.reduce((s,it)=>s+(_acctItemCost(it)*(it.qty||1)),0);
+  const totalPaid=_acctCurrentPayments.reduce((s,p)=>s+(p.amount||0),0);
+  const totalRefund=(_acctCurrentRefunds||[]).reduce((s,r)=>s+(r.totalCost||0),0);
+  const balance=totalOwed-totalPaid-totalRefund;
+  const storeName=_acctCurrentStore?.name||'المتجر';
+  let msg=`🏪 كشف حساب — ${storeName}\n📅 ${jordanDisplayDate()}\n${'─'.repeat(18)}\n`;
+  msg+=`💰 إجمالي المستحق: ${totalOwed.toFixed(2)} د.أ\n`;
+  msg+=`✅ إجمالي المدفوع: ${totalPaid.toFixed(2)} د.أ\n`;
+  if(totalRefund>0)msg+=`↩️ رصيد مرتجع: ${totalRefund.toFixed(2)} د.أ\n`;
+  msg+=`${'─'.repeat(18)}\n📊 الرصيد المتبقي: ${balance.toFixed(2)} د.أ`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+window.setEmpSearch=setEmpSearch; window.clearEmpSearch=clearEmpSearch;
+window.setOpSearch=setOpSearch; window.clearOpSearch=clearOpSearch;
+window.whatsappStoreSummary=whatsappStoreSummary;
 window.toggleEmpGroupArea=toggleEmpGroupArea; window.toggleOpGroupArea=toggleOpGroupArea;
 window.saveAcctThreshold=saveAcctThreshold;
 window.updateBatchBar=updateBatchBar; window.selectAreaOrders=selectAreaOrders; window.openBatchDeliveryModal=openBatchDeliveryModal;
