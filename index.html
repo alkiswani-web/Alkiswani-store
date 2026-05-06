@@ -5646,16 +5646,11 @@ async function loadDaySheet(){
   try{
     if(!_opProductsList.length) await loadOpProducts();
     if(!_opStoresList.length) await loadOpStores();
-    const [byDeliveredSnap,byDateSnap,refundsSnap]=await Promise.all([
+    const [byDeliveredSnap,refundsSnap]=await Promise.all([
       db.collection('employee_orders').where('deliveredDate','==',date).get(),
-      db.collection('employee_orders').where('date','==',date).where('status','==','delivered').get(),
       db.collection('page_refunds').where('date','==',date).get()
     ]);
-    const seenIds=new Set();
-    const orders=[];
-    byDeliveredSnap.docs.forEach(d=>{seenIds.add(d.id);orders.push({id:d.id,...d.data()});});
-    // legacy fallback: orders delivered before deliveredDate field was introduced
-    byDateSnap.docs.forEach(d=>{if(!seenIds.has(d.id)&&!d.data().deliveredDate){orders.push({id:d.id,...d.data()});}});
+    const orders=byDeliveredSnap.docs.map(d=>({id:d.id,...d.data()}));
     const refunds=refundsSnap.docs.map(d=>({id:d.id,...d.data()}));
     window._dsAllOrders=orders;
     window._dsAllRefunds=refunds;
