@@ -4188,6 +4188,19 @@ async function doAdminLogin(){
   document.getElementById('aErr').style.display='block';
   setTimeout(()=>document.getElementById('aErr').style.display='none',3000);
 }
+async function _migrateDeliveryRepsLegacy(){
+  try{
+    const legacy=JSON.parse(localStorage.getItem('delivery_reps')||'[]');
+    if(!legacy.length)return;
+    const snap=await db.collection('operator_config').doc('delivery_reps').get();
+    if(!snap.exists||!(snap.data().reps||[]).length){
+      await db.collection('operator_config').doc('delivery_reps').set({reps:legacy});
+      _deliveryRepsCache=legacy;
+    }
+    localStorage.removeItem('delivery_reps');
+  }catch(e){}
+}
+
 function openAdmin(){
   document.getElementById('adminPanel').classList.add('open');
   document.body.style.overflow='hidden';
@@ -4195,6 +4208,7 @@ function openAdmin(){
   if(lbl)lbl.textContent=_currentAdminUser==='MAIN'?'':'— '+_currentAdminUser;
   applyAdminPerms();
   renderAdmin();startOrderListener();
+  _migrateDeliveryRepsLegacy();
 }
 function closeAdmin(){
   document.getElementById('adminPanel').classList.remove('open');
