@@ -2701,7 +2701,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="emp-subtab-tracking">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">📋 متابعة الطلبات</div>
-            <button id="empGroupAreaBtn" onclick="toggleEmpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button id="empKanbanBtn" onclick="toggleEmpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
+              <button id="empGroupAreaBtn" onclick="toggleEmpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
+            </div>
           </div>
           <div style="position:relative;margin-bottom:12px;">
             <input id="empOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setEmpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
@@ -2726,7 +2729,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="emp-subtab-operator" style="display:none;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
-            <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button id="opKanbanBtn" onclick="toggleOpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
+              <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
+            </div>
           </div>
           <div style="position:relative;margin-bottom:12px;">
             <input id="opOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setOpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
@@ -5221,7 +5227,26 @@ async function saveEmpOrderEdit(){
 }
 
 // ===== ORDER TRACKING & OPERATOR =====
-function _renderAdminOrderCard(o,isOperator){
+function _buildCustomerHistoryMap(allData){
+  const map=new Map();
+  (allData||[]).forEach(o=>{
+    const phone=(o.customerPhone||'').trim();
+    if(!phone)return;
+    map.set(phone,(map.get(phone)||0)+1);
+  });
+  return map;
+}
+
+function _repeatBadge(phone,customerHist,size){
+  if(!customerHist)return '';
+  const n=customerHist.get((phone||'').trim())||0;
+  if(n<=1)return '';
+  const safe=(phone||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  if(size==='sm')return `<span onclick="event.stopPropagation();viewCustomerHistory('${safe}')" style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:5px;padding:1px 6px;font-size:0.65rem;font-weight:700;margin-bottom:4px;cursor:pointer;">🔁 زبون سابق · ${n}</span>`;
+  return `<span onclick="event.stopPropagation();viewCustomerHistory('${safe}')" style="display:inline-flex;align-items:center;gap:3px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:7px;padding:2px 8px;font-size:0.7rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;margin:4px 0;">🔁 زبون سابق · ${n} طلبات</span>`;
+}
+
+function _renderAdminOrderCard(o,isOperator,customerHist){
   const st=_empSt(o.status);
   const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
   const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
@@ -5246,6 +5271,7 @@ function _renderAdminOrderCard(o,isOperator){
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;color:#1a3a2a;font-size:0.88rem;">📄 ${o.pageName}</div>
         <div style="font-size:0.75rem;color:#6b7280;margin-top:2px;">👤 ${o.workerName} &nbsp;·&nbsp; 📞 ${o.customerPhone}</div>
+        ${_repeatBadge(o.customerPhone,customerHist)}
       </div>
       <div style="text-align:left;flex-shrink:0;">
         <div style="font-weight:900;color:#166534;font-size:0.92rem;">${dlv>0?net.toFixed(2):total.toFixed(2)} د.أ${dlv>0?` <span style="font-size:0.68rem;color:#9ca3af;">(منتجات ${total.toFixed(2)})</span>`:''}</div>
@@ -5269,7 +5295,7 @@ function _renderAdminOrderCard(o,isOperator){
   </div>`;
 }
 
-function _renderKanban(orders, isOperator, filterStatus){
+function _renderKanban(orders, isOperator, filterStatus, customerHist){
   const STATUS_ORDER=['pending','preparing','prepared','delivering','delivered','cancelled','returned','refused'];
   const groups={};
   STATUS_ORDER.forEach(s=>groups[s]=[]);
@@ -5281,7 +5307,7 @@ function _renderKanban(orders, isOperator, filterStatus){
       <span style="font-weight:800;color:${st.color};font-size:0.9rem;">${st.label}</span>
       <span style="background:${st.color};color:#fff;border-radius:20px;padding:1px 8px;font-size:0.75rem;font-weight:700;">${grp.length}</span>
     </div>
-    ${grp.length?grp.map(o=>_renderAdminOrderCard(o,isOperator)).join(''):'<div style="color:#9ca3af;font-size:0.82rem;padding:12px;text-align:center;">لا يوجد طلبات</div>'}`;
+    ${grp.length?grp.map(o=>_renderAdminOrderCard(o,isOperator,customerHist)).join(''):'<div style="color:#9ca3af;font-size:0.82rem;padding:12px;text-align:center;">لا يوجد طلبات</div>'}`;
   }
   return STATUS_ORDER.map(status=>{
     const grp=groups[status];
@@ -5292,9 +5318,53 @@ function _renderKanban(orders, isOperator, filterStatus){
         <span style="font-weight:800;color:${st.color};font-size:0.9rem;">${st.label}</span>
         <span style="background:${st.color};color:#fff;border-radius:20px;padding:1px 8px;font-size:0.75rem;font-weight:700;">${grp.length}</span>
       </div>
-      ${grp.map(o=>_renderAdminOrderCard(o,isOperator)).join('')}
+      ${grp.map(o=>_renderAdminOrderCard(o,isOperator,customerHist)).join('')}
     </div>`;
   }).join('');
+}
+
+function _renderKanbanBoard(orders, isOperator, customerHist){
+  const COLUMNS=['pending','preparing','prepared','delivering','delivered'];
+  const groups={};
+  COLUMNS.forEach(s=>groups[s]=[]);
+  orders.forEach(o=>{ if(groups[o.status])groups[o.status].push(o); });
+  return `<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;">
+    ${COLUMNS.map(s=>{
+      const grp=groups[s];
+      const st=_empSt(s);
+      return `<div style="flex:0 0 270px;min-width:270px;scroll-snap-align:start;background:${st.bg};border:1.5px solid ${st.border};border-radius:12px;padding:9px;display:flex;flex-direction:column;max-height:72vh;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px 9px;border-bottom:1.5px solid ${st.border};margin-bottom:8px;">
+          <span style="font-weight:800;color:${st.color};font-size:0.85rem;">${st.label}</span>
+          <span style="background:${st.color};color:#fff;border-radius:20px;padding:2px 9px;font-size:0.72rem;font-weight:700;">${grp.length}</span>
+        </div>
+        <div style="overflow-y:auto;flex:1;padding-right:2px;">
+          ${grp.length?grp.map(o=>_renderKanbanCard(o,isOperator,customerHist)).join(''):'<div style="color:#9ca3af;font-size:0.78rem;text-align:center;padding:18px 6px;">— فارغ —</div>'}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function _renderKanbanCard(o,isOperator,customerHist){
+  const total=o.totalPrice||0;
+  const dlv=o.deliveryFee||0;
+  const net=o.netPrice!=null?o.netPrice:total;
+  const phone=(o.customerPhone||'').trim();
+  const nextSt=EMP_STATUS_NEXT[o.status];
+  const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
+  return `<div onclick="openEmpOrderEdit('${o.id}')" style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:5px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;color:#1a3a2a;font-size:0.78rem;line-height:1.3;">${label}</div>
+        <div style="font-size:0.72rem;color:#374151;margin-top:1px;">${o.pageName||''}</div>
+      </div>
+      <div style="font-weight:900;color:#166534;font-size:0.8rem;flex-shrink:0;white-space:nowrap;">${net.toFixed(2)}</div>
+    </div>
+    <div style="font-size:0.68rem;color:#6b7280;margin-bottom:3px;">📞 ${phone}</div>
+    ${_repeatBadge(phone,customerHist,'sm')}
+    <div style="font-size:0.7rem;color:#4b5563;margin-bottom:6px;line-height:1.35;">📍 ${o.area||o.address||'—'}</div>
+    ${nextSt?`<button onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','${nextSt}')" style="width:100%;padding:5px;background:${EMP_STATUSES[nextSt].color};color:#fff;border:none;border-radius:6px;font-family:'Tajawal',sans-serif;font-size:0.7rem;font-weight:700;cursor:pointer;">← ${EMP_STATUSES[nextSt].label}</button>`:''}
+  </div>`;
 }
 
 function _updateEmpChipCounts(data, prefix){
@@ -5348,6 +5418,14 @@ function _renderEmpOrdersView(){
   const wrap=document.getElementById('empOrdersAdminWrap');
   if(!wrap)return;
   _updateEmpChipCounts(_empOrdersAllData,'eoc-');
+  const customerHist=_buildCustomerHistoryMap(_empOrdersAllData);
+  if(_empKanbanBoardView){
+    let orders=_empOrdersAllData;
+    if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
+    if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_empOrdersSearch?'لا توجد نتائج للبحث':'لا يوجد طلبات'}</div>`;return;}
+    wrap.innerHTML=_renderKanbanBoard(orders,false,customerHist);
+    return;
+  }
   let orders;
   if(_empOrdersFilter==='all') orders=_empOrdersAllData;
   else if(_empOrdersFilter==='edited') orders=_empOrdersAllData.filter(o=>o.needsReview);
@@ -5355,8 +5433,8 @@ function _renderEmpOrdersView(){
   if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
   if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_empOrdersSearch?'لا توجد نتائج للبحث':'لا يوجد طلبات'}</div>`;return;}
   wrap.innerHTML=_empGroupByArea
-    ?_renderGroupedByArea(orders,false)
-    :_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter);
+    ?_renderGroupedByArea(orders,false,customerHist)
+    :_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter,customerHist);
 }
 
 function setEmpOrderFilter(filter,btn){
@@ -5389,6 +5467,14 @@ function _renderOpOrdersView(){
   const wrap=document.getElementById('opOrdersWrap');
   if(!wrap)return;
   _updateEmpChipCounts(_opOrdersAllData,'ooc-');
+  const customerHist=_buildCustomerHistoryMap(_opOrdersAllData);
+  if(_opKanbanBoardView){
+    let orders=_opOrdersAllData;
+    if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
+    if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch?'لا توجد نتائج للبحث':'لا يوجد طلبات'}</div>`;return;}
+    wrap.innerHTML=_renderKanbanBoard(orders,true,customerHist);
+    return;
+  }
   let orders;
   if(_opOrdersFilter==='all') orders=_opOrdersAllData;
   else if(_opOrdersFilter==='edited') orders=_opOrdersAllData.filter(o=>o.needsReview);
@@ -5396,8 +5482,8 @@ function _renderOpOrdersView(){
   if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
   if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch?'لا توجد نتائج للبحث':'لا يوجد طلبات'}</div>`;return;}
   wrap.innerHTML=_opGroupByArea
-    ?_renderGroupedByArea(orders,true)
-    :_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter);
+    ?_renderGroupedByArea(orders,true,customerHist)
+    :_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter,customerHist);
 }
 
 function setOpOrderFilter(filter,btn){
@@ -10438,23 +10524,40 @@ function openInternalNote(id, current){
 
 // ===== GROUP BY AREA (Feature 3) =====
 let _empGroupByArea=false,_opGroupByArea=false;
+let _empKanbanBoardView=false,_opKanbanBoardView=false;
+
+function _styleToggleBtn(btn,active){
+  btn.style.background=active?'#d1fae5':'#f3f4f6';
+  btn.style.color=active?'#166534':'#374151';
+  btn.style.borderColor=active?'#86efac':'#e5e7eb';
+}
 
 function toggleEmpGroupArea(btn){
   _empGroupByArea=!_empGroupByArea;
-  btn.style.background=_empGroupByArea?'#d1fae5':'#f3f4f6';
-  btn.style.color=_empGroupByArea?'#166534':'#374151';
-  btn.style.borderColor=_empGroupByArea?'#86efac':'#e5e7eb';
+  if(_empGroupByArea){_empKanbanBoardView=false;const kb=document.getElementById('empKanbanBtn');if(kb)_styleToggleBtn(kb,false);}
+  _styleToggleBtn(btn,_empGroupByArea);
   _renderEmpOrdersView();
 }
 function toggleOpGroupArea(btn){
   _opGroupByArea=!_opGroupByArea;
-  btn.style.background=_opGroupByArea?'#d1fae5':'#f3f4f6';
-  btn.style.color=_opGroupByArea?'#166534':'#374151';
-  btn.style.borderColor=_opGroupByArea?'#86efac':'#e5e7eb';
+  if(_opGroupByArea){_opKanbanBoardView=false;const kb=document.getElementById('opKanbanBtn');if(kb)_styleToggleBtn(kb,false);}
+  _styleToggleBtn(btn,_opGroupByArea);
+  _renderOpOrdersView();
+}
+function toggleEmpKanban(btn){
+  _empKanbanBoardView=!_empKanbanBoardView;
+  if(_empKanbanBoardView){_empGroupByArea=false;const gb=document.getElementById('empGroupAreaBtn');if(gb)_styleToggleBtn(gb,false);}
+  _styleToggleBtn(btn,_empKanbanBoardView);
+  _renderEmpOrdersView();
+}
+function toggleOpKanban(btn){
+  _opKanbanBoardView=!_opKanbanBoardView;
+  if(_opKanbanBoardView){_opGroupByArea=false;const gb=document.getElementById('opGroupAreaBtn');if(gb)_styleToggleBtn(gb,false);}
+  _styleToggleBtn(btn,_opKanbanBoardView);
   _renderOpOrdersView();
 }
 
-function _renderGroupedByArea(orders,isOperator){
+function _renderGroupedByArea(orders,isOperator,customerHist){
   const prepared=orders.filter(o=>o.status==='prepared');
   if(!prepared.length)return '<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">لا يوجد طلبات جاهزة للتوصيل في هذا الوقت</div>';
   const grouped={};
@@ -10478,6 +10581,7 @@ function _renderGroupedByArea(orders,isOperator){
             <div>
               <div style="font-weight:700;color:#1a3a2a;font-size:0.85rem;">${label} — ${o.pageName||''}</div>
               <div style="font-size:0.75rem;color:#6b7280;margin-top:1px;">📞 ${o.customerPhone||''}</div>
+              ${_repeatBadge(o.customerPhone,customerHist,'sm')}
               <div style="font-size:0.75rem;color:#6b7280;">📍 ${o.address||''}</div>
             </div>
             <div style="font-weight:800;color:#166534;font-size:0.9rem;flex-shrink:0;">${net.toFixed(2)} د.أ</div>
@@ -10513,6 +10617,74 @@ function selectAreaOrders(area){
   allOrders.filter(o=>o.status==='prepared'&&(o.area||'بدون منطقة')===area&&!seen.has(o.id)&&seen.add(o.id))
     .forEach(o=>{const c=document.getElementById('chk_'+o.id);if(c)c.checked=true;});
   updateBatchBar();
+}
+
+function viewCustomerHistory(phone){
+  const trim=(phone||'').trim();
+  if(!trim){toast('❌ لا يوجد رقم هاتف');return;}
+  const allOrders=[...(_empOrdersAllData||[]),...(_opOrdersAllData||[])];
+  const seen=new Set();
+  const orders=[];
+  allOrders.forEach(o=>{
+    if(seen.has(o.id))return;
+    seen.add(o.id);
+    if((o.customerPhone||'').trim()===trim)orders.push(o);
+  });
+  orders.sort((a,b)=>{
+    const ad=a.createdAt?.toMillis?.()||0;
+    const bd=b.createdAt?.toMillis?.()||0;
+    return bd-ad;
+  });
+  const customer=orders[0]||{};
+  const totalSpent=orders.filter(o=>o.status==='delivered').reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
+  const deliveredCount=orders.filter(o=>o.status==='delivered').length;
+  const cancelledCount=orders.filter(o=>['cancelled','returned','refused'].includes(o.status)).length;
+  const cardsHtml=orders.map(o=>{
+    const st=_empSt(o.status);
+    const net=o.netPrice!=null?o.netPrice:(o.totalPrice||0);
+    const dt=o.createdAt?.toDate?o.createdAt.toDate().toLocaleString('ar-JO',{dateStyle:'short',timeStyle:'short'}):(o.date||'—');
+    const prods=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' × '+(p.qty||1):''}`).join(' · ');
+    return `<div style="background:#fff;border:1.5px solid ${st.border};border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:5px;">
+        <div style="font-weight:700;color:#1a3a2a;font-size:0.83rem;">${o.pageName||''}</div>
+        <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:6px;padding:2px 8px;font-size:0.7rem;font-weight:700;">${st.label}</span>
+      </div>
+      <div style="font-size:0.74rem;color:#6b7280;margin-bottom:4px;">🕐 ${dt}</div>
+      <div style="font-size:0.78rem;color:#374151;margin-bottom:4px;">${prods}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:0.72rem;color:#6b7280;">📍 ${o.address||'—'}</div>
+        <div style="font-weight:800;color:#166534;font-size:0.85rem;">${net.toFixed(2)} د.أ</div>
+      </div>
+    </div>`;
+  }).join('');
+  const html=`<div id="custHistOverlay" onclick="if(event.target===this)closeCustomerHistory()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:5000;display:flex;align-items:center;justify-content:center;padding:14px;">
+    <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:14px 16px;background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:800;font-size:0.95rem;">🔁 سجل الزبون</div>
+          <div style="font-size:0.75rem;opacity:0.85;margin-top:2px;">📞 ${trim}${customer.workerName?` · 👤 ${customer.workerName}`:''}</div>
+        </div>
+        <button onclick="closeCustomerHistory()" style="background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:1rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:11px 16px;background:#f0fdf4;border-bottom:1.5px solid #d1fae5;display:flex;justify-content:space-around;text-align:center;">
+        <div><div style="font-weight:900;color:#166534;font-size:1.05rem;">${orders.length}</div><div style="font-size:0.68rem;color:#6b7280;">إجمالي</div></div>
+        <div><div style="font-weight:900;color:#22c55e;font-size:1.05rem;">${deliveredCount}</div><div style="font-size:0.68rem;color:#6b7280;">مسلّمة</div></div>
+        <div><div style="font-weight:900;color:#ef4444;font-size:1.05rem;">${cancelledCount}</div><div style="font-size:0.68rem;color:#6b7280;">ملغاة</div></div>
+        <div><div style="font-weight:900;color:#166534;font-size:1.05rem;">${totalSpent.toFixed(2)}</div><div style="font-size:0.68rem;color:#6b7280;">د.أ مجموع</div></div>
+      </div>
+      <div style="padding:14px;overflow-y:auto;flex:1;">
+        ${cardsHtml||'<div style="text-align:center;color:#9ca3af;padding:20px;">لا يوجد طلبات</div>'}
+      </div>
+    </div>
+  </div>`;
+  const div=document.createElement('div');
+  div.innerHTML=html;
+  document.body.appendChild(div.firstElementChild);
+}
+
+function closeCustomerHistory(){
+  const el=document.getElementById('custHistOverlay');
+  if(el)el.remove();
 }
 
 function _buildBatchDeliveryMsg(orders){
@@ -10624,6 +10796,8 @@ window.setEmpSearch=setEmpSearch; window.clearEmpSearch=clearEmpSearch;
 window.setOpSearch=setOpSearch; window.clearOpSearch=clearOpSearch;
 window.whatsappStoreSummary=whatsappStoreSummary;
 window.toggleEmpGroupArea=toggleEmpGroupArea; window.toggleOpGroupArea=toggleOpGroupArea;
+window.toggleEmpKanban=toggleEmpKanban; window.toggleOpKanban=toggleOpKanban;
+window.viewCustomerHistory=viewCustomerHistory; window.closeCustomerHistory=closeCustomerHistory;
 window.saveAcctThreshold=saveAcctThreshold;
 window.updateBatchBar=updateBatchBar; window.selectAreaOrders=selectAreaOrders; window.openBatchDeliveryModal=openBatchDeliveryModal;
 window.renderEmpEditCart=renderEmpEditCart; window.changeEmpEditQty=changeEmpEditQty; window.removeEmpEditItem=removeEmpEditItem;
