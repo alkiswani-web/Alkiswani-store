@@ -5445,7 +5445,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
 }
 
 function _renderKanban(orders, isOperator, filterStatus, customerHist){
-  const STATUS_ORDER=['pending','preparing','prepared','delivering','delivered','onhold','cancelled','returned','refused'];
+  const STATUS_ORDER=['pending','preparing','prepared','queued','delivering','delivered','onhold','cancelled','returned','refused'];
   const groups={};
   STATUS_ORDER.forEach(s=>groups[s]=[]);
   orders.forEach(o=>{ if(groups[o.status])groups[o.status].push(o); else groups['pending'].push(o); });
@@ -5473,7 +5473,7 @@ function _renderKanban(orders, isOperator, filterStatus, customerHist){
 }
 
 function _renderKanbanBoard(orders, isOperator, customerHist){
-  const COLUMNS=['pending','preparing','prepared','delivering','delivered','onhold'];
+  const COLUMNS=['pending','preparing','prepared','queued','delivering','delivered','onhold'];
   const groups={};
   COLUMNS.forEach(s=>groups[s]=[]);
   orders.forEach(o=>{ if(groups[o.status])groups[o.status].push(o); });
