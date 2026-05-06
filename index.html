@@ -10481,7 +10481,7 @@ async function openDeliveryModal(orderId){
     const snap=await db.collection('employee_orders').doc(orderId).get();
     if(!snap.exists){toast('⚠️ لم يُعثر على الطلب');return;}
     _deliveryModalOrder={id:snap.id,...snap.data()};
-    _renderDeliveryModal();
+    await _renderDeliveryModal();
     document.getElementById('deliveryRepModal').style.display='block';
     document.body.style.overflow='hidden';
   }catch(e){toast('❌ '+e.message);}
@@ -10503,7 +10503,7 @@ async function addDeliveryRep(){
   await _saveDeliveryReps(reps);
   document.getElementById('newRepName').value='';
   document.getElementById('newRepPhone').value='';
-  _renderDeliveryModal();
+  await _renderDeliveryModal();
   toast('✅ تم إضافة المندوب');
 }
 
@@ -10511,7 +10511,7 @@ async function removeDeliveryRep(idx){
   const reps=await _loadDeliveryReps();
   reps.splice(idx,1);
   await _saveDeliveryReps(reps);
-  _renderDeliveryModal();
+  await _renderDeliveryModal();
 }
 
 function sendAndMarkDelivering(waUrl){
@@ -10729,7 +10729,7 @@ function _buildBatchDeliveryMsg(orders){
   return msg;
 }
 
-function openBatchDeliveryModal(){
+async function openBatchDeliveryModal(){
   const checked=[...document.querySelectorAll('[id^="chk_"]:checked')];
   if(!checked.length){toast('⚠️ حدد طلباً واحداً على الأقل');return;}
   const ids=checked.map(c=>c.value);
@@ -10738,7 +10738,7 @@ function openBatchDeliveryModal(){
   const orders=ids.map(id=>allOrders.find(o=>o.id===id)).filter(o=>o&&!seen.has(o.id)&&seen.add(o.id));
   _deliveryBatchOrders=orders;
   _deliveryModalOrder=orders[0];
-  _renderDeliveryModal();
+  await _renderDeliveryModal();
   document.getElementById('deliveryRepModal').style.display='block';
   document.body.style.overflow='hidden';
 }
