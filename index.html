@@ -5578,15 +5578,11 @@ function _renderEmpOrdersView(){
     wrap.innerHTML=_renderKanbanBoard(orders,false,customerHist);
     return;
   }
-  // Special combined view for delivering/queued tabs (queued + delivering)
-  if(_empOrdersFilter==='delivering'||_empOrdersFilter==='queued'){
-    const combined=_empOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
-    wrap.innerHTML=_renderDeliveryQueue(combined);
-    return;
-  }
   let orders;
   if(_empOrdersFilter==='all') orders=_empOrdersAllData;
   else if(_empOrdersFilter==='edited') orders=_empOrdersAllData.filter(o=>o.needsReview);
+  // delivering chip shows queued+delivering together as normal cards
+  else if(_empOrdersFilter==='delivering') orders=_empOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
   else orders=_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
   if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
   if(_empAdvFilter) orders=_applyAdvFilter(orders,_empAdvFilter);
