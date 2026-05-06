@@ -12426,12 +12426,18 @@ async function _openQRRepAssignModal(o){
   const actionBtns=document.getElementById('qrAssignActionBtns');
   repSection.style.display='none';
   actionBtns.innerHTML='';
-  if(o.status==='prepared'){
+  if(o.status==='pending'){
+    actionBtns.innerHTML=`
+      <button onclick="updateEmpOrderStatus('${o.id}','preparing');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#f97316;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← قيد التجهيز</button>`;
+  } else if(o.status==='preparing'){
+    actionBtns.innerHTML=`
+      <button onclick="updateEmpOrderStatus('${o.id}','prepared');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← تم التجهيز</button>`;
+  } else if(o.status==='prepared'){
     repSection.style.display='block';
     const reps=await _loadDeliveryReps();
     const repList=document.getElementById('qrAssignRepList');
     repList.innerHTML=reps.length
-      ?reps.map((r,i)=>`<button onclick="qrAssignToRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;text-align:right;">
+      ?reps.map((r,i)=>`<button onclick="qrAssignToRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;text-align:right;width:100%;box-sizing:border-box;">
         <div><div style="font-weight:700;color:#0369a1;">${r.name}</div><div style="font-size:0.72rem;color:#6b7280;">${r.phone||''}</div></div>
         <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;">اختيار ←</span>
       </button>`).join('')
@@ -12439,11 +12445,15 @@ async function _openQRRepAssignModal(o){
   } else if(o.status==='queued'){
     actionBtns.innerHTML=`
       <div style="background:#e0f2fe;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#0369a1;margin-bottom:8px;">🧍 مُسنَد لـ: <strong>${o.deliveryRepName||'—'}</strong></div>
-      <button onclick="updateEmpOrderStatus('${o.id}','delivering');closeQRRepAssignModal();" style="width:100%;padding:10px;background:#8b5cf6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">← نقل مباشر لقيد التوصيل</button>`;
+      <button onclick="updateEmpOrderStatus('${o.id}','delivering');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← قيد التوصيل</button>`;
   } else if(o.status==='delivering'){
     actionBtns.innerHTML=`
-      <div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#166534;margin-bottom:8px;">🚚 الطلب قيد التوصيل ${o.deliveryRepName?'مع '+o.deliveryRepName:''}</div>
-      <button onclick="updateEmpOrderStatus('${o.id}','delivered');closeQRRepAssignModal();" style="width:100%;padding:10px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✅ تسليم الطلب</button>`;
+      <div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#166534;margin-bottom:8px;">🚚 قيد التوصيل ${o.deliveryRepName?'مع '+o.deliveryRepName:''}</div>
+      <button onclick="updateEmpOrderStatus('${o.id}','delivered');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">✅ تسليم الطلب</button>`;
+  } else if(o.status==='delivered'){
+    actionBtns.innerHTML=`<div style="text-align:center;background:#f0fdf4;border-radius:10px;padding:14px;color:#166534;font-size:0.88rem;font-weight:700;">✅ تم تسليم هذا الطلب</div>`;
+  } else if(o.status==='cancelled'){
+    actionBtns.innerHTML=`<div style="text-align:center;background:#fee2e2;border-radius:10px;padding:14px;color:#dc2626;font-size:0.88rem;font-weight:700;">🚫 هذا الطلب ملغي${o.cancelReason?' — '+o.cancelReason:''}</div>`;
   } else {
     actionBtns.innerHTML=`<div style="text-align:center;color:#6b7280;font-size:0.85rem;padding:10px;">الطلب في حالة: ${st.label}</div>`;
   }
