@@ -2934,6 +2934,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <span style="font-size:0.78rem;color:#374151;">د.أ</span>
           </div>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.8rem;color:#7c3aed;">🏷 خصم</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <input type="number" id="emp_discount" value="" min="0" step="0.5" placeholder="0" style="width:76px;padding:5px 7px;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'">
+            <span style="font-size:0.78rem;color:#374151;">د.أ</span>
+          </div>
+        </div>
+        <div id="empDiscountRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.8rem;color:#7c3aed;">🏷 خصم مطبّق</div>
+          <span id="empDiscountLabel" style="font-size:0.82rem;color:#7c3aed;font-weight:700;">0.00 د.أ</span>
+        </div>
         <div id="empDeliveryRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</div>
           <span id="empDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;">0.00 د.أ</span>
@@ -3034,6 +3045,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <span style="font-size:0.8rem;color:#374151;">إجمالي المنتجات</span>
           <span id="empEditTotalLabel" style="font-weight:800;color:#166534;">0.00 د.أ</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:0.8rem;color:#7c3aed;">🏷 خصم</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input type="number" id="empEdit_discount" min="0" step="0.5" placeholder="0" style="width:70px;padding:4px 7px;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.85rem;text-align:left;outline:none;" oninput="updateEmpEditNet()" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'">
+            <span style="font-size:0.75rem;color:#374151;">د.أ</span>
+          </div>
         </div>
         <div id="empEditDeliveryRow" style="display:none;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <span style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</span>
@@ -4531,16 +4549,21 @@ function updateEmpNet(){
     _empDeliveryFee=parseFloat(customEl.value)||0;
   }
   const realTotal=calcEmpOrderTotal();
+  const discount=Math.max(0,parseFloat(document.getElementById('emp_discount')?.value)||0);
   const dlv=_empDeliveryFee;
   const excess=Math.max(0,dlv-2);
-  const adjustedProds=realTotal-excess;
+  const adjustedProds=realTotal-excess-discount;
   const net=adjustedProds+dlv;
   const totalEl=document.getElementById('emp_total');
   const netEl=document.getElementById('empNetLabel');
   const dlvRow=document.getElementById('empDeliveryRow');
   const dlvLbl=document.getElementById('empDeliveryLabel');
   const excessRow=document.getElementById('empExcessRow');
-  if(totalEl)totalEl.value=adjustedProds.toFixed(2);
+  const discountRow=document.getElementById('empDiscountRow');
+  const discountLbl=document.getElementById('empDiscountLabel');
+  if(totalEl)totalEl.value=realTotal.toFixed(2);
+  if(discountRow)discountRow.style.display=discount>0?'flex':'none';
+  if(discountLbl)discountLbl.textContent=discount.toFixed(2)+' د.أ';
   if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
   if(excessRow)excessRow.style.display='none';
@@ -4617,11 +4640,12 @@ async function submitEmpOrder(){
   if(!_empOrderCart.length){toast('⚠️ أضف منتجاً للطلب أولاً');return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
-  const prodsTotal=calcEmpOrderTotal()||parseFloat(document.getElementById('emp_total')?.value)||0;
+  const prodsTotal=calcEmpOrderTotal()||0;
+  const discount=Math.max(0,parseFloat(document.getElementById('emp_discount')?.value)||0);
   const deliveryFee=_empDeliveryFee||0;
   const excess=Math.max(0,deliveryFee-2);
   const totalPrice=prodsTotal+deliveryFee;
-  const netPrice=prodsTotal-excess+deliveryFee;
+  const netPrice=prodsTotal-excess-discount+deliveryFee;
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -4635,7 +4659,7 @@ async function submitEmpOrder(){
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
       imageDataUrl:_empCurrentImage||null,
       status:'pending',
-      totalPrice,deliveryFee,netPrice,
+      totalPrice,deliveryFee,netPrice,...(discount>0?{discount}:{}),
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
@@ -4647,6 +4671,7 @@ async function submitEmpOrder(){
     document.getElementById('emp_phone').value='';
     document.getElementById('emp_address').value='';
     document.getElementById('emp_notes').value='';
+    const dEl=document.getElementById('emp_discount');if(dEl)dEl.value='';
     document.getElementById('emp_order_num').value='';
     clearEmpImage();
     loadEmpTodayOrders();
@@ -5133,6 +5158,7 @@ function openEmpOrderEdit(orderId){
     document.getElementById('empEdit_phone').value=o.customerPhone||'';
     document.getElementById('empEdit_address').value=o.address||'';
     document.getElementById('empEdit_notes').value=o.notes||'';
+    const discEl=document.getElementById('empEdit_discount');if(discEl)discEl.value=o.discount>0?o.discount:'';
     const dlv=_empEditDeliveryFee;
     const btns=document.querySelectorAll('#empEditDeliveryBtns button');
     btns.forEach(b=>{b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';});
@@ -5193,15 +5219,15 @@ function updateEmpEditNet(){
   const customEl=document.getElementById('empEdit_delivery_custom');
   if(customEl&&customEl.style.display!=='none')_empEditDeliveryFee=parseFloat(customEl.value)||0;
   const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
+  const discount=Math.max(0,parseFloat(document.getElementById('empEdit_discount')?.value)||0);
   const dlv=_empEditDeliveryFee;
   const excess=Math.max(0,dlv-2);
-  const adjProds=prodsTotal-excess;
-  const net=adjProds+dlv;
+  const net=prodsTotal-excess-discount+dlv;
   const totalLbl=document.getElementById('empEditTotalLabel');
   const netEl=document.getElementById('empEditNetLabel');
   const dlvRow=document.getElementById('empEditDeliveryRow');
   const dlvLbl=document.getElementById('empEditDeliveryLabel');
-  if(totalLbl)totalLbl.textContent=adjProds.toFixed(2)+' د.أ';
+  if(totalLbl)totalLbl.textContent=prodsTotal.toFixed(2)+' د.أ';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
   if(dlvRow)dlvRow.style.display=_empEditDeliveryFee>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=_empEditDeliveryFee.toFixed(2)+' د.أ';
@@ -5216,9 +5242,10 @@ async function saveEmpOrderEdit(){
   if(!address){toast('⚠️ أدخل العنوان');return;}
   const notes=document.getElementById('empEdit_notes').value.trim();
   const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
+  const discount=Math.max(0,parseFloat(document.getElementById('empEdit_discount')?.value)||0);
   const deliveryFee=_empEditDeliveryFee;
   const excess=Math.max(0,deliveryFee-2);
-  const netPrice=prodsTotal-excess+deliveryFee;
+  const netPrice=prodsTotal-excess-discount+deliveryFee;
   const btn=document.querySelector('#empOrderEditModal button[onclick="saveEmpOrderEdit()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -5230,6 +5257,7 @@ async function saveEmpOrderEdit(){
       products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
       customerPhone:phone,address,notes,
       totalPrice:prodsTotal+deliveryFee,deliveryFee,netPrice,
+      ...(discount>0?{discount}:{discount:firebase.firestore.FieldValue.delete()}),
       needsReview:true,
       editHistory:[...(prev.editHistory||[]),editEntry],
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
