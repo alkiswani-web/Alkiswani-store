@@ -10995,6 +10995,9 @@ async function deleteWorkerTxn(txnId){
   }catch(e){toast('❌ '+e.message);}
 }
 
+window.openAddWorkerModal=openAddWorkerModal; window.closeAddWorkerModal=closeAddWorkerModal; window.saveNewWorker=saveNewWorker; window.deleteWorker=deleteWorker;
+window.openWorkerTxnModal=openWorkerTxnModal; window.closeWorkerTxnModal=closeWorkerTxnModal; window.setWorkerTxnType=setWorkerTxnType; window.saveWorkerTxn=saveWorkerTxn; window.deleteWorkerTxn=deleteWorkerTxn;
+
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
 window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone; window.sendAndMarkDelivering=sendAndMarkDelivering;
