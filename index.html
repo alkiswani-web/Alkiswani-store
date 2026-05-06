@@ -4681,6 +4681,7 @@ function loadEmpTodayOrders(){
             <!-- Edit history -->
             ${o.editHistory?.length?`<div style="font-size:0.7rem;color:#f97316;margin-bottom:6px;">✏️ تم التعديل ${o.editHistory.length} مرة</div>`:''}
             <!-- Action buttons -->
+            ${o.status==='prepared'?`<div style="margin-bottom:8px;"><button onclick="openDeliveryModal('${o.id}')" style="width:100%;padding:9px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📱 إرسال لمندوب التوصيل</button></div>`:''}
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${canEdit?`<button onclick="openEmpOrderEdit('${o.id}')" style="flex:1;padding:7px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>`:''}
               ${canCancel?`<button onclick="cancelEmpOrder('${o.id}')" style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>`:''}
@@ -5246,6 +5247,7 @@ function _renderAdminOrderCard(o,isOperator){
     ${o.imageDataUrl?`<img src="${o.imageDataUrl}" onclick="openEmpOrderImage('${o.imageDataUrl}')" style="width:100%;max-height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px;border:1px solid #e5e7eb;cursor:pointer;">`:'' }
     ${o.needsReview?`<div style="display:inline-block;background:#fef3c7;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;margin-bottom:6px;">✏️ تعديل من الموظف — يحتاج مراجعة</div>`:''}
     ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.72rem;color:#f97316;margin-bottom:6px;">📝 ${o.editHistory.map(e=>e.note).join(' | ')}</div>`:''}
+    ${o.status==='prepared'?`<div style="margin-top:8px;margin-bottom:2px;"><button onclick="openDeliveryModal('${o.id}')" style="width:100%;padding:9px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">📱 إرسال لمندوب التوصيل عبر واتساب</button></div>`:''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
       ${statusBtns}
       <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
@@ -10245,6 +10247,110 @@ window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
 window.submitEmpDelivery=submitEmpDelivery;
 window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit;
+
+// ===== DELIVERY REPS =====
+let _deliveryModalOrder=null;
+function _getDeliveryReps(){try{return JSON.parse(localStorage.getItem('delivery_reps')||'[]');}catch(e){return[];}}
+function _saveDeliveryReps(reps){localStorage.setItem('delivery_reps',JSON.stringify(reps));}
+
+function _buildDeliveryMsg(o){
+  const orderLabel=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+  const prods=(o.products||[]).map(p=>`• ${p.name}${(p.qty||1)>1?' × '+(p.qty||1):''}`).join('\n');
+  const net=o.netPrice!=null?o.netPrice:(o.totalPrice||0);
+  const dlv=o.deliveryFee||0;
+  let msg=`🚚 طلب توصيل جديد\n${orderLabel}\n──────────────\n`;
+  msg+=`📄 الصفحة: ${o.pageName||''}\n`;
+  msg+=`📞 الزبون: ${o.customerPhone||''}\n`;
+  msg+=`📍 العنوان: ${o.address||''}`;
+  if(o.area)msg+=`\n🗺 المنطقة: ${o.area}`;
+  msg+=`\n\n📦 المنتجات:\n${prods}\n`;
+  msg+=`\n💰 المجموع: ${net.toFixed(2)} د.أ`;
+  if(dlv>0)msg+=` (توصيل ${dlv.toFixed(2)})`;
+  if(o.notes)msg+=`\n📝 ملاحظات: ${o.notes}`;
+  return msg;
+}
+
+function _renderDeliveryModal(){
+  const o=_deliveryModalOrder;
+  if(!o)return;
+  const orderLabel=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+  const infoEl=document.getElementById('deliveryModalOrderInfo');
+  if(infoEl){
+    const prodsStr=(o.products||[]).map(p=>`${p.name} × ${p.qty||1}`).join(' · ');
+    infoEl.innerHTML=`<div style="font-weight:800;color:#1a3a2a;font-size:0.9rem;margin-bottom:4px;">${orderLabel} — ${o.pageName||''}</div>
+      <div style="font-size:0.8rem;color:#374151;">📞 ${o.customerPhone||''} &nbsp;·&nbsp; 📍 ${o.address||''}</div>
+      <div style="font-size:0.78rem;color:#6b7280;margin-top:3px;">📦 ${prodsStr}</div>`;
+  }
+  const reps=_getDeliveryReps();
+  const encoded=encodeURIComponent(_buildDeliveryMsg(o));
+  const listEl=document.getElementById('deliveryRepsList');
+  if(listEl){
+    listEl.innerHTML=reps.length
+      ?reps.map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;margin-bottom:7px;">
+          <div><div style="font-weight:700;color:#1a3a2a;font-size:0.85rem;">${r.name}</div><div style="font-size:0.73rem;color:#6b7280;">${r.phone}</div></div>
+          <a href="https://wa.me/${r.phone.replace(/[^\d+]/g,'')}?text=${encoded}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#25D366;color:#fff;border-radius:9px;text-decoration:none;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:700;">📱 إرسال</a>
+        </div>`).join('')
+      :'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:12px 0;">لا يوجد مناديب محفوظون — أضف أدناه</div>';
+  }
+  const manageEl=document.getElementById('deliveryRepsManage');
+  if(manageEl){
+    manageEl.innerHTML=reps.length
+      ?reps.map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:#f9fafb;border-radius:7px;margin-bottom:4px;">
+          <span style="font-size:0.78rem;color:#374151;">${r.name} — ${r.phone}</span>
+          <button onclick="removeDeliveryRep(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:0.72rem;font-family:'Tajawal',sans-serif;">🗑</button>
+        </div>`).join('')
+      :'<div style="font-size:0.75rem;color:#9ca3af;padding:4px 0;">لا يوجد مناديب</div>';
+  }
+}
+
+async function openDeliveryModal(orderId){
+  try{
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(!snap.exists){toast('⚠️ لم يُعثر على الطلب');return;}
+    _deliveryModalOrder={id:snap.id,...snap.data()};
+    _renderDeliveryModal();
+    document.getElementById('deliveryRepModal').style.display='block';
+    document.body.style.overflow='hidden';
+  }catch(e){toast('❌ '+e.message);}
+}
+
+function closeDeliveryModal(){
+  document.getElementById('deliveryRepModal').style.display='none';
+  document.body.style.overflow='';
+  _deliveryModalOrder=null;
+}
+
+function addDeliveryRep(){
+  const name=(document.getElementById('newRepName').value||'').trim();
+  const phone=(document.getElementById('newRepPhone').value||'').trim();
+  if(!name||!phone){toast('⚠️ أدخل الاسم والرقم');return;}
+  const reps=_getDeliveryReps();
+  reps.push({name,phone});
+  _saveDeliveryReps(reps);
+  document.getElementById('newRepName').value='';
+  document.getElementById('newRepPhone').value='';
+  _renderDeliveryModal();
+  toast('✅ تم إضافة المندوب');
+}
+
+function removeDeliveryRep(idx){
+  const reps=_getDeliveryReps();
+  reps.splice(idx,1);
+  _saveDeliveryReps(reps);
+  _renderDeliveryModal();
+}
+
+function sendDeliveryToCustomPhone(){
+  const raw=(document.getElementById('deliveryCustomPhone').value||'').trim();
+  if(!raw){toast('⚠️ أدخل رقم الهاتف');return;}
+  const phone=raw.replace(/[^\d+]/g,'');
+  const msg=_buildDeliveryMsg(_deliveryModalOrder);
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
+window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
+window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone;
 window.renderEmpEditCart=renderEmpEditCart; window.changeEmpEditQty=changeEmpEditQty; window.removeEmpEditItem=removeEmpEditItem;
 window.setEmpEditDelivery=setEmpEditDelivery; window.updateEmpEditNet=updateEmpEditNet;
 window.addProduct=addProduct; window.delProduct=delProduct;
@@ -11052,6 +11158,36 @@ init();
       </div>
       <textarea id="cancelReasonInput" placeholder="أو اكتب سبباً مخصصاً..." style="width:100%;padding:11px 13px;border:1.5px solid #e0e0e0;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;resize:none;min-height:70px;margin-bottom:14px;"></textarea>
       <button onclick="confirmCancelOrder()" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;">🚫 تأكيد الإلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DELIVERY REP MODAL ===== -->
+<div id="deliveryRepModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9900;overflow-y:auto;" onclick="if(event.target===this)closeDeliveryModal()">
+  <div style="max-width:480px;margin:24px auto;padding:0 14px 40px;">
+    <div style="background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+      <div style="background:linear-gradient(135deg,#1a3a2a,#25D366);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="color:#fff;font-weight:700;font-size:0.95rem;">📱 إرسال لمندوب التوصيل</div>
+        <button onclick="closeDeliveryModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:1.1rem;line-height:1;">×</button>
+      </div>
+      <div id="deliveryModalOrderInfo" style="padding:14px 18px;background:#f0fdf4;border-bottom:1px solid #d1fae5;font-family:'Tajawal',sans-serif;"></div>
+      <div style="padding:16px 18px;font-family:'Tajawal',sans-serif;">
+        <div style="font-weight:700;color:#374151;font-size:0.87rem;margin-bottom:10px;">اختر المندوب:</div>
+        <div id="deliveryRepsList" style="margin-bottom:14px;"></div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;align-items:center;">
+          <input id="deliveryCustomPhone" type="tel" placeholder="أو أدخل رقم مخصص..." style="flex:1;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='#25D366'" onblur="this.style.borderColor='#e5e7eb'">
+          <button onclick="sendDeliveryToCustomPhone()" style="padding:10px 14px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">📱 إرسال</button>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:14px;">
+          <div style="font-weight:700;color:#374151;font-size:0.82rem;margin-bottom:8px;">⚙️ إدارة أرقام المناديب</div>
+          <div id="deliveryRepsManage" style="margin-bottom:10px;max-height:150px;overflow-y:auto;"></div>
+          <div style="display:flex;gap:6px;">
+            <input id="newRepName" placeholder="الاسم" style="flex:1;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <input id="newRepPhone" type="tel" placeholder="الرقم (962...)" style="flex:1.2;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <button onclick="addDeliveryRep()" style="padding:8px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;font-weight:700;">➕</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
