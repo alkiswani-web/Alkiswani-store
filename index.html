@@ -2761,8 +2761,19 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <button id="opKanbanBtn" onclick="toggleOpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
               <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
               <button onclick="toggleOpAdvFilter(this)" id="opAdvFilterBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🔍 فلتر متقدم</button>
+              <button onclick="toggleRepsPanel(this)" id="opRepsPanelBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🧍 المناديب</button>
               <button onclick="openQRScanner()" style="padding:6px 12px;background:#0ea5e9;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📷 مسح QR</button>
               <button onclick="openTVMode()" style="padding:6px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📺 TV</button>
+            </div>
+          </div>
+          <!-- Reps Panel -->
+          <div id="opRepsPanel" style="display:none;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:14px;margin-bottom:12px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#0369a1;margin-bottom:10px;">🧍 قائمة مناديب التوصيل</div>
+            <div id="opRepsPanelList" style="margin-bottom:10px;max-height:180px;overflow-y:auto;"></div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="opNewRepName" placeholder="الاسم" autocomplete="off" style="flex:1;padding:9px 11px;border:1.5px solid #bae6fd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.83rem;outline:none;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#bae6fd'">
+              <input id="opNewRepPhone" type="tel" placeholder="962..." autocomplete="off" style="flex:1.2;padding:9px 11px;border:1.5px solid #bae6fd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.83rem;outline:none;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#bae6fd'">
+              <button onclick="addRepFromPanel()" style="padding:9px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;cursor:pointer;font-weight:700;">➕</button>
             </div>
           </div>
           <!-- Advanced Filter Panel -->
@@ -5405,8 +5416,12 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     if(isHold)statusBtns+=`<button onclick="updateEmpOrderStatus('${o.id}','pending')" style="padding:7px 14px;background:#f59e0b;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">▶ استئناف</button> `;
     if(!isClosed&&!isHold){
       statusBtns+=`<button onclick="openEmpHoldModal('${o.id}')" style="padding:5px 10px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;margin-right:4px;">⏸ تعليق</button>`;
-      statusBtns+=`<button onclick="openEmpCancelModal('${o.id}')" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;margin-right:4px;">ملغي</button>
-      <button onclick="updateEmpOrderStatus('${o.id}','returned')" style="padding:5px 10px;background:#f1f5f9;color:#6b7280;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;margin-right:4px;">مرتجع</button>
+    }
+    if(!isClosed){
+      statusBtns+=`<button onclick="openEmpCancelModal('${o.id}')" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;font-weight:700;margin-right:4px;">🚫 ملغي</button>`;
+    }
+    if(!isClosed&&!isHold){
+      statusBtns+=`<button onclick="updateEmpOrderStatus('${o.id}','returned')" style="padding:5px 10px;background:#f1f5f9;color:#6b7280;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;margin-right:4px;">مرتجع</button>
       <button onclick="updateEmpOrderStatus('${o.id}','refused')" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">رفض</button>`;
     }
   }
