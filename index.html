@@ -2318,6 +2318,22 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <!-- Per-store prices -->
           <div id="opp_store_prices_section" style="margin-bottom:10px;"></div>
+          <!-- Product image upload -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:6px;">📷 صورة المنتج (اختياري)</div>
+            <div id="opp_img_preview" style="margin-bottom:6px;"></div>
+            <div style="display:flex;gap:6px;">
+              <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;cursor:pointer;font-size:0.8rem;color:#166534;font-family:'Tajawal',sans-serif;">
+                📷 كاميرا
+                <input type="file" accept="image/*" capture="camera" style="display:none;" onchange="onOppImageChange(this)">
+              </label>
+              <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;cursor:pointer;font-size:0.8rem;color:#166534;font-family:'Tajawal',sans-serif;">
+                🖼 اختار صورة
+                <input type="file" accept="image/*" style="display:none;" onchange="onOppImageChange(this)">
+              </label>
+              <button onclick="clearOppImage()" style="padding:8px 12px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✕ حذف</button>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;margin-top:4px;">
             <button id="opp_save_btn" onclick="saveOpProduct()" style="flex:1;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ المنتج</button>
             <button id="opp_cancel_btn" onclick="cancelEditProduct()" style="display:none;padding:12px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✕ إلغاء</button>
@@ -2959,15 +2975,25 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Product adder -->
       <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:8px;">📦 إضافة منتج للطلب</div>
-        <div style="display:flex;gap:6px;margin-bottom:0;">
-          <select id="emp_product" onchange="onEmpProductChange()" style="flex:1;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;min-width:0;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-            <option value="">— المنتج —</option>
-          </select>
-          <input type="number" id="emp_cart_qty" value="1" min="1" max="99" style="width:52px;padding:9px 6px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;text-align:center;outline:none;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-          <button onclick="addToEmpCart()" style="padding:9px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:8px;">📦 اختار منتج للطلب</div>
+        <!-- Visual product grid -->
+        <div id="emp_product_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;max-height:280px;overflow-y:auto;margin-bottom:8px;">
+          <div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">⏳ جاري التحميل...</div>
         </div>
-        <div id="emp_product_img_wrap" style="display:none;margin-top:8px;"></div>
+        <!-- Selected product + qty + add button -->
+        <div id="emp_product_selected_bar" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:9px;padding:8px 10px;margin-bottom:8px;align-items:center;gap:8px;">
+          <div id="emp_selected_prod_img_wrap" style="flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div id="emp_selected_prod_name" style="font-weight:700;font-size:0.84rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            <div id="emp_selected_prod_price" style="font-size:0.72rem;color:#6b7280;"></div>
+          </div>
+          <input type="number" id="emp_cart_qty" value="1" min="1" max="99" style="width:52px;padding:7px 5px;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
+          <button onclick="addToEmpCart()" style="padding:8px 13px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+        </div>
+        <div id="emp_no_product_bar" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">
+          <input type="number" id="emp_cart_qty_fallback" value="1" min="1" max="99" style="display:none;">
+          <div style="color:#9ca3af;font-size:0.78rem;">← اختار منتجاً من الأعلى لإضافته للطلب</div>
+        </div>
       </div>
 
       <!-- Cart items -->
@@ -4608,11 +4634,12 @@ async function _loadEmpPagesIntoPanel(){
   }
 }
 
+let _selectedEmpProductId=null;
+
 async function onEmpPageChange(){
-  const prodSel=document.getElementById('emp_product');
-  if(!prodSel)return;
-  prodSel.innerHTML='<option value="">⏳ جاري التحميل...</option>';
   if(!_empSharedProducts){
+    const grid=document.getElementById('emp_product_grid');
+    if(grid) grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">⏳ جاري التحميل...</div>';
     try{
       let snap;
       try{snap=await db.collection('operator_products').orderBy('name').get();}
@@ -4620,24 +4647,66 @@ async function onEmpPageChange(){
       _empSharedProducts=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e){_empSharedProducts=[];}
   }
-  prodSel.innerHTML='<option value="">— اختار المنتج —</option>'+
-    (_empSharedProducts||[]).map(p=>`<option value="${p.id}" data-price="${p.sellPrice||0}" data-name="${(p.name||'').replace(/"/g,'&quot;')}">${p.name}</option>`).join('');
+  renderEmpProductPicker();
+}
+
+function renderEmpProductPicker(){
+  const grid=document.getElementById('emp_product_grid');
+  if(!grid)return;
+  const prods=_empSharedProducts||[];
+  if(!prods.length){
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">لا يوجد منتجات — أضفها من حساب المشغل</div>';
+    return;
+  }
+  grid.innerHTML=prods.map(p=>{
+    const img=p.imageDataUrl||(p.images&&p.images[0])||p.img||'';
+    const isSelected=_selectedEmpProductId===p.id;
+    return `<div onclick="selectEmpProduct('${p.id}')" id="emp_prod_card_${p.id}" style="cursor:pointer;border-radius:10px;padding:8px;border:2px solid ${isSelected?'#1a3a2a':'#e5e7eb'};background:${isSelected?'#f0fdf4':'#fff'};display:flex;flex-direction:column;align-items:center;gap:5px;transition:border-color 0.15s;">
+      ${img?`<img src="${img}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`:`<div style="width:64px;height:64px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">📦</div>`}
+      <div style="font-size:0.76rem;font-weight:700;color:#1a3a2a;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${p.name}</div>
+      <div style="font-size:0.72rem;color:#166534;font-weight:600;">${(p.sellPrice||0).toFixed(2)} د.أ</div>
+      ${isSelected?'<div style="font-size:0.7rem;color:#1a3a2a;font-weight:800;">✓ مختار</div>':''}
+    </div>`;
+  }).join('');
+}
+
+function selectEmpProduct(id){
+  _selectedEmpProductId=id;
+  renderEmpProductPicker();
+  const prod=(_empSharedProducts||[]).find(p=>p.id===id);
+  const bar=document.getElementById('emp_product_selected_bar');
+  const noBar=document.getElementById('emp_no_product_bar');
+  if(!prod){if(bar)bar.style.display='none';if(noBar)noBar.style.display='flex';return;}
+  if(bar) bar.style.display='flex';
+  if(noBar) noBar.style.display='none';
+  const nameEl=document.getElementById('emp_selected_prod_name');
+  const priceEl=document.getElementById('emp_selected_prod_price');
+  const imgWrap=document.getElementById('emp_selected_prod_img_wrap');
+  if(nameEl) nameEl.textContent=prod.name||'';
+  if(priceEl) priceEl.textContent=(prod.sellPrice||0).toFixed(2)+' د.أ / وحدة';
+  const img=prod.imageDataUrl||(prod.images&&prod.images[0])||prod.img||'';
+  if(imgWrap) imgWrap.innerHTML=img?`<img src="${img}" style="width:42px;height:42px;object-fit:cover;border-radius:7px;border:1px solid #86efac;">`:'';
 }
 
 function addToEmpCart(){
-  const prodSel=document.getElementById('emp_product');
+  if(!_selectedEmpProductId){toast('⚠️ اختار المنتج أولاً');return;}
+  const prod=(_empSharedProducts||[]).find(p=>p.id===_selectedEmpProductId);
+  if(!prod){toast('⚠️ المنتج غير موجود');return;}
   const qtyEl=document.getElementById('emp_cart_qty');
-  if(!prodSel||!prodSel.value){toast('⚠️ اختار المنتج أولاً');return;}
-  const opt=prodSel.selectedOptions[0];
-  const id=prodSel.value;
-  const name=opt.dataset.name||opt.text;
-  const price=parseFloat(opt.dataset.price||0);
   const qty=Math.max(1,parseInt(qtyEl?.value||1));
+  const id=prod.id;
+  const name=prod.name||'';
+  const price=parseFloat(prod.sellPrice||0);
   const existing=_empOrderCart.findIndex(i=>i.id===id);
   if(existing>=0){_empOrderCart[existing].qty+=qty;}
   else{_empOrderCart.push({id,name,price,qty});}
-  prodSel.value='';
-  if(qtyEl)qtyEl.value='1';
+  _selectedEmpProductId=null;
+  const bar=document.getElementById('emp_product_selected_bar');
+  const noBar=document.getElementById('emp_no_product_bar');
+  if(bar) bar.style.display='none';
+  if(noBar) noBar.style.display='flex';
+  if(qtyEl) qtyEl.value='1';
+  renderEmpProductPicker();
   renderEmpOrderCart();
 }
 
@@ -4832,7 +4901,12 @@ async function submitEmpOrder(){
     document.getElementById('emp_order_num').value='';
     const areaEl=document.getElementById('emp_area');if(areaEl)areaEl.value='';
     const areaHint=document.getElementById('emp_area_fee_hint');if(areaHint)areaHint.style.display='none';
-    const prodImgWrap=document.getElementById('emp_product_img_wrap');if(prodImgWrap){prodImgWrap.style.display='none';prodImgWrap.innerHTML='';}
+    _selectedEmpProductId=null;
+    const bar=document.getElementById('emp_product_selected_bar');
+    const noBar=document.getElementById('emp_no_product_bar');
+    if(bar) bar.style.display='none';
+    if(noBar) noBar.style.display='flex';
+    renderEmpProductPicker();
     clearEmpImage();
     loadEmpTodayOrders();
   }catch(e){toast('❌ خطأ: '+e.message);}
@@ -7823,6 +7897,29 @@ function clearDlvStore(sid){
 // --- Operator Products (منتجات المشغل) ---
 let _opProductsList=[];
 let _editingProductId=null;
+let _oppCurrentImageUrl='';
+
+function onOppImageChange(input){
+  const file=input.files&&input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    _oppCurrentImageUrl=e.target.result;
+    _renderOppImgPreview();
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+function clearOppImage(){_oppCurrentImageUrl='';_renderOppImgPreview();}
+function _renderOppImgPreview(){
+  const wrap=document.getElementById('opp_img_preview');
+  if(!wrap) return;
+  if(!_oppCurrentImageUrl){wrap.innerHTML='';return;}
+  wrap.innerHTML=`<div style="position:relative;display:inline-block;">
+    <img src="${_oppCurrentImageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:9px;border:1.5px solid #86efac;">
+    <button onclick="clearOppImage()" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#dc2626;color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:0.7rem;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+  </div>`;
+}
 
 async function loadOpProducts(){
   try{
@@ -7863,11 +7960,15 @@ function renderOpProductsList(){
           </div>
         </div>`
       :'';
+    const prodImg=p.imageDataUrl||'';
     return `
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;">📦 ${p.name}</div>
-        <div style="display:flex;gap:5px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+          ${prodImg?`<img src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0;">
           <button onclick="editOpProduct('${p.id}')" style="background:#eff6ff;color:#1e40af;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✏️</button>
           <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
         </div>
@@ -7920,6 +8021,8 @@ function editOpProduct(id){
   document.getElementById('opp_raw').value=p.rawMaterialCost||'';
   document.getElementById('opp_machine').value=p.machineWorkerWage||'';
   document.getElementById('opp_assembly').value=p.assemblyWorkerWage||'';
+  _oppCurrentImageUrl=p.imageDataUrl||'';
+  _renderOppImgPreview();
   // Fill per-store prices
   _opStoresList.forEach(s=>{
     const inp=document.getElementById(`opp_sp_${s.id}`);
@@ -7941,6 +8044,8 @@ function cancelEditProduct(){
     const inp=document.getElementById(`opp_sp_${s.id}`);
     if(inp) inp.value='';
   });
+  _oppCurrentImageUrl='';
+  _renderOppImgPreview();
   document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
   document.getElementById('opp_save_btn').textContent='💾 حفظ المنتج';
   document.getElementById('opp_cancel_btn').style.display='none';
@@ -7963,14 +8068,15 @@ async function saveOpProduct(){
     if(_editingProductId){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
-        assemblyWorkerWage:assembly,sellPrice:sell,storePrices
+        assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
+        imageDataUrl:_oppCurrentImageUrl||''
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,
+        storePrices,imageDataUrl:_oppCurrentImageUrl||'',
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
@@ -10794,6 +10900,8 @@ window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty;
+window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
+window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
@@ -11431,23 +11539,7 @@ async function _initAreaFeesUI(){
 
 // ===== FEATURE 13: PRODUCT IMAGES IN FORM =====
 function onEmpProductChange(){
-  const sel=document.getElementById('emp_product');
-  const wrap=document.getElementById('emp_product_img_wrap');
-  if(!sel||!wrap)return;
-  const id=sel.value;
-  if(!id){wrap.style.display='none';wrap.innerHTML='';return;}
-  const prod=(_empSharedProducts||[]).find(p=>p.id===id);
-  if(!prod){wrap.style.display='none';return;}
-  const img=prod.imageDataUrl||(prod.images&&prod.images[0])||prod.img||'';
-  if(!img){wrap.style.display='none';return;}
-  wrap.style.display='block';
-  wrap.innerHTML=`<div style="display:flex;align-items:center;gap:8px;background:#f0fdf4;border-radius:8px;padding:6px 10px;border:1px solid #bbf7d0;">
-    <img src="${img}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #86efac;">
-    <div>
-      <div style="font-size:0.78rem;font-weight:700;color:#1a3a2a;">${prod.name}</div>
-      <div style="font-size:0.72rem;color:#6b7280;">${(prod.sellPrice||0).toFixed(2)} د.أ</div>
-    </div>
-  </div>`;
+  // Legacy stub — product selection now handled by selectEmpProduct()
 }
 
 // ===== FEATURE 3: ON HOLD STATUS =====
@@ -12411,6 +12503,8 @@ window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpTod
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
 window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
+window.editOpProduct=editOpProduct; window.cancelEditProduct=cancelEditProduct;
+window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadOpProducts=loadOpProducts;
 window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore;
 window.loadOpStores=loadOpStores;
