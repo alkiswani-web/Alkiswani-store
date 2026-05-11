@@ -2975,14 +2975,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Product adder -->
       <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">📦 اختار منتج للطلب</div>
-        <!-- Search box -->
-        <div style="position:relative;margin-bottom:8px;">
-          <input id="emp_product_search" type="text" placeholder="🔍 ابحث عن منتج..." oninput="filterEmpProductGrid(this.value)" autocomplete="off" style="width:100%;padding:8px 32px 8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-          <span onclick="clearEmpProductSearch()" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:0.9rem;line-height:1;">✕</span>
-        </div>
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:8px;">📦 اختار منتج للطلب</div>
         <!-- Visual product grid -->
-        <div id="emp_product_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;max-height:260px;overflow-y:auto;margin-bottom:8px;">
+        <div id="emp_product_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;max-height:280px;overflow-y:auto;margin-bottom:8px;">
           <div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">⏳ جاري التحميل...</div>
         </div>
         <!-- Selected product + qty + add button -->
@@ -4658,17 +4653,9 @@ async function onEmpPageChange(){
 function renderEmpProductPicker(){
   const grid=document.getElementById('emp_product_grid');
   if(!grid)return;
-  let prods=_empSharedProducts||[];
+  const prods=_empSharedProducts||[];
   if(!prods.length){
     grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">لا يوجد منتجات — أضفها من حساب المشغل</div>';
-    return;
-  }
-  if(_empProductSearchQuery){
-    const q=_empProductSearchQuery.toLowerCase();
-    prods=prods.filter(p=>(p.name||'').toLowerCase().includes(q));
-  }
-  if(!prods.length){
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">لا يوجد نتائج</div>';
     return;
   }
   grid.innerHTML=prods.map(p=>{
@@ -4681,18 +4668,6 @@ function renderEmpProductPicker(){
       ${isSelected?'<div style="font-size:0.7rem;color:#1a3a2a;font-weight:800;">✓ مختار</div>':''}
     </div>`;
   }).join('');
-}
-
-let _empProductSearchQuery='';
-function filterEmpProductGrid(q){
-  _empProductSearchQuery=(q||'').trim();
-  renderEmpProductPicker();
-}
-function clearEmpProductSearch(){
-  _empProductSearchQuery='';
-  const inp=document.getElementById('emp_product_search');
-  if(inp){inp.value='';inp.focus();}
-  renderEmpProductPicker();
 }
 
 function selectEmpProduct(id){
@@ -4927,9 +4902,6 @@ async function submitEmpOrder(){
     const areaEl=document.getElementById('emp_area');if(areaEl)areaEl.value='';
     const areaHint=document.getElementById('emp_area_fee_hint');if(areaHint)areaHint.style.display='none';
     _selectedEmpProductId=null;
-    _empProductSearchQuery='';
-    const searchInp=document.getElementById('emp_product_search');
-    if(searchInp) searchInp.value='';
     const bar=document.getElementById('emp_product_selected_bar');
     const noBar=document.getElementById('emp_no_product_bar');
     if(bar) bar.style.display='none';
@@ -10929,7 +10901,6 @@ window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
-window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
