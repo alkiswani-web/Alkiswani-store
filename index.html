@@ -11127,7 +11127,7 @@ async function removeRepFromPanel(idx){
   toast('✅ تم الحذف');
 }
 
-
+function sendAndMarkDelivering(waUrl){
   window.open(waUrl,'_blank');
   const isBatch=_deliveryBatchOrders.length>1;
   const ids=isBatch?_deliveryBatchOrders.map(x=>x.id):[_deliveryModalOrder?.id].filter(Boolean);
