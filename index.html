@@ -3527,8 +3527,18 @@ let _adminUsersList=[];
 
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
-  const snap=await db.collection('products').get();
-  products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
+  try{
+    const snap=await db.collection('products').get();
+    products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
+    if(!products.length){
+      const grid=document.getElementById('storeGrid');
+      if(grid) grid.innerHTML='<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">⚠️ لا يوجد منتجات في قاعدة البيانات<br><small style="color:#9ca3af;">products collection is empty</small></div>';
+    }
+  }catch(err){
+    const grid=document.getElementById('storeGrid');
+    if(grid) grid.innerHTML=`<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">❌ خطأ في تحميل المنتجات<br><small style="color:#9ca3af;">${err.message}</small></div>`;
+    throw err;
+  }
   renderStore();
   renderMostOrdered();
   updateHeroStats();
