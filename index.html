@@ -3,21 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script>
-// Clear corrupted SW cache from bad deployments
-(function(){
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.getRegistrations().then(function(regs){
-      regs.forEach(function(r){ r.unregister(); });
-    });
-  }
-  if('caches' in window){
-    caches.keys().then(function(keys){
-      keys.forEach(function(k){ caches.delete(k); });
-    });
-  }
-})();
-</script>
 <meta name="theme-color" content="#1a3a2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3527,18 +3512,8 @@ let _adminUsersList=[];
 
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
-  const grid=document.getElementById('storeGrid');
-  try{
-    const snap=await db.collection('products').get({source:'server'});
-    products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
-    if(!products.length){
-      if(grid) grid.innerHTML='<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">⚠️ المنتجات فارغة من السيرفر<br><small style="color:#9ca3af;">products collection returned 0 docs</small></div>';
-      return;
-    }
-  }catch(err){
-    if(grid) grid.innerHTML=`<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">❌ ${err.code||'error'}: ${err.message}</div>`;
-    return;
-  }
+  const snap=await db.collection('products').get();
+  products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
   renderStore();
   renderMostOrdered();
   updateHeroStats();
