@@ -2974,9 +2974,26 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Area -->
       <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المنطقة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <input type="text" id="emp_area" list="areaFeesList" placeholder="مثال: عمان، الزرقاء..." autocomplete="off" oninput="onEmpAreaChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        <datalist id="areaFeesList"></datalist>
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المحافظة <span style="color:#ef4444;">*</span></div>
+        <select id="emp_area" required onchange="onEmpAreaChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+          <option value="">— اختار المحافظة —</option>
+          <option>عمان</option>
+          <option>اربد</option>
+          <option>الزرقاء</option>
+          <option>البلقاء</option>
+          <option>مادبا</option>
+          <option>الكرك</option>
+          <option>الطفيلة</option>
+          <option>معان</option>
+          <option>العقبة</option>
+          <option>جرش</option>
+          <option>عجلون</option>
+          <option>المفرق</option>
+          <option>الاغوار</option>
+          <option>الشونة</option>
+          <option>الازرق</option>
+          <option>رصيفة</option>
+        </select>
         <div id="emp_area_fee_hint" style="display:none;margin-top:4px;font-size:0.73rem;color:#1a3a2a;background:#f0fdf4;border-radius:6px;padding:4px 8px;"></div>
       </div>
 
@@ -3012,17 +3029,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <input type="number" id="emp_total" value="0.00" min="0" step="0.5" style="width:76px;padding:5px 7px;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#86efac'">
             <span style="font-size:0.78rem;color:#374151;">د.أ</span>
           </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;color:#7c3aed;">🏷 خصم</div>
-          <div style="display:flex;align-items:center;gap:5px;">
-            <input type="number" id="emp_discount" value="" min="0" step="0.5" placeholder="0" style="width:76px;padding:5px 7px;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'">
-            <span style="font-size:0.78rem;color:#374151;">د.أ</span>
-          </div>
-        </div>
-        <div id="empDiscountRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;color:#7c3aed;">🏷 خصم مطبّق</div>
-          <span id="empDiscountLabel" style="font-size:0.82rem;color:#7c3aed;font-weight:700;">0.00 د.أ</span>
         </div>
         <div id="empDeliveryRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</div>
@@ -4636,25 +4642,14 @@ function updateEmpNet(){
   if(customEl&&customEl.style.display!=='none'){
     _empDeliveryFee=parseFloat(customEl.value)||0;
   }
-  const realTotal=calcEmpOrderTotal();
-  const discount=Math.max(0,parseFloat(document.getElementById('emp_discount')?.value)||0);
   const dlv=_empDeliveryFee;
-  const excess=Math.max(0,dlv-2);
-  const adjustedProds=realTotal-excess-discount;
-  const net=adjustedProds+dlv;
-  const totalEl=document.getElementById('emp_total');
+  const userTotal=parseFloat(document.getElementById('emp_total')?.value)||0;
+  const net=userTotal+dlv;
   const netEl=document.getElementById('empNetLabel');
   const dlvRow=document.getElementById('empDeliveryRow');
   const dlvLbl=document.getElementById('empDeliveryLabel');
-  const excessRow=document.getElementById('empExcessRow');
-  const discountRow=document.getElementById('empDiscountRow');
-  const discountLbl=document.getElementById('empDiscountLabel');
-  if(totalEl)totalEl.value=realTotal.toFixed(2);
-  if(discountRow)discountRow.style.display=discount>0?'flex':'none';
-  if(discountLbl)discountLbl.textContent=discount.toFixed(2)+' د.أ';
   if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
-  if(excessRow)excessRow.style.display='none';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
 }
 function closeEmpPanel(){
@@ -4745,12 +4740,11 @@ async function submitEmpOrder(){
   if(!_empOrderCart.length){toast('⚠️ أضف منتجاً للطلب أولاً');return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
-  const prodsTotal=calcEmpOrderTotal()||0;
-  const discount=Math.max(0,parseFloat(document.getElementById('emp_discount')?.value)||0);
+  if(!areaInput){toast('⚠️ اختار المحافظة');return;}
+  const prodsTotal=parseFloat(document.getElementById('emp_total')?.value)||0;
   const deliveryFee=_empDeliveryFee||0;
-  const excess=Math.max(0,deliveryFee-2);
   const totalPrice=prodsTotal+deliveryFee;
-  const netPrice=prodsTotal-excess-discount+deliveryFee;
+  const netPrice=prodsTotal+deliveryFee;
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -4765,14 +4759,13 @@ async function submitEmpOrder(){
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
       ...(_empCurrentImages.length?{imageDataUrls:_empCurrentImages,imageDataUrl:_empCurrentImages[0]}:{}),
       status:'pending',
-      totalPrice,deliveryFee,netPrice,...(discount>0?{discount}:{}),
+      totalPrice,deliveryFee,netPrice,
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
     toast('✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=0;_empCurrentImages=[];
-    const dEl=document.getElementById('emp_discount');if(dEl)dEl.value='';
     renderEmpOrderCart();
     setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
     document.getElementById('emp_phone').value='';
