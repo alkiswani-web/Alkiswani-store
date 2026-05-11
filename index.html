@@ -13021,14 +13021,7 @@ function _buildStoreDeliveryMsg(orders,storeName){
 }
 
 async function markOrderDelivered(id){
-  try{
-    const docRef=db.collection('employee_orders').doc(id);
-    const snap=await docRef.get();
-    const d=snap.data();
-    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:'قيد التوصيل ← تم التسليم'};
-    await docRef.update({status:'delivered',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    toast('✅ تم تسليم الطلب');
-  }catch(e){toast('❌ '+e.message);}
+  await updateEmpOrderStatus(id,'delivered');
 }
 
 async function sendQueuedRepOrders(repName,waUrl,repPhone){
