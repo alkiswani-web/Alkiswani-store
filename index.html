@@ -3128,12 +3128,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:12px;border:1.5px solid #bbf7d0;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <span style="font-size:0.8rem;color:#374151;">إجمالي المنتجات</span>
-          <span id="empEditTotalLabel" style="font-weight:800;color:#166534;">0.00 د.أ</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <span style="font-size:0.8rem;color:#7c3aed;">🏷 خصم</span>
           <div style="display:flex;align-items:center;gap:4px;">
-            <input type="number" id="empEdit_discount" min="0" step="0.5" placeholder="0" style="width:70px;padding:4px 7px;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.85rem;text-align:left;outline:none;" oninput="updateEmpEditNet()" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'">
+            <input type="number" id="empEditTotalInput" min="0" step="0.5" value="0.00" style="width:80px;padding:4px 7px;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpEditNet()" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#86efac'">
             <span style="font-size:0.75rem;color:#374151;">د.أ</span>
           </div>
         </div>
@@ -3147,8 +3143,28 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
       </div>
       <input type="tel" id="empEdit_phone" placeholder="رقم الزبون *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;" dir="ltr">
+      <div style="margin-bottom:8px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المحافظة <span style="color:#ef4444;">*</span></div>
+        <select id="empEdit_area" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+          <option value="">— اختار المحافظة —</option>
+          <option>عمان</option><option>اربد</option><option>الزرقاء</option><option>البلقاء</option>
+          <option>مادبا</option><option>الكرك</option><option>الطفيلة</option><option>معان</option>
+          <option>العقبة</option><option>جرش</option><option>عجلون</option><option>المفرق</option>
+          <option>الاغوار</option><option>الشونة</option><option>الازرق</option><option>رصيفة</option>
+        </select>
+      </div>
       <input type="text" id="empEdit_address" placeholder="العنوان *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;">
-      <textarea id="empEdit_notes" placeholder="ملاحظات" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:12px;box-sizing:border-box;resize:none;"></textarea>
+      <textarea id="empEdit_notes" placeholder="ملاحظات" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;resize:none;"></textarea>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">صورة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <label for="empEdit_img_camera" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#166534;">📷 تصوير</label>
+          <label for="empEdit_img_file" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px;background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#1d4ed8;">🖼 رفع صورة</label>
+        </div>
+        <input type="file" id="empEdit_img_camera" accept="image/*" capture="camera" style="display:none;" onchange="onEmpEditImageChange(this)">
+        <input type="file" id="empEdit_img_file" accept="image/*" multiple style="display:none;" onchange="onEmpEditImageChange(this)">
+        <div id="empEdit_img_preview"></div>
+      </div>
       <button onclick="saveEmpOrderEdit()" style="width:100%;padding:12px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:800;cursor:pointer;">💾 حفظ التعديلات</button>
     </div>
   </div>
@@ -5245,10 +5261,12 @@ async function editEmpProduct(id,currentName,currentPrice){
 }
 
 // ===== ORDER EDIT MODAL =====
+let _empEditImages=[];
 function openEmpOrderEdit(orderId){
   _empEditOrderId=orderId;
   _empEditCart=[];
   _empEditDeliveryFee=0;
+  _empEditImages=[];
   const modal=document.getElementById('empOrderEditModal');
   modal.style.display='flex';
   db.collection('employee_orders').doc(orderId).get().then(snap=>{
@@ -5256,10 +5274,13 @@ function openEmpOrderEdit(orderId){
     const o=snap.data();
     _empEditCart=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]).map(p=>({...p}));
     _empEditDeliveryFee=o.deliveryFee||0;
+    _empEditImages=o.imageDataUrls?[...o.imageDataUrls]:(o.imageDataUrl?[o.imageDataUrl]:[]);
     document.getElementById('empEdit_phone').value=o.customerPhone||'';
     document.getElementById('empEdit_address').value=o.address||'';
     document.getElementById('empEdit_notes').value=o.notes||'';
-    const discEl=document.getElementById('empEdit_discount');if(discEl)discEl.value=o.discount>0?o.discount:'';
+    const areaEl=document.getElementById('empEdit_area');if(areaEl)areaEl.value=o.area||'';
+    const totalEl=document.getElementById('empEditTotalInput');
+    if(totalEl)totalEl.value=(o.totalPrice!=null?o.totalPrice-(_empEditDeliveryFee||0):_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0)).toFixed(2);
     const dlv=_empEditDeliveryFee;
     const btns=document.querySelectorAll('#empEditDeliveryBtns button');
     btns.forEach(b=>{b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';});
@@ -5268,13 +5289,33 @@ function openEmpOrderEdit(orderId){
     else if(dlv===2){btns[1].style.background='#1a3a2a';btns[1].style.color='#fff';btns[1].style.borderColor='#1a3a2a';customEl.style.display='none';}
     else if(dlv===3){btns[2].style.background='#1a3a2a';btns[2].style.color='#fff';btns[2].style.borderColor='#1a3a2a';customEl.style.display='none';}
     else if(dlv>0){btns[3].style.background='#1a3a2a';btns[3].style.color='#fff';btns[3].style.borderColor='#1a3a2a';customEl.style.display='block';customEl.value=dlv;}
+    _renderEmpEditImgPreview();
     renderEmpEditCart();
   }).catch(e=>{toast('❌ '+e.message);closeEmpOrderEdit();});
+}
+function _renderEmpEditImgPreview(){
+  const wrap=document.getElementById('empEdit_img_preview');
+  if(!wrap)return;
+  if(!_empEditImages.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=_empEditImages.map((src,i)=>`<div style="position:relative;display:inline-block;margin:4px;">
+    <img src="${src}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid #86efac;">
+    <button onclick="_removeEmpEditImg(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#ef4444;color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:0.7rem;line-height:1;">✕</button>
+  </div>`).join('');
+}
+function _removeEmpEditImg(i){_empEditImages.splice(i,1);_renderEmpEditImgPreview();}
+function onEmpEditImageChange(input){
+  const files=Array.from(input.files||[]);
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=e=>{_empEditImages.push(e.target.result);_renderEmpEditImgPreview();};
+    r.readAsDataURL(f);
+  });
+  input.value='';
 }
 
 function closeEmpOrderEdit(){
   document.getElementById('empOrderEditModal').style.display='none';
-  _empEditOrderId=null;_empEditCart=[];_empEditDeliveryFee=0;
+  _empEditOrderId=null;_empEditCart=[];_empEditDeliveryFee=0;_empEditImages=[];
 }
 
 function renderEmpEditCart(){
@@ -5319,19 +5360,15 @@ function setEmpEditDelivery(val,btn){
 function updateEmpEditNet(){
   const customEl=document.getElementById('empEdit_delivery_custom');
   if(customEl&&customEl.style.display!=='none')_empEditDeliveryFee=parseFloat(customEl.value)||0;
-  const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
-  const discount=Math.max(0,parseFloat(document.getElementById('empEdit_discount')?.value)||0);
   const dlv=_empEditDeliveryFee;
-  const excess=Math.max(0,dlv-2);
-  const net=prodsTotal-excess-discount+dlv;
-  const totalLbl=document.getElementById('empEditTotalLabel');
+  const userTotal=parseFloat(document.getElementById('empEditTotalInput')?.value)||0;
+  const net=userTotal+dlv;
   const netEl=document.getElementById('empEditNetLabel');
   const dlvRow=document.getElementById('empEditDeliveryRow');
   const dlvLbl=document.getElementById('empEditDeliveryLabel');
-  if(totalLbl)totalLbl.textContent=prodsTotal.toFixed(2)+' د.أ';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
-  if(dlvRow)dlvRow.style.display=_empEditDeliveryFee>0?'flex':'none';
-  if(dlvLbl)dlvLbl.textContent=_empEditDeliveryFee.toFixed(2)+' د.أ';
+  if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
+  if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
 }
 
 async function saveEmpOrderEdit(){
@@ -5339,14 +5376,14 @@ async function saveEmpOrderEdit(){
   if(!_empEditCart.length){toast('⚠️ يجب أن يكون هناك منتج واحد على الأقل');return;}
   const phone=document.getElementById('empEdit_phone').value.trim();
   const address=document.getElementById('empEdit_address').value.trim();
+  const area=(document.getElementById('empEdit_area')?.value||'').trim();
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
+  if(!area){toast('⚠️ اختار المحافظة');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   const notes=document.getElementById('empEdit_notes').value.trim();
-  const prodsTotal=_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0);
-  const discount=Math.max(0,parseFloat(document.getElementById('empEdit_discount')?.value)||0);
+  const prodsTotal=parseFloat(document.getElementById('empEditTotalInput')?.value)||0;
   const deliveryFee=_empEditDeliveryFee;
-  const excess=Math.max(0,deliveryFee-2);
-  const netPrice=prodsTotal-excess-discount+deliveryFee;
+  const netPrice=prodsTotal+deliveryFee;
   const btn=document.querySelector('#empOrderEditModal button[onclick="saveEmpOrderEdit()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
@@ -5354,15 +5391,16 @@ async function saveEmpOrderEdit(){
     const prev=(await docRef.get()).data();
     const by=_empCurrentUser?.displayName||_empCurrentUser?.username||_currentAdminUser||'admin';
     const editEntry={by,at:jordanDisplayDate(),note:'تعديل تفاصيل الطلب'};
-    await docRef.update({
+    const updateData={
       products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
-      customerPhone:phone,address,notes,
+      customerPhone:phone,address,notes,area,
       totalPrice:prodsTotal+deliveryFee,deliveryFee,netPrice,
-      ...(discount>0?{discount}:{discount:firebase.firestore.FieldValue.delete()}),
       needsReview:true,
       editHistory:[...(prev.editHistory||[]),editEntry],
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    if(_empEditImages.length){updateData.imageDataUrls=_empEditImages;updateData.imageDataUrl=_empEditImages[0];}
+    await docRef.update(updateData);
     toast('✅ تم حفظ التعديلات');
     closeEmpOrderEdit();
   }catch(e){toast('❌ '+e.message);}
