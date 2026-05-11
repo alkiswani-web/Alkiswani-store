@@ -2706,6 +2706,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button id="emp-subtab-btn-operator" onclick="switchEmpSubTab('operator')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">🔧 المشغل</button>
           <button id="emp-subtab-btn-daysheet" onclick="switchEmpSubTab('daysheet')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">📊 كشف</button>
           <button id="emp-subtab-btn-workers" onclick="switchEmpSubTab('workers')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">👥 الموظفون</button>
+          <button id="emp-subtab-btn-emppoints" onclick="switchEmpSubTab('emppoints')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">🏆 النقاط</button>
           <button id="emp-subtab-btn-settings" onclick="switchEmpSubTab('settings')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">⚙️ الإعدادات</button>
         </div>
 
@@ -2859,6 +2860,26 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <button onclick="printDaySheet()" style="padding:8px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>
             </div>
             <div id="daysheet_wrap"></div>
+          </div>
+        </div>
+
+        <!-- Points Management Sub-tab -->
+        <div id="emp-subtab-emppoints" style="display:none;">
+          <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;border:1.5px solid #e5e7eb;">
+            <div style="font-weight:700;color:#1a3a2a;margin-bottom:10px;">⚙️ قيمة النقطة</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="number" id="empPointValueInput" min="0" step="0.1" placeholder="1.00" style="flex:1;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;">
+              <span style="font-size:0.85rem;color:#374151;white-space:nowrap;">د.أ / نقطة</span>
+              <button onclick="saveEmpPointValue()" style="padding:9px 18px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">حفظ</button>
+            </div>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;border:1.5px solid #fde68a;">
+            <div style="font-weight:700;color:#92400e;margin-bottom:10px;">⏳ طلبات الصرف المعلقة</div>
+            <div id="adminPointsRequestsList"><div style="color:#9ca3af;font-size:0.82rem;">جاري التحميل...</div></div>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:16px;border:1.5px solid #e5e7eb;">
+            <div style="font-weight:700;color:#1a3a2a;margin-bottom:10px;">🏆 ترتيب الموظفين بالنقاط</div>
+            <div id="adminEmpPointsList"><div style="color:#9ca3af;font-size:0.82rem;">جاري التحميل...</div></div>
           </div>
         </div>
 
@@ -3050,6 +3071,27 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;margin-bottom:10px;">📦 طلباتي اليوم</div>
     <div id="empOrdersList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات اليوم</div></div>
     </div><!-- end empNormalOrderSection -->
+
+    <!-- Points Card -->
+    <div style="background:#fff;border:1.5px solid #fbbf24;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+      <div style="font-size:0.95rem;font-weight:800;color:#92400e;margin-bottom:12px;">🏆 نقاطي</div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;">
+        <div style="flex:1;background:#fffbeb;border-radius:10px;padding:12px;text-align:center;">
+          <div id="empPointsTotal" style="font-size:1.6rem;font-weight:900;color:#d97706;">...</div>
+          <div style="font-size:0.72rem;color:#92400e;">إجمالي النقاط</div>
+        </div>
+        <div style="flex:1;background:#f0fdf4;border-radius:10px;padding:12px;text-align:center;">
+          <div id="empPointsAvailable" style="font-size:1.6rem;font-weight:900;color:#166534;">...</div>
+          <div style="font-size:0.72rem;color:#166534;">نقاط متاحة</div>
+        </div>
+        <div style="flex:1;background:#eff6ff;border-radius:10px;padding:12px;text-align:center;">
+          <div id="empPointsAmount" style="font-size:1.6rem;font-weight:900;color:#1d4ed8;">...</div>
+          <div style="font-size:0.72rem;color:#1d4ed8;">د.أ مستحق</div>
+        </div>
+      </div>
+      <button onclick="requestEmpPayout()" style="width:100%;padding:11px;background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-bottom:10px;">💰 طلب صرف</button>
+      <div id="empPointsRequestsList"></div>
+    </div>
 
     <!-- Delivery form (shown only for delivery workers) -->
     <div id="empDeliverySection" style="display:none;">
@@ -4539,6 +4581,7 @@ async function openEmpPanel(){
     await onEmpPageChange();
     renderEmpOrderCart();
     loadEmpTodayOrders();
+    loadEmpPoints();
     // Populate area fees datalist
     _loadAreaFees().then(fees=>{
       const dl=document.getElementById('areaFeesList');
@@ -5953,8 +5996,136 @@ ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.7
   }).catch(e=>toast('❌ '+e.message));
 }
 
+// ===== EMPLOYEE POINTS SYSTEM =====
+let _empPointsSettings={pointValue:1};
+async function _loadEmpPointsSettings(){
+  try{const s=await db.collection('settings').doc('emp_points').get();if(s.exists)_empPointsSettings=s.data();}catch(e){}
+}
+async function loadEmpPoints(){
+  if(!_empCurrentUser)return;
+  try{
+    await _loadEmpPointsSettings();
+    const pv=_empPointsSettings.pointValue||1;
+    const [ordersSnap,approvedSnap,pendingSnap]=await Promise.all([
+      db.collection('employee_orders').where('workerId','==',_empCurrentUser.id).get(),
+      db.collection('points_requests').where('workerId','==',_empCurrentUser.id).where('status','==','approved').get(),
+      db.collection('points_requests').where('workerId','==',_empCurrentUser.id).orderBy('requestedAt','desc').limit(5).get()
+    ]);
+    const earned=ordersSnap.size;
+    const paid=approvedSnap.docs.reduce((s,d)=>s+(d.data().pointsRequested||0),0);
+    const available=Math.max(0,earned-paid);
+    const el1=document.getElementById('empPointsTotal');const el2=document.getElementById('empPointsAvailable');const el3=document.getElementById('empPointsAmount');
+    if(el1)el1.textContent=earned;
+    if(el2)el2.textContent=available;
+    if(el3)el3.textContent=(available*pv).toFixed(2);
+    const reqWrap=document.getElementById('empPointsRequestsList');
+    if(reqWrap){
+      if(pendingSnap.empty){reqWrap.innerHTML='';return;}
+      reqWrap.innerHTML='<div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:6px;">آخر الطلبات:</div>'+
+        pendingSnap.docs.map(d=>{const r=d.data();
+          const st=r.status==='approved'?{l:'✅ مُوافق عليه',c:'#166534',bg:'#f0fdf4'}:r.status==='rejected'?{l:'❌ مرفوض',c:'#dc2626',bg:'#fef2f2'}:{l:'⏳ قيد المراجعة',c:'#d97706',bg:'#fffbeb'};
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:${st.bg};border-radius:8px;margin-bottom:4px;">
+            <div><div style="font-size:0.82rem;font-weight:700;color:${st.c};">${st.l}</div>
+            <div style="font-size:0.72rem;color:#6b7280;">${r.pointsRequested} نقطة = ${(r.amountRequested||0).toFixed(2)} د.أ</div></div>
+            <div style="font-size:0.7rem;color:#9ca3af;">${r.requestedAt?.toDate?.()?.toLocaleDateString('ar-JO')||''}</div></div>`;
+        }).join('');
+    }
+  }catch(e){console.error('loadEmpPoints',e);}
+}
+async function requestEmpPayout(){
+  if(!_empCurrentUser)return;
+  const available=parseInt(document.getElementById('empPointsAvailable')?.textContent||0);
+  if(!available||available<=0){toast('⚠️ لا يوجد نقاط متاحة للصرف');return;}
+  await _loadEmpPointsSettings();
+  const pv=_empPointsSettings.pointValue||1;
+  const amount=(available*pv).toFixed(2);
+  if(!confirm(`طلب صرف ${available} نقطة = ${amount} د.أ؟`))return;
+  try{
+    const pending=await db.collection('points_requests').where('workerId','==',_empCurrentUser.id).where('status','==','pending').get();
+    if(!pending.empty){toast('⚠️ يوجد طلب صرف قيد المراجعة بالفعل');return;}
+    await db.collection('points_requests').add({
+      workerId:_empCurrentUser.id,
+      workerName:_empCurrentUser.displayName||_empCurrentUser.username||'',
+      pointsRequested:available,amountRequested:parseFloat(amount),
+      status:'pending',requestedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم إرسال طلب الصرف');
+    loadEmpPoints();
+  }catch(e){toast('❌ '+e.message);}
+}
+async function saveEmpPointValue(){
+  const val=parseFloat(document.getElementById('empPointValueInput')?.value||0);
+  if(isNaN(val)||val<0){toast('⚠️ أدخل قيمة صحيحة');return;}
+  try{
+    await db.collection('settings').doc('emp_points').set({pointValue:val},{merge:true});
+    _empPointsSettings.pointValue=val;
+    toast('✅ تم حفظ قيمة النقطة: '+val+' د.أ/نقطة');
+    loadAdminEmpPoints();
+  }catch(e){toast('❌ '+e.message);}
+}
+async function loadAdminEmpPoints(){
+  await _loadEmpPointsSettings();
+  const pvInput=document.getElementById('empPointValueInput');
+  if(pvInput)pvInput.value=_empPointsSettings.pointValue||1;
+  const pv=_empPointsSettings.pointValue||1;
+  const reqWrap=document.getElementById('adminPointsRequestsList');
+  if(reqWrap){
+    try{
+      const snap=await db.collection('points_requests').where('status','==','pending').get();
+      if(snap.empty){reqWrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;text-align:center;">لا يوجد طلبات معلقة</div>';}
+      else{reqWrap.innerHTML=snap.docs.map(d=>{const r=d.data();return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fffbeb;border-radius:9px;margin-bottom:8px;border:1px solid #fde68a;">
+          <div><div style="font-weight:700;font-size:0.88rem;color:#92400e;">${r.workerName||'موظف'}</div>
+          <div style="font-size:0.78rem;color:#6b7280;">${r.pointsRequested} نقطة = ${(r.amountRequested||0).toFixed(2)} د.أ</div></div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="reviewPointsRequest('${d.id}','approved')" style="padding:6px 12px;background:#166534;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">✅ موافقة</button>
+            <button onclick="reviewPointsRequest('${d.id}','rejected')" style="padding:6px 12px;background:#dc2626;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">❌ رفض</button>
+          </div></div>`;}).join('');}
+    }catch(e){reqWrap.innerHTML=`<div style="color:#dc2626;font-size:0.82rem;">خطأ: ${e.message}</div>`;}
+  }
+  const lbWrap=document.getElementById('adminEmpPointsList');
+  if(lbWrap){
+    try{
+      const workersSnap=await db.collection('employee_workers').get();
+      const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
+      const results=await Promise.all(workers.map(async w=>{
+        const [oSnap,pSnap]=await Promise.all([
+          db.collection('employee_orders').where('workerId','==',w.id).get(),
+          db.collection('points_requests').where('workerId','==',w.id).where('status','==','approved').get()
+        ]);
+        const earned=oSnap.size;
+        const paid=pSnap.docs.reduce((s,d)=>s+(d.data().pointsRequested||0),0);
+        return{...w,earned,paid,available:Math.max(0,earned-paid)};
+      }));
+      results.sort((a,b)=>b.earned-a.earned);
+      lbWrap.innerHTML=results.length?results.map((w,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f9fafb;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
+          <div style="font-size:1.1rem;min-width:24px;text-align:center;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:0.88rem;color:#1a3a2a;">${w.name||w.username||'موظف'}</div>
+            <div style="font-size:0.75rem;color:#6b7280;">${w.earned} نقطة مكتسبة · ${w.available} متاحة · ${w.paid} مُصرفة</div>
+          </div>
+          <div style="text-align:left;"><div style="font-weight:800;font-size:0.9rem;color:#166534;">${(w.available*pv).toFixed(2)} د.أ</div></div>
+        </div>`).join(''):'<div style="color:#9ca3af;font-size:0.82rem;text-align:center;padding:12px;">لا يوجد موظفون</div>';
+    }catch(e){lbWrap.innerHTML=`<div style="color:#dc2626;font-size:0.82rem;">خطأ: ${e.message}</div>`;}
+  }
+}
+async function reviewPointsRequest(reqId,action){
+  try{
+    await db.collection('points_requests').doc(reqId).update({
+      status:action,reviewedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      reviewedBy:_currentAdminUser||'admin'
+    });
+    toast(action==='approved'?'✅ تمت الموافقة على الطلب':'❌ تم رفض الطلب');
+    loadAdminEmpPoints();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.requestEmpPayout=requestEmpPayout;
+window.saveEmpPointValue=saveEmpPointValue;
+window.reviewPointsRequest=reviewPointsRequest;
+
 function switchEmpSubTab(tab){
-  ['tracking','operator','daysheet','workers','settings'].forEach(t=>{
+  ['tracking','operator','daysheet','workers','emppoints','settings'].forEach(t=>{
     const el=document.getElementById('emp-subtab-'+t);
     const btn=document.getElementById('emp-subtab-btn-'+t);
     if(el)el.style.display=(t===tab?'':'none');
@@ -5964,6 +6135,7 @@ function switchEmpSubTab(tab){
   if(tab==='operator'){_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
+  if(tab==='emppoints')loadAdminEmpPoints();
   if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();}
 }
 
