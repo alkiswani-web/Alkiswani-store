@@ -20,10 +20,10 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v3';
+const CACHE = 'alkiswani-v4';
 const ASSETS = [
-  '/Alkiswani-store/',
-  '/Alkiswani-store/index.html',
+  '/',
+  '/index.html',
   'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap'
 ];
 
