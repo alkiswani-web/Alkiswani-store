@@ -2974,9 +2974,26 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Area -->
       <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المنطقة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <input type="text" id="emp_area" list="areaFeesList" placeholder="مثال: عمان، الزرقاء..." autocomplete="off" oninput="onEmpAreaChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        <datalist id="areaFeesList"></datalist>
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المحافظة <span style="color:#ef4444;">*</span></div>
+        <select id="emp_area" required onchange="onEmpAreaChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+          <option value="">— اختار المحافظة —</option>
+          <option>عمان</option>
+          <option>اربد</option>
+          <option>الزرقاء</option>
+          <option>البلقاء</option>
+          <option>مادبا</option>
+          <option>الكرك</option>
+          <option>الطفيلة</option>
+          <option>معان</option>
+          <option>العقبة</option>
+          <option>جرش</option>
+          <option>عجلون</option>
+          <option>المفرق</option>
+          <option>الاغوار</option>
+          <option>الشونة</option>
+          <option>الازرق</option>
+          <option>رصيفة</option>
+        </select>
         <div id="emp_area_fee_hint" style="display:none;margin-top:4px;font-size:0.73rem;color:#1a3a2a;background:#f0fdf4;border-radius:6px;padding:4px 8px;"></div>
       </div>
 
