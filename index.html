@@ -3502,8 +3502,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-db.settings({ merge: true });
-try{ db.clearPersistence().catch(()=>{}); }catch(e){}
 const storage = firebase.storage();
 
 function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});}
