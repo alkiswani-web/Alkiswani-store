@@ -3502,6 +3502,8 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+db.settings({ merge: true });
+try{ db.clearPersistence().catch(()=>{}); }catch(e){}
 const storage = firebase.storage();
 
 function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});}
@@ -3527,17 +3529,17 @@ let _adminUsersList=[];
 
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
+  const grid=document.getElementById('storeGrid');
   try{
-    const snap=await db.collection('products').get();
+    const snap=await db.collection('products').get({source:'server'});
     products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
     if(!products.length){
-      const grid=document.getElementById('storeGrid');
-      if(grid) grid.innerHTML='<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">⚠️ لا يوجد منتجات في قاعدة البيانات<br><small style="color:#9ca3af;">products collection is empty</small></div>';
+      if(grid) grid.innerHTML='<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">⚠️ المنتجات فارغة من السيرفر<br><small style="color:#9ca3af;">products collection returned 0 docs</small></div>';
+      return;
     }
   }catch(err){
-    const grid=document.getElementById('storeGrid');
-    if(grid) grid.innerHTML=`<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">❌ خطأ في تحميل المنتجات<br><small style="color:#9ca3af;">${err.message}</small></div>`;
-    throw err;
+    if(grid) grid.innerHTML=`<div style="text-align:center;padding:30px;color:#ef4444;font-size:0.9rem;">❌ ${err.code||'error'}: ${err.message}</div>`;
+    return;
   }
   renderStore();
   renderMostOrdered();
