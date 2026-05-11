@@ -11071,9 +11071,63 @@ async function removeDeliveryRep(idx){
   reps.splice(idx,1);
   await _saveDeliveryReps(reps);
   await _renderDeliveryModal();
+  renderOpRepsPanelList();
 }
 
-function sendAndMarkDelivering(waUrl){
+// ===== OPERATOR REPS PANEL =====
+async function renderOpRepsPanelList(){
+  const wrap=document.getElementById('opRepsPanelList');
+  if(!wrap)return;
+  const reps=await _loadDeliveryReps();
+  if(!reps.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:10px 0;">لا يوجد مناديب — أضف من الأسفل</div>';
+    return;
+  }
+  wrap.innerHTML=reps.map((r,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1.5px solid #bae6fd;border-radius:10px;margin-bottom:6px;">
+      <div>
+        <div style="font-weight:700;color:#0c4a6e;font-size:0.86rem;">${r.name}</div>
+        <div style="font-size:0.75rem;color:#6b7280;direction:ltr;text-align:right;">${r.phone}</div>
+      </div>
+      <div style="display:flex;gap:5px;">
+        <a href="https://wa.me/${r.phone.replace(/[^\d+]/g,'')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:6px 11px;background:#25D366;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;text-decoration:none;">📱</a>
+        <button onclick="removeRepFromPanel(${i})" style="padding:6px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleRepsPanel(btn){
+  const panel=document.getElementById('opRepsPanel');
+  if(!panel)return;
+  const isOpen=panel.style.display!=='none';
+  panel.style.display=isOpen?'none':'block';
+  _styleToggleBtn(btn,!isOpen);
+  if(!isOpen) await renderOpRepsPanelList();
+}
+
+async function addRepFromPanel(){
+  const name=(document.getElementById('opNewRepName')?.value||'').trim();
+  const phone=(document.getElementById('opNewRepPhone')?.value||'').trim();
+  if(!name){toast('⚠️ أدخل اسم المندوب');return;}
+  if(!phone){toast('⚠️ أدخل رقم الهاتف');return;}
+  const reps=await _loadDeliveryReps();
+  reps.push({name,phone});
+  await _saveDeliveryReps(reps);
+  document.getElementById('opNewRepName').value='';
+  document.getElementById('opNewRepPhone').value='';
+  await renderOpRepsPanelList();
+  toast('✅ تم إضافة المندوب');
+}
+
+async function removeRepFromPanel(idx){
+  const reps=await _loadDeliveryReps();
+  reps.splice(idx,1);
+  await _saveDeliveryReps(reps);
+  renderOpRepsPanelList();
+  toast('✅ تم الحذف');
+}
+
+
   window.open(waUrl,'_blank');
   const isBatch=_deliveryBatchOrders.length>1;
   const ids=isBatch?_deliveryBatchOrders.map(x=>x.id):[_deliveryModalOrder?.id].filter(Boolean);
@@ -11905,6 +11959,8 @@ window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliv
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
 window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone; window.sendAndMarkDelivering=sendAndMarkDelivering;
 window.sendAndMarkDelivering_withRep=sendAndMarkDelivering_withRep;
+window.toggleRepsPanel=toggleRepsPanel; window.addRepFromPanel=addRepFromPanel;
+window.removeRepFromPanel=removeRepFromPanel; window.renderOpRepsPanelList=renderOpRepsPanelList;
 window.openInternalNote=openInternalNote;
 
 // ===== ORDER SEARCH (Feature 2) =====
