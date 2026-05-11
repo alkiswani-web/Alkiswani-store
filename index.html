@@ -3,6 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+// Clear corrupted SW cache from bad deployments
+(function(){
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      regs.forEach(function(r){ r.unregister(); });
+    });
+  }
+  if('caches' in window){
+    caches.keys().then(function(keys){
+      keys.forEach(function(k){ caches.delete(k); });
+    });
+  }
+})();
+</script>
 <meta name="theme-color" content="#1a3a2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
