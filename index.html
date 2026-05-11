@@ -11953,7 +11953,7 @@ window.copyOrderTrackingLink=copyOrderTrackingLink;
 window.openQRScanner=openQRScanner; window.closeQRScanner=closeQRScanner;
 window.closeQRRepAssignModal=closeQRRepAssignModal;
 window.qrAssignToRep=qrAssignToRep; window.qrAssignManualSend=qrAssignManualSend;
-window.sendQueuedRepOrders=sendQueuedRepOrders;
+window.sendQueuedRepOrders=sendQueuedRepOrders; window.markOrderDelivered=markOrderDelivered;
 
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
@@ -12941,9 +12941,12 @@ function _renderDeliveryQueue(orders){
           </div>
           ${rep.orders.map(o=>`
             <div style="background:#faf5ff;border-radius:8px;padding:7px 10px;margin-top:6px;border:1px solid #ede9fe;font-size:0.79rem;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;gap:6px;">
                 <span style="font-weight:700;color:#5b21b6;">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} — ${o.pageName||'—'}</span>
-                <span style="font-weight:800;color:#166534;">${_orderNet(o).toFixed(2)} د.أ</span>
+                <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                  <span style="font-weight:800;color:#166534;">${_orderNet(o).toFixed(2)} د.أ</span>
+                  <button onclick="markOrderDelivered('${o.id}')" style="padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسليم</button>
+                </div>
               </div>
               <div style="color:#374151;">📞 ${o.customerPhone||'—'}</div>
               <div style="color:#374151;">📍 ${o.address||'—'}${o.area?' ('+o.area+')':''}</div>
@@ -13015,6 +13018,17 @@ function _buildStoreDeliveryMsg(orders,storeName){
   });
   const total=orders.reduce((s,o)=>s+_orderNet(o),0);
   return `🏪 طلبات ${storeName}\nقيد التوصيل الآن: ${orders.length} طلب\nالإجمالي: ${total.toFixed(2)} د.أ\n──────────────\n${lines.join('\n\n')}`;
+}
+
+async function markOrderDelivered(id){
+  try{
+    const docRef=db.collection('employee_orders').doc(id);
+    const snap=await docRef.get();
+    const d=snap.data();
+    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:'قيد التوصيل ← تم التسليم'};
+    await docRef.update({status:'delivered',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast('✅ تم تسليم الطلب');
+  }catch(e){toast('❌ '+e.message);}
 }
 
 async function sendQueuedRepOrders(repName,waUrl,repPhone){
