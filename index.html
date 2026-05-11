@@ -2947,6 +2947,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button onclick="addToEmpCart()" style="padding:9px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
         </div>
         <div id="emp_product_img_wrap" style="display:none;margin-top:8px;"></div>
+        <div id="emp_product_colors_wrap" style="display:none;margin-top:8px;"></div>
+        <div id="emp_product_writing_wrap" style="display:none;margin-top:8px;"></div>
       </div>
 
       <!-- Cart items -->
@@ -2974,9 +2976,23 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Area -->
       <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المنطقة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <input type="text" id="emp_area" list="areaFeesList" placeholder="مثال: عمان، الزرقاء..." autocomplete="off" oninput="onEmpAreaChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        <datalist id="areaFeesList"></datalist>
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المنطقة <span style="color:#ef4444;">*</span></div>
+        <select id="emp_area" onchange="onEmpAreaChange()" required style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+          <option value="">— اختار المنطقة —</option>
+          <option value="عمان">عمان</option>
+          <option value="الزرقاء">الزرقاء</option>
+          <option value="الرمثا">الرمثا</option>
+          <option value="اربد">اربد</option>
+          <option value="الكرك">الكرك</option>
+          <option value="الطفيلة">الطفيلة</option>
+          <option value="العقبة">العقبة</option>
+          <option value="معان">معان</option>
+          <option value="الأغوار">الأغوار</option>
+          <option value="الشونة">الشونة</option>
+          <option value="جرش">جرش</option>
+          <option value="المفرق">المفرق</option>
+          <option value="الأزرق">الأزرق</option>
+        </select>
         <div id="emp_area_fee_hint" style="display:none;margin-top:4px;font-size:0.73rem;color:#1a3a2a;background:#f0fdf4;border-radius:6px;padding:4px 8px;"></div>
       </div>
 
@@ -3013,24 +3029,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <span style="font-size:0.78rem;color:#374151;">د.أ</span>
           </div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;color:#7c3aed;">🏷 خصم</div>
-          <div style="display:flex;align-items:center;gap:5px;">
-            <input type="number" id="emp_discount" value="" min="0" step="0.5" placeholder="0" style="width:76px;padding:5px 7px;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'">
-            <span style="font-size:0.78rem;color:#374151;">د.أ</span>
-          </div>
-        </div>
-        <div id="empDiscountRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;color:#7c3aed;">🏷 خصم مطبّق</div>
-          <span id="empDiscountLabel" style="font-size:0.82rem;color:#7c3aed;font-weight:700;">0.00 د.أ</span>
-        </div>
         <div id="empDeliveryRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</div>
           <span id="empDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;">0.00 د.أ</span>
-        </div>
-        <div id="empExcessRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.78rem;color:#dc2626;">📉 خصم توصيل زائد</div>
-          <span id="empExcessLabel" style="font-size:0.8rem;color:#dc2626;font-weight:700;">0.00 د.أ</span>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px dashed #86efac;padding-top:8px;margin-top:2px;">
           <div style="font-size:0.85rem;font-weight:800;color:#166534;">الحساب النهائي</div>
