@@ -12888,41 +12888,103 @@ async function qrAssignManualSend(){
 }
 
 // ===== DELIVERY QUEUE (queued orders grouped by rep) =====
+function _orderNet(o){const pr=o.products||[{price:o.price||0,qty:1}];const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);return o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0);}
+function _orderProdsStr(o){return(o.products||[{name:o.productName||'?',qty:1}]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');}
+
 function _renderDeliveryQueue(orders){
   const queued=orders.filter(o=>o.status==='queued');
   const delivering=orders.filter(o=>o.status==='delivering');
-  const customerHist=_buildCustomerHistoryMap(orders);
   let html='';
+
+  // ── 1. قائمة انتظار (مُسند لكن لم يخرج بعد) ──
   if(queued.length){
     const byRep={};
     queued.forEach(o=>{const k=o.deliveryRepName||'—';if(!byRep[k])byRep[k]={name:k,phone:o.deliveryRepPhone||'',orders:[]};byRep[k].orders.push(o);});
     html+=`<div style="background:#e0f2fe;border:1.5px solid #bae6fd;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-      <div style="font-weight:800;color:#0369a1;font-size:0.92rem;margin-bottom:12px;">🧍 قائمة المناديب (${queued.length} طلب)</div>
+      <div style="font-weight:800;color:#0369a1;font-size:0.92rem;margin-bottom:12px;">🧍 قائمة الانتظار (${queued.length} طلب)</div>
       ${Object.values(byRep).map(rep=>{
-        const repOrders=rep.orders;
-        const totalAmt=repOrders.reduce((s,o)=>{const pr=o.products||[{price:o.price||0,qty:1}];const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);return s+(o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0));},0);
-        const encoded=encodeURIComponent(_buildBatchRepMsg(repOrders,rep.name));
+        const total=rep.orders.reduce((s,o)=>s+_orderNet(o),0);
+        const encoded=encodeURIComponent(_buildBatchRepMsg(rep.orders,rep.name));
         const phone=(rep.phone||'').replace(/[^\d+]/g,'');
-        const waUrl=phone?`https://wa.me/${phone}?text=${encoded}`:'';
-        return `<div style="background:#fff;border:1.5px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div>
-              <div style="font-weight:700;color:#0369a1;font-size:0.88rem;">🧍 ${rep.name}</div>
-              <div style="font-size:0.73rem;color:#6b7280;">${repOrders.length} طلب · إجمالي: ${totalAmt.toFixed(2)} د.أ</div>
-            </div>
-            <button onclick="sendQueuedRepOrders('${rep.name.replace(/'/g,"\\'")}','${(waUrl).replace(/'/g,"\\'")}')" style="padding:8px 14px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">📱 إرسال واتساب</button>
+        const waUrl=phone?`https://wa.me/${phone}?text=${encoded}`:`https://wa.me/?text=${encoded}`;
+        return `<div style="background:#fff;border:1.5px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
+            <div><div style="font-weight:700;color:#0369a1;font-size:0.88rem;">🧍 ${rep.name}</div>
+            <div style="font-size:0.73rem;color:#6b7280;">${rep.orders.length} طلب · ${total.toFixed(2)} د.أ</div></div>
+            <button onclick="sendQueuedRepOrders('${rep.name.replace(/'/g,"\\'")}','${waUrl.replace(/'/g,"\\'")}','${phone}')" style="padding:7px 13px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;flex-shrink:0;">📱 إرسال</button>
           </div>
-          ${repOrders.map(o=>{const pr=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);const net=o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0);return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #e0f2fe;font-size:0.8rem;"><span>${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} · ${o.customerName||o.pageName}</span><span style="font-weight:700;color:#0369a1;">${net.toFixed(2)} د.أ</span></div>`;}).join('')}
+          ${rep.orders.map(o=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid #e0f2fe;font-size:0.79rem;">
+            <span>${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} · ${o.pageName||o.customerName||''}</span>
+            <span style="font-weight:700;color:#0369a1;">${_orderNet(o).toFixed(2)} د.أ</span>
+          </div>`).join('')}
         </div>`;
       }).join('')}
     </div>`;
   }
+
+  // ── 2. قيد التوصيل — مجمّع بالمندوب ──
   if(delivering.length){
-    html+=`<div style="margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border-radius:10px;border:1.5px solid #ddd6fe;">
-      <div style="font-weight:700;color:#7c3aed;font-size:0.88rem;margin-bottom:10px;">🚚 قيد التوصيل (${delivering.length} طلب)</div>
-      ${delivering.map(o=>_renderAdminOrderCard(o,true,customerHist)).join('')}
+    const byRep={};
+    delivering.forEach(o=>{const k=o.deliveryRepName||'بدون مندوب';if(!byRep[k])byRep[k]={name:k,phone:o.deliveryRepPhone||'',orders:[]};byRep[k].orders.push(o);});
+    html+=`<div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-weight:800;color:#7c3aed;font-size:0.92rem;margin-bottom:12px;">🚚 قيد التوصيل — المناديب (${delivering.length} طلب)</div>
+      ${Object.values(byRep).map(rep=>{
+        const total=rep.orders.reduce((s,o)=>s+_orderNet(o),0);
+        const encoded=encodeURIComponent(_buildRepCurrentDeliveryMsg(rep.orders,rep.name));
+        const phone=(rep.phone||'').replace(/[^\d+]/g,'');
+        const waUrl=phone?`https://wa.me/${phone}?text=${encoded}`:`https://wa.me/?text=${encoded}`;
+        return `<div style="background:#fff;border:1.5px solid #ddd6fe;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
+            <div><div style="font-weight:700;color:#7c3aed;font-size:0.88rem;">🚚 ${rep.name}</div>
+            <div style="font-size:0.73rem;color:#6b7280;">${rep.orders.length} طلب · ${total.toFixed(2)} د.أ</div></div>
+            <a href="${waUrl}" target="_blank" style="padding:7px 12px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;text-decoration:none;flex-shrink:0;">📱 واتساب</a>
+          </div>
+          ${rep.orders.map(o=>`
+            <div style="background:#faf5ff;border-radius:8px;padding:7px 10px;margin-top:6px;border:1px solid #ede9fe;font-size:0.79rem;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <span style="font-weight:700;color:#5b21b6;">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} — ${o.pageName||'—'}</span>
+                <span style="font-weight:800;color:#166534;">${_orderNet(o).toFixed(2)} د.أ</span>
+              </div>
+              <div style="color:#374151;">📞 ${o.customerPhone||'—'}</div>
+              <div style="color:#374151;">📍 ${o.address||'—'}${o.area?' ('+o.area+')':''}</div>
+              <div style="color:#6b7280;margin-top:2px;">📦 ${_orderProdsStr(o)}</div>
+            </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+
+    // ── 3. قيد التوصيل — مجمّع بالمتجر/الصفحة ──
+    const byStore={};
+    delivering.forEach(o=>{const k=o.pageName||'—';if(!byStore[k])byStore[k]={name:k,orders:[]};byStore[k].orders.push(o);});
+    html+=`<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-weight:800;color:#c2410c;font-size:0.92rem;margin-bottom:12px;">🏪 قيد التوصيل — المتاجر/الصفحات (${delivering.length} طلب)</div>
+      ${Object.values(byStore).map(store=>{
+        const total=store.orders.reduce((s,o)=>s+_orderNet(o),0);
+        const storePhone=(_opStoresList||[]).find(s=>s.name===store.name)?.phone||'';
+        const encoded=encodeURIComponent(_buildStoreDeliveryMsg(store.orders,store.name));
+        const waUrl=storePhone?`https://wa.me/${storePhone.replace(/[^\d+]/g,'')}?text=${encoded}`:`https://wa.me/?text=${encoded}`;
+        return `<div style="background:#fff;border:1.5px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
+            <div><div style="font-weight:700;color:#c2410c;font-size:0.88rem;">🏪 ${store.name}</div>
+            <div style="font-size:0.73rem;color:#6b7280;">${store.orders.length} طلب · ${total.toFixed(2)} د.أ</div></div>
+            <a href="${waUrl}" target="_blank" style="padding:7px 12px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;text-decoration:none;flex-shrink:0;">📱 إبعت للمتجر</a>
+          </div>
+          ${store.orders.map(o=>`
+            <div style="background:#fff7ed;border-radius:8px;padding:7px 10px;margin-top:6px;border:1px solid #fed7aa;font-size:0.79rem;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <span style="font-weight:700;color:#9a3412;">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())}</span>
+                <span style="font-weight:800;color:#166534;">${_orderNet(o).toFixed(2)} د.أ</span>
+              </div>
+              ${o.deliveryRepName?`<div style="color:#7c3aed;font-size:0.76rem;margin-bottom:2px;">🚚 المندوب: ${o.deliveryRepName}</div>`:''}
+              <div style="color:#374151;">📞 ${o.customerPhone||'—'}</div>
+              <div style="color:#374151;">📍 ${o.address||'—'}${o.area?' ('+o.area+')':''}</div>
+              <div style="color:#6b7280;margin-top:2px;">📦 ${_orderProdsStr(o)}</div>
+            </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
   }
+
   if(!queued.length&&!delivering.length){
     html='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">لا يوجد طلبات في التوصيل</div>';
   }
@@ -12931,15 +12993,31 @@ function _renderDeliveryQueue(orders){
 
 function _buildBatchRepMsg(orders,repName){
   const lines=orders.map((o,i)=>{
-    const pr=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
-    const t=pr.reduce((a,p)=>a+(p.price*(p.qty||1)),0);
-    const net=o.netPrice!=null?o.netPrice:t+(o.deliveryFee||0);
-    return `${i+1}. ${o.customerName||o.pageName} · ${o.customerPhone}\n   ${o.address}\n   المبلغ: ${net.toFixed(2)} د.أ`;
+    const net=_orderNet(o);
+    return `${i+1}. ${o.customerName||o.pageName} · ${o.customerPhone}\n   ${o.address||''}${o.area?' ('+o.area+')':''}\n   📦 ${_orderProdsStr(o)}\n   المبلغ: ${net.toFixed(2)} د.أ`;
   });
-  return `طلبات توصيل 🚚\nالمندوب: ${repName}\nعدد الطلبات: ${orders.length}\n\n${lines.join('\n\n')}`;
+  return `طلبات توصيل 🚚\nالمندوب: ${repName}\nعدد الطلبات: ${orders.length}\n──────────────\n${lines.join('\n\n')}`;
 }
 
-async function sendQueuedRepOrders(repName,waUrl){
+function _buildRepCurrentDeliveryMsg(orders,repName){
+  const lines=orders.map((o,i)=>{
+    const net=_orderNet(o);
+    return `${i+1}. ${o.pageName||o.customerName||'—'} | ${o.customerPhone}\n   📍 ${o.address||'—'}${o.area?' ('+o.area+')':''}\n   📦 ${_orderProdsStr(o)}\n   💰 ${net.toFixed(2)} د.أ`;
+  });
+  const total=orders.reduce((s,o)=>s+_orderNet(o),0);
+  return `🚚 طلباتك الحالية\nالمندوب: ${repName}\nالعدد: ${orders.length} | الإجمالي: ${total.toFixed(2)} د.أ\n──────────────\n${lines.join('\n\n')}`;
+}
+
+function _buildStoreDeliveryMsg(orders,storeName){
+  const lines=orders.map((o,i)=>{
+    const net=_orderNet(o);
+    return `${i+1}. طلب ${o.orderNum||('#'+o.id.slice(-6).toUpperCase())}\n   📞 ${o.customerPhone||'—'}\n   📍 ${o.address||'—'}${o.area?' ('+o.area+')':''}\n   📦 ${_orderProdsStr(o)}\n   🚚 المندوب: ${o.deliveryRepName||'—'}\n   💰 ${net.toFixed(2)} د.أ`;
+  });
+  const total=orders.reduce((s,o)=>s+_orderNet(o),0);
+  return `🏪 طلبات ${storeName}\nقيد التوصيل الآن: ${orders.length} طلب\nالإجمالي: ${total.toFixed(2)} د.أ\n──────────────\n${lines.join('\n\n')}`;
+}
+
+async function sendQueuedRepOrders(repName,waUrl,repPhone){
   const data=(_opOrdersAllData.length>=_empOrdersAllData.length)?_opOrdersAllData:_empOrdersAllData;
   const ids=data.filter(o=>o.status==='queued'&&o.deliveryRepName===repName).map(o=>o.id);
   if(!ids.length){toast('⚠️ لا توجد طلبات لهذا المندوب');return;}
