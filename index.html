@@ -2586,8 +2586,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
 
         <!-- Purchase History -->
-        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل المشتريات</div>
-        <div id="opbal_purchases_list"></div>
+        <button onclick="toggleBalSection('opbal_purchases_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:var(--text-mid);cursor:pointer;margin-bottom:8px;">
+          <span>📋 سجل المشتريات</span><span>▼</span>
+        </button>
+        <div id="opbal_purchases_list" style="display:none;margin-bottom:8px;"></div>
 
         <!-- Migration Tool -->
         <div style="margin-bottom:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;">
@@ -2626,8 +2628,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
 
         <!-- Malik Payments History -->
-        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل المدفوعات لملك</div>
-        <div id="opbal_payments_list"></div>
+        <button onclick="toggleBalSection('opbal_payments_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#92400e;cursor:pointer;margin-bottom:8px;">
+          <span>💸 سجل المدفوعات لملك</span><span>▼</span>
+        </button>
+        <div id="opbal_payments_list" style="display:none;margin-bottom:8px;"></div>
 
         <!-- ===== حساب الكسواني ===== -->
         <div style="margin-top:24px;padding-top:20px;border-top:2px dashed var(--border);">
@@ -2683,8 +2687,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
 
           <!-- Transaction history -->
-          <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل الحركات</div>
-          <div id="opstore_tx_list"></div>
+          <button onclick="toggleBalSection('opstore_tx_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:var(--text-mid);cursor:pointer;margin-bottom:8px;">
+            <span>📋 سجل الحركات</span><span>▼</span>
+          </button>
+          <div id="opstore_tx_list" style="display:none;"></div>
         </div>
 
       </div>
@@ -12243,6 +12249,15 @@ async function loadBalanceTab(){
   loadAlkiswaniSection();
 }
 
+function toggleBalSection(id,btn){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  const arrow=btn.querySelector('span:last-child');
+  if(arrow) arrow.textContent=isOpen?'▼':'▲';
+}
+
 function renderBalanceSummary(){
   const wrap=document.getElementById('opbal_summary');
   if(!wrap) return;
@@ -12658,6 +12673,7 @@ window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=delet
 window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
 window.setStoreBalType=setStoreBalType; window.addStoreTx=addStoreTx; window.deleteStoreTx=deleteStoreTx;
 window.loadAlkiswaniSection=loadAlkiswaniSection;
+window.toggleBalSection=toggleBalSection;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
