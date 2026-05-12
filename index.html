@@ -12480,16 +12480,16 @@ function renderAlkiswaniSection(){
   const totalSales=Object.values(storeSales).reduce((s,v)=>s+v.sales,0);
   const totalPaid=_alkiswaniPayments.reduce((s,p)=>s+(p.amount||0),0);
   const totalMalik=_opBalPayments.reduce((s,p)=>s+(p.amount||0),0);
-  const netBalance=totalSales-totalPaid-totalMalik;
+  const netBalance=totalSales-totalPaid;
 
   const sumWrap=document.getElementById('alkiswani_summary');
   if(sumWrap){
     sumWrap.innerHTML=`
       <div style="background:linear-gradient(135deg,#4c1d95,#7c3aed);border-radius:14px;padding:16px;color:#fff;">
-        <div style="font-size:0.82rem;opacity:0.85;margin-bottom:4px;">👤 رصيد الكسواني الصافي</div>
+        <div style="font-size:0.82rem;opacity:0.85;margin-bottom:4px;">👤 ما يستحقه الكسواني من المتاجر</div>
         <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${netBalance.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
-        <div style="font-size:0.7rem;opacity:0.75;margin-bottom:8px;">مبيعات المتاجر ${totalSales.toFixed(2)} − مدفوع للكسواني ${totalPaid.toFixed(2)} − دفعات ملك ${totalMalik.toFixed(2)}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+        <div style="font-size:0.7rem;opacity:0.75;margin-bottom:8px;">مبيعات المتاجر ${totalSales.toFixed(2)} − مدفوع للكسواني ${totalPaid.toFixed(2)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
           <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
             <div style="font-size:0.65rem;opacity:0.85;">📈 مبيعات المتاجر</div>
             <div style="font-weight:800;font-size:0.88rem;">${totalSales.toFixed(2)}</div>
@@ -12498,10 +12498,10 @@ function renderAlkiswaniSection(){
             <div style="font-size:0.65rem;opacity:0.85;">💵 مدفوع للكسواني</div>
             <div style="font-weight:800;font-size:0.88rem;">${totalPaid.toFixed(2)}</div>
           </div>
-          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
-            <div style="font-size:0.65rem;opacity:0.85;">💸 دفعات ملك</div>
-            <div style="font-weight:800;font-size:0.88rem;">${totalMalik.toFixed(2)}</div>
-          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:8px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:0.68rem;opacity:0.85;">💸 دفعات ملك (معلومة — لا تُطرح من رصيد المتاجر)</div>
+          <div style="font-weight:800;font-size:0.88rem;">${totalMalik.toFixed(2)}</div>
         </div>
       </div>`;
   }
