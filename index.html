@@ -2639,40 +2639,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <!-- Per-store breakdown -->
           <div id="alkiswani_stores_breakdown" style="margin-bottom:14px;"></div>
 
-          <!-- Add payment form -->
-          <div class="form-card" style="margin-bottom:14px;border:1.5px solid #c4b5fd;background:#faf5ff;">
-            <div style="font-size:0.88rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">➕ تسجيل دفعة من متجر للكسواني</div>
-            <div class="fg" style="margin-bottom:10px;">
-              <label>🏬 المتجر</label>
-              <select id="alkiswani_pay_store"
-                style="width:100%;padding:10px 12px;border:1.5px solid #c4b5fd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#faf5ff;color:var(--text-dark);">
-                <option value="">اختار المتجر...</option>
-              </select>
-            </div>
-            <div class="form-row" style="margin-bottom:10px;">
-              <div class="fg">
-                <label>💵 المبلغ (د.أ)</label>
-                <input type="number" id="alkiswani_pay_amount" min="0" step="0.5" placeholder="0.00"
-                  style="width:100%;padding:10px 12px;border:1.5px solid #c4b5fd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#faf5ff;color:var(--text-dark);">
-              </div>
-              <div class="fg">
-                <label>📅 التاريخ</label>
-                <input type="date" id="alkiswani_pay_date"
-                  style="width:100%;padding:10px 12px;border:1.5px solid #c4b5fd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#faf5ff;color:var(--text-dark);">
-              </div>
-            </div>
-            <div class="fg" style="margin-bottom:10px;">
-              <label>📝 ملاحظات</label>
-              <input type="text" id="alkiswani_pay_notes" placeholder="ملاحظات..."
-                style="width:100%;padding:10px 12px;border:1.5px solid #c4b5fd;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#faf5ff;color:var(--text-dark);">
-            </div>
-            <button onclick="addAlkiswaniPayment()"
-              style="width:100%;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 تسجيل الدفعة</button>
+          <!-- Info note -->
+          <div style="font-size:0.75rem;color:#7c3aed;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:8px 12px;">
+            💡 الدفعات مربوطة تلقائياً من قسم <strong>كشف</strong> — سجّل دفعات المتاجر من هناك
           </div>
-
-          <!-- Payment history -->
-          <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">سجل الدفعات للكسواني</div>
-          <div id="alkiswani_payments_list"></div>
         </div>
 
         <!-- ===== رصيد المحل ===== -->
@@ -12261,7 +12231,7 @@ async function loadBalanceTab(){
     },0);
   }catch(e){_opBalSalesRaw=0;}
   // Set today's date in forms
-  ['opbal_buy_date','opbal_pay_date','opstore_bal_date','alkiswani_pay_date'].forEach(id=>{
+  ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
     if(el&&!el.value) el.value=jordanDateStr();
   });
@@ -12440,27 +12410,12 @@ async function loadAlkiswaniSection(){
     const snap=await db.collection('operator_sales').get();
     _alkiswaniSales=snap.docs.filter(d=>d.data().delivered!==false).map(d=>({id:d.id,...d.data()}));
   }catch(e){_alkiswaniSales=[];}
+  // Read payments from operator_store_payments (same source as كشف tab)
   try{
-    const snap=await db.collection('alkiswani_payments').orderBy('date','desc').get();
+    const snap=await db.collection('operator_store_payments').get();
     _alkiswaniPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){
-    try{
-      const snap=await db.collection('alkiswani_payments').get();
-      _alkiswaniPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-    }catch(e2){_alkiswaniPayments=[];}
-  }
-  _populateAlkiswaniStoreDropdown();
+  }catch(e){_alkiswaniPayments=[];}
   renderAlkiswaniSection();
-}
-
-function _populateAlkiswaniStoreDropdown(){
-  const sel=document.getElementById('alkiswani_pay_store');
-  if(!sel) return;
-  const storeMap={};
-  _alkiswaniSales.forEach(s=>{if(s.storeId&&s.storeName) storeMap[s.storeId]=s.storeName;});
-  if(_opStoresList.length) _opStoresList.forEach(s=>{storeMap[s.id]=s.name;});
-  const opts=Object.entries(storeMap).map(([id,name])=>`<option value="${id}" data-name="${name}">${name}</option>`).join('');
-  sel.innerHTML='<option value="">اختار المتجر...</option>'+opts;
 }
 
 function renderAlkiswaniSection(){
@@ -12536,52 +12491,6 @@ function renderAlkiswaniSection(){
     }
   }
 
-  const listWrap=document.getElementById('alkiswani_payments_list');
-  if(listWrap){
-    if(!_alkiswaniPayments.length){
-      listWrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد دفعات بعد</div>';
-    } else {
-      listWrap.innerHTML=_alkiswaniPayments.map(p=>`
-        <div style="background:#faf5ff;border:1px solid #c4b5fd;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-weight:700;color:#7c3aed;font-size:0.9rem;">💵 ${(p.amount||0).toFixed(2)} د.أ — ${p.storeName||''}</div>
-            <div style="font-size:0.75rem;color:var(--text-mid);">📅 ${p.date||''}${p.notes?' — '+p.notes:''}</div>
-          </div>
-          <button onclick="deleteAlkiswaniPayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>
-        </div>`).join('');
-    }
-  }
-}
-
-async function addAlkiswaniPayment(){
-  const sel=document.getElementById('alkiswani_pay_store');
-  const storeId=sel?.value||'';
-  const storeName=sel?.options[sel?.selectedIndex]?.dataset?.name||sel?.options[sel?.selectedIndex]?.text||storeId;
-  const amount=parseFloat(document.getElementById('alkiswani_pay_amount').value);
-  const date=document.getElementById('alkiswani_pay_date').value;
-  const notes=document.getElementById('alkiswani_pay_notes').value.trim();
-  if(!storeId){toast('⚠️ اختار المتجر');return;}
-  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
-  if(!date){toast('⚠️ اختر التاريخ');return;}
-  try{
-    await db.collection('alkiswani_payments').add({
-      storeId,storeName,amount,date,notes,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    document.getElementById('alkiswani_pay_amount').value='';
-    document.getElementById('alkiswani_pay_notes').value='';
-    toast('✅ تم تسجيل الدفعة للكسواني');
-    loadAlkiswaniSection();
-  }catch(e){toast('❌ خطأ في الحفظ');}
-}
-
-async function deleteAlkiswaniPayment(id){
-  if(!confirm('حذف هذه الدفعة؟')) return;
-  try{
-    await db.collection('alkiswani_payments').doc(id).delete();
-    toast('✅ تم الحذف');
-    loadAlkiswaniSection();
-  }catch(e){toast('❌ خطأ في الحذف');}
 }
 
 // ===== STORE BALANCE (رصيد المحل) =====
@@ -12748,7 +12657,7 @@ window.migrateRawMaterialCosts=migrateRawMaterialCosts;
 window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=deleteBalancePurchase;
 window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
 window.setStoreBalType=setStoreBalType; window.addStoreTx=addStoreTx; window.deleteStoreTx=deleteStoreTx;
-window.addAlkiswaniPayment=addAlkiswaniPayment; window.deleteAlkiswaniPayment=deleteAlkiswaniPayment;
+window.loadAlkiswaniSection=loadAlkiswaniSection;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
