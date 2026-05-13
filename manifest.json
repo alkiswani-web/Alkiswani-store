@@ -24,5 +24,14 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["shopping", "lifestyle"]
+  "categories": ["shopping", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "ماسح QR",
+      "short_name": "QR",
+      "description": "مسح رموز QR للطلبات",
+      "url": "/qr-app.html",
+      "icons": [{"src": "icon-192.png", "sizes": "192x192"}]
+    }
+  ]
 }
