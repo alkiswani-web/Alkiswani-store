@@ -10658,6 +10658,7 @@ async function init(){
   try{ startSocialProof(); }catch(e){}
   try{ showWelcome(); }catch(e){}
   try{ await _initTrackingPage(); }catch(e){}
+  try{ await _initDeliveryBatchPage(); }catch(e){}
 }
 
 // ===== CATEGORIES MANAGEMENT =====
@@ -10994,6 +10995,80 @@ async function _loadDeliveryReps(){
 async function _saveDeliveryReps(reps){
   _deliveryRepsCache=reps;
   await db.collection('operator_config').doc('delivery_reps').set({reps});
+}
+
+// ===== DELIVERY BATCH CONFIRMATION LINK =====
+function _genBatchId(){return Date.now().toString(36)+Math.random().toString(36).substr(2,6);}
+
+async function _initDeliveryBatchPage(){
+  const params=new URLSearchParams(window.location.search);
+  const batchId=params.get('deliverBatch');
+  if(!batchId) return;
+  document.getElementById('deliverBatchOverlay').style.display='block';
+  document.body.style.overflow='hidden';
+  const content=document.getElementById('deliverBatchContent');
+  try{
+    const snap=await db.collection('delivery_batches').doc(batchId).get();
+    if(!snap.exists){content.innerHTML='<div style="text-align:center;padding:30px;color:#dc2626;">❌ الرابط غير صالح</div>';return;}
+    const orders=snap.data().orders||[];
+    const statusMap={};
+    await Promise.all(orders.map(async o=>{
+      try{const s=await db.collection('employee_orders').doc(o.id).get();if(s.exists)statusMap[o.id]=s.data().status;}catch(e){}
+    }));
+    _renderBatchConfirmPage(batchId,orders,statusMap,content);
+  }catch(e){content.innerHTML='<div style="text-align:center;padding:30px;color:#dc2626;">❌ خطأ في التحميل</div>';}
+}
+
+function _renderBatchConfirmPage(batchId,orders,statusMap,content){
+  content.innerHTML=orders.map(o=>{
+    const isDone=statusMap[o.id]==='delivered';
+    const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+    const prods=(o.products||[]).map(p=>`${p.name}${(p.qty||1)>1?' × '+p.qty:''}`).join('، ');
+    const net=(o.netPrice||0).toFixed(2);
+    return `<div id="batchCard_${o.id}" style="background:${isDone?'#f0fdf4':'#fff'};border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.07);${isDone?'border:2px solid #86efac;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+        <div><div style="font-weight:800;color:#1a3a2a;font-size:0.95rem;">${o.pageName||''}</div><div style="font-size:0.76rem;color:#6b7280;">${label}</div></div>
+        <div style="font-weight:800;color:#166534;font-size:1rem;">${net} د.أ</div>
+      </div>
+      <div style="font-size:0.8rem;color:#374151;margin-bottom:2px;">📞 ${o.customerPhone||''}</div>
+      <div style="font-size:0.8rem;color:#374151;margin-bottom:8px;">📍 ${o.address||''}${o.area?' ('+o.area+')':''}</div>
+      <div style="font-size:0.78rem;color:#6b7280;margin-bottom:12px;">📦 ${prods}</div>
+      ${isDone
+        ?`<div style="text-align:center;background:#dcfce7;color:#166534;padding:10px;border-radius:10px;font-weight:700;">✅ تم التسليم</div>`
+        :`<button id="btn_${o.id}" onclick="confirmBatchOrder('${batchId}','${o.id}')"
+            style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;">
+            ✅ تم التسليم
+          </button>`
+      }
+    </div>`;
+  }).join('');
+}
+
+async function confirmBatchOrder(batchId,orderId){
+  const btn=document.getElementById('btn_'+orderId);
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري التحديث...';}
+  try{
+    const docRef=db.collection('employee_orders').doc(orderId);
+    const snap=await docRef.get();
+    if(!snap.exists){if(btn){btn.disabled=false;btn.textContent='❌ طلب غير موجود';}return;}
+    const data=snap.data();
+    const now=new Date();
+    const amman=new Date(now.toLocaleString('en-US',{timeZone:'Asia/Amman'}));
+    const deliveredDate=amman.toISOString().split('T')[0];
+    const editEntry={by:'مندوب',at:deliveredDate,note:'مُسلَّم ← قيد التوصيل'};
+    await docRef.update({status:'delivered',deliveredDate,editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    try{await syncOrderToAccounting(orderId,{...data,status:'delivered'});}catch(e){}
+    const card=document.getElementById('batchCard_'+orderId);
+    if(card){
+      card.style.background='#f0fdf4';
+      card.style.border='2px solid #86efac';
+      const btnWrap=btn?.parentElement;
+      if(btnWrap) btnWrap.innerHTML='<div style="text-align:center;background:#dcfce7;color:#166534;padding:10px;border-radius:10px;font-weight:700;">✅ تم التسليم</div>';
+    }
+    if(!document.querySelector('[id^="btn_"]:not(:disabled)')){
+      setTimeout(()=>{document.getElementById('deliverBatchContent').innerHTML=`<div style="text-align:center;padding:40px;"><div style="font-size:3rem;margin-bottom:12px;">🎉</div><div style="font-weight:800;color:#166534;font-size:1.1rem;">تم تسليم جميع الطلبات</div></div>`;},400);
+    }
+  }catch(e){if(btn){btn.disabled=false;btn.textContent='❌ حاول مرة ثانية';}}
 }
 
 function _buildDeliveryMsg(o){
@@ -11806,9 +11881,28 @@ function clearOpAdvFilter(){
 // ===== FEATURE 11: DELIVERY REP LINKING =====
 let _pendingDeliveryRepInfo={name:'',phone:''};
 async function sendAndMarkDelivering_withRep(waUrl, repName, repPhone){
-  window.open(waUrl,'_blank');
   const isBatch=_deliveryBatchOrders.length>1;
-  const ids=isBatch?_deliveryBatchOrders.map(x=>x.id):[_deliveryModalOrder?.id].filter(Boolean);
+  const orders=isBatch?_deliveryBatchOrders:[_deliveryModalOrder].filter(Boolean);
+  const ids=orders.map(o=>o.id);
+  // Create batch document and append confirmation link to WhatsApp message
+  let finalWaUrl=waUrl;
+  try{
+    const batchId=_genBatchId();
+    await db.collection('delivery_batches').doc(batchId).set({
+      orders:orders.map(o=>({
+        id:o.id,orderNum:o.orderNum||'',pageName:o.pageName||'',
+        customerPhone:o.customerPhone||'',address:o.address||'',area:o.area||'',
+        products:o.products||[],netPrice:o.netPrice!=null?o.netPrice:(o.totalPrice||0),notes:o.notes||''
+      })),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const batchLink=`\n\n✅ رابط تأكيد التسليم:\n${location.origin+location.pathname}?deliverBatch=${batchId}`;
+    const urlObj=new URL(waUrl);
+    const text=urlObj.searchParams.get('text')||'';
+    urlObj.searchParams.set('text',text+batchLink);
+    finalWaUrl=urlObj.toString();
+  }catch(e){}
+  window.open(finalWaUrl,'_blank');
   closeDeliveryModal();
   const repUpdate=repName?{deliveryRepName:repName,deliveryRepPhone:repPhone||''}:{};
   ids.forEach(async id=>{
@@ -11981,6 +12075,7 @@ window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliv
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
 window.sendDeliveryToCustomPhone=sendDeliveryToCustomPhone; window.sendAndMarkDelivering=sendAndMarkDelivering;
 window.sendAndMarkDelivering_withRep=sendAndMarkDelivering_withRep;
+window.confirmBatchOrder=confirmBatchOrder;
 window.toggleRepsPanel=toggleRepsPanel; window.addRepFromPanel=addRepFromPanel;
 window.removeRepFromPanel=removeRepFromPanel; window.renderOpRepsPanelList=renderOpRepsPanelList;
 window.openInternalNote=openInternalNote;
@@ -13405,6 +13500,20 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
       <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">الكسواني روزميري</div>
     </div>
     <div id="trackingContent" style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+      <div style="text-align:center;color:#9ca3af;padding:30px;">⏳ جاري التحميل...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DELIVERY BATCH CONFIRMATION OVERLAY ===== -->
+<div id="deliverBatchOverlay" style="display:none;position:fixed;inset:0;background:#f0fdf4;z-index:10000;overflow-y:auto;font-family:'Tajawal',sans-serif;">
+  <div style="max-width:480px;margin:0 auto;padding:20px 16px 40px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:2rem;margin-bottom:8px;">🚚</div>
+      <div style="font-size:1.1rem;font-weight:800;color:#1a3a2a;">تأكيد التسليم</div>
+      <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">الكسواني روزميري</div>
+    </div>
+    <div id="deliverBatchContent">
       <div style="text-align:center;color:#9ca3af;padding:30px;">⏳ جاري التحميل...</div>
     </div>
   </div>
