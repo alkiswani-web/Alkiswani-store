@@ -13248,19 +13248,36 @@ async function markOrderDelivered(id){
 
 async function sendQueuedRepOrders(repName,waUrl,repPhone){
   const data=(_opOrdersAllData.length>=_empOrdersAllData.length)?_opOrdersAllData:_empOrdersAllData;
-  const ids=data.filter(o=>o.status==='queued'&&o.deliveryRepName===repName).map(o=>o.id);
-  if(!ids.length){toast('⚠️ لا توجد طلبات لهذا المندوب');return;}
-  if(waUrl)window.open(waUrl,'_blank');
-  for(const id of ids){
+  const orders=data.filter(o=>o.status==='queued'&&o.deliveryRepName===repName);
+  if(!orders.length){toast('⚠️ لا توجد طلبات لهذا المندوب');return;}
+  let finalWaUrl=waUrl;
+  try{
+    const batchId=_genBatchId();
+    await db.collection('delivery_batches').doc(batchId).set({
+      orders:orders.map(o=>({
+        id:o.id,orderNum:o.orderNum||'',pageName:o.pageName||'',
+        customerPhone:o.customerPhone||'',address:o.address||'',area:o.area||'',
+        products:o.products||[],netPrice:o.netPrice!=null?o.netPrice:(o.totalPrice||0),notes:o.notes||''
+      })),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const batchLink=`\n\n✅ رابط تأكيد التسليم:\n${location.origin+location.pathname}?deliverBatch=${batchId}`;
+    const urlObj=new URL(waUrl);
+    const text=urlObj.searchParams.get('text')||'';
+    urlObj.searchParams.set('text',text+batchLink);
+    finalWaUrl=urlObj.toString();
+  }catch(e){}
+  if(finalWaUrl)window.open(finalWaUrl,'_blank');
+  for(const o of orders){
     try{
-      const docRef=db.collection('employee_orders').doc(id);
+      const docRef=db.collection('employee_orders').doc(o.id);
       const snap=await docRef.get();
       const d=snap.data();
       const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`قائمة توصيل ← قيد التوصيل`};
       await docRef.update({status:'delivering',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     }catch(e){}
   }
-  toast(`✅ تم إرسال ${ids.length} طلب لـ ${repName}`);
+  toast(`✅ تم إرسال ${orders.length} طلب لـ ${repName}`);
 }
 </script>
 
