@@ -1,0 +1,28 @@
+{
+  "name": "الكسواني - ماسح QR",
+  "short_name": "QR الكسواني",
+  "description": "تطبيق مسح رموز QR لطلبات الكسواني روزميري",
+  "start_url": "/qr-app.html",
+  "scope": "/qr-app.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f2d1f",
+  "theme_color": "#0f2d1f",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>QR الكسواني</title>
+<link rel="manifest" href="/qr-manifest.json">
+<meta name="theme-color" content="#1a3a2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QR الكسواني">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Tajawal',sans-serif;background:#0f1f16;color:#fff;height:100dvh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ===== HEADER ===== */
+#header{background:#1a3a2a;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#header .logo{font-size:1rem;font-weight:900;color:#86efac;}
+#header .sub{font-size:0.72rem;color:#6b7280;}
+
+/* ===== SCAN SCREEN ===== */
+#scanScreen{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+#videoWrap{flex:1;position:relative;background:#000;}
+video{width:100%;height:100%;object-fit:cover;}
+canvas#scanCanvas{display:none;}
+#scanFrame{position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);width:220px;height:220px;border-radius:20px;box-shadow:0 0 0 9999px rgba(0,0,0,0.55);}
+#scanFrame::before,#scanFrame::after{content:'';position:absolute;width:40px;height:40px;border-color:#4ade80;border-style:solid;}
+#scanFrame::before{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 10px 0 0;}
+#scanFrame::after{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 10px;}
+.corner{position:absolute;width:40px;height:40px;border-color:#4ade80;border-style:solid;}
+.corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:10px 0 0 0;}
+.corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 10px 0;}
+#scanLine{position:absolute;top:0;left:8px;right:8px;height:2px;background:linear-gradient(90deg,transparent,#4ade80,transparent);animation:scanMove 2s linear infinite;}
+@keyframes scanMove{0%{top:10px;}100%{top:calc(100% - 10px);}}
+#scanHint{position:absolute;bottom:30px;left:0;right:0;text-align:center;color:#fff;font-size:0.85rem;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,0.8);}
+
+/* ===== ORDER SCREEN ===== */
+#orderScreen{display:none;flex:1;flex-direction:column;overflow-y:auto;padding:16px;}
+#orderCard{background:#1a3a2a;border-radius:16px;padding:18px;margin-bottom:14px;}
+.order-label{font-size:0.72rem;color:#6b7280;margin-bottom:3px;}
+.order-val{font-size:0.92rem;font-weight:700;color:#e5e7eb;}
+.order-row{margin-bottom:10px;}
+#statusBadge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:0.82rem;font-weight:800;margin-bottom:14px;}
+#actionBtn{width:100%;padding:16px;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1.05rem;font-weight:900;cursor:pointer;margin-bottom:10px;transition:opacity 0.2s;}
+#actionBtn:active{opacity:0.8;}
+#rescanBtn{width:100%;padding:12px;border:2px solid #374151;background:transparent;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;color:#9ca3af;cursor:pointer;}
+#rescanBtn:active{background:#1f2937;}
+
+/* ===== LOADING ===== */
+#loadingScreen{display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.spinner{width:44px;height:44px;border:4px solid #374151;border-top-color:#4ade80;border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ===== SUCCESS ===== */
+#successScreen{display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+#successIcon{font-size:4rem;}
+#successMsg{font-size:1.1rem;font-weight:800;color:#4ade80;}
+
+/* ===== ERROR TOAST ===== */
+#toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:10px 20px;border-radius:12px;font-size:0.88rem;font-weight:700;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
+#toast.show{opacity:1;}
+
+/* ===== CAMERA PERMISSION ===== */
+#permScreen{display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:30px;text-align:center;}
+#permScreen .icon{font-size:3rem;}
+#permScreen p{color:#9ca3af;font-size:0.88rem;line-height:1.6;}
+#permBtn{padding:14px 28px;background:#22c55e;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <div class="logo">🌿 الكسواني روزميري</div>
+    <div class="sub">ماسح QR الطلبات</div>
+  </div>
+  <div id="headerStatus" style="font-size:0.72rem;color:#4ade80;">● متصل</div>
+</div>
+
+<!-- SCAN SCREEN -->
+<div id="scanScreen">
+  <div id="videoWrap">
+    <video id="qrVideo" autoplay playsinline muted></video>
+    <canvas id="scanCanvas"></canvas>
+    <div id="scanFrame">
+      <div class="corner tl"></div>
+      <div class="corner br"></div>
+      <div id="scanLine"></div>
+    </div>
+    <div id="scanHint">🔲 وجّه الكاميرا نحو QR الطلب</div>
+  </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <div style="color:#9ca3af;font-size:0.9rem;">جاري تحميل الطلب...</div>
+</div>
+
+<!-- ORDER SCREEN -->
+<div id="orderScreen">
+  <div id="orderCard">
+    <div id="statusBadge">...</div>
+    <div class="order-row">
+      <div class="order-label">📋 رقم الطلب</div>
+      <div class="order-val" id="oNum">—</div>
+    </div>
+    <div class="order-row">
+      <div class="order-label">🏬 الصفحة / المتجر</div>
+      <div class="order-val" id="oPage">—</div>
+    </div>
+    <div class="order-row">
+      <div class="order-label">📦 المنتجات</div>
+      <div class="order-val" id="oProds">—</div>
+    </div>
+    <div class="order-row">
+      <div class="order-label">📞 الزبون</div>
+      <div class="order-val" id="oPhone">—</div>
+    </div>
+    <div class="order-row" id="oAddressRow">
+      <div class="order-label">📍 العنوان</div>
+      <div class="order-val" id="oAddress">—</div>
+    </div>
+    <div class="order-row">
+      <div class="order-label">💰 المبلغ</div>
+      <div class="order-val" id="oAmount">—</div>
+    </div>
+  </div>
+  <button id="actionBtn" onclick="doAction()">تحديث الحالة</button>
+  <button id="rescanBtn" onclick="startScan()">🔲 مسح طلب جديد</button>
+</div>
+
+<!-- SUCCESS SCREEN -->
+<div id="successScreen">
+  <div id="successIcon">✅</div>
+  <div id="successMsg">تم التحديث</div>
+</div>
+
+<!-- CAMERA PERMISSION -->
+<div id="permScreen">
+  <div class="icon">📷</div>
+  <div style="font-size:1rem;font-weight:700;">تحتاج صلاحية الكاميرا</div>
+  <p>للمسح يجب السماح للتطبيق بالوصول إلى الكاميرا</p>
+  <button id="permBtn" onclick="startScan()">السماح للكاميرا</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== FIREBASE =====
+const firebaseConfig={
+  apiKey:"AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
+  authDomain:"alkiswani-store.firebaseapp.com",
+  projectId:"alkiswani-store",
+  storageBucket:"alkiswani-store.firebasestorage.app",
+  messagingSenderId:"60330492719",
+  appId:"1:60330492719:web:71e36dd5327db3e54017da"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+
+// ===== STATUS CONFIG =====
+const ST={
+  pending:   {label:'في الانتظار',   bg:'#fef3c7',color:'#92400e',border:'#fcd34d'},
+  preparing: {label:'قيد التجهيز',   bg:'#fff7ed',color:'#c2410c',border:'#fed7aa'},
+  prepared:  {label:'تم التجهيز',    bg:'#eff6ff',color:'#1d4ed8',border:'#93c5fd'},
+  queued:    {label:'طابور التوصيل', bg:'#f5f3ff',color:'#6d28d9',border:'#c4b5fd'},
+  delivering:{label:'قيد التوصيل',   bg:'#ecfdf5',color:'#065f46',border:'#6ee7b7'},
+  delivered: {label:'تم التسليم',    bg:'#f0fdf4',color:'#166534',border:'#86efac'},
+  cancelled: {label:'ملغي',          bg:'#fef2f2',color:'#991b1b',border:'#fca5a5'},
+  returned:  {label:'مُرتجع',        bg:'#faf5ff',color:'#6b21a8',border:'#d8b4fe'},
+  refused:   {label:'مرفوض',         bg:'#fef2f2',color:'#991b1b',border:'#fca5a5'},
+};
+
+const NEXT_ACTION={
+  pending:   {label:'← قيد التجهيز', bg:'#f97316', next:'preparing'},
+  preparing: {label:'← تم التجهيز',  bg:'#3b82f6', next:'prepared'},
+  prepared:  {label:'← طابور التوصيل',bg:'#8b5cf6',next:'queued'},
+  queued:    {label:'← قيد التوصيل', bg:'#0ea5e9', next:'delivering'},
+  delivering:{label:'✅ تم التسليم',  bg:'#22c55e', next:'delivered'},
+};
+
+// ===== STATE =====
+let _stream=null;
+let _scanRaf=null;
+let _scanning=false;
+let _currentOrder=null;
+
+// ===== HELPERS =====
+function show(id){document.getElementById(id).style.display='flex';}
+function hide(id){document.getElementById(id).style.display='none';}
+function showOnly(id){
+  ['scanScreen','loadingScreen','orderScreen','successScreen','permScreen']
+    .forEach(s=>document.getElementById(s).style.display='none');
+  document.getElementById(id).style.display='flex';
+}
+function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});}
+function toast(msg,isGood=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=isGood?'#166534':'#dc2626';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ===== SCANNING =====
+async function startScan(){
+  _currentOrder=null;
+  showOnly('scanScreen');
+  _scanning=true;
+  if(_stream) return _qrLoop();
+  try{
+    _stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+    const video=document.getElementById('qrVideo');
+    video.srcObject=_stream;
+    await video.play();
+    _qrLoop();
+  }catch(e){
+    _scanning=false;
+    showOnly('permScreen');
+  }
+}
+
+function stopScan(){
+  _scanning=false;
+  if(_scanRaf){cancelAnimationFrame(_scanRaf);_scanRaf=null;}
+}
+
+function _qrLoop(){
+  if(!_scanning)return;
+  const video=document.getElementById('qrVideo');
+  const canvas=document.getElementById('scanCanvas');
+  if(!video||video.readyState!==video.HAVE_ENOUGH_DATA){
+    _scanRaf=requestAnimationFrame(_qrLoop);return;
+  }
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(video,0,0);
+  const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
+  if(code&&code.data&&code.data.trim()){
+    stopScan();
+    loadOrder(code.data.trim());
+    return;
+  }
+  _scanRaf=requestAnimationFrame(_qrLoop);
+}
+
+// ===== LOAD ORDER =====
+async function loadOrder(raw){
+  // Extract orderId — could be raw ID or URL with ?track= or ?deliverBatch=
+  let orderId=raw;
+  try{
+    const url=new URL(raw);
+    orderId=url.searchParams.get('track')||url.searchParams.get('orderId')||raw;
+  }catch(e){}
+  orderId=orderId.trim();
+
+  showOnly('loadingScreen');
+  try{
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(!snap.exists){
+      toast('⚠️ طلب غير موجود: '+orderId.slice(-6));
+      setTimeout(startScan,1500);
+      return;
+    }
+    _currentOrder={id:snap.id,...snap.data()};
+    renderOrder(_currentOrder);
+  }catch(e){
+    toast('❌ خطأ في التحميل');
+    setTimeout(startScan,1500);
+  }
+}
+
+// ===== RENDER ORDER =====
+function renderOrder(o){
+  const st=ST[o.status]||{label:o.status,bg:'#374151',color:'#fff',border:'#6b7280'};
+  const badge=document.getElementById('statusBadge');
+  badge.textContent=st.label;
+  badge.style.background=st.bg;
+  badge.style.color=st.color;
+  badge.style.border='2px solid '+st.border;
+
+  const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+  const prods=(o.products||[{name:o.productName||'?',qty:1}]).map(p=>`${p.name}${(p.qty||1)>1?' × '+p.qty:''}`).join('، ');
+  const net=o.netPrice!=null?o.netPrice:(o.totalPrice||0);
+
+  document.getElementById('oNum').textContent=label;
+  document.getElementById('oPage').textContent=o.pageName||o.customerName||'—';
+  document.getElementById('oProds').textContent=prods||'—';
+  document.getElementById('oPhone').textContent=o.customerPhone||'—';
+  document.getElementById('oAddress').textContent=(o.address||'')+(o.area?' ('+o.area+')':'');
+  document.getElementById('oAmount').textContent=net.toFixed(2)+' د.أ';
+
+  const act=NEXT_ACTION[o.status];
+  const btn=document.getElementById('actionBtn');
+  if(act){
+    btn.textContent=act.label;
+    btn.style.background=act.bg;
+    btn.style.color='#fff';
+    btn.style.display='block';
+  }else{
+    btn.style.display='none';
+  }
+
+  showOnly('orderScreen');
+}
+
+// ===== DO ACTION =====
+async function doAction(){
+  if(!_currentOrder) return;
+  const act=NEXT_ACTION[_currentOrder.status];
+  if(!act) return;
+
+  const btn=document.getElementById('actionBtn');
+  btn.disabled=true;
+  btn.textContent='⏳ جاري التحديث...';
+
+  try{
+    const docRef=db.collection('employee_orders').doc(_currentOrder.id);
+    const extraFields={};
+    if(act.next==='delivered') extraFields.deliveredDate=jordanDateStr();
+    const editEntry={by:'QR App',at:jordanDateStr(),note:`${ST[_currentOrder.status]?.label||''} ← ${ST[act.next]?.label||''}`};
+    await docRef.update({
+      status:act.next,
+      ...extraFields,
+      editHistory:[...(_currentOrder.editHistory||[]),editEntry],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Accounting sync for delivered
+    if(act.next==='delivered'){
+      try{await syncAccounting(_currentOrder.id,_currentOrder);}catch(e){}
+    }
+    showSuccess(ST[act.next]?.label||'تم التحديث');
+  }catch(e){
+    toast('❌ فشل التحديث: '+e.message);
+    btn.disabled=false;
+    btn.textContent=act.label;
+  }
+}
+
+// ===== SYNC ACCOUNTING (simplified) =====
+async function syncAccounting(orderId,orderData){
+  try{
+    const dup=await db.collection('operator_sales').where('fromOrderId','==',orderId).limit(1).get();
+    if(!dup.empty) return;
+    const storesSnap=await db.collection('operator_stores').get();
+    const stores=storesSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const store=stores.find(s=>s.pageId===orderData.pageId);
+    if(!store) return;
+    const prodsSnap=await db.collection('operator_products').get();
+    const opProds=prodsSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const products=orderData.products||[];
+    const batch=db.batch();
+    products.forEach(product=>{
+      const opProd=opProds.find(p=>p.id===product.id)||opProds.find(p=>p.name===product.name);
+      const storePrice=opProd?.storePrices?.[store.id]||0;
+      const sellPrice=storePrice||opProd?.sellPrice||0;
+      const ref=db.collection('operator_sales').doc();
+      batch.set(ref,{
+        storeId:store.id,storeName:store.name,
+        productId:product.id||'',productName:product.name||'',
+        qty:product.qty||1,sellPrice,
+        rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
+        date:jordanDateStr(),delivered:true,fromOrderId:orderId,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+  }catch(e){}
+}
+
+// ===== SUCCESS =====
+function showSuccess(label){
+  document.getElementById('successMsg').textContent='✅ '+label;
+  showOnly('successScreen');
+  setTimeout(startScan,2000);
+}
+
+// ===== PWA SERVICE WORKER =====
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+
+// ===== INIT =====
+window.addEventListener('load',startScan);
+</script>
+</body>
+</html>
