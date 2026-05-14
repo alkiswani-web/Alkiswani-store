@@ -13051,7 +13051,11 @@ async function _openQRRepAssignModal(o){
       <button onclick="updateEmpOrderStatus('${o.id}','preparing');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#f97316;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← قيد التجهيز</button>`;
   } else if(o.status==='preparing'){
     actionBtns.innerHTML=`
-      <button onclick="updateEmpOrderStatus('${o.id}','prepared');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← تم التجهيز</button>`;
+      <button onclick="updateEmpOrderStatus('${o.id}','prepared');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← تم التجهيز</button>
+      <div style="display:flex;gap:8px;">
+        <button onclick="updateEmpOrderStatus('${o.id}','delivering');closeQRRepAssignModal();" style="flex:1;padding:11px;background:#0ea5e9;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">← قيد التوصيل</button>
+        <button onclick="updateEmpOrderStatus('${o.id}','cancelled');closeQRRepAssignModal();" style="flex:1;padding:11px;background:#ef4444;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
+      </div>`;
   } else if(o.status==='prepared'){
     repSection.style.display='block';
     const reps=await _loadDeliveryReps();
