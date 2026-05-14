@@ -6279,10 +6279,28 @@ async function loadAdminEmpPoints(){
             <div style="font-size:0.75rem;color:#6b7280;">${w.earned} نقطة مكتسبة · ${w.available} متاحة · ${w.paid} مُصرفة</div>
           </div>
           <div style="text-align:left;"><div style="font-weight:800;font-size:0.9rem;color:#166534;">${(w.available*pv).toFixed(2)} د.أ</div></div>
+          ${w.available>0?`<button onclick="claimWorkerPoints('${w.id}','${(w.name||w.username||'موظف').replace(/'/g,"\\'")}',${w.available},${(w.available*pv).toFixed(2)})" title="استلام النقاط" style="width:32px;height:32px;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎯</button>`:'<div style="width:32px;"></div>'}
         </div>`).join(''):'<div style="color:#9ca3af;font-size:0.82rem;text-align:center;padding:12px;">لا يوجد موظفون</div>';
     }catch(e){lbWrap.innerHTML=`<div style="color:#dc2626;font-size:0.82rem;">خطأ: ${e.message}</div>`;}
   }
 }
+async function claimWorkerPoints(workerId,workerName,available,amount){
+  if(!confirm(`تأكيد استلام ${available} نقطة (${amount} د.أ) لـ ${workerName}؟\nسيتم تصفير النقاط المتاحة.`))return;
+  try{
+    await db.collection('points_requests').add({
+      workerId,workerName,
+      pointsRequested:available,amountRequested:parseFloat(amount),
+      status:'approved',
+      claimedDirectly:true,
+      requestedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      reviewedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      reviewedBy:_currentAdminUser||'admin'
+    });
+    toast(`✅ تم تسجيل استلام نقاط ${workerName}`);
+    loadAdminEmpPoints();
+  }catch(e){toast('❌ '+e.message);}
+}
+
 async function reviewPointsRequest(reqId,action){
   try{
     await db.collection('points_requests').doc(reqId).update({
@@ -6296,6 +6314,7 @@ async function reviewPointsRequest(reqId,action){
 window.requestEmpPayout=requestEmpPayout;
 window.saveEmpPointValue=saveEmpPointValue;
 window.reviewPointsRequest=reviewPointsRequest;
+window.claimWorkerPoints=claimWorkerPoints;
 
 function switchEmpSubTab(tab){
   ['tracking','operator','daysheet','workers','emppoints','settings'].forEach(t=>{
