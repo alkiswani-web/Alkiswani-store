@@ -2359,6 +2359,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div class="form-card" style="margin-bottom:14px;">
             <div style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:10px;">➕ إضافة متجر/عميل جديد</div>
             <input id="opstore_name_inp" placeholder="اسم المتجر أو الصفحة..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;margin-bottom:8px;">
+            <input id="opstore_group_inp" placeholder="👥 اسم المجموعة (اختياري — لدمج متاجر نفس الصاحب)..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;margin-bottom:8px;">
             <select id="opstore_page_sel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);margin-bottom:8px;">
               <option value="">🔗 اربط بصفحة (اختياري)</option>
             </select>
@@ -8281,15 +8282,24 @@ function renderOpStoresList(){
   wrap.innerHTML=_opStoresList.map(s=>`
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
+        <div style="flex:1;min-width:0;">
           <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
-          ${s.pageId
-            ?`<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#dcfce7;border:1px solid #86efac;border-radius:20px;padding:2px 8px;">
-                <span style="font-size:0.72rem;color:#166534;font-weight:600;">🔗 ${s.pageName}</span>
-                <button onclick="promptLinkStore('${s.id}')" style="background:none;border:none;color:#166534;cursor:pointer;font-size:0.7rem;padding:0;">✏️</button>
-              </div>`
-            :`<button onclick="promptLinkStore('${s.id}')" style="margin-top:4px;background:#f1f5f9;border:1px dashed #94a3b8;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#64748b;cursor:pointer;">+ ربط بصفحة</button>`
-          }
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">
+            ${s.group
+              ?`<div style="display:inline-flex;align-items:center;gap:4px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:20px;padding:2px 8px;">
+                  <span style="font-size:0.72rem;color:#6d28d9;font-weight:600;">👥 ${s.group}</span>
+                  <button onclick="setStoreGroup('${s.id}','${(s.group||'').replace(/'/g,"\\'")}')" style="background:none;border:none;color:#6d28d9;cursor:pointer;font-size:0.7rem;padding:0;">✏️</button>
+                </div>`
+              :`<button onclick="setStoreGroup('${s.id}','')" style="background:#f5f3ff;border:1px dashed #c4b5fd;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#7c3aed;cursor:pointer;">+ إضافة لمجموعة</button>`
+            }
+            ${s.pageId
+              ?`<div style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;border:1px solid #86efac;border-radius:20px;padding:2px 8px;">
+                  <span style="font-size:0.72rem;color:#166534;font-weight:600;">🔗 ${s.pageName}</span>
+                  <button onclick="promptLinkStore('${s.id}')" style="background:none;border:none;color:#166534;cursor:pointer;font-size:0.7rem;padding:0;">✏️</button>
+                </div>`
+              :`<button onclick="promptLinkStore('${s.id}')" style="background:#f1f5f9;border:1px dashed #94a3b8;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#64748b;cursor:pointer;">+ ربط بصفحة</button>`
+            }
+          </div>
         </div>
         <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
       </div>
@@ -8308,20 +8318,33 @@ function renderOpStoresList(){
 async function addOpStore(){
   const name=document.getElementById('opstore_name_inp').value.trim();
   if(!name){toast('⚠️ أدخل اسم المتجر');return;}
+  const group=(document.getElementById('opstore_group_inp')?.value||'').trim();
   const pageSel=document.getElementById('opstore_page_sel');
   const pageId=pageSel?.value||'';
   const pageName=pageId?(pageSel.options[pageSel.selectedIndex].text.replace(' (مرتبطة)','')):'';
   try{
     await db.collection('operator_stores').add({
       name,
+      ...(group?{group}:{}),
       ...(pageId?{pageId,pageName}:{}),
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     document.getElementById('opstore_name_inp').value='';
+    const gi=document.getElementById('opstore_group_inp');if(gi)gi.value='';
     if(pageSel)pageSel.value='';
-    toast('✅ تم إضافة المتجر'+(pageId?` مربوط بـ "${pageName}"`:''));
+    toast('✅ تم إضافة المتجر'+(group?` في مجموعة "${group}"`:''));
     loadOpStores();
   }catch(e){toast('❌ خطأ في الإضافة');}
+}
+
+async function setStoreGroup(id,currentGroup){
+  const g=prompt('اسم المجموعة (اتركه فارغاً للإزالة):',currentGroup||'');
+  if(g===null)return;
+  try{
+    await db.collection('operator_stores').doc(id).update({group:g.trim()||firebase.firestore.FieldValue.delete()});
+    toast(g.trim()?`✅ تم تعيين المجموعة "${g.trim()}"`:'✅ تم إزالة المجموعة');
+    loadOpStores();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 async function deleteOpStore(id){
@@ -9174,7 +9197,17 @@ async function loadAcctStoreList(){
     <input type="number" id="acctThresholdInp" value="${threshold}" min="0" step="10" onchange="saveAcctThreshold(this.value)" style="width:80px;padding:5px 8px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;text-align:center;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
     <span style="font-size:0.8rem;color:#6b7280;">د.أ</span>
   </div>`;
-  const cards=_opStoresList.map(s=>{
+  // Group stores by their group field
+  const groups={};
+  const ungrouped=[];
+  _opStoresList.forEach(s=>{
+    if(s.group){
+      if(!groups[s.group])groups[s.group]=[];
+      groups[s.group].push(s);
+    }else{ungrouped.push(s);}
+  });
+
+  function storeCard(s){
     const refund=refundByStore[s.id]||0;
     const owed=owedByStore[s.id]||0;
     const paid=paidByStore[s.id]||0;
@@ -9190,7 +9223,35 @@ async function loadAcctStoreList(){
       </div>
       ${refund>0?`<div style="margin-top:8px;display:inline-block;background:#fce7f3;border:1px solid #f9a8d4;border-radius:8px;padding:3px 10px;font-size:0.78rem;font-weight:700;color:#9d174d;">↩️ مرتجع: ${refund.toFixed(2)} د.أ</div>`:''}
     </div>`;
-  }).join('');
+  }
+
+  function groupCard(groupName,stores){
+    const totalOwed=stores.reduce((s,x)=>s+(owedByStore[x.id]||0),0);
+    const totalPaid=stores.reduce((s,x)=>s+(paidByStore[x.id]||0),0);
+    const totalRefund=stores.reduce((s,x)=>s+(refundByStore[x.id]||0),0);
+    const totalBalance=totalOwed-totalPaid-totalRefund;
+    const high=totalBalance>threshold&&threshold>0;
+    return `<div style="background:var(--card-bg);border:2px solid ${high?'#fca5a5':'#c4b5fd'};border-radius:14px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-weight:800;color:#6d28d9;font-size:1rem;">👥 ${groupName}</div>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-weight:800;color:${high?'#dc2626':'#166534'};font-size:0.9rem;">${totalBalance.toFixed(2)} د.أ</span>
+          ${high?`<span style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:2px 7px;font-size:0.72rem;font-weight:700;">⚠️</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;font-size:0.76rem;color:#6b7280;">
+        <span>📈 مبيعات: <strong>${totalOwed.toFixed(2)}</strong></span>
+        <span>💸 مدفوع: <strong>${totalPaid.toFixed(2)}</strong></span>
+        ${totalRefund>0?`<span>↩️ مرتجع: <strong>${totalRefund.toFixed(2)}</strong></span>`:''}
+      </div>
+      <div style="padding-right:10px;border-right:3px solid #ede9fe;">
+        ${stores.map(storeCard).join('')}
+      </div>
+    </div>`;
+  }
+
+  const cards=Object.entries(groups).map(([g,stores])=>groupCard(g,stores)).join('')
+    +ungrouped.map(storeCard).join('');
   wrap.innerHTML=thresholdRow+cards;
 }
 
@@ -12915,7 +12976,7 @@ window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
 window.editOpProduct=editOpProduct; window.cancelEditProduct=cancelEditProduct;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadOpProducts=loadOpProducts;
-window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore;
+window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore; window.setStoreGroup=setStoreGroup;
 window.loadOpStores=loadOpStores;
 window.promptLinkStore=promptLinkStore; window.saveLinkStore=saveLinkStore;
 window.openStoreAccount=openStoreAccount; window.backToStoreList=backToStoreList;
