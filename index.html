@@ -2275,6 +2275,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     </div>
 
     <div class="admin-tab-content" id="tab-operator">
+      <div style="margin-bottom:14px;">
+        <button onclick="switchAdminTab('emporders')" style="padding:7px 14px;background:#f3f4f6;color:#374151;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">← طلبات الصفحات</button>
+      </div>
       <h2 style="color:var(--green-dark);margin-bottom:4px;">💼 حساب المشغل</h2>
       <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:16px;">إدارة المنتجات والمتاجر والكشف اليومي</p>
 
@@ -2754,7 +2757,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button id="emp-subtab-btn-daysheet" onclick="switchEmpSubTab('daysheet')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">📊 كشف</button>
           <button id="emp-subtab-btn-workers" onclick="switchEmpSubTab('workers')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">👥 الموظفون</button>
           <button id="emp-subtab-btn-emppoints" onclick="switchEmpSubTab('emppoints')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">🏆 النقاط</button>
-          <button id="emp-subtab-btn-settings" onclick="switchEmpSubTab('settings')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">⚙️ الإعدادات</button>
+          <button id="emp-subtab-btn-settings" onclick="switchEmpSubTab('settings')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">⚙️ الإعدادات</button>
+          <button onclick="switchAdminTab('operator')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#7c3aed;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💼 المحاسبة</button>
         </div>
 
         <!-- TRACKING sub-tab -->
