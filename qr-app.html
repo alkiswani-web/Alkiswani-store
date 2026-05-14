@@ -133,6 +133,10 @@ canvas#scanCanvas{display:none;}
     </div>
   </div>
   <button id="actionBtn" onclick="doAction()">تحديث الحالة</button>
+  <div id="extraBtns" style="display:none;gap:10px;margin-bottom:10px;">
+    <button id="skipDeliverBtn" onclick="doSkipAction('delivering')" style="flex:1;padding:14px;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;background:#0ea5e9;color:#fff;">← قيد التوصيل</button>
+    <button id="cancelBtn" onclick="doSkipAction('cancelled')" style="flex:1;padding:14px;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;background:#ef4444;color:#fff;">🚫 ملغي</button>
+  </div>
   <button id="rescanBtn" onclick="startScan()">🔲 مسح طلب جديد</button>
 </div>
 
@@ -310,6 +314,9 @@ function renderOrder(o){
     btn.style.display='none';
   }
 
+  const extraBtns=document.getElementById('extraBtns');
+  extraBtns.style.display=o.status==='preparing'?'flex':'none';
+
   showOnly('orderScreen');
 }
 
@@ -343,6 +350,33 @@ async function doAction(){
     toast('❌ فشل التحديث: '+e.message);
     btn.disabled=false;
     btn.textContent=act.label;
+  }
+}
+
+// ===== SKIP ACTION (shortcut buttons) =====
+async function doSkipAction(nextStatus){
+  if(!_currentOrder) return;
+  const skipBtn=nextStatus==='delivering'?document.getElementById('skipDeliverBtn'):document.getElementById('cancelBtn');
+  if(skipBtn){skipBtn.disabled=true;skipBtn.textContent='⏳ ...';}
+  document.getElementById('extraBtns').style.pointerEvents='none';
+  try{
+    const docRef=db.collection('employee_orders').doc(_currentOrder.id);
+    const extraFields={};
+    if(nextStatus==='delivered') extraFields.deliveredDate=jordanDateStr();
+    const fromLabel=ST[_currentOrder.status]?.label||'';
+    const toLabel=ST[nextStatus]?.label||nextStatus;
+    const editEntry={by:'QR App',at:jordanDateStr(),note:`${fromLabel} ← ${toLabel}`};
+    await docRef.update({
+      status:nextStatus,
+      ...extraFields,
+      editHistory:[...(_currentOrder.editHistory||[]),editEntry],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showSuccess(toLabel);
+  }catch(e){
+    toast('❌ فشل التحديث');
+    if(skipBtn){skipBtn.disabled=false;skipBtn.textContent=nextStatus==='delivering'?'← قيد التوصيل':'🚫 ملغي';}
+    document.getElementById('extraBtns').style.pointerEvents='';
   }
 }
 
