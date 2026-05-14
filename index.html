@@ -2334,6 +2334,15 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <button onclick="clearOppImage()" style="padding:8px 12px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✕ حذف</button>
             </div>
           </div>
+          <!-- Colors management -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:6px;">🎨 الألوان المتاحة (اختياري)</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input type="text" id="opp_color_input" placeholder="مثال: أحمر، بني، طبيعي..." style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;background:var(--card-bg);color:var(--text-dark);" onkeydown="if(event.key==='Enter'){event.preventDefault();addOppColor();}">
+              <button onclick="addOppColor()" style="padding:8px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">+ إضافة</button>
+            </div>
+            <div id="opp_colors_chips" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+          </div>
           <div style="display:flex;gap:8px;margin-top:4px;">
             <button id="opp_save_btn" onclick="saveOpProduct()" style="flex:1;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ المنتج</button>
             <button id="opp_cancel_btn" onclick="cancelEditProduct()" style="display:none;padding:12px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✕ إلغاء</button>
@@ -3020,6 +3029,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="emp_no_product_bar" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">
           <input type="number" id="emp_cart_qty_fallback" value="1" min="1" max="99" style="display:none;">
           <div style="color:#9ca3af;font-size:0.78rem;">← اختار منتجاً من الأعلى لإضافته للطلب</div>
+        </div>
+        <!-- Color & writing extras (shown after product selected) -->
+        <div id="emp_product_extras" style="display:none;margin-top:6px;background:#fafafa;border:1px solid #e5e7eb;border-radius:9px;padding:10px 12px;">
+          <div id="emp_color_section" style="display:none;margin-bottom:8px;">
+            <div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:6px;">🎨 اللون</div>
+            <div id="emp_color_btns" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+          </div>
+          <div>
+            <div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:4px;">✍️ الكتابة على المنتج <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
+            <input type="text" id="emp_writing_input" placeholder="مثال: اسم الشخص، تاريخ..." style="width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+          </div>
         </div>
       </div>
 
@@ -4717,13 +4737,17 @@ function renderEmpProductPicker(){
   }).join('');
 }
 
+let _selectedEmpColor=null;
+
 function selectEmpProduct(id){
   _selectedEmpProductId=id;
+  _selectedEmpColor=null;
   renderEmpProductPicker();
   const prod=(_empSharedProducts||[]).find(p=>p.id===id);
   const bar=document.getElementById('emp_product_selected_bar');
   const noBar=document.getElementById('emp_no_product_bar');
-  if(!prod){if(bar)bar.style.display='none';if(noBar)noBar.style.display='flex';return;}
+  const extras=document.getElementById('emp_product_extras');
+  if(!prod){if(bar)bar.style.display='none';if(noBar)noBar.style.display='flex';if(extras)extras.style.display='none';return;}
   if(bar) bar.style.display='flex';
   if(noBar) noBar.style.display='none';
   const nameEl=document.getElementById('emp_selected_prod_name');
@@ -4733,6 +4757,25 @@ function selectEmpProduct(id){
   if(priceEl) priceEl.textContent=(prod.sellPrice||0).toFixed(2)+' د.أ / وحدة';
   const img=prod.imageDataUrl||(prod.images&&prod.images[0])||prod.img||'';
   if(imgWrap) imgWrap.innerHTML=img?`<img src="${img}" style="width:42px;height:42px;object-fit:cover;border-radius:7px;border:1px solid #86efac;">`:'';
+  // Show extras (colors + writing)
+  if(extras) extras.style.display='block';
+  const colorSec=document.getElementById('emp_color_section');
+  const colorBtns=document.getElementById('emp_color_btns');
+  const writingInp=document.getElementById('emp_writing_input');
+  if(writingInp) writingInp.value='';
+  const colors=Array.isArray(prod.colors)?prod.colors:[];
+  if(colorSec) colorSec.style.display=colors.length?'block':'none';
+  if(colorBtns&&colors.length){
+    colorBtns.innerHTML=colors.map(c=>`<button onclick="selectEmpColor('${c.replace(/'/g,"\\'")}',this)" style="padding:6px 14px;border:1.5px solid #cbd5e1;border-radius:20px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">${c}</button>`).join('');
+  }
+}
+
+function selectEmpColor(color,btn){
+  _selectedEmpColor=color;
+  document.querySelectorAll('#emp_color_btns button').forEach(b=>{
+    b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#cbd5e1';
+  });
+  if(btn){btn.style.background='#1a3a2a';btn.style.color='#fff';btn.style.borderColor='#1a3a2a';}
 }
 
 function addToEmpCart(){
@@ -4744,14 +4787,18 @@ function addToEmpCart(){
   const id=prod.id;
   const name=prod.name||'';
   const price=parseFloat(prod.sellPrice||0);
-  const existing=_empOrderCart.findIndex(i=>i.id===id);
-  if(existing>=0){_empOrderCart[existing].qty+=qty;}
-  else{_empOrderCart.push({id,name,price,qty});}
+  const color=_selectedEmpColor||'';
+  const writing=(document.getElementById('emp_writing_input')?.value||'').trim();
+  // Each add always creates a new entry (since color/writing may differ)
+  _empOrderCart.push({id,name,price,qty,color,writing});
   _selectedEmpProductId=null;
+  _selectedEmpColor=null;
   const bar=document.getElementById('emp_product_selected_bar');
   const noBar=document.getElementById('emp_no_product_bar');
+  const extras=document.getElementById('emp_product_extras');
   if(bar) bar.style.display='none';
   if(noBar) noBar.style.display='flex';
+  if(extras) extras.style.display='none';
   if(qtyEl) qtyEl.value='1';
   renderEmpProductPicker();
   renderEmpOrderCart();
@@ -4777,18 +4824,20 @@ function renderEmpOrderCart(){
     return;
   }
   wrap.innerHTML=_empOrderCart.map((item,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:#f8fafc;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:0.84rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
-        <div style="font-size:0.75rem;color:#6b7280;">${item.price.toFixed(2)} د.أ / وحدة</div>
+    <div style="padding:9px 10px;background:#f8fafc;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:0.84rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">${item.price.toFixed(2)} د.أ / وحدة${item.color?` · <span style="color:#0369a1;font-weight:700;">🎨 ${item.color}</span>`:''}${item.writing?` · <span style="color:#7c3aed;">✍️ ${item.writing}</span>`:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+          <button onclick="changeEmpQty(${i},-1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">−</button>
+          <span style="min-width:24px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty}</span>
+          <button onclick="changeEmpQty(${i},1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">+</button>
+        </div>
+        <div style="font-weight:800;color:#166534;font-size:0.85rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
+        <button onclick="removeFromEmpCart(${i})" style="width:22px;height:22px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
       </div>
-      <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
-        <button onclick="changeEmpQty(${i},-1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">−</button>
-        <span style="min-width:24px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty}</span>
-        <button onclick="changeEmpQty(${i},1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">+</button>
-      </div>
-      <div style="font-weight:800;color:#166534;font-size:0.85rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
-      <button onclick="removeFromEmpCart(${i})" style="width:22px;height:22px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
     </div>`).join('');
   const t=document.getElementById('emp_total');
   if(t)t.value=calcEmpOrderTotal().toFixed(2);
@@ -4926,7 +4975,7 @@ async function submitEmpOrder(){
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
       pageId,pageName,
-      products:_empOrderCart.map(i=>({id:i.id,name:i.name,price:i.price,qty:i.qty})),
+      products:_empOrderCart.map(i=>({id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{})})),
       customerPhone:phone,
       address,notes,
       ...(areaInput?{area:areaInput}:{}),
@@ -7948,6 +7997,30 @@ function clearDlvStore(sid){
 let _opProductsList=[];
 let _editingProductId=null;
 let _oppCurrentImageUrl='';
+let _oppColors=[];
+
+function addOppColor(){
+  const inp=document.getElementById('opp_color_input');
+  const val=(inp?.value||'').trim();
+  if(!val)return;
+  if(!_oppColors.includes(val)) _oppColors.push(val);
+  if(inp) inp.value='';
+  renderOppColorChips();
+}
+function removeOppColor(i){
+  _oppColors.splice(i,1);
+  renderOppColorChips();
+}
+function renderOppColorChips(){
+  const wrap=document.getElementById('opp_colors_chips');
+  if(!wrap)return;
+  wrap.innerHTML=_oppColors.length
+    ?_oppColors.map((c,i)=>`<div style="display:inline-flex;align-items:center;gap:4px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:20px;padding:4px 10px;font-size:0.8rem;color:#0369a1;">
+        <span>${c}</span>
+        <button onclick="removeOppColor(${i})" style="background:none;border:none;cursor:pointer;color:#0369a1;font-size:0.85rem;padding:0;line-height:1;">✕</button>
+      </div>`).join('')
+    :'<div style="font-size:0.75rem;color:#9ca3af;">لا يوجد ألوان — أضف لوناً من الأعلى</div>';
+}
 
 function onOppImageChange(input){
   const file=input.files&&input.files[0];
@@ -8078,6 +8151,8 @@ function editOpProduct(id){
     const inp=document.getElementById(`opp_sp_${s.id}`);
     if(inp) inp.value=(p.storePrices&&p.storePrices[s.id])||'';
   });
+  _oppColors=Array.isArray(p.colors)?[...p.colors]:[];
+  renderOppColorChips();
   document.getElementById('opp_form_title').textContent='✏️ تعديل المنتج';
   document.getElementById('opp_save_btn').textContent='💾 حفظ التعديلات';
   document.getElementById('opp_cancel_btn').style.display='block';
@@ -8096,6 +8171,8 @@ function cancelEditProduct(){
   });
   _oppCurrentImageUrl='';
   _renderOppImgPreview();
+  _oppColors=[];
+  renderOppColorChips();
   document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
   document.getElementById('opp_save_btn').textContent='💾 حفظ المنتج';
   document.getElementById('opp_cancel_btn').style.display='none';
@@ -8119,14 +8196,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        imageDataUrl:_oppCurrentImageUrl||''
+        colors:_oppColors,imageDataUrl:_oppCurrentImageUrl||''
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,imageDataUrl:_oppCurrentImageUrl||'',
+        storePrices,colors:_oppColors,imageDataUrl:_oppCurrentImageUrl||'',
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
@@ -10952,6 +11029,8 @@ window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
+window.selectEmpColor=selectEmpColor;
+window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
 window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
