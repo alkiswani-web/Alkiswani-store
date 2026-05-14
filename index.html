@@ -1694,7 +1694,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button id="admin-tab-btn-aboutedit" class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
       <button id="admin-tab-btn-operator" class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
       <button id="admin-tab-btn-adminusers" class="admin-tab-btn" onclick="switchAdminTab('adminusers')">🔑 المستخدمون</button>
-      <button id="admin-tab-btn-emporders" class="admin-tab-btn" onclick="switchAdminTab('emporders')">📋 طلبات الصفحات</button>
+      <button id="admin-tab-btn-emporders" class="admin-tab-btn" onclick="switchAdminTab('emporders')" style="display:none;">📋 طلبات الصفحات</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -4469,13 +4469,15 @@ function applyAdminPerms(){
   allTabs.forEach(tab=>{
     const btn=document.getElementById('admin-tab-btn-'+tab);
     if(!btn)return;
+    if(tab==='emporders'){btn.style.display='none';return;} // merged into حساب المشغل
     if(isMain){btn.style.display='';}
-    else if(tab==='adminusers'||tab==='emporders'){btn.style.display='none';}
+    else if(tab==='adminusers'){btn.style.display='none';}
     else if(perms&&perms.includes(tab)){btn.style.display='';}
     else{btn.style.display='none';}
   });
   const firstTab=allTabs.find(tab=>{
-    if(tab==='adminusers'||tab==='emporders')return isMain;
+    if(tab==='emporders')return false;
+    if(tab==='adminusers')return isMain;
     return isMain||(perms&&perms.includes(tab));
   });
   if(firstTab){
