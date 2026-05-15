@@ -5666,6 +5666,13 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
   const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
   const phone=(o.customerPhone||'').trim();
 
+  // Product image: look up from shared products list
+  const firstProdImg=(()=>{
+    const pid=prods[0]?.id;
+    const pd=pid?(_empSharedProducts||[]).find(p=>p.id===pid):null;
+    return pd?(pd.imageDataUrl||(pd.images&&pd.images[0])||pd.img||''):'';
+  })();
+
   let statusBtns='';
   if(!isOperator){
     statusBtns=`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" style="padding:5px 8px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;outline:none;background:#fff;">
@@ -5681,38 +5688,48 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
   const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
   const waBtn=o.status==='prepared'?`<button onclick="openDeliveryModal('${o.id}')" style="padding:5px 9px;background:#25D366;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">📱</button>`:'';
 
+  const imgPanel=firstProdImg
+    ?`<div style="flex-shrink:0;width:78px;align-self:stretch;overflow:hidden;border-left:1px solid #f3f4f6;position:relative;">
+        <img src="${firstProdImg}" onclick="event.stopPropagation();openEmpOrderImage('${firstProdImg}')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;min-height:80px;">
+        ${prods.length>1?`<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.55);color:#fff;border-radius:5px;font-size:0.65rem;padding:1px 5px;font-family:'Tajawal',sans-serif;">+${prods.length-1}</div>`:''}
+      </div>`
+    :'';
+
   return `<div style="background:#fff;border-radius:11px;margin-bottom:7px;border:1px solid #e5e7eb;border-right:4px solid ${st.color};box-shadow:0 1px 4px rgba(0,0,0,0.05);overflow:hidden;">
-    <div onclick="openEmpOrderEdit('${o.id}')" style="padding:10px 12px 8px;cursor:pointer;">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
-        <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:2px 9px;font-size:0.72rem;font-weight:800;white-space:nowrap;">${st.label}</span>
-        <span style="font-weight:800;color:#1a3a2a;font-size:0.83rem;">${label}</span>
-        <span style="font-size:0.78rem;color:#374151;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.pageName||''}</span>
-        <span style="font-weight:900;color:#166534;font-size:0.85rem;flex-shrink:0;white-space:nowrap;">${net.toFixed(2)} <span style="font-size:0.7rem;color:#9ca3af;">د.أ</span></span>
+    <div onclick="openEmpOrderEdit('${o.id}')" style="display:flex;cursor:pointer;direction:ltr;min-height:80px;">
+      ${imgPanel}
+      <div style="flex:1;min-width:0;padding:10px 12px 8px;direction:rtl;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;">
+          <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:2px 9px;font-size:0.72rem;font-weight:800;white-space:nowrap;">${st.label}</span>
+          <span style="font-weight:800;color:#1a3a2a;font-size:0.83rem;">${label}</span>
+          <span style="font-size:0.78rem;color:#374151;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.pageName||''}</span>
+          <span style="font-weight:900;color:#166534;font-size:0.88rem;flex-shrink:0;white-space:nowrap;">${net.toFixed(2)} <span style="font-size:0.7rem;color:#9ca3af;">د.أ</span></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap;">
+          <span style="font-size:0.75rem;color:#4b5563;">👤 ${o.workerName||'—'}</span>
+          <span style="font-size:0.75rem;color:#6b7280;">· 📞 ${phone||'—'}</span>
+          ${o.area?`<span style="font-size:0.73rem;color:#6b7280;background:#f3f4f6;border-radius:6px;padding:1px 6px;">📍 ${o.area}</span>`:''}
+          ${_repeatBadge(phone,customerHist,'sm')}
+          ${o.needsReview?`<span style="background:#fef3c7;color:#854d0e;border-radius:6px;padding:1px 6px;font-size:0.69rem;font-weight:700;">✏️ معدَّل</span>`:''}
+        </div>
+        <div style="font-size:0.74rem;color:#374151;display:flex;flex-wrap:wrap;gap:4px;margin-bottom:${o.address||o.deliveryRepName||o.holdReason||o.cancelReason?'4px':'0'};">
+          ${prods.map(p=>`<span style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:1px 6px;">${p.name}${p.color?` · <span style="color:#0369a1;">${p.color}</span>`:''}${p.writing?` · <span style="color:#7c3aed;">✍️${p.writing}</span>`:''} ×${p.qty||1} · <b>${(p.price*(p.qty||1)).toFixed(2)}</b></span>`).join('')}
+        </div>
+        ${o.address?`<div style="font-size:0.72rem;color:#9ca3af;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>`:''}
+        ${o.deliveryRepName?`<div style="font-size:0.72rem;color:#1e40af;">🚚 ${o.deliveryRepName}</div>`:''}
+        ${o.holdReason?`<span style="font-size:0.71rem;color:#92400e;background:#fef3c7;border-radius:5px;padding:1px 7px;display:inline-block;">⏸ ${o.holdReason}</span>`:''}
+        ${o.cancelReason?`<span style="font-size:0.71rem;color:#991b1b;background:#fee2e2;border-radius:5px;padding:1px 7px;display:inline-block;">🚫 ${o.cancelReason}</span>`:''}
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
-        <span style="font-size:0.76rem;color:#4b5563;">👤 ${o.workerName||'—'}</span>
-        <span style="font-size:0.76rem;color:#6b7280;">· 📞 ${phone||'—'}</span>
-        ${o.area?`<span style="font-size:0.74rem;color:#6b7280;background:#f3f4f6;border-radius:6px;padding:1px 7px;">📍 ${o.area}</span>`:''}
-        ${_repeatBadge(phone,customerHist,'sm')}
-        ${o.needsReview?`<span style="background:#fef3c7;color:#854d0e;border-radius:6px;padding:1px 7px;font-size:0.7rem;font-weight:700;">✏️ معدَّل</span>`:''}
-      </div>
-      <div style="font-size:0.75rem;color:#374151;display:flex;flex-wrap:wrap;gap:5px;">
-        ${prods.map(p=>`<span style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:2px 7px;">${p.name} ×${p.qty||1} · <b>${(p.price*(p.qty||1)).toFixed(2)}</b></span>`).join('')}
-      </div>
-      ${o.address?`<div style="font-size:0.73rem;color:#9ca3af;margin-top:3px;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>`:''}
-      ${o.deliveryRepName?`<div style="font-size:0.73rem;color:#1e40af;margin-top:2px;">🚚 ${o.deliveryRepName}</div>`:''}
-      ${o.holdReason?`<div style="font-size:0.73rem;color:#92400e;background:#fef3c7;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;">⏸ ${o.holdReason}</div>`:''}
-      ${o.cancelReason?`<div style="font-size:0.73rem;color:#991b1b;background:#fee2e2;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;">🚫 ${o.cancelReason}</div>`:''}
     </div>
-    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:7px 10px;background:#fafafa;border-top:1px solid #f3f4f6;">
+    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:6px 10px;background:#fafafa;border-top:1px solid #f3f4f6;">
       ${statusBtns}
       ${waBtn}
       <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 9px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">✏️</button>
       <button onclick="printEmpOrder('${o.id}',false)" style="padding:5px 9px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🖨</button>
       ${imgs.length?`<button onclick="printEmpOrder('${o.id}',true)" style="padding:5px 9px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🖨📷</button>`:''}
       ${isOperator?`<button onclick="copyOrderTrackingLink('${o.id}')" style="padding:5px 9px;background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🔗</button>`:''}
-      ${isOperator&&o.internalNote?`<span style="font-size:0.72rem;color:#92400e;background:#fefce8;border-radius:6px;padding:2px 7px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔒 ${o.internalNote}</span><button onclick="openInternalNote('${o.id}','${(o.internalNote||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:5px 7px;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;">✏️</button>`
-        :isOperator?`<button onclick="openInternalNote('${o.id}','')" style="padding:5px 9px;background:#fefce8;color:#92400e;border:1px dashed #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;">🔒</button>`:''}
+      ${isOperator&&o.internalNote?`<span style="font-size:0.71rem;color:#92400e;background:#fefce8;border-radius:6px;padding:2px 7px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔒 ${o.internalNote}</span><button onclick="openInternalNote('${o.id}','${(o.internalNote||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:5px 7px;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.71rem;cursor:pointer;">✏️</button>`
+        :isOperator?`<button onclick="openInternalNote('${o.id}','')" style="padding:5px 9px;background:#fefce8;color:#92400e;border:1px dashed #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.71rem;cursor:pointer;">🔒</button>`:''}
       <button onclick="deleteEmpOrder('${o.id}')" style="padding:5px 9px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🗑</button>
     </div>
   </div>`;
