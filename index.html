@@ -2803,6 +2803,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setEmpOrderFilter('preparing',this)">تجهيز <span id="eoc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('prepared',this)">تم التجهيز <span id="eoc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('queued',this)">🧍 قائمة مناديب <span id="eoc-queued" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setEmpOrderFilter('waiting_rep',this)">⏳ انتظار مندوب <span id="eoc-waiting_rep" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('delivering',this)">توصيل <span id="eoc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('delivered',this)">مسلّم <span id="eoc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setEmpOrderFilter('onhold',this)">معلّق <span id="eoc-onhold" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -2860,6 +2861,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setOpOrderFilter('preparing',this)">تجهيز <span id="ooc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('prepared',this)">تم التجهيز <span id="ooc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('queued',this)">🧍 قائمة مناديب <span id="ooc-queued" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('waiting_rep',this)">⏳ انتظار مندوب <span id="ooc-waiting_rep" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('delivering',this)">توصيل <span id="ooc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('delivered',this)">مسلّم <span id="ooc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('onhold',this)">معلّق <span id="ooc-onhold" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -4628,6 +4630,7 @@ const EMP_STATUSES={
   preparing: {label:'قيد التجهيز', color:'#f97316',bg:'#fff7ed',border:'#fed7aa'},
   prepared:  {label:'تم التجهيز',  color:'#3b82f6',bg:'#eff6ff',border:'#bfdbfe'},
   delivering:{label:'قيد التوصيل',color:'#8b5cf6',bg:'#f5f3ff',border:'#ddd6fe'},
+  waiting_rep:{label:'انتظار مندوب',color:'#d97706',bg:'#fef3c7',border:'#fde68a'},
   delivered: {label:'تم التوصيل', color:'#22c55e',bg:'#f0fdf4',border:'#86efac'},
   queued:    {label:'قائمة توصيل', color:'#0ea5e9',bg:'#f0f9ff',border:'#bae6fd'},
   onhold:    {label:'معلّق',        color:'#d97706',bg:'#fef3c7',border:'#fde68a'},
@@ -5851,7 +5854,7 @@ function _renderEmpOrdersView(){
   if(_empOrdersFilter==='all') orders=_empOrdersAllData;
   else if(_empOrdersFilter==='edited') orders=_empOrdersAllData.filter(o=>o.needsReview);
   // delivering chip shows queued+delivering together as normal cards
-  else if(_empOrdersFilter==='delivering') orders=_empOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
+  else if(_empOrdersFilter==='delivering'||_empOrdersFilter==='waiting_rep') orders=_empOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering'||o.status==='waiting_rep');
   else orders=_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
   if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
   if(_empAdvFilter) orders=_applyAdvFilter(orders,_empAdvFilter);
@@ -5901,9 +5904,9 @@ function _renderOpOrdersView(){
     wrap.innerHTML=_renderKanbanBoard(orders,true,customerHist);
     return;
   }
-  // Special combined view for delivering/queued tabs
-  if(_opOrdersFilter==='delivering'||_opOrdersFilter==='queued'){
-    const combined=_opOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering');
+  // Special combined view for delivering/queued/waiting_rep tabs
+  if(_opOrdersFilter==='delivering'||_opOrdersFilter==='queued'||_opOrdersFilter==='waiting_rep'){
+    const combined=_opOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering'||o.status==='waiting_rep');
     wrap.innerHTML=_renderDeliveryQueue(combined);
     const repWrap=document.getElementById('opCancelReport');
     if(repWrap)repWrap.style.display='none';
@@ -12240,6 +12243,7 @@ window.copyOrderTrackingLink=copyOrderTrackingLink;
 window.openQRScanner=openQRScanner; window.closeQRScanner=closeQRScanner;
 window.closeQRRepAssignModal=closeQRRepAssignModal;
 window.qrAssignToRep=qrAssignToRep; window.qrAssignManualSend=qrAssignManualSend;
+window._showRepPickerInModal=_showRepPickerInModal; window._openQRRepAssignForWaiting=_openQRRepAssignForWaiting;
 window.sendQueuedRepOrders=sendQueuedRepOrders; window.markOrderDelivered=markOrderDelivered;
 
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
@@ -13224,7 +13228,7 @@ async function _openQRRepAssignModal(o){
     actionBtns.innerHTML=`
       <button onclick="updateEmpOrderStatus('${o.id}','prepared');closeQRRepAssignModal();" style="width:100%;padding:11px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">← تم التجهيز</button>
       <div style="display:flex;gap:8px;">
-        <button onclick="updateEmpOrderStatus('${o.id}','delivering');closeQRRepAssignModal();" style="flex:1;padding:11px;background:#0ea5e9;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">← قيد التوصيل</button>
+        <button onclick="_showRepPickerInModal('${o.id}')" style="flex:1;padding:11px;background:#0ea5e9;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">← قيد التوصيل</button>
         <button onclick="updateEmpOrderStatus('${o.id}','cancelled');closeQRRepAssignModal();" style="flex:1;padding:11px;background:#ef4444;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
       </div>`;
   } else if(o.status==='prepared'){
@@ -13237,6 +13241,17 @@ async function _openQRRepAssignModal(o){
         <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;">اختيار ←</span>
       </button>`).join('')
       :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد مناديب — أضفهم من الإعدادات</div>';
+  } else if(o.status==='waiting_rep'){
+    repSection.style.display='block';
+    const reps2=await _loadDeliveryReps();
+    const repList2=document.getElementById('qrAssignRepList');
+    repList2.innerHTML=(reps2.length
+      ?reps2.map(r=>`<button onclick="qrAssignToRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;text-align:right;width:100%;box-sizing:border-box;">
+        <div><div style="font-weight:700;color:#0369a1;">${r.name}</div><div style="font-size:0.72rem;color:#6b7280;">${r.phone||''}</div></div>
+        <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;">اختيار ←</span>
+      </button>`).join('')
+      :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد مناديب</div>')
+      +`<button onclick="updateEmpOrderStatus('${o.id}','cancelled');closeQRRepAssignModal();" style="width:100%;margin-top:8px;padding:9px;background:#fee2e2;color:#dc2626;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>`;
   } else if(o.status==='queued'){
     actionBtns.innerHTML=`
       <div style="background:#e0f2fe;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#0369a1;margin-bottom:8px;">🧍 مُسنَد لـ: <strong>${o.deliveryRepName||'—'}</strong></div>
@@ -13266,10 +13281,38 @@ async function qrAssignToRep(repName,repPhone){
     const docRef=db.collection('employee_orders').doc(_qrAssignOrderId);
     const snap=await docRef.get();
     const data=snap.data();
-    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`تم التجهيز ← قائمة توصيل (${repName})`};
+    const fromLabel=_empSt(data?.status).label;
+    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قائمة توصيل (${repName})`};
     await docRef.update({status:'queued',deliveryRepName:repName,deliveryRepPhone:repPhone||'',editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast(`✅ أُسند لـ ${repName}`);
     closeQRRepAssignModal();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function _showRepPickerInModal(orderId){
+  _qrAssignOrderId=orderId;
+  const repSection=document.getElementById('qrAssignRepSection');
+  const actionBtns=document.getElementById('qrAssignActionBtns');
+  actionBtns.innerHTML='';
+  repSection.style.display='block';
+  const reps=await _loadDeliveryReps();
+  const repList=document.getElementById('qrAssignRepList');
+  repList.innerHTML=(reps.length
+    ?reps.map(r=>`<button onclick="qrAssignToRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;text-align:right;width:100%;box-sizing:border-box;">
+      <div><div style="font-weight:700;color:#0369a1;">${r.name}</div><div style="font-size:0.72rem;color:#6b7280;">${r.phone||''}</div></div>
+      <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;">اختيار ←</span>
+    </button>`).join('')
+    :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد مناديب — أضفهم من الإعدادات</div>')
+    +`<button onclick="updateEmpOrderStatus('${orderId}','waiting_rep').then(closeQRRepAssignModal)" style="width:100%;margin-top:8px;padding:9px;background:#fef3c7;color:#d97706;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">⏳ انتظار مندوب</button>`;
+}
+
+async function _openQRRepAssignForWaiting(orderId){
+  try{
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(!snap.exists)return;
+    _qrAssignOrderId=orderId;
+    _qrAssignOrder={id:orderId,...snap.data()};
+    _openQRRepAssignModal(_qrAssignOrder);
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -13289,9 +13332,25 @@ function _orderNet(o){const pr=o.products||[{price:o.price||0,qty:1}];const t=pr
 function _orderProdsStr(o){return(o.products||[{name:o.productName||'?',qty:1}]).map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');}
 
 function _renderDeliveryQueue(orders){
+  const waitingRep=orders.filter(o=>o.status==='waiting_rep');
   const queued=orders.filter(o=>o.status==='queued');
   const delivering=orders.filter(o=>o.status==='delivering');
   let html='';
+
+  // ── 0. انتظار مندوب ──
+  if(waitingRep.length){
+    html+=`<div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-weight:800;color:#d97706;font-size:0.92rem;margin-bottom:12px;">⏳ انتظار مندوب (${waitingRep.length} طلب)</div>
+      ${waitingRep.map(o=>`<div style="background:#fff;border:1.5px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:#92400e;font-size:0.85rem;">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} · ${o.pageName||o.customerName||'—'}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">📞 ${o.customerPhone||'—'} · ${_orderNet(o).toFixed(2)} د.أ</div>
+          <div style="font-size:0.75rem;color:#6b7280;">📦 ${_orderProdsStr(o)}</div>
+        </div>
+        <button onclick="_openQRRepAssignForWaiting('${o.id}')" style="padding:7px 13px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">🧍 تعيين</button>
+      </div>`).join('')}
+    </div>`;
+  }
 
   // ── 1. قائمة انتظار (مُسند لكن لم يخرج بعد) ──
   if(queued.length){
