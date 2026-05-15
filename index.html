@@ -5824,6 +5824,11 @@ function loadEmpOrders(){
   if(_empOrdersUnsub&&_empOrdersAllData.length){_renderEmpOrdersView();return;}
   if(_empOrdersUnsub){_empOrdersUnsub();_empOrdersUnsub=null;}
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
+  if(!_empSharedProducts){
+    db.collection('operator_products').get()
+      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()}));})
+      .catch(()=>{});
+  }
   _empOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
     .onSnapshot(snap=>{
       const newData=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -5877,6 +5882,12 @@ function loadOperatorOrders(){
   if(_opOrdersUnsub&&_opOrdersAllData.length){_renderOpOrdersView();return;}
   if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
+  // Ensure product images are available for card rendering
+  if(!_empSharedProducts){
+    db.collection('operator_products').get()
+      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()}));})
+      .catch(()=>{});
+  }
   _opOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
     .onSnapshot(snap=>{
       const newData=snap.docs.map(d=>({id:d.id,...d.data()}));
