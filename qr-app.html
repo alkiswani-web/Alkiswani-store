@@ -134,7 +134,7 @@ canvas#scanCanvas{display:none;}
   </div>
   <button id="actionBtn" onclick="doAction()">تحديث الحالة</button>
   <div id="extraBtns" style="display:none;gap:10px;margin-bottom:10px;">
-    <button id="skipDeliverBtn" onclick="doSkipAction('delivering')" style="flex:1;padding:14px;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;background:#0ea5e9;color:#fff;">← قيد التوصيل</button>
+    <button id="skipDeliverBtn" onclick="showRepPicker()" style="flex:1;padding:14px;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;background:#0ea5e9;color:#fff;">← قيد التوصيل</button>
     <button id="cancelBtn" onclick="doSkipAction('cancelled')" style="flex:1;padding:14px;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;background:#ef4444;color:#fff;">🚫 ملغي</button>
   </div>
   <button id="rescanBtn" onclick="startScan()">🔲 مسح طلب جديد</button>
@@ -152,6 +152,16 @@ canvas#scanCanvas{display:none;}
   <div style="font-size:1rem;font-weight:700;">تحتاج صلاحية الكاميرا</div>
   <p>للمسح يجب السماح للتطبيق بالوصول إلى الكاميرا</p>
   <button id="permBtn" onclick="startScan()">السماح للكاميرا</button>
+</div>
+
+<!-- REP PICKER MODAL -->
+<div id="repPickerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:440px;padding:20px 16px 32px;max-height:80vh;overflow-y:auto;">
+    <div style="font-family:'Tajawal',sans-serif;font-weight:800;font-size:1.05rem;color:#1a3a2a;text-align:center;margin-bottom:16px;">🧍 اختار مندوب التوصيل</div>
+    <div id="repPickerList" style="display:flex;flex-direction:column;gap:9px;margin-bottom:12px;"></div>
+    <button onclick="pickRep(null,null)" style="width:100%;padding:13px;background:#fef3c7;color:#d97706;border:1.5px solid #fde68a;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">⏳ انتظار مندوب</button>
+    <button onclick="closeRepPicker()" style="width:100%;padding:11px;background:#f3f4f6;color:#6b7280;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;margin-top:8px;">إلغاء</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -177,9 +187,10 @@ const ST={
   queued:    {label:'طابور التوصيل', bg:'#f5f3ff',color:'#6d28d9',border:'#c4b5fd'},
   delivering:{label:'قيد التوصيل',   bg:'#ecfdf5',color:'#065f46',border:'#6ee7b7'},
   delivered: {label:'تم التسليم',    bg:'#f0fdf4',color:'#166534',border:'#86efac'},
-  cancelled: {label:'ملغي',          bg:'#fef2f2',color:'#991b1b',border:'#fca5a5'},
-  returned:  {label:'مُرتجع',        bg:'#faf5ff',color:'#6b21a8',border:'#d8b4fe'},
-  refused:   {label:'مرفوض',         bg:'#fef2f2',color:'#991b1b',border:'#fca5a5'},
+  cancelled:   {label:'ملغي',          bg:'#fef2f2',color:'#991b1b',border:'#fca5a5'},
+  returned:    {label:'مُرتجع',        bg:'#faf5ff',color:'#6b21a8',border:'#d8b4fe'},
+  refused:     {label:'مرفوض',         bg:'#fef2f2',color:'#991b1b',border:'#fca5a5'},
+  waiting_rep: {label:'انتظار مندوب',  bg:'#fef3c7',color:'#d97706',border:'#fde68a'},
 };
 
 const NEXT_ACTION={
@@ -378,6 +389,49 @@ async function doSkipAction(nextStatus){
     if(skipBtn){skipBtn.disabled=false;skipBtn.textContent=nextStatus==='delivering'?'← قيد التوصيل':'🚫 ملغي';}
     document.getElementById('extraBtns').style.pointerEvents='';
   }
+}
+
+// ===== REP PICKER =====
+async function showRepPicker(){
+  if(!_currentOrder)return;
+  const modal=document.getElementById('repPickerModal');
+  const list=document.getElementById('repPickerList');
+  modal.style.display='flex';
+  list.innerHTML='<div style="text-align:center;color:#9ca3af;font-family:Tajawal,sans-serif;padding:10px;">⏳ جاري التحميل...</div>';
+  try{
+    const snap=await db.collection('operator_config').doc('delivery_reps').get();
+    const reps=(snap.exists&&snap.data().reps)||[];
+    if(!reps.length){
+      list.innerHTML='<div style="text-align:center;color:#9ca3af;font-family:Tajawal,sans-serif;font-size:0.85rem;padding:10px;">لا يوجد مناديب مضافين</div>';
+    }else{
+      list.innerHTML=reps.map(r=>`<button onclick="pickRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')}" style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;cursor:pointer;width:100%;box-sizing:border-box;">
+        <div style="text-align:right;"><div style="font-weight:800;color:#0369a1;">${r.name}</div><div style="font-size:0.78rem;color:#6b7280;">${r.phone||''}</div></div>
+        <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:5px 12px;font-size:0.82rem;font-weight:700;">اختيار ←</span>
+      </button>`).join('');
+    }
+  }catch(e){list.innerHTML='<div style="color:#ef4444;font-family:Tajawal,sans-serif;text-align:center;padding:10px;">❌ خطأ في التحميل</div>';}
+}
+
+function closeRepPicker(){
+  document.getElementById('repPickerModal').style.display='none';
+}
+
+async function pickRep(repName,repPhone){
+  closeRepPicker();
+  if(!_currentOrder)return;
+  const nextStatus=repName?'queued':'waiting_rep';
+  const extraFields=repName?{deliveryRepName:repName,deliveryRepPhone:repPhone||''}:{};
+  const toLabel=repName?`قائمة توصيل (${repName})`:'انتظار مندوب';
+  const fromLabel=ST[_currentOrder.status]?.label||'';
+  const editEntry={by:'QR App',at:jordanDateStr(),note:`${fromLabel} ← ${toLabel}`};
+  try{
+    await db.collection('employee_orders').doc(_currentOrder.id).update({
+      status:nextStatus,...extraFields,
+      editHistory:[...(_currentOrder.editHistory||[]),editEntry],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showSuccess(toLabel);
+  }catch(e){toast('❌ فشل التحديث');}
 }
 
 // ===== SYNC ACCOUNTING (simplified) =====
