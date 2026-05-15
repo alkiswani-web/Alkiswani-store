@@ -8052,13 +8052,27 @@ function renderOppColorChips(){
     :'<div style="font-size:0.75rem;color:#9ca3af;">لا يوجد ألوان — أضف لوناً من الأعلى</div>';
 }
 
+function _compressImg(dataUrl,maxPx,quality,cb){
+  const img=new Image();
+  img.onload=()=>{
+    let w=img.width,h=img.height;
+    if(w>maxPx||h>maxPx){if(w>h){h=Math.round(h*maxPx/w);w=maxPx;}else{w=Math.round(w*maxPx/h);h=maxPx;}}
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    cb(c.toDataURL('image/jpeg',quality));
+  };
+  img.src=dataUrl;
+}
+
 function onOppImageChange(input){
   const file=input.files&&input.files[0];
   if(!file) return;
   const reader=new FileReader();
   reader.onload=e=>{
-    _oppCurrentImageUrl=e.target.result;
-    _renderOppImgPreview();
+    _compressImg(e.target.result,500,0.72,compressed=>{
+      _oppCurrentImageUrl=compressed;
+      _renderOppImgPreview();
+    });
   };
   reader.readAsDataURL(file);
   input.value='';
