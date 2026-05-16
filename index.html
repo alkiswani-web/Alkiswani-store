@@ -2280,9 +2280,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- Sub-tabs (unified) -->
       <div style="display:flex;gap:0;overflow-x:auto;border-radius:12px;border:1.5px solid var(--border);margin-bottom:20px;-webkit-overflow-scrolling:touch;scrollbar-width:none;" id="unifiedOpTabBar">
-        <button id="optab-btn-tracking" onclick="switchOpTab('tracking')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 الطلبات</button>
-        <button id="optab-btn-oporders" onclick="switchOpTab('oporders')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🔧 المشغل</button>
-        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:0 0 auto;padding:10px 10px;border:none;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📦 منتجات</button>
+        <button id="optab-btn-oporders" onclick="switchOpTab('oporders')" style="flex:0 0 auto;padding:10px 10px;border:none;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 الطلبات</button>
+        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📦 منتجات</button>
         <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏪 متاجر</button>
         <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🛒 مبيعات</button>
         <button id="optab-btn-daysheet" onclick="switchOpTab('daysheet')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 يومي</button>
@@ -2295,7 +2294,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- ========== QUICK DELIVER SUB-TAB ========== -->
       <!-- ========== PRODUCTS SUB-TAB ========== -->
-      <div id="optab-products" style="display:block;">
+      <div id="optab-products" style="display:none;">
         <div class="form-card" style="margin-bottom:16px;">
           <div id="opp_form_title" style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">➕ إضافة منتج جديد</div>
           <div class="form-row">
@@ -2719,53 +2718,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div id="opstore_tx_list" style="display:none;"></div>
         </div>
 
-        <!-- TRACKING sub-tab (moved from emporders) -->
-        <div id="emp-subtab-tracking" style="display:none;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-            <div style="font-size:0.95rem;font-weight:700;color:#374151;">📋 متابعة الطلبات</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button id="empKanbanBtn" onclick="toggleEmpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
-              <button id="empGroupAreaBtn" onclick="toggleEmpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
-              <button onclick="toggleEmpAdvFilter(this)" id="empAdvFilterBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🔍 فلتر متقدم</button>
-            </div>
-          </div>
-          <!-- Advanced Filter Panel -->
-          <div id="empAdvFilterPanel" style="display:none;background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-            <div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:10px;">🔍 فلتر متقدم</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">من تاريخ</div><input type="date" id="empFlt_from" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">إلى تاريخ</div><input type="date" id="empFlt_to" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">أقل سعر (د.أ)</div><input type="number" id="empFlt_minPrice" min="0" placeholder="0" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">أكثر سعر (د.أ)</div><input type="number" id="empFlt_maxPrice" min="0" placeholder="∞" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">المنطقة</div><input type="text" id="empFlt_area" placeholder="الكل" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">الصفحة</div><input type="text" id="empFlt_page" placeholder="الكل" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-            </div>
-            <button onclick="clearEmpAdvFilter()" style="padding:6px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">✕ مسح الفلتر</button>
-          </div>
-          <div style="position:relative;margin-bottom:12px;">
-            <input id="empOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setEmpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-            <span id="empSearchClear" onclick="clearEmpSearch()" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:1rem;">✕</span>
-          </div>
-          <div id="empOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
-            <button class="order-stab active" onclick="setEmpOrderFilter('all',this)">الكل <span id="eoc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('pending',this)">جديد <span id="eoc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('preparing',this)">تجهيز <span id="eoc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('prepared',this)">تم التجهيز <span id="eoc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('queued',this)">🧍 قائمة مناديب <span id="eoc-queued" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('waiting_rep',this)">⏳ انتظار مندوب <span id="eoc-waiting_rep" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('delivering',this)">توصيل <span id="eoc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('delivered',this)">مسلّم <span id="eoc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('onhold',this)">معلّق <span id="eoc-onhold" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('cancelled',this)">ملغي <span id="eoc-cancelled" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('returned',this)">مرتجع <span id="eoc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('refused',this)">رفض <span id="eoc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('edited',this)">✏️ معدّل <span id="eoc-edited" style="background:#854d0e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-          </div>
-          <div id="empOrdersAdminWrap"></div>
-        </div>
-
-        <!-- OPERATOR (oporders) sub-tab (moved from emporders) -->
-        <div id="emp-subtab-operator" style="display:none;">
+        <!-- OPERATOR (oporders) sub-tab -->
+        <div id="emp-subtab-operator" style="display:block;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -4502,7 +4456,7 @@ function switchAdminTab(tab){
   if(tab==='categories'){ renderCategoriesAdmin(); }
   if(tab==='aboutedit'){ loadAboutSettingsForm(); }
   if(tab==='operator'){
-    switchOpTab('products');
+    switchOpTab('oporders');
   }
   if(tab==='adminusers')loadAdminUsers();
   // emporders is merged into operator tab — nothing to do
@@ -7687,12 +7641,10 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  const allTabs=['products','stores','sales','account','balance','tracking','oporders','daysheet','workers','emppoints','settings'];
+  const allTabs=['oporders','products','stores','sales','account','balance','daysheet','workers','emppoints','settings'];
   allTabs.forEach(t=>{
-    // handle both optab-* panels and emp-subtab-* panels
-    // 'oporders' maps to emp-subtab-operator
     const panelId=t==='oporders'?'emp-subtab-operator':
-                  ['tracking','daysheet','workers','emppoints','settings'].includes(t)?'emp-subtab-'+t:
+                  ['daysheet','workers','emppoints','settings'].includes(t)?'emp-subtab-'+t:
                   'optab-'+t;
     const el=document.getElementById(panelId);
     const btn=document.getElementById('optab-btn-'+t);
@@ -7710,7 +7662,6 @@ function switchOpTab(tab){
   if(tab==='sales') initSalesTab();
   if(tab==='account'){loadAcctStoreList();checkOperatorDayStatus();}
   if(tab==='balance') loadBalanceTab();
-  if(tab==='tracking'){_empOrdersFilter='all';document.querySelectorAll('#empOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadEmpOrders();}
   if(tab==='oporders'){_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
