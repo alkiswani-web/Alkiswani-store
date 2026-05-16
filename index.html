@@ -2881,16 +2881,15 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <!-- Push Notifications -->
           <div style="background:#fff;border-radius:14px;padding:18px;margin-top:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:8px;">🔔 إعدادات الإشعارات</div>
-            <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#92400e;line-height:1.6;">
-              للحصول على الإشعارات حتى لو أغلقت الموقع:<br>
-              1. افتح <strong>Firebase Console</strong> → Project Settings → Cloud Messaging<br>
-              2. تحت <strong>Web Push Certificates</strong> — اضغط "Generate key pair" ← هذا هو VAPID Key<br>
-              3. تحت <strong>Cloud Messaging API (Legacy)</strong> — انسخ Server Key<br>
-              4. الصق المفتاحين هنا واضغط حفظ
+            <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#92400e;line-height:1.7;">
+              <strong>الخطوة 1 — VAPID Key:</strong><br>
+              Firebase Console → Project Settings → Cloud Messaging → Web Push certificates → انسخ المفتاح الموجود (أو اضغط Generate key pair)<br><br>
+              <strong>الخطوة 2 — Service Account JSON:</strong><br>
+              Firebase Console → Project Settings → Service accounts → اضغط <strong>"Generate new private key"</strong> → تنزل ملف JSON → افتحه وانسخ كل المحتوى والصقه هنا
             </div>
             <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
               <input id="fcmVapidKey" placeholder="VAPID Key (Web Push Certificate)" style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;direction:ltr;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-              <input id="fcmServerKey" placeholder="Server Key (Legacy API)" style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;direction:ltr;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+              <textarea id="fcmServiceAccount" placeholder='Service Account JSON  {"type":"service_account","project_id":"alkiswani-store",...}' rows="4" style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:monospace;font-size:0.75rem;outline:none;direction:ltr;resize:vertical;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'"></textarea>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button onclick="saveFCMSettings()" style="padding:9px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💾 حفظ المفاتيح</button>
@@ -3557,14 +3556,54 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-// ===== PUSH NOTIFICATIONS (FCM) =====
-let _fcmMessaging=null,_fcmServerKey=null,_fcmVapidKey=null,_fcmReady=false;
+// ===== PUSH NOTIFICATIONS (FCM v1 API) =====
+let _fcmMessaging=null,_fcmVapidKey=null,_fcmReady=false;
+let _fcmSA=null,_fcmAT=null,_fcmATExp=0;
 
 async function _loadFCMConfig(){
   try{
     const doc=await db.collection('operator_config').doc('fcm_settings').get();
-    if(doc.exists){const d=doc.data();_fcmServerKey=d.serverKey||null;_fcmVapidKey=d.vapidKey||null;}
+    if(doc.exists){
+      const d=doc.data();
+      _fcmVapidKey=d.vapidKey||null;
+      _fcmSA=d.serviceAccount?JSON.parse(d.serviceAccount):null;
+    }
   }catch(e){}
+}
+
+async function _b64url(buf){
+  const bytes=new Uint8Array(buf);
+  let s='';for(const b of bytes)s+=String.fromCharCode(b);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function _getFCMToken(){
+  if(_fcmAT&&Date.now()<_fcmATExp)return _fcmAT;
+  if(!_fcmSA)return null;
+  try{
+    const enc=new TextEncoder();
+    const hdr=await _b64url(enc.encode(JSON.stringify({alg:'RS256',typ:'JWT'})));
+    const now=Math.floor(Date.now()/1000);
+    const clm=await _b64url(enc.encode(JSON.stringify({
+      iss:_fcmSA.client_email,
+      scope:'https://www.googleapis.com/auth/firebase.messaging',
+      aud:'https://oauth2.googleapis.com/token',
+      exp:now+3600,iat:now
+    })));
+    const sigInput=hdr+'.'+clm;
+    const pemRaw=_fcmSA.private_key.replace(/-----[^-]+-----/g,'').replace(/\s/g,'');
+    const keyDER=Uint8Array.from(atob(pemRaw),c=>c.charCodeAt(0));
+    const pk=await crypto.subtle.importKey('pkcs8',keyDER.buffer,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);
+    const sig=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',pk,enc.encode(sigInput));
+    const jwt=sigInput+'.'+await _b64url(sig);
+    const res=await fetch('https://oauth2.googleapis.com/token',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion='+jwt
+    });
+    const j=await res.json();
+    if(j.access_token){_fcmAT=j.access_token;_fcmATExp=Date.now()+(j.expires_in-60)*1000;return _fcmAT;}
+  }catch(e){console.log('FCM AT:',e);}
+  return null;
 }
 
 async function _initFCM(){
@@ -3572,7 +3611,7 @@ async function _initFCM(){
   try{
     await _loadFCMConfig();
     if(!_fcmVapidKey)return;
-    const reg=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     _fcmMessaging=firebase.messaging();
     _fcmMessaging.onMessage(function(payload){
       const t=(payload.notification&&payload.notification.title)||'';
@@ -3600,60 +3639,63 @@ async function _registerFCMToken(userId,role){
 }
 
 async function sendPushNotification(title,body,data){
-  if(!_fcmServerKey)return;
+  if(!_fcmSA)return;
   try{
+    const at=await _getFCMToken();
+    if(!at)return;
     const snap=await db.collection('fcm_tokens').get();
     const tokens=snap.docs.map(d=>d.data().token).filter(Boolean);
     if(!tokens.length)return;
-    for(let i=0;i<tokens.length;i+=500){
-      fetch('https://fcm.googleapis.com/fcm/send',{
+    const safeData=Object.fromEntries(Object.entries(data||{}).map(([k,v])=>[k,String(v)]));
+    tokens.forEach(token=>{
+      fetch('https://fcm.googleapis.com/v1/projects/alkiswani-store/messages:send',{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'key='+_fcmServerKey},
-        body:JSON.stringify({
-          registration_ids:tokens.slice(i,i+500),
-          notification:{title,body,icon:'/icon-192.png',sound:'default'},
-          data:data||{},
-          android:{priority:'high'},
-          apns:{payload:{aps:{sound:'default',badge:1}}}
-        })
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+at},
+        body:JSON.stringify({message:{
+          token,
+          notification:{title,body},
+          webpush:{notification:{icon:'/icon-192.png',requireInteraction:true},headers:{Urgency:'high'}},
+          data:safeData
+        }})
       });
-    }
+    });
   }catch(e){}
 }
 
 async function saveFCMSettings(){
   const vk=document.getElementById('fcmVapidKey').value.trim();
-  const sk=document.getElementById('fcmServerKey').value.trim();
-  if(!vk||!sk){toast('⚠️ أدخل المفتاحين');return;}
+  const sa=document.getElementById('fcmServiceAccount').value.trim();
+  if(!vk||!sa){toast('⚠️ أدخل VAPID Key وService Account JSON');return;}
   try{
-    await db.collection('operator_config').doc('fcm_settings').set({vapidKey:vk,serverKey:sk,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    _fcmVapidKey=vk;_fcmServerKey=sk;
+    JSON.parse(sa); // validate JSON
+    await db.collection('operator_config').doc('fcm_settings').set({vapidKey:vk,serviceAccount:sa,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    _fcmVapidKey=vk;_fcmSA=JSON.parse(sa);_fcmAT=null;
     toast('✅ تم حفظ إعدادات الإشعارات');
     _fcmReady=false;
     await _initFCM();
     await _registerFCMToken(_currentAdminUser||'admin','admin');
-  }catch(e){toast('❌ '+e.message);}
+  }catch(e){toast('❌ '+(e.message.includes('JSON')?'Service Account JSON غير صحيح':e.message));}
 }
 
 async function loadFCMSettings(){
   await _loadFCMConfig();
   const vEl=document.getElementById('fcmVapidKey');
-  const sEl=document.getElementById('fcmServerKey');
+  const sEl=document.getElementById('fcmServiceAccount');
   if(vEl&&_fcmVapidKey)vEl.value=_fcmVapidKey;
-  if(sEl&&_fcmServerKey)sEl.value=_fcmServerKey;
+  if(sEl&&_fcmSA)sEl.value=JSON.stringify(_fcmSA);
 }
 
 async function enableMyNotifications(){
   if(!('Notification' in window)){toast('⚠️ المتصفح لا يدعم الإشعارات');return;}
   if(!_fcmVapidKey){toast('⚠️ أضف VAPID Key أولاً من الإعدادات');return;}
   if(!_fcmReady){await _initFCM();}
-  await _registerFCMToken(_currentAdminUser||_empCurrentUser?.id||'user','admin');
+  await _registerFCMToken(_currentAdminUser||(_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username))||'user','admin');
   if(Notification.permission==='granted')toast('✅ تم تفعيل الإشعارات على هذا الجهاز');
   else if(Notification.permission==='denied')toast('❌ الإشعارات محجوبة — افتح إعدادات المتصفح وفعّلها يدوياً');
 }
 
 async function testFCMNotification(){
-  if(!_fcmServerKey){toast('⚠️ أضف Server Key أولاً');return;}
+  if(!_fcmSA){toast('⚠️ أضف Service Account JSON أولاً');return;}
   await sendPushNotification('تجربة 🔔','إشعارات الكسواني تعمل ✅',{tag:'test'});
   toast('📤 تم إرسال إشعار تجريبي');
 }
