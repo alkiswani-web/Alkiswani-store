@@ -4451,7 +4451,8 @@ function switchAdminTab(tab){
   }
   document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.admin-tab-content').forEach(t=>t.classList.remove('active'));
-  event.target.classList.add('active');
+  const activeBtn=document.getElementById('admin-tab-btn-'+tab);
+  if(activeBtn)activeBtn.classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='customers')renderCustomers();
   if(tab==='orders')renderOrders();
@@ -4464,6 +4465,7 @@ function switchAdminTab(tab){
   if(tab==='categories'){ renderCategoriesAdmin(); }
   if(tab==='aboutedit'){ loadAboutSettingsForm(); }
   if(tab==='operator'){
+    if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
     switchOpTab('oporders');
   }
   if(tab==='adminusers')loadAdminUsers();
