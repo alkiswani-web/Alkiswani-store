@@ -2278,19 +2278,23 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <h2 style="color:var(--green-dark);margin-bottom:4px;">💼 حساب المشغل</h2>
       <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:16px;">إدارة المنتجات والمتاجر والكشف اليومي</p>
 
-      <!-- Sub-tabs -->
-      <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:20px;">
-        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:1;padding:10px 2px;border:none;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;border-right:1px solid var(--border);">📦 منتجات</button>
-        <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">🏪 متاجر</button>
-        <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">🛒 مبيعات</button>
-        <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">📋 كشف</button>
-        <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;border-left:1px solid var(--border);">💰 رصيد</button>
-        <button onclick="switchAdminTab('emporders')" style="flex:1;padding:10px 2px;border:none;background:var(--card-bg);color:#7c3aed;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;border-left:1px solid var(--border);">← الطلبات</button>
+      <!-- Sub-tabs (unified) -->
+      <div style="display:flex;gap:0;overflow-x:auto;border-radius:12px;border:1.5px solid var(--border);margin-bottom:20px;-webkit-overflow-scrolling:touch;scrollbar-width:none;" id="unifiedOpTabBar">
+        <button id="optab-btn-oporders" onclick="switchOpTab('oporders')" style="flex:0 0 auto;padding:10px 10px;border:none;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 الطلبات</button>
+        <button id="optab-btn-products" onclick="switchOpTab('products')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📦 منتجات</button>
+        <button id="optab-btn-stores" onclick="switchOpTab('stores')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏪 متاجر</button>
+        <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🛒 مبيعات</button>
+        <button id="optab-btn-daysheet" onclick="switchOpTab('daysheet')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 يومي</button>
+        <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 كشف</button>
+        <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رصيد</button>
+        <button id="optab-btn-workers" onclick="switchOpTab('workers')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">👥 موظفون</button>
+        <button id="optab-btn-emppoints" onclick="switchOpTab('emppoints')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏆 نقاط</button>
+        <button id="optab-btn-settings" onclick="switchOpTab('settings')" style="flex:0 0 auto;padding:10px 10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;white-space:nowrap;">⚙️ إعدادات</button>
       </div>
 
       <!-- ========== QUICK DELIVER SUB-TAB ========== -->
       <!-- ========== PRODUCTS SUB-TAB ========== -->
-      <div id="optab-products" style="display:block;">
+      <div id="optab-products" style="display:none;">
         <div class="form-card" style="margin-bottom:16px;">
           <div id="opp_form_title" style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">➕ إضافة منتج جديد</div>
           <div class="form-row">
@@ -2714,109 +2718,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div id="opstore_tx_list" style="display:none;"></div>
         </div>
 
-      </div>
-
-    </div>
-
-    <!-- ===== ADMIN USERS TAB ===== -->
-    <div class="admin-tab-content" id="tab-adminusers">
-      <div style="max-width:720px;">
-        <h2 style="color:var(--green-dark);margin-bottom:4px;">🔑 إدارة المستخدمين</h2>
-        <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">أضف حسابات للموظفين وحدد صلاحياتهم</p>
-
-        <!-- Add user form -->
-        <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:20px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-          <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:14px;">➕ إضافة مستخدم جديد</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-            <input id="newAdminUsername" placeholder="اسم المستخدم" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-            <input id="newAdminPassword" type="password" placeholder="كلمة المرور" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-          </div>
-          <div style="margin-bottom:14px;">
-            <div style="font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:8px;">الصلاحيات:</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="operator" style="accent-color:var(--green-dark);"> 💼 حساب المشغل</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="products" style="accent-color:var(--green-dark);"> 📦 المنتجات</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="orders" style="accent-color:var(--green-dark);"> 🧾 الطلبات</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="customers" style="accent-color:var(--green-dark);"> 👥 الزبائن</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="stats" style="accent-color:var(--green-dark);"> 📊 الإحصائيات</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="discounts" style="accent-color:var(--green-dark);"> 🎁 كودات الخصم</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="photos" style="accent-color:var(--green-dark);"> 📸 صور الزبائن</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="points" style="accent-color:var(--green-dark);"> 🌟 إعدادات النقاط</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="badges" style="accent-color:var(--green-dark);"> 🏅 الشارات</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="categories" style="accent-color:var(--green-dark);"> 📂 الأقسام</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="aboutedit" style="accent-color:var(--green-dark);"> 🌿 من نحن</label>
-              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="eid" style="accent-color:var(--green-dark);"> 🌙 العيد</label>
-            </div>
-          </div>
-          <button onclick="addAdminUser()" style="padding:10px 24px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">💾 حفظ المستخدم</button>
-        </div>
-
-        <!-- Users list -->
-        <div id="adminUsersWrap"></div>
-      </div>
-    </div>
-
-    <!-- ===== EMPLOYEE ORDERS TAB (merged) ===== -->
-    <div class="admin-tab-content" id="tab-emporders">
-      <div style="max-width:900px;">
-        <!-- Inner sub-tabs nav -->
-        <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid #e5e7eb;margin-bottom:22px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
-          <button id="emp-subtab-btn-tracking" onclick="switchEmpSubTab('tracking')" style="flex:1;padding:11px 6px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;border-left:1px solid rgba(255,255,255,0.15);">📋 الطلبات</button>
-          <button id="emp-subtab-btn-operator" onclick="switchEmpSubTab('operator')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">🔧 المشغل</button>
-          <button id="emp-subtab-btn-daysheet" onclick="switchEmpSubTab('daysheet')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">📊 كشف</button>
-          <button id="emp-subtab-btn-workers" onclick="switchEmpSubTab('workers')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">👥 الموظفون</button>
-          <button id="emp-subtab-btn-emppoints" onclick="switchEmpSubTab('emppoints')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">🏆 النقاط</button>
-          <button id="emp-subtab-btn-settings" onclick="switchEmpSubTab('settings')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;border-left:1px solid #e5e7eb;">⚙️ الإعدادات</button>
-          <button onclick="switchAdminTab('operator')" style="flex:1;padding:11px 6px;border:none;background:#fff;color:#7c3aed;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💼 المحاسبة</button>
-        </div>
-
-        <!-- TRACKING sub-tab -->
-        <div id="emp-subtab-tracking">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-            <div style="font-size:0.95rem;font-weight:700;color:#374151;">📋 متابعة الطلبات</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button id="empKanbanBtn" onclick="toggleEmpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
-              <button id="empGroupAreaBtn" onclick="toggleEmpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
-              <button onclick="toggleEmpAdvFilter(this)" id="empAdvFilterBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🔍 فلتر متقدم</button>
-            </div>
-          </div>
-          <!-- Advanced Filter Panel -->
-          <div id="empAdvFilterPanel" style="display:none;background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-            <div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:10px;">🔍 فلتر متقدم</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">من تاريخ</div><input type="date" id="empFlt_from" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">إلى تاريخ</div><input type="date" id="empFlt_to" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">أقل سعر (د.أ)</div><input type="number" id="empFlt_minPrice" min="0" placeholder="0" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">أكثر سعر (د.أ)</div><input type="number" id="empFlt_maxPrice" min="0" placeholder="∞" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">المنطقة</div><input type="text" id="empFlt_area" placeholder="الكل" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-              <div><div style="font-size:0.72rem;color:#6b7280;margin-bottom:3px;">الصفحة</div><input type="text" id="empFlt_page" placeholder="الكل" style="width:100%;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;" oninput="applyEmpAdvFilter()"></div>
-            </div>
-            <button onclick="clearEmpAdvFilter()" style="padding:6px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">✕ مسح الفلتر</button>
-          </div>
-          <div style="position:relative;margin-bottom:12px;">
-            <input id="empOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setEmpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-            <span id="empSearchClear" onclick="clearEmpSearch()" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:1rem;">✕</span>
-          </div>
-          <div id="empOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
-            <button class="order-stab active" onclick="setEmpOrderFilter('all',this)">الكل <span id="eoc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('pending',this)">جديد <span id="eoc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('preparing',this)">تجهيز <span id="eoc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('prepared',this)">تم التجهيز <span id="eoc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('queued',this)">🧍 قائمة مناديب <span id="eoc-queued" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('waiting_rep',this)">⏳ انتظار مندوب <span id="eoc-waiting_rep" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('delivering',this)">توصيل <span id="eoc-delivering" style="background:#8b5cf6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('delivered',this)">مسلّم <span id="eoc-delivered" style="background:#22c55e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('onhold',this)">معلّق <span id="eoc-onhold" style="background:#d97706;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('cancelled',this)">ملغي <span id="eoc-cancelled" style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('returned',this)">مرتجع <span id="eoc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('refused',this)">رفض <span id="eoc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setEmpOrderFilter('edited',this)">✏️ معدّل <span id="eoc-edited" style="background:#854d0e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-          </div>
-          <div id="empOrdersAdminWrap"></div>
-        </div>
-
-        <!-- OPERATOR sub-tab -->
-        <div id="emp-subtab-operator" style="display:none;">
+        <!-- OPERATOR (oporders) sub-tab -->
+        <div id="emp-subtab-operator" style="display:block;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -2875,7 +2778,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div id="opCancelReport" style="display:none;margin-top:18px;"></div>
         </div>
 
-        <!-- WORKERS sub-tab -->
+        <!-- WORKERS sub-tab (moved from emporders) -->
         <div id="emp-subtab-workers" style="display:none;">
           <!-- Add worker -->
           <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:18px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
@@ -2902,8 +2805,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div id="empWorkersList"></div>
         </div>
 
-        <!-- SETTINGS sub-tab -->
-        <!-- ===== DAY SHEET TAB ===== -->
+        <!-- DAYSHEET sub-tab (moved from emporders) -->
         <div id="emp-subtab-daysheet" style="display:none;">
           <!-- Store list view -->
           <div id="daysheet-store-list">
@@ -2925,7 +2827,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
         </div>
 
-        <!-- Points Management Sub-tab -->
+        <!-- EMPPOINTS sub-tab (moved from emporders) -->
         <div id="emp-subtab-emppoints" style="display:none;">
           <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;border:1.5px solid #e5e7eb;">
             <div style="font-weight:700;color:#1a3a2a;margin-bottom:10px;">⚙️ قيمة النقطة</div>
@@ -2945,6 +2847,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
         </div>
 
+        <!-- SETTINGS sub-tab (moved from emporders) -->
         <div id="emp-subtab-settings" style="display:none;">
           <!-- Area Pricing -->
           <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
@@ -2966,7 +2869,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
             <div id="empPagesAdminWrap"></div>
           </div>
-          <!-- Shared products — managed from حساب المشغل -->
+          <!-- Shared products -->
           <div style="background:#fff;border-radius:14px;padding:18px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:8px;">📦 المنتجات المشتركة</div>
             <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:0.8rem;color:#166534;">
@@ -2975,6 +2878,53 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <div id="empProductsAdminWrap"></div>
           </div>
         </div>
+
+      </div>
+
+    </div>
+
+    <!-- ===== ADMIN USERS TAB ===== -->
+    <div class="admin-tab-content" id="tab-adminusers">
+      <div style="max-width:720px;">
+        <h2 style="color:var(--green-dark);margin-bottom:4px;">🔑 إدارة المستخدمين</h2>
+        <p style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;">أضف حسابات للموظفين وحدد صلاحياتهم</p>
+
+        <!-- Add user form -->
+        <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:20px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:14px;">➕ إضافة مستخدم جديد</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <input id="newAdminUsername" placeholder="اسم المستخدم" autocomplete="off" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            <input id="newAdminPassword" type="password" placeholder="كلمة المرور" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:8px;">الصلاحيات:</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="operator" style="accent-color:var(--green-dark);"> 💼 حساب المشغل</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="products" style="accent-color:var(--green-dark);"> 📦 المنتجات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="orders" style="accent-color:var(--green-dark);"> 🧾 الطلبات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="customers" style="accent-color:var(--green-dark);"> 👥 الزبائن</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="stats" style="accent-color:var(--green-dark);"> 📊 الإحصائيات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="discounts" style="accent-color:var(--green-dark);"> 🎁 كودات الخصم</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="photos" style="accent-color:var(--green-dark);"> 📸 صور الزبائن</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="points" style="accent-color:var(--green-dark);"> 🌟 إعدادات النقاط</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="badges" style="accent-color:var(--green-dark);"> 🏅 الشارات</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="categories" style="accent-color:var(--green-dark);"> 📂 الأقسام</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="aboutedit" style="accent-color:var(--green-dark);"> 🌿 من نحن</label>
+              <label style="display:flex;align-items:center;gap:5px;background:#f3f4f6;border-radius:8px;padding:6px 10px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" class="perm-check" value="eid" style="accent-color:var(--green-dark);"> 🌙 العيد</label>
+            </div>
+          </div>
+          <button onclick="addAdminUser()" style="padding:10px 24px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">💾 حفظ المستخدم</button>
+        </div>
+
+        <!-- Users list -->
+        <div id="adminUsersWrap"></div>
+      </div>
+    </div>
+
+    <!-- ===== EMPLOYEE ORDERS TAB (merged into حساب المشغل) ===== -->
+    <div class="admin-tab-content" id="tab-emporders">
+      <div style="max-width:900px;">
+        <!-- merged into حساب المشغل -->
       </div>
     </div>
 
@@ -4506,10 +4456,10 @@ function switchAdminTab(tab){
   if(tab==='categories'){ renderCategoriesAdmin(); }
   if(tab==='aboutedit'){ loadAboutSettingsForm(); }
   if(tab==='operator'){
-    switchOpTab('products');
+    switchOpTab('oporders');
   }
   if(tab==='adminusers')loadAdminUsers();
-  if(tab==='emporders') switchEmpSubTab('tracking');
+  // emporders is merged into operator tab — nothing to do
 }
 
 // ===== ADMIN USERS MANAGEMENT =====
@@ -7691,24 +7641,32 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  ['products','stores','sales','account','balance'].forEach(t=>{
-    const el=document.getElementById(`optab-${t}`);
-    const btn=document.getElementById(`optab-btn-${t}`);
-    if(el) el.style.display=t===tab?'block':'none';
+  const allTabs=['oporders','products','stores','sales','account','balance','daysheet','workers','emppoints','settings'];
+  allTabs.forEach(t=>{
+    const panelId=t==='oporders'?'emp-subtab-operator':
+                  ['daysheet','workers','emppoints','settings'].includes(t)?'emp-subtab-'+t:
+                  'optab-'+t;
+    const el=document.getElementById(panelId);
+    const btn=document.getElementById('optab-btn-'+t);
+    const isActive=t===tab;
+    if(el) el.style.display=isActive?'block':'none';
     if(btn){
-      const isActive=t===tab;
-      btn.style.background=isActive?(t==='deliver'?'#c9a84c':'var(--green-dark)'):'var(--card-bg)';
+      btn.style.background=isActive?'var(--green-dark)':'var(--card-bg)';
       btn.style.color=isActive?'#fff':'var(--text-mid)';
       btn.style.fontWeight=isActive?'700':'400';
     }
   });
   if(tab!=='sales'&&_todaySalesUnsub){_todaySalesUnsub();_todaySalesUnsub=null;}
-  if(tab==='deliver') initDlvTab();
   if(tab==='products') loadOpProducts();
   if(tab==='stores') loadOpStores();
   if(tab==='sales') initSalesTab();
   if(tab==='account'){loadAcctStoreList();checkOperatorDayStatus();}
   if(tab==='balance') loadBalanceTab();
+  if(tab==='oporders'){_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
+  if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
+  if(tab==='workers')loadEmpWorkers();
+  if(tab==='emppoints')loadAdminEmpPoints();
+  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();}
 }
 
 // ===== QUICK DELIVER TAB (تسليم سريع) =====
