@@ -3515,6 +3515,14 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script>
+// Force reload if cached version is stale
+(function(){
+  const V='20260516-r3';
+  if(sessionStorage.getItem('_av')!==V){
+    sessionStorage.setItem('_av',V);
+    location.reload(true);
+  }
+})();
 // ===== FIREBASE CONFIG =====
 const firebaseConfig = {
   apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
