@@ -2878,6 +2878,26 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
             <div id="empProductsAdminWrap"></div>
           </div>
+          <!-- Push Notifications -->
+          <div style="background:#fff;border-radius:14px;padding:18px;margin-top:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:8px;">🔔 إعدادات الإشعارات</div>
+            <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#92400e;line-height:1.6;">
+              للحصول على الإشعارات حتى لو أغلقت الموقع:<br>
+              1. افتح <strong>Firebase Console</strong> → Project Settings → Cloud Messaging<br>
+              2. تحت <strong>Web Push Certificates</strong> — اضغط "Generate key pair" ← هذا هو VAPID Key<br>
+              3. تحت <strong>Cloud Messaging API (Legacy)</strong> — انسخ Server Key<br>
+              4. الصق المفتاحين هنا واضغط حفظ
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+              <input id="fcmVapidKey" placeholder="VAPID Key (Web Push Certificate)" style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;direction:ltr;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+              <input id="fcmServerKey" placeholder="Server Key (Legacy API)" style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;direction:ltr;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button onclick="saveFCMSettings()" style="padding:9px 18px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💾 حفظ المفاتيح</button>
+              <button onclick="enableMyNotifications()" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔔 تفعيل على هذا الجهاز</button>
+              <button onclick="testFCMNotification()" style="padding:9px 18px;background:#6b7280;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📤 إرسال تجريبي</button>
+            </div>
+          </div>
         </div>
 
     </div>
@@ -3513,10 +3533,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260516-r3';
+  const V='20260516-r4';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -3535,6 +3556,107 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
+
+// ===== PUSH NOTIFICATIONS (FCM) =====
+let _fcmMessaging=null,_fcmServerKey=null,_fcmVapidKey=null,_fcmReady=false;
+
+async function _loadFCMConfig(){
+  try{
+    const doc=await db.collection('operator_config').doc('fcm_settings').get();
+    if(doc.exists){const d=doc.data();_fcmServerKey=d.serverKey||null;_fcmVapidKey=d.vapidKey||null;}
+  }catch(e){}
+}
+
+async function _initFCM(){
+  if(_fcmReady||!('serviceWorker' in navigator)||!('Notification' in window))return;
+  try{
+    await _loadFCMConfig();
+    if(!_fcmVapidKey)return;
+    const reg=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    _fcmMessaging=firebase.messaging();
+    _fcmMessaging.onMessage(function(payload){
+      const t=(payload.notification&&payload.notification.title)||'';
+      const b=(payload.notification&&payload.notification.body)||'';
+      toast('🔔 '+t+(b?' — '+b:''));
+    });
+    _fcmReady=true;
+  }catch(e){console.log('FCM init:',e);}
+}
+
+async function _registerFCMToken(userId,role){
+  if(!_fcmReady||!_fcmMessaging||!_fcmVapidKey)return;
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted')return;
+    const swReg=await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+    const token=await _fcmMessaging.getToken({vapidKey:_fcmVapidKey,serviceWorkerRegistration:swReg});
+    if(token){
+      await db.collection('fcm_tokens').doc(token.slice(-28)).set({
+        token,userId:userId||'unknown',role:role||'user',
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }catch(e){console.log('FCM token:',e);}
+}
+
+async function sendPushNotification(title,body,data){
+  if(!_fcmServerKey)return;
+  try{
+    const snap=await db.collection('fcm_tokens').get();
+    const tokens=snap.docs.map(d=>d.data().token).filter(Boolean);
+    if(!tokens.length)return;
+    for(let i=0;i<tokens.length;i+=500){
+      fetch('https://fcm.googleapis.com/fcm/send',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'key='+_fcmServerKey},
+        body:JSON.stringify({
+          registration_ids:tokens.slice(i,i+500),
+          notification:{title,body,icon:'/icon-192.png',sound:'default'},
+          data:data||{},
+          android:{priority:'high'},
+          apns:{payload:{aps:{sound:'default',badge:1}}}
+        })
+      });
+    }
+  }catch(e){}
+}
+
+async function saveFCMSettings(){
+  const vk=document.getElementById('fcmVapidKey').value.trim();
+  const sk=document.getElementById('fcmServerKey').value.trim();
+  if(!vk||!sk){toast('⚠️ أدخل المفتاحين');return;}
+  try{
+    await db.collection('operator_config').doc('fcm_settings').set({vapidKey:vk,serverKey:sk,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    _fcmVapidKey=vk;_fcmServerKey=sk;
+    toast('✅ تم حفظ إعدادات الإشعارات');
+    _fcmReady=false;
+    await _initFCM();
+    await _registerFCMToken(_currentAdminUser||'admin','admin');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function loadFCMSettings(){
+  await _loadFCMConfig();
+  const vEl=document.getElementById('fcmVapidKey');
+  const sEl=document.getElementById('fcmServerKey');
+  if(vEl&&_fcmVapidKey)vEl.value=_fcmVapidKey;
+  if(sEl&&_fcmServerKey)sEl.value=_fcmServerKey;
+}
+
+async function enableMyNotifications(){
+  if(!('Notification' in window)){toast('⚠️ المتصفح لا يدعم الإشعارات');return;}
+  if(!_fcmVapidKey){toast('⚠️ أضف VAPID Key أولاً من الإعدادات');return;}
+  if(!_fcmReady){await _initFCM();}
+  await _registerFCMToken(_currentAdminUser||_empCurrentUser?.id||'user','admin');
+  if(Notification.permission==='granted')toast('✅ تم تفعيل الإشعارات على هذا الجهاز');
+  else if(Notification.permission==='denied')toast('❌ الإشعارات محجوبة — افتح إعدادات المتصفح وفعّلها يدوياً');
+}
+
+async function testFCMNotification(){
+  if(!_fcmServerKey){toast('⚠️ أضف Server Key أولاً');return;}
+  await sendPushNotification('تجربة 🔔','إشعارات الكسواني تعمل ✅',{tag:'test'});
+  toast('📤 تم إرسال إشعار تجريبي');
+}
 
 function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});}
 function jordanDisplayDate(opts={}){return new Date().toLocaleDateString('ar-JO',{timeZone:'Asia/Amman',...opts});}
@@ -4403,6 +4525,7 @@ function openAdmin(){
   applyAdminPerms();
   renderAdmin();startOrderListener();
   _migrateDeliveryRepsLegacy();
+  _initFCM().then(()=>_registerFCMToken(_currentAdminUser,'admin'));
 }
 function closeAdmin(){
   document.getElementById('adminPanel').classList.remove('open');
@@ -4603,6 +4726,7 @@ function _empSt(s){return EMP_STATUSES[s]||{label:s,color:'#6b7280',bg:'#f9fafb'
 async function openEmpPanel(){
   document.getElementById('empPanel').style.display='block';
   document.body.style.overflow='hidden';
+  _initFCM().then(()=>_registerFCMToken(_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username),'emp'));
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
   const isDelivery=_empCurrentUser.permissions?.isDelivery||false;
@@ -5852,7 +5976,11 @@ function loadOperatorOrders(){
       const newData=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(_seenOpOrderIds.size){
         const fresh=newData.filter(o=>!_seenOpOrderIds.has(o.id));
-        if(fresh.length)_playNewOrderSound();
+        if(fresh.length){
+          _playNewOrderSound();
+          const fo=fresh[0];
+          sendPushNotification('طلب جديد 🛒',(fo.pageName||'')+(fo.customerPhone?' — '+fo.customerPhone:''),{tag:'new-order',orderId:fo.id||''});
+        }
       }
       newData.forEach(o=>_seenOpOrderIds.add(o.id));
       _opOrdersAllData=newData;
@@ -5957,6 +6085,7 @@ async function updateEmpOrderStatus(id,newStatus){
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
     await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
+    sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
     if(newStatus==='delivered') syncOrderToAccounting(id,data);
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
       unsyncOrderFromAccounting(id);
@@ -6130,7 +6259,7 @@ body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:
 ${o.notes?`<div class="row"><span class="lbl">ملاحظات</span><span class="val">${o.notes}</span></div>`:''}
 <div class="row"><span class="lbl">الحالة</span><span class="badge" style="background:${st.bg};color:${st.color};">${st.label}</span></div>
 <div class="pt">📦 المنتجات</div>
-${prods.map(p=>`<div class="pr"><span>${p.name}</span><span>${p.qty||1} × ${p.price.toFixed(2)} = <strong>${(p.price*(p.qty||1)).toFixed(2)} د.أ</strong></span></div>`).join('')}
+${prods.map(p=>`<div class="pr" style="flex-direction:column;align-items:flex-start;gap:3px;"><div style="display:flex;justify-content:space-between;width:100%;"><span>${p.name}${p.color?` <span style="font-size:0.78rem;color:#6b7280;">(${p.color})</span>`:''}</span><span>${p.qty||1} × ${p.price.toFixed(2)} = <strong>${(p.price*(p.qty||1)).toFixed(2)} د.أ</strong></span></div>${p.writing?`<div style="font-size:0.8rem;color:#1a3a2a;background:#f0fdf4;padding:3px 8px;border-radius:6px;border-right:3px solid #16a34a;">✍️ الكتابة: ${p.writing}</div>`:''}</div>`).join('')}
 ${dlv>0?`<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;font-weight:700;font-size:0.88rem;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
 <div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#f97316;">+ ${dlv.toFixed(2)} د.أ</span></div>
 <div class="tot"><span>الحساب النهائي</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الحساب النهائي</span><span>${total.toFixed(2)} د.أ</span></div>`}
@@ -6309,7 +6438,7 @@ function switchEmpSubTab(tab){
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
   if(tab==='emppoints')loadAdminEmpPoints();
-  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();}
+  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
 }
 
 // ===== DAILY PAGE ACCOUNT SHEET (كشف الحساب اليومي) =====
@@ -7675,7 +7804,7 @@ function switchOpTab(tab){
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
   if(tab==='emppoints')loadAdminEmpPoints();
-  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();}
+  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
 }
 
 // ===== QUICK DELIVER TAB (تسليم سريع) =====
@@ -11125,6 +11254,7 @@ window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpPro
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
 window.setEmpOrderFilter=setEmpOrderFilter; window.setOpOrderFilter=setOpOrderFilter; window.deleteEmpOrder=deleteEmpOrder;
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder;
+window.saveFCMSettings=saveFCMSettings; window.loadFCMSettings=loadFCMSettings; window.enableMyNotifications=enableMyNotifications; window.testFCMNotification=testFCMNotification;
 window.syncOrderToAccounting=syncOrderToAccounting;
 window.setEmpDeliveryFee=setEmpDeliveryFee; window.updateEmpNet=updateEmpNet;
 window.openEmpOrderImage=openEmpOrderImage; window.switchEmpSubTab=switchEmpSubTab;
