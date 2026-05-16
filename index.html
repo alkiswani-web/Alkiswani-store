@@ -6130,7 +6130,7 @@ body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:
 ${o.notes?`<div class="row"><span class="lbl">ملاحظات</span><span class="val">${o.notes}</span></div>`:''}
 <div class="row"><span class="lbl">الحالة</span><span class="badge" style="background:${st.bg};color:${st.color};">${st.label}</span></div>
 <div class="pt">📦 المنتجات</div>
-${prods.map(p=>`<div class="pr"><span>${p.name}</span><span>${p.qty||1} × ${p.price.toFixed(2)} = <strong>${(p.price*(p.qty||1)).toFixed(2)} د.أ</strong></span></div>`).join('')}
+${prods.map(p=>`<div class="pr" style="flex-direction:column;align-items:flex-start;gap:3px;"><div style="display:flex;justify-content:space-between;width:100%;"><span>${p.name}${p.color?` <span style="font-size:0.78rem;color:#6b7280;">(${p.color})</span>`:''}</span><span>${p.qty||1} × ${p.price.toFixed(2)} = <strong>${(p.price*(p.qty||1)).toFixed(2)} د.أ</strong></span></div>${p.writing?`<div style="font-size:0.8rem;color:#1a3a2a;background:#f0fdf4;padding:3px 8px;border-radius:6px;border-right:3px solid #16a34a;">✍️ الكتابة: ${p.writing}</div>`:''}</div>`).join('')}
 ${dlv>0?`<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;font-weight:700;font-size:0.88rem;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
 <div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#f97316;">+ ${dlv.toFixed(2)} د.أ</span></div>
 <div class="tot"><span>الحساب النهائي</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الحساب النهائي</span><span>${total.toFixed(2)} د.أ</span></div>`}
