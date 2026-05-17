@@ -5811,15 +5811,21 @@ function renderEmpEditCart(){
   if(!_empEditCart.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;text-align:center;">لا يوجد منتجات</div>';updateEmpEditNet();return;}
   wrap.innerHTML=`<div style="font-size:0.8rem;font-weight:700;color:#1a3a2a;margin-bottom:6px;">📦 المنتجات</div>`+
     _empEditCart.map((item,i)=>`
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;">
-        <div style="flex:1;font-size:0.85rem;font-weight:600;color:#1a3a2a;">${item.name}</div>
-        <div style="font-size:0.78rem;color:#6b7280;">${parseFloat(item.price||0).toFixed(2)} د.أ</div>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <button onclick="changeEmpEditQty(${i},-1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
-          <span style="min-width:22px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty||1}</span>
-          <button onclick="changeEmpEditQty(${i},1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
+      <div style="padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:${item.color!==undefined||item.writing!==undefined?'7px':'0'};">
+          <div style="flex:1;font-size:0.85rem;font-weight:600;color:#1a3a2a;">${item.name}</div>
+          <div style="font-size:0.78rem;color:#6b7280;">${parseFloat(item.price||0).toFixed(2)} د.أ</div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <button onclick="changeEmpEditQty(${i},-1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
+            <span style="min-width:22px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty||1}</span>
+            <button onclick="changeEmpEditQty(${i},1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
+          </div>
+          <button onclick="removeEmpEditItem(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
         </div>
-        <button onclick="removeEmpEditItem(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
+        <div style="display:flex;gap:6px;">
+          <input value="${(item.color||'').replace(/"/g,'&quot;')}" placeholder="🎨 اللون" oninput="_empEditCart[${i}].color=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
+          <input value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="✍️ الكتابة" oninput="_empEditCart[${i}].writing=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
+        </div>
       </div>`).join('');
   updateEmpEditNet();
 }
