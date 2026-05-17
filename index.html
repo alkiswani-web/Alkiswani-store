@@ -3248,6 +3248,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       </div>
       <input type="text" id="empEdit_address" placeholder="العنوان *" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;">
       <textarea id="empEdit_notes" placeholder="ملاحظات" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;margin-bottom:8px;box-sizing:border-box;resize:none;"></textarea>
+      <div style="margin-bottom:8px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">📄 الصفحة / المتجر</div>
+        <select id="empEdit_page" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+          <option value="">— اختار الصفحة —</option>
+        </select>
+      </div>
       <div style="margin-bottom:12px;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">صورة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -5752,6 +5758,14 @@ function openEmpOrderEdit(orderId){
     document.getElementById('empEdit_address').value=o.address||'';
     document.getElementById('empEdit_notes').value=o.notes||'';
     const areaEl=document.getElementById('empEdit_area');if(areaEl)areaEl.value=o.area||'';
+    const pageEl=document.getElementById('empEdit_page');
+    if(pageEl){
+      db.collection('employee_pages').orderBy('name').get().then(ps=>{
+        const pages=ps.docs.map(d=>({id:d.id,...d.data()}));
+        pageEl.innerHTML='<option value="">— اختار الصفحة —</option>'+pages.map(p=>`<option value="${p.id}" data-name="${p.name}"${(o.pageId===p.id||o.pageName===p.name)?' selected':''}>${p.name}</option>`).join('');
+        if(!pageEl.value&&o.pageName){const opt=document.createElement('option');opt.value='';opt.textContent=o.pageName;opt.selected=true;pageEl.prepend(opt);}
+      }).catch(()=>{});
+    }
     const totalEl=document.getElementById('empEditTotalInput');
     if(totalEl)totalEl.value=(o.totalPrice!=null?o.totalPrice-(_empEditDeliveryFee||0):_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0)).toFixed(2);
     const dlv=_empEditDeliveryFee;
@@ -5864,9 +5878,15 @@ async function saveEmpOrderEdit(){
     const prev=(await docRef.get()).data();
     const by=_empCurrentUser?.displayName||_empCurrentUser?.username||_currentAdminUser||'admin';
     const editEntry={by,at:jordanDisplayDate(),note:'تعديل تفاصيل الطلب'};
+    const pageEl=document.getElementById('empEdit_page');
+    const selectedPageOpt=pageEl&&pageEl.options[pageEl.selectedIndex];
+    const newPageId=pageEl?pageEl.value:'';
+    const newPageName=selectedPageOpt?(selectedPageOpt.dataset.name||selectedPageOpt.textContent):'';
     const updateData={
       products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
       customerPhone:phone,address,notes,area,
+      ...(newPageName?{pageName:newPageName}:{}),
+      ...(newPageId?{pageId:newPageId}:{}),
       totalPrice:prodsTotal+deliveryFee,deliveryFee,netPrice,
       needsReview:true,
       editHistory:[...(prev.editHistory||[]),editEntry],
