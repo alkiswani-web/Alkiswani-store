@@ -2307,6 +2307,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <input type="number" id="opp_sell" min="0" step="0.5" placeholder="0.00">
             </div>
           </div>
+          <div class="fg" style="margin-bottom:10px;">
+            <label style="font-size:0.8rem;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;">📂 القسم (اختياري)</label>
+            <input type="text" id="opp_category" list="opp_category_list" placeholder="مثال: مباخر، أكريليك، هدايا..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='var(--border)'">
+            <datalist id="opp_category_list"></datalist>
+          </div>
           <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
             <div class="fg">
               <label>🧱 تكلفة المواد الخام</label>
@@ -3010,6 +3015,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <input id="emp_product_search" type="text" placeholder="🔍 ابحث عن منتج..." oninput="filterEmpProductGrid(this.value)" autocomplete="off" style="width:100%;padding:8px 32px 8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
           <span onclick="clearEmpProductSearch()" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:0.9rem;line-height:1;">✕</span>
         </div>
+        <!-- Category chips -->
+        <div id="emp_category_chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;"></div>
         <!-- Visual product grid -->
         <div id="emp_product_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;max-height:260px;overflow-y:auto;margin-bottom:8px;">
           <div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">⏳ جاري التحميل...</div>
@@ -4876,6 +4883,8 @@ async function onEmpPageChange(){
 }
 
 let _empProductSearchQuery='';
+let _empProductCategoryFilter='';
+
 function filterEmpProductGrid(q){
   _empProductSearchQuery=(q||'').trim();
   renderEmpProductPicker();
@@ -4886,6 +4895,21 @@ function clearEmpProductSearch(){
   if(inp){inp.value='';inp.focus();}
   renderEmpProductPicker();
 }
+function filterEmpProductCategory(cat){
+  _empProductCategoryFilter=cat;
+  renderEmpProductPicker();
+}
+
+function _renderEmpCategoryChips(){
+  const wrap=document.getElementById('emp_category_chips');
+  if(!wrap)return;
+  const cats=[...new Set((_empSharedProducts||[]).map(p=>p.category||'').filter(Boolean))].sort();
+  if(!cats.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=['الكل',...cats].map(c=>{
+    const isActive=c==='الكل'?!_empProductCategoryFilter:_empProductCategoryFilter===c;
+    return `<button onclick="filterEmpProductCategory('${c==='الكل'?'':c}')" style="padding:5px 13px;border-radius:20px;border:1.5px solid ${isActive?'#1a3a2a':'#e5e7eb'};background:${isActive?'#1a3a2a':'#fff'};color:${isActive?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:${isActive?'700':'400'};cursor:pointer;white-space:nowrap;">${c}</button>`;
+  }).join('');
+}
 
 function renderEmpProductPicker(){
   const grid=document.getElementById('emp_product_grid');
@@ -4893,7 +4917,12 @@ function renderEmpProductPicker(){
   let prods=_empSharedProducts||[];
   if(!prods.length){
     grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">لا يوجد منتجات — أضفها من حساب المشغل</div>';
+    _renderEmpCategoryChips();
     return;
+  }
+  _renderEmpCategoryChips();
+  if(_empProductCategoryFilter){
+    prods=prods.filter(p=>(p.category||'')=== _empProductCategoryFilter);
   }
   if(_empProductSearchQuery){
     const q=_empProductSearchQuery.toLowerCase();
@@ -8408,6 +8437,12 @@ async function loadOpProducts(){
   }
   renderOpProductsList();
   renderStorePricesForm();
+  // Populate category datalist
+  const dl=document.getElementById('opp_category_list');
+  if(dl){
+    const cats=[...new Set(_opProductsList.map(p=>p.category||'').filter(Boolean))].sort();
+    dl.innerHTML=cats.map(c=>`<option value="${c}">`).join('');
+  }
 }
 
 function renderOpProductsList(){
@@ -8440,7 +8475,7 @@ function renderOpProductsList(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
           ${prodImg?`<img src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
-          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}</div>
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}${p.category?` <span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">📂 ${p.category}</span>`:''}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
           <button onclick="editOpProduct('${p.id}')" style="background:#eff6ff;color:#1e40af;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✏️</button>
@@ -8508,6 +8543,8 @@ function editOpProduct(id){
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=!!p.isRawMaterial;
+  const catEl=document.getElementById('opp_category');
+  if(catEl) catEl.value=p.category||'';
   document.getElementById('opp_form_title').textContent='✏️ تعديل المنتج';
   document.getElementById('opp_save_btn').textContent='💾 حفظ التعديلات';
   document.getElementById('opp_cancel_btn').style.display='block';
@@ -8532,6 +8569,8 @@ function cancelEditProduct(){
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=false;
+  const catEl=document.getElementById('opp_category');
+  if(catEl) catEl.value='';
   document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
   document.getElementById('opp_save_btn').textContent='💾 حفظ المنتج';
   document.getElementById('opp_cancel_btn').style.display='none';
@@ -8553,18 +8592,19 @@ async function saveOpProduct(){
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
+    const category=(document.getElementById('opp_category')?.value||'').trim();
     if(_editingProductId){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,imageDataUrl:_oppCurrentImageUrl||''
+        colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||''
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,imageDataUrl:_oppCurrentImageUrl||'',
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
@@ -11452,7 +11492,7 @@ window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; wi
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
 window.selectEmpColor=selectEmpColor;
 window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
-window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch;
+window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
