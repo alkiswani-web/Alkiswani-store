@@ -5883,7 +5883,7 @@ async function saveEmpOrderEdit(){
     const newPageId=pageEl?pageEl.value:'';
     const newPageName=selectedPageOpt?(selectedPageOpt.dataset.name||selectedPageOpt.textContent):'';
     const updateData={
-      products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1})),
+      products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{})})),
       customerPhone:phone,address,notes,area,
       ...(newPageName?{pageName:newPageName}:{}),
       ...(newPageId?{pageId:newPageId}:{}),
