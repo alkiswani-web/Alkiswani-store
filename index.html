@@ -5645,6 +5645,96 @@ async function editEmpProduct(id,currentName,currentPrice){
 
 // ===== ORDER EDIT MODAL =====
 let _empEditImages=[];
+function openOpOrderDetail(orderId){
+  const o=_opOrdersAllData.find(x=>x.id===orderId)||_empOrdersAllData&&_empOrdersAllData.find(x=>x.id===orderId);
+  if(!o){db.collection('employee_orders').doc(orderId).get().then(s=>{if(s.exists)_showOpOrderDetail({id:s.id,...s.data()});});return;}
+  _showOpOrderDetail(o);
+}
+
+function _showOpOrderDetail(o){
+  const st=_empSt(o.status);
+  const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
+  const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
+  const dlv=o.deliveryFee||0;
+  const net=o.netPrice!=null?o.netPrice:total+dlv;
+  const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
+  const isClosed=['cancelled','returned','refused','delivered'].includes(o.status);
+  const nextSt=EMP_STATUS_NEXT[o.status];
+  const isOperator=!!_currentAdminUser;
+  const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+
+  let el=document.getElementById('opOrderDetailSheet');
+  if(!el){
+    el=document.createElement('div');
+    el.id='opOrderDetailSheet';
+    el.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+    el.innerHTML='<div onclick="closeOpOrderDetail()" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);"></div><div id="opOrderDetailBody" style="position:relative;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;background:#f5f6f5;border-radius:20px 20px 0 0;padding:0 0 24px;font-family:\'Tajawal\',sans-serif;"></div>';
+    document.body.appendChild(el);
+  }
+
+  const body=document.getElementById('opOrderDetailBody');
+  body.innerHTML=`
+    <div style="background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:16px 18px 14px;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:space-between;">
+      <button onclick="closeOpOrderDetail()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+      <div style="text-align:center;">
+        <div style="color:#c9a84c;font-weight:800;font-size:0.95rem;">${label}</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:0.72rem;margin-top:2px;">${o.pageName||''}</div>
+      </div>
+      <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:3px 11px;font-size:0.75rem;font-weight:800;">${st.label}</span>
+    </div>
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+      <!-- Customer -->
+      <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">
+        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:8px;">👤 معلومات الزبون</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.82rem;">
+          <div><span style="color:#9ca3af;">الاسم</span><div style="font-weight:600;color:#111;">${o.customerName||'—'}</div></div>
+          <div><span style="color:#9ca3af;">الهاتف</span><div style="font-weight:700;color:#1d4ed8;direction:ltr;">${o.customerPhone||'—'}</div></div>
+          <div style="grid-column:1/-1;"><span style="color:#9ca3af;">العنوان</span><div style="font-weight:600;color:#111;">${o.address||'—'}${o.area?' ('+o.area+')':''}</div></div>
+          ${o.notes?`<div style="grid-column:1/-1;"><span style="color:#9ca3af;">ملاحظات</span><div style="font-weight:600;color:#374151;">${o.notes}</div></div>`:''}
+        </div>
+      </div>
+      <!-- Products -->
+      <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">
+        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:8px;">📦 المنتجات</div>
+        ${prods.map(p=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px dashed #f0f0f0;gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:0.85rem;color:#1a3a2a;">${p.name}</div>
+            ${p.color?`<div style="font-size:0.75rem;color:#0369a1;">🎨 ${p.color}</div>`:''}
+            ${p.writing?`<div style="font-size:0.75rem;color:#7c3aed;background:#f5f3ff;border-radius:6px;padding:2px 7px;margin-top:3px;display:inline-block;">✍️ ${p.writing}</div>`:''}
+          </div>
+          <div style="text-align:left;flex-shrink:0;">
+            <div style="font-size:0.75rem;color:#6b7280;">${p.qty||1} × ${p.price.toFixed(2)}</div>
+            <div style="font-weight:800;color:#166534;">${(p.price*(p.qty||1)).toFixed(2)} د.أ</div>
+          </div>
+        </div>`).join('')}
+        <div style="margin-top:8px;padding-top:8px;border-top:2px solid #1a3a2a;display:flex;justify-content:space-between;align-items:center;">
+          ${dlv>0?`<div style="font-size:0.78rem;"><span style="color:#9ca3af;">إجمالي منتجات: ${total.toFixed(2)} + توصيل: ${dlv.toFixed(2)}</span></div>`:'<div></div>'}
+          <div style="font-weight:900;font-size:1rem;color:#166534;">${net.toFixed(2)} د.أ</div>
+        </div>
+      </div>
+      ${o.deliveryRepName?`<div style="background:#eff6ff;border-radius:12px;padding:12px 14px;border:1px solid #bfdbfe;font-size:0.82rem;color:#1e40af;">🚚 المندوب: <strong>${o.deliveryRepName}</strong></div>`:''}
+      ${o.workerName?`<div style="background:#f9fafb;border-radius:12px;padding:10px 14px;border:1px solid #e5e7eb;font-size:0.8rem;color:#374151;">👤 الموظف: <strong>${o.workerName}</strong></div>`:''}
+      ${o.editHistory&&o.editHistory.length?`<div style="background:#fffbeb;border-radius:12px;padding:10px 14px;border:1px solid #fde68a;font-size:0.75rem;color:#92400e;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' ← ')}</div>`:''}
+      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:zoom-in;">`).join('')}</div>`:''}
+      <!-- Actions -->
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">
+        ${isOperator&&nextSt&&!isClosed?`<button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','${nextSt}')" style="flex:1;padding:11px;background:${EMP_STATUSES[nextSt].color};color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;min-width:120px;">← ${EMP_STATUSES[nextSt].label}</button>`:''}
+        <button onclick="closeOpOrderDetail();openEmpOrderEdit('${o.id}')" style="flex:1;padding:11px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;min-width:80px;">✏️ تعديل</button>
+        <button onclick="printEmpOrder('${o.id}',false)" style="padding:11px 14px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">🖨</button>
+        ${isOperator?`<button onclick="closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')" style="padding:11px 14px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">📱</button>`:''}
+      </div>
+    </div>`;
+
+  el.style.display='flex';
+  document.body.style.overflow='hidden';
+}
+
+function closeOpOrderDetail(){
+  const el=document.getElementById('opOrderDetailSheet');
+  if(el)el.style.display='none';
+  document.body.style.overflow='';
+}
+
 function openEmpOrderEdit(orderId){
   _empEditOrderId=orderId;
   _empEditCart=[];
@@ -5852,7 +5942,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     :'';
 
   return `<div style="background:#fff;border-radius:11px;margin-bottom:7px;border:1px solid #e5e7eb;border-right:4px solid ${st.color};box-shadow:0 1px 4px rgba(0,0,0,0.05);overflow:hidden;">
-    <div onclick="openEmpOrderEdit('${o.id}')" style="display:flex;cursor:pointer;direction:ltr;min-height:80px;">
+    <div onclick="openOpOrderDetail('${o.id}')" style="display:flex;cursor:pointer;direction:ltr;min-height:80px;">
       ${imgPanel}
       <div style="flex:1;min-width:0;padding:10px 12px 8px;direction:rtl;">
         <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;">
@@ -5929,7 +6019,7 @@ function _renderKanbanCard(o,isOperator,customerHist){
   const phone=(o.customerPhone||'').trim();
   const nextSt=EMP_STATUS_NEXT[o.status];
   const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
-  return `<div onclick="openEmpOrderEdit('${o.id}')" style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+  return `<div onclick="openOpOrderDetail('${o.id}')" style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:5px;">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;color:#1a3a2a;font-size:0.78rem;line-height:1.3;">${label}</div>
@@ -11337,7 +11427,7 @@ window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvIt
 window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
 window.submitEmpDelivery=submitEmpDelivery;
-window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit;
+window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail;
 
 // ===== DELIVERY REPS =====
 let _deliveryModalOrder=null;
