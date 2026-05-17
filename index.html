@@ -5192,10 +5192,10 @@ function loadEmpTodayOrders(){
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">⏳</div>';
   _empTodayUnsub=db.collection('employee_orders')
     .where('workerId','==',_empCurrentUser.id)
-    .orderBy('createdAt','desc')
     .limit(150)
     .onSnapshot(snap=>{
-      const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
+      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
       if(!orders.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div>';return;}
       wrap.innerHTML=orders.map(o=>{
         const st=_empSt(o.status);
