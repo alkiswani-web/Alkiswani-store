@@ -2358,6 +2358,15 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               </div>
             </label>
           </div>
+          <div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="opp_is_raw_material" style="width:18px;height:18px;accent-color:#7c3aed;flex-shrink:0;">
+              <div>
+                <div style="font-size:0.88rem;font-weight:700;color:#6d28d9;">🏭 مادة خام — للمشغل فقط</div>
+                <div style="font-size:0.74rem;color:#7c3aed;margin-top:2px;">لا يظهر للموظفين عند إدخال الطلبات</div>
+              </div>
+            </label>
+          </div>
           <div style="display:flex;gap:8px;margin-top:4px;">
             <button id="opp_save_btn" onclick="saveOpProduct()" style="flex:1;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ المنتج</button>
             <button id="opp_cancel_btn" onclick="cancelEditProduct()" style="display:none;padding:12px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✕ إلغاء</button>
@@ -4860,7 +4869,7 @@ async function onEmpPageChange(){
       let snap;
       try{snap=await db.collection('operator_products').orderBy('name').get();}
       catch(e){snap=await db.collection('operator_products').get();}
-      _empSharedProducts=snap.docs.map(d=>({id:d.id,...d.data()}));
+      _empSharedProducts=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);
     }catch(e){_empSharedProducts=[];}
   }
   renderEmpProductPicker();
@@ -6100,7 +6109,7 @@ function loadEmpOrders(){
   wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
   if(!_empSharedProducts){
     db.collection('operator_products').get()
-      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()}));})
+      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);})
       .catch(()=>{});
   }
   _empOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
@@ -6159,7 +6168,7 @@ function loadOperatorOrders(){
   // Ensure product images are available for card rendering
   if(!_empSharedProducts){
     db.collection('operator_products').get()
-      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()}));})
+      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);})
       .catch(()=>{});
   }
   _opOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
@@ -8431,7 +8440,7 @@ function renderOpProductsList(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
           ${prodImg?`<img src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
-          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}</div>
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
           <button onclick="editOpProduct('${p.id}')" style="background:#eff6ff;color:#1e40af;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✏️</button>
@@ -8497,6 +8506,8 @@ function editOpProduct(id){
   renderOppColorChips();
   const rw=document.getElementById('opp_requires_writing');
   if(rw) rw.checked=!!p.requiresWriting;
+  const rm=document.getElementById('opp_is_raw_material');
+  if(rm) rm.checked=!!p.isRawMaterial;
   document.getElementById('opp_form_title').textContent='✏️ تعديل المنتج';
   document.getElementById('opp_save_btn').textContent='💾 حفظ التعديلات';
   document.getElementById('opp_cancel_btn').style.display='block';
@@ -8519,6 +8530,8 @@ function cancelEditProduct(){
   renderOppColorChips();
   const rw=document.getElementById('opp_requires_writing');
   if(rw) rw.checked=false;
+  const rm=document.getElementById('opp_is_raw_material');
+  if(rm) rm.checked=false;
   document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
   document.getElementById('opp_save_btn').textContent='💾 حفظ المنتج';
   document.getElementById('opp_cancel_btn').style.display='none';
@@ -8539,18 +8552,19 @@ async function saveOpProduct(){
   });
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
+    const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
     if(_editingProductId){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,imageDataUrl:_oppCurrentImageUrl||''
+        colors:_oppColors,requiresWriting,isRawMaterial,imageDataUrl:_oppCurrentImageUrl||''
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,imageDataUrl:_oppCurrentImageUrl||'',
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,imageDataUrl:_oppCurrentImageUrl||'',
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
