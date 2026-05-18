@@ -3034,6 +3034,14 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;">
             </div>
           </div>
+          <!-- Merge toggle -->
+          <label style="display:flex;align-items:center;gap:12px;margin-top:14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;cursor:pointer;">
+            <input type="checkbox" id="dxfMerge" checked style="width:18px;height:18px;accent-color:var(--green-dark);flex-shrink:0;cursor:pointer;">
+            <div>
+              <div style="font-size:0.88rem;font-weight:700;color:#166534;">دمج الأحرف (Boolean Union)</div>
+              <div style="font-size:0.78rem;color:#16a34a;margin-top:2px;">يدمج الأحرف المتلاصقة بشكل واحد — موصى به للقطع والاستنسل</div>
+            </div>
+          </label>
         </div>
 
         <!-- Step 3: Preview -->
@@ -14216,16 +14224,59 @@ function _dxfBuildString(polylines) {
     '0','ENDSEC','0','EOF',''].join('\n');
 }
 
-function dxfDownload() {
+function dxfLoadClipper() {
+  return new Promise((resolve, reject) => {
+    if (window.ClipperLib) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('فشل تحميل مكتبة Clipper'));
+    document.head.appendChild(s);
+  });
+}
+
+function _dxfApplyUnion(polylines) {
+  if (!window.ClipperLib) return polylines;
+  const SCALE = 100000;
+  const closed = polylines.filter(p => p.closed);
+  const open = polylines.filter(p => !p.closed);
+  if (closed.length < 2) return polylines;
+  const clipPaths = closed.map(pl =>
+    pl.pts.map(([x,y]) => ({X: Math.round(x*SCALE), Y: Math.round(y*SCALE)}))
+  );
+  // Simplify each path first
+  const simplified = ClipperLib.Clipper.SimplifyPolygons(clipPaths, ClipperLib.PolyFillType.pftNonZero);
+  const cpr = new ClipperLib.Clipper();
+  cpr.AddPaths(simplified, ClipperLib.PolyType.ptSubject, true);
+  const solution = new ClipperLib.Paths();
+  cpr.Execute(ClipperLib.ClipType.ctUnion, solution,
+    ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const merged = solution.map(path => ({
+    pts: path.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
+    closed: true
+  }));
+  return [...merged, ...open];
+}
+
+async function dxfDownload() {
   if (!_dxfFont) { alert('الرجاء رفع ملف الخط أولاً'); return; }
   const p = dxfGetParams();
   if (!p.text) { alert('الرجاء إدخال النص'); return; }
+  const doMerge = document.getElementById('dxfMerge')?.checked;
+  const dlEl = document.getElementById('dxfDownloadInfo');
+  if (dlEl) dlEl.textContent = '⏳ جاري التوليد...';
   let path;
   try {
     path = _dxfFont.getPath(p.text, p.offX, p.offY, p.sizeMM);
   } catch(e) { alert('خطأ في توليد المسارات: ' + e.message); return; }
-  const polylines = _dxfPathToPolylines(path, p.res);
+  let polylines = _dxfPathToPolylines(path, p.res);
   if (!polylines.length) { alert('لم يتم توليد أي مسارات. تأكد من أن الخط يدعم الأحرف المُدخلة.'); return; }
+  if (doMerge) {
+    try {
+      if (!window.ClipperLib) { if(dlEl) dlEl.textContent='⏳ تحميل مكتبة الدمج...'; await dxfLoadClipper(); }
+      polylines = _dxfApplyUnion(polylines);
+    } catch(e) { console.warn('Union failed, using raw paths:', e); }
+  }
   const dxfStr = _dxfBuildString(polylines);
   const blob = new Blob([dxfStr], {type:'application/octet-stream'});
   const url = URL.createObjectURL(blob);
@@ -14235,8 +14286,7 @@ function dxfDownload() {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 5000);
   const totalPts = polylines.reduce((s,pl)=>s+pl.pts.length,0);
-  const dlEl = document.getElementById('dxfDownloadInfo');
-  if (dlEl) dlEl.textContent = `✅ تم التحميل | ${polylines.length} مسار | ${totalPts} نقطة`;
+  if (dlEl) dlEl.textContent = `✅ تم التحميل${doMerge?' (مع الدمج)':''} | ${polylines.length} مسار | ${totalPts} نقطة`;
 }
 
 window.dxfLoadFont=dxfLoadFont; window.dxfDownload=dxfDownload; window.dxfUpdatePreview=dxfUpdatePreview; window.dxfTabActivated=dxfTabActivated;
