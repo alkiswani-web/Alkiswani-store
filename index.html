@@ -14079,74 +14079,91 @@ function dxfGetParams() {
   };
 }
 
-function dxfUpdatePreview() {
+async function dxfUpdatePreview() {
   const canvas = document.getElementById('dxfCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  ctx.fillStyle = '#0d1117';
-  ctx.fillRect(0, 0, W, H);
-  // subtle grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
   const infoEl = document.getElementById('dxfInfo');
+  function drawBg() {
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1;
+    for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  }
+  drawBg();
   if (!_dxfFont) {
-    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = "15px 'Tajawal',sans-serif";
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('ارفع ملف الخط لرؤية المعاينة', W/2, H/2);
-    if (infoEl) infoEl.textContent = '';
-    return;
+    ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font="15px 'Tajawal',sans-serif";
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('ارفع ملف الخط لرؤية المعاينة',W/2,H/2);
+    if(infoEl)infoEl.textContent=''; return;
   }
   const p = dxfGetParams();
   if (!p.text) {
-    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = "15px 'Tajawal',sans-serif";
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('أدخل النص لرؤية المعاينة', W/2, H/2);
-    if (infoEl) infoEl.textContent = '';
-    return;
+    ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font="15px 'Tajawal',sans-serif";
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('أدخل النص لرؤية المعاينة',W/2,H/2);
+    if(infoEl)infoEl.textContent=''; return;
   }
+  const doMerge = document.getElementById('dxfMerge')?.checked;
   try {
-    const SCALE = 3; // 3px per mm for preview
-    const fsPx = p.sizeMM * SCALE;
-    // Place text so it's centered on canvas; Arabic paths extend leftward from startX
-    const path = _dxfFont.getPath(p.text, W - 20 + p.offX * SCALE, H/2 + fsPx * 0.35 + p.offY * SCALE, fsPx);
-    const bb = path.getBoundingBox();
-    // Shift to fit within canvas if out of bounds
-    const shiftX = bb.x1 < 5 ? 5 - bb.x1 : (bb.x2 > W-5 ? W-5-bb.x2 : 0);
-    ctx.save();
-    ctx.translate(shiftX, 0);
-    ctx.beginPath();
-    for (const cmd of path.commands) {
-      switch(cmd.type) {
-        case 'M': ctx.moveTo(cmd.x, cmd.y); break;
-        case 'L': ctx.lineTo(cmd.x, cmd.y); break;
-        case 'C': ctx.bezierCurveTo(cmd.x1,cmd.y1,cmd.x2,cmd.y2,cmd.x,cmd.y); break;
-        case 'Q': ctx.quadraticCurveTo(cmd.x1,cmd.y1,cmd.x,cmd.y); break;
-        case 'Z': ctx.closePath(); break;
+    const SCALE=3;
+    const fsPx=p.sizeMM*SCALE;
+    const path=_dxfFont.getPath(p.text, W-20+p.offX*SCALE, H/2+fsPx*0.35+p.offY*SCALE, fsPx);
+    const bb=path.getBoundingBox();
+    const shiftX=bb.x1<5?5-bb.x1:(bb.x2>W-5?W-5-bb.x2:0);
+    const wMM=((bb.x2-bb.x1)/SCALE).toFixed(1);
+    const hMM=((bb.y2-bb.y1)/SCALE).toFixed(1);
+    if (doMerge) {
+      if(infoEl)infoEl.textContent='⏳ جاري الدمج...';
+      if(!window.ClipperLib) await dxfLoadClipper();
+      const rawPl=_dxfPathToPolylinesRaw(path, p.res);
+      const merged=_dxfApplyUnion(rawPl);
+      drawBg();
+      ctx.save(); ctx.translate(shiftX,0);
+      for(const pl of merged) {
+        if(pl.pts.length<2)continue;
+        ctx.beginPath();
+        ctx.moveTo(pl.pts[0][0],pl.pts[0][1]);
+        for(let i=1;i<pl.pts.length;i++) ctx.lineTo(pl.pts[i][0],pl.pts[i][1]);
+        if(pl.closed) ctx.closePath();
+        const isHole=pl.layer==='HOLES';
+        ctx.fillStyle=isHole?'rgba(255,100,50,0.25)':'rgba(0,255,136,0.18)';
+        ctx.fill('evenodd');
+        ctx.strokeStyle=isHole?'#ff6432':'#00ff88';
+        ctx.lineWidth=isHole?1.5:1.2; ctx.stroke();
       }
+      ctx.strokeStyle='rgba(255,220,0,0.35)';ctx.lineWidth=1;
+      ctx.setLineDash([4,4]);ctx.strokeRect(bb.x1,bb.y1,bb.x2-bb.x1,bb.y2-bb.y1);
+      ctx.setLineDash([]);ctx.restore();
+      const outerN=merged.filter(pl=>pl.layer==='0').length;
+      const holeN=merged.filter(pl=>pl.layer==='HOLES').length;
+      if(infoEl)infoEl.innerHTML=`أبعاد: ${wMM}×${hMM} مم &nbsp;|&nbsp; <span style="color:#00ff88">■ ${outerN} شكل خارجي</span> &nbsp;<span style="color:#ff6432">■ ${holeN} فراغ داخلي</span>`;
+    } else {
+      ctx.save(); ctx.translate(shiftX,0);
+      ctx.beginPath();
+      for(const cmd of path.commands){
+        switch(cmd.type){
+          case 'M':ctx.moveTo(cmd.x,cmd.y);break;
+          case 'L':ctx.lineTo(cmd.x,cmd.y);break;
+          case 'C':ctx.bezierCurveTo(cmd.x1,cmd.y1,cmd.x2,cmd.y2,cmd.x,cmd.y);break;
+          case 'Q':ctx.quadraticCurveTo(cmd.x1,cmd.y1,cmd.x,cmd.y);break;
+          case 'Z':ctx.closePath();break;
+        }
+      }
+      ctx.fillStyle='rgba(0,255,136,0.18)';ctx.fill('evenodd');
+      ctx.strokeStyle='#00ff88';ctx.lineWidth=1.2;ctx.stroke();
+      ctx.strokeStyle='rgba(255,220,0,0.35)';ctx.lineWidth=1;
+      ctx.setLineDash([4,4]);ctx.strokeRect(bb.x1,bb.y1,bb.x2-bb.x1,bb.y2-bb.y1);
+      ctx.setLineDash([]);ctx.restore();
+      if(infoEl)infoEl.textContent=`أبعاد النص: ${wMM} × ${hMM} مم`;
     }
-    ctx.fillStyle = 'rgba(0,255,136,0.18)';
-    ctx.fill('evenodd');
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-    // dashed bounding box
-    ctx.strokeStyle = 'rgba(255,220,0,0.35)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4,4]);
-    ctx.strokeRect(bb.x1, bb.y1, bb.x2-bb.x1, bb.y2-bb.y1);
-    ctx.setLineDash([]);
-    ctx.restore();
-    const wMM = ((bb.x2-bb.x1)/SCALE).toFixed(1);
-    const hMM = ((bb.y2-bb.y1)/SCALE).toFixed(1);
-    if (infoEl) infoEl.textContent = `أبعاد النص: ${wMM} × ${hMM} مم`;
   } catch(e) {
-    ctx.fillStyle = '#ef4444'; ctx.font = "13px 'Tajawal',sans-serif";
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('خطأ: ' + e.message, W/2, H/2);
-    if (infoEl) infoEl.textContent = '';
+    drawBg();
+    ctx.fillStyle='#ef4444';ctx.font="13px 'Tajawal',sans-serif";
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('خطأ: '+e.message,W/2,H/2);
+    if(infoEl)infoEl.textContent='';
   }
 }
 
