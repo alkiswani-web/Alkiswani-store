@@ -14198,72 +14198,46 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // Cuts a straight slot (شارع) all the way from outer edge to each inner hole.
-  // Both outer and hole get aligned gaps; two straight lines close the slot walls.
-  // The inner piece is completely free to fall out.
+  // شارع: adds straight cut line(s) through the letter wall so inner pieces fall out.
+  // Does NOT modify existing polygon shapes — only appends cut lines.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
-  const others = polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
   if(!holes.length) return polylines;
 
-  const workOuters = outers.map(p=>({...p,pts:[...p.pts]}));
-  const resultLines = [];
-  const resultHoles = [];
+  const cutLines = [];
 
-  for(let hi=0;hi<holes.length;hi++){
-    const hole=holes[hi];
-    let bestDist=Infinity,bestOi=-1,bestOuterSeg=null,bestHoleSeg=null;
+  for(const hole of holes){
+    let bestDist=Infinity, outerPt=null, holePt=null;
     const hStep=Math.max(1,Math.floor(hole.pts.length/60));
     for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      for(let oi=0;oi<workOuters.length;oi++){
-        const r=_dxfClosestOnPoly(workOuters[oi].pts,hole.pts[vi]);
+      for(const outer of outers){
+        const r=_dxfClosestOnPoly(outer.pts, hole.pts[vi]);
         if(r.dist<bestDist){
-          bestDist=r.dist;bestOi=oi;
-          bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt);
-          bestOuterSeg=r;
+          bestDist=r.dist;
+          holePt=_dxfClosestOnPoly(hole.pts, r.pt).pt;
+          outerPt=r.pt;
         }
       }
     }
-    if(bestOi<0){resultHoles.push(hole);continue;}
-    bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts,bestHoleSeg.pt);
+    if(!outerPt) continue;
 
-    // Slot direction: outer→hole; perp = side-wall direction
-    const [ox,oy]=bestOuterSeg.pt,[hx,hy]=bestHoleSeg.pt;
+    // Direction of the slot and its perpendicular
+    const [ox,oy]=outerPt,[hx,hy]=holePt;
     const sd=Math.hypot(hx-ox,hy-oy)||1;
-    const perp=[-(hy-oy)/sd,(hx-ox)/sd]; // perpendicular to slot
+    const perp=[-(hy-oy)/sd,(hx-ox)/sd];
     const hw=channelWidth/2;
 
-    // Gap endpoints (perp offset, same direction for both)
-    const oA=[ox+perp[0]*hw,oy+perp[1]*hw], oB=[ox-perp[0]*hw,oy-perp[1]*hw];
-    const hA=[hx+perp[0]*hw,hy+perp[1]*hw], hB=[hx-perp[0]*hw,hy-perp[1]*hw];
-
-    // Insert gaps using perp offset (override _dxfInsertGap's seg-direction)
-    const outerOpen=_dxfInsertGapPerp(workOuters[bestOi].pts,bestOuterSeg.segIdx,bestOuterSeg.t,channelWidth,perp);
-    workOuters[bestOi]={pts:outerOpen,closed:false,layer:'0'};
-
-    const holeOpen=_dxfInsertGapPerp(hole.pts,bestHoleSeg.segIdx,bestHoleSeg.t,channelWidth,perp);
-    resultHoles.push({pts:holeOpen,closed:false,layer:'0'});
-
-    // Two straight cut lines = the walls of the شارع
-    resultLines.push({pts:[oA,hA],closed:false,layer:'0'});
-    resultLines.push({pts:[oB,hB],closed:false,layer:'0'});
+    if(hw < 0.05){
+      // Single kerf line
+      cutLines.push({pts:[outerPt,holePt],closed:false,layer:'0'});
+    } else {
+      // Two parallel lines = channel walls
+      cutLines.push({pts:[[ox+perp[0]*hw,oy+perp[1]*hw],[hx+perp[0]*hw,hy+perp[1]*hw]],closed:false,layer:'0'});
+      cutLines.push({pts:[[ox-perp[0]*hw,oy-perp[1]*hw],[hx-perp[0]*hw,hy-perp[1]*hw]],closed:false,layer:'0'});
+    }
   }
 
-  return [...workOuters,...resultHoles,...resultLines,...others];
-}
-
-function _dxfInsertGapPerp(pts, segIdx, t, gapWidth, perpDir) {
-  // Like _dxfInsertGap but gap endpoints offset along perpDir (not segment direction)
-  const n=pts.length;
-  const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
-  const cx=ax+(bx-ax)*t,cy=ay+(by-ay)*t;
-  const hw=gapWidth/2;
-  const gEnd=[cx+perpDir[0]*hw,cy+perpDir[1]*hw];
-  const gStart=[cx-perpDir[0]*hw,cy-perpDir[1]*hw];
-  const result=[gEnd];
-  for(let i=0;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
-  result.push(gStart);
-  return result;
+  return [...polylines, ...cutLines];
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
