@@ -14244,8 +14244,26 @@ function _dxfApplyChannel(polylines, channelWidth) {
     for(const [x,y] of hole.pts) { cx+=x; cy+=y; }
     cx /= hole.pts.length; cy /= hole.pts.length;
 
-    const near = _dxfClosestOnPoly(outers[oi].pts, [cx, cy]);
-    const [ox, oy] = near.pt;
+    // Hole radius — limits search so we find THIS letter's wall, not a distant letter's wall
+    const holeR = Math.sqrt(hole.pts.reduce((s,[x,y])=>s+(cx-x)**2+(cy-y)**2,0)/hole.pts.length);
+    const maxD = holeR * 5; // search within 5× hole radius
+
+    // Find nearest outer boundary point within local radius
+    let bestD=Infinity, bestPt=null;
+    const outerPts = outers[oi].pts;
+    for(let i=0;i<outerPts.length;i++){
+      const [ax,ay]=outerPts[i],[bx,by]=outerPts[(i+1)%outerPts.length];
+      const ex=bx-ax,ey=by-ay,len2=ex*ex+ey*ey;
+      if(len2<1e-10) continue;
+      let t=((cx-ax)*ex+(cy-ay)*ey)/len2;
+      t=Math.max(0,Math.min(1,t));
+      const px=ax+t*ex,py=ay+t*ey;
+      const d=Math.hypot(px-cx,py-cy);
+      if(d<bestD&&d<=maxD){bestD=d;bestPt=[px,py];}
+    }
+    // Fallback to global nearest if nothing found within radius
+    if(!bestPt){const fb=_dxfClosestOnPoly(outerPts,[cx,cy]);bestPt=fb.pt;}
+    const [ox,oy]=bestPt;
     const sd = Math.hypot(ox-cx, oy-cy) || 1;
     const dx = (ox-cx)/sd, dy = (oy-cy)/sd;
     const perp = [-dy, dx];
