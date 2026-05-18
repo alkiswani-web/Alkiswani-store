@@ -3056,6 +3056,20 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <input type="number" id="dxfBridgeWidthNum" min="0.1" max="200" step="0.1" value="0.8" style="width:52px;padding:2px 4px;border:1px solid #ea580c;border-radius:4px;font-size:0.85rem;color:#ea580c;font-weight:700;text-align:center;" oninput="document.getElementById('dxfBridgeWidth').value=Math.min(20,Math.max(0.3,this.value));document.getElementById('dxfBridgeWidthVal').textContent=parseFloat(this.value).toFixed(1);dxfUpdatePreview()">
             <span style="font-size:0.78rem;color:#9a3412;">مم</span>
           </div>
+          <!-- Frame/outline toggle -->
+          <label style="display:flex;align-items:center;gap:12px;margin-top:10px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px 16px;cursor:pointer;">
+            <input type="checkbox" id="dxfFrame" style="width:18px;height:18px;accent-color:#2563eb;flex-shrink:0;cursor:pointer;" onchange="document.getElementById('dxfFrameWallRow').style.display=this.checked?'flex':'none';dxfUpdatePreview()">
+            <div style="flex:1;">
+              <div style="font-size:0.88rem;font-weight:700;color:#1e3a8a;">إطار مجوف (Outline Frame)</div>
+              <div style="font-size:0.78rem;color:#2563eb;margin-top:2px;">يضيف خطاً خارجياً موسَّعاً — ينتج قطعة على شكل برواز الحرف</div>
+            </div>
+          </label>
+          <div id="dxfFrameWallRow" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:0 4px;">
+            <span style="font-size:0.82rem;color:#1e3a8a;white-space:nowrap;">سماكة الإطار:</span>
+            <input type="range" id="dxfFrameWall" min="0.5" max="20" step="0.5" value="3" style="flex:1;accent-color:#2563eb;" oninput="document.getElementById('dxfFrameWallNum').value=parseFloat(this.value).toFixed(1);dxfUpdatePreview()">
+            <input type="number" id="dxfFrameWallNum" min="0.1" max="200" step="0.1" value="3" style="width:52px;padding:2px 4px;border:1px solid #2563eb;border-radius:4px;font-size:0.85rem;color:#2563eb;font-weight:700;text-align:center;" oninput="document.getElementById('dxfFrameWall').value=Math.min(20,Math.max(0.5,this.value));dxfUpdatePreview()">
+            <span style="font-size:0.78rem;color:#1e3a8a;">مم</span>
+          </div>
         </div>
 
         <!-- Step 3: Preview -->
@@ -14093,6 +14107,8 @@ function dxfGetParams() {
     doMerge: document.getElementById('dxfMerge')?.checked !== false,
     doBridge: document.getElementById('dxfBridge')?.checked !== false,
     bridgeWidth: parseFloat(document.getElementById('dxfBridgeWidthNum')?.value || document.getElementById('dxfBridgeWidth')?.value) || 0.8,
+    doFrame: document.getElementById('dxfFrame')?.checked === true,
+    frameWall: parseFloat(document.getElementById('dxfFrameWallNum')?.value || document.getElementById('dxfFrameWall')?.value) || 3,
   };
 }
 
@@ -14171,6 +14187,33 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
   return [...workOuters, ...resultHoles, ...others];
 }
 
+function _dxfApplyFrame(polylines, wallMM) {
+  // For each outer shape (layer '0'), expand outward by wallMM using ClipperOffset.
+  // Returns: expanded outer paths (layer 'FRAME') + original paths unchanged.
+  // The laser cuts FRAME (outer edge) + '0' (inner edge) = hollow letter frame piece.
+  const SCALE = 100000;
+  const delta = Math.round(wallMM * SCALE);
+  const outers = polylines.filter(p => p.layer === '0' && p.closed);
+  const rest   = polylines.filter(p => !(p.layer === '0' && p.closed));
+  if (!outers.length) return polylines;
+
+  const co = new ClipperLib.ClipperOffset(2, 0.25);
+  outers.forEach(pl => {
+    const scaled = pl.pts.map(([x,y]) => ({X:Math.round(x*SCALE), Y:Math.round(y*SCALE)}));
+    co.AddPath(scaled, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+  });
+  const sol = new ClipperLib.Paths();
+  co.Execute(sol, delta);
+
+  const framePaths = sol.map(path => ({
+    pts: path.map(p => [p.X/SCALE, p.Y/SCALE]),
+    closed: true,
+    layer: 'FRAME'
+  }));
+
+  return [...framePaths, ...outers, ...rest];
+}
+
 async function dxfUpdatePreview() {
   const canvas = document.getElementById('dxfCanvas');
   if (!canvas) return;
@@ -14213,6 +14256,7 @@ async function dxfUpdatePreview() {
       const eps=Math.min(1.0, Math.max(0.2, p.sizeMM*0.012));
       let merged=_dxfApplyUnion(rawPl, eps);
       if(p.doBridge){try{merged=_dxfApplyBridges(merged,p.bridgeWidth);}catch(e){}}
+      if(p.doFrame){try{merged=_dxfApplyFrame(merged,p.frameWall);}catch(e){}}
       drawBg();
       ctx.save(); ctx.translate(shiftX,0);
       for(const pl of merged) {
@@ -14222,9 +14266,10 @@ async function dxfUpdatePreview() {
         for(let i=1;i<pl.pts.length;i++) ctx.lineTo(pl.pts[i][0],pl.pts[i][1]);
         if(pl.closed) ctx.closePath();
         const isHole=pl.layer==='HOLES';
-        ctx.fillStyle=isHole?'rgba(255,100,50,0.25)':'rgba(0,255,136,0.12)';
+        const isFrame=pl.layer==='FRAME';
+        ctx.fillStyle=isFrame?'rgba(59,130,246,0.10)':isHole?'rgba(255,100,50,0.25)':'rgba(0,255,136,0.12)';
         ctx.fill('evenodd');
-        ctx.strokeStyle=isHole?'#ff6432':'#00ff88';
+        ctx.strokeStyle=isFrame?'#3b82f6':isHole?'#ff6432':'#00ff88';
         ctx.lineWidth=1.2; ctx.stroke();
       }
       ctx.strokeStyle='rgba(255,220,0,0.35)';ctx.lineWidth=1;
@@ -14432,6 +14477,10 @@ async function dxfDownload() {
   // Apply bridges BEFORE Y flip (screen coords)
   if (p.doBridge && p.doMerge) {
     try { polylines = _dxfApplyBridges(polylines, p.bridgeWidth); } catch(e) { console.warn('Bridge failed:', e); }
+  }
+  // Apply frame (expand outward) BEFORE Y flip
+  if (p.doFrame && p.doMerge) {
+    try { polylines = _dxfApplyFrame(polylines, p.frameWall); } catch(e) { console.warn('Frame failed:', e); }
   }
   // Y flip for DXF coordinate system
   polylines = _dxfFlipY(polylines);
