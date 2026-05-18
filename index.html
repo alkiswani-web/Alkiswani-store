@@ -14222,10 +14222,8 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: a rectangle slot cut through the thinnest wall of each letter hole.
-  // Strategy: cast rays from hole centroid in all directions; pick direction with
-  // minimum wall thickness (holeExit → outerExit). Guaranteed to find the local
-  // wall of the specific letter, not a wall of an adjacent merged letter.
+  // شارع: rectangle slot from inside the hole through the wall to outside the letter.
+  // Method: centroid of hole → nearest point on outer boundary = thinnest wall by definition.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
@@ -14234,50 +14232,30 @@ function _dxfApplyChannel(polylines, channelWidth) {
   for(const hole of holes) {
     const bestOi = _dxfFindParentOuter(hole, outers);
     if(bestOi < 0) continue;
-    const outer = outers[bestOi];
 
-    // Centroid of hole — always inside the hole for typical Arabic letter voids
+    // Hole centroid — geometric center of the void
     let cx=0, cy=0;
     for(const [x,y] of hole.pts) { cx+=x; cy+=y; }
     cx /= hole.pts.length; cy /= hole.pts.length;
 
-    // Cast rays every 5° from centroid; find thinnest wall
-    let bestDir=null, bestHoleT=0, bestOuterT=0, bestWall=Infinity;
-    const NRAYS = 36;
-    for(let ri=0; ri<NRAYS; ri++) {
-      const angle = (ri / NRAYS) * Math.PI * 2;
-      const dx = Math.cos(angle), dy = Math.sin(angle);
+    // Nearest point on outer polygon to the centroid = thinnest wall point
+    const near = _dxfClosestOnPoly(outers[bestOi].pts, [cx, cy]);
+    const [ox, oy] = near.pt;
 
-      // First crossing with hole boundary = ray exits the hole
-      const holeHits = _dxfLinePolyIntersect(hole.pts, cx, cy, dx, dy).filter(t=>t>0.01);
-      if(!holeHits.length) continue;
-      const holeExitT = Math.min(...holeHits);
+    // Direction: centroid → nearest outer point (outward through thinnest wall)
+    const sd = Math.hypot(ox-cx, oy-cy) || 1;
+    const dx = (ox-cx)/sd, dy = (oy-cy)/sd;
+    const perp = [-dy, dx];
+    const hw = Math.max(channelWidth/2, 0.05);
 
-      // First crossing with outer boundary AFTER exiting hole = ray exits the wall
-      const outerHits = _dxfLinePolyIntersect(outer.pts, cx, cy, dx, dy)
-                          .filter(t=>t > holeExitT + 0.05);
-      if(!outerHits.length) continue;
-      const outerExitT = Math.min(...outerHits);
-
-      const wall = outerExitT - holeExitT;
-      if(wall > 0.05 && wall < bestWall) {
-        bestWall = wall;
-        bestDir = [dx, dy];
-        bestHoleT = holeExitT;
-        bestOuterT = outerExitT;
-      }
-    }
-
-    if(!bestDir) continue;
+    // Where ray exits the hole boundary
+    const holeHits = _dxfLinePolyIntersect(hole.pts, cx, cy, dx, dy).filter(t=>t>0.01);
+    const holeExitT = holeHits.length ? Math.min(...holeHits) : sd * 0.4;
 
     const margin = 1.5;
-    const [dx, dy] = bestDir;
-    const perp = [-dy, dx];
-    const hw = Math.max(channelWidth / 2, 0.05);
-
-    // A = inside the hole, B = outside the letter
-    const A = [cx + dx*(bestHoleT - margin), cy + dy*(bestHoleT - margin)];
-    const B = [cx + dx*(bestOuterT + margin), cy + dy*(bestOuterT + margin)];
+    // A = just inside the void, B = just outside the letter wall
+    const A = [cx + dx*(holeExitT - margin), cy + dy*(holeExitT - margin)];
+    const B = [ox + dx*margin, oy + dy*margin];
 
     cutLines.push({
       pts: [
@@ -14286,8 +14264,7 @@ function _dxfApplyChannel(polylines, channelWidth) {
         [B[0]-perp[0]*hw, B[1]-perp[1]*hw],
         [A[0]-perp[0]*hw, A[1]-perp[1]*hw]
       ],
-      closed: true,
-      layer: '0'
+      closed: true, layer: '0'
     });
   }
 
