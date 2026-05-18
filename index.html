@@ -14222,33 +14222,26 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: Boolean Difference — subtract channel rectangle FROM letter shape.
-  // Exactly mirrors the Illustrator workflow: draw rectangle → Pathfinder Minus Front.
-  // Result: channel slot is carved INTO the letter outline (one connected path),
-  // not a separate shape added on top.
-  if(!window.ClipperLib) return polylines;
+  // شارع: two open cut lines through the thinnest wall — letter shapes stay 100% untouched.
+  // No Clipper Difference (which degraded curves). Laser cuts both lines to create the slot.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
+  const cutLines = [];
 
-  const SCALE = 100000;
-  const nonLetter = polylines.filter(p=>p.layer!=='0'&&p.layer!=='HOLES');
-
-  // Build one channel rectangle per hole
-  const rectClips = [];
   for(const hole of holes) {
     const oi = _dxfFindParentOuter(hole, outers);
     if(oi < 0) continue;
 
+    // Hole centroid
     let cx=0, cy=0;
     for(const [x,y] of hole.pts) { cx+=x; cy+=y; }
     cx /= hole.pts.length; cy /= hole.pts.length;
 
-    // Hole radius — limits search so we find THIS letter's wall, not a distant letter's wall
+    // Local search: nearest outer boundary within 5× hole radius
+    // Prevents picking a wall from an adjacent letter in long Arabic text
     const holeR = Math.sqrt(hole.pts.reduce((s,[x,y])=>s+(cx-x)**2+(cy-y)**2,0)/hole.pts.length);
-    const maxD = holeR * 5; // search within 5× hole radius
-
-    // Find nearest outer boundary point within local radius
+    const maxD = holeR * 5;
     let bestD=Infinity, bestPt=null;
     const outerPts = outers[oi].pts;
     for(let i=0;i<outerPts.length;i++){
@@ -14261,59 +14254,28 @@ function _dxfApplyChannel(polylines, channelWidth) {
       const d=Math.hypot(px-cx,py-cy);
       if(d<bestD&&d<=maxD){bestD=d;bestPt=[px,py];}
     }
-    // Fallback to global nearest if nothing found within radius
     if(!bestPt){const fb=_dxfClosestOnPoly(outerPts,[cx,cy]);bestPt=fb.pt;}
+
     const [ox,oy]=bestPt;
-    const sd = Math.hypot(ox-cx, oy-cy) || 1;
-    const dx = (ox-cx)/sd, dy = (oy-cy)/sd;
-    const perp = [-dy, dx];
-    const hw = Math.max(channelWidth/2, 0.05);
-    const margin = 2;
+    const sd=Math.hypot(ox-cx,oy-cy)||1;
+    const dx=(ox-cx)/sd, dy=(oy-cy)/sd;
+    const perp=[-dy,dx];
+    const hw=Math.max(channelWidth/2,0.05);
+    const margin=1.5;
 
-    const holeHits = _dxfLinePolyIntersect(hole.pts, cx, cy, dx, dy).filter(t=>t>0.01);
-    const holeExitT = holeHits.length ? Math.min(...holeHits) : sd * 0.4;
-    const A = [cx+dx*(holeExitT-margin), cy+dy*(holeExitT-margin)];
-    const B = [ox+dx*margin, oy+dy*margin];
+    const holeHits=_dxfLinePolyIntersect(hole.pts,cx,cy,dx,dy).filter(t=>t>0.01);
+    const holeExitT=holeHits.length?Math.min(...holeHits):sd*0.4;
 
-    rectClips.push([
-      {X:Math.round((A[0]+perp[0]*hw)*SCALE), Y:Math.round((A[1]+perp[1]*hw)*SCALE)},
-      {X:Math.round((B[0]+perp[0]*hw)*SCALE), Y:Math.round((B[1]+perp[1]*hw)*SCALE)},
-      {X:Math.round((B[0]-perp[0]*hw)*SCALE), Y:Math.round((B[1]-perp[1]*hw)*SCALE)},
-      {X:Math.round((A[0]-perp[0]*hw)*SCALE), Y:Math.round((A[1]-perp[1]*hw)*SCALE)}
-    ]);
+    // A = just inside the void, B = just outside the letter
+    const A=[cx+dx*(holeExitT-margin), cy+dy*(holeExitT-margin)];
+    const B=[ox+dx*margin, oy+dy*margin];
+
+    // Two open parallel cut lines — no Clipper, no curve modification
+    cutLines.push({pts:[[A[0]+perp[0]*hw,A[1]+perp[1]*hw],[B[0]+perp[0]*hw,B[1]+perp[1]*hw]], closed:false, layer:'0'});
+    cutLines.push({pts:[[A[0]-perp[0]*hw,A[1]-perp[1]*hw],[B[0]-perp[0]*hw,B[1]-perp[1]*hw]], closed:false, layer:'0'});
   }
-  if(!rectClips.length) return polylines;
 
-  // Subject = all letter paths (outer + holes), EvenOdd = letter body (between outer and holes)
-  const subjectPaths = [
-    ...outers.map(p=>p.pts.map(([x,y])=>({X:Math.round(x*SCALE),Y:Math.round(y*SCALE)}))),
-    ...holes.map(p=>p.pts.map(([x,y])=>({X:Math.round(x*SCALE),Y:Math.round(y*SCALE)})))
-  ];
-
-  // Clipper Difference = letter body MINUS channel rectangles
-  const cpr = new ClipperLib.Clipper();
-  cpr.AddPaths(subjectPaths, ClipperLib.PolyType.ptSubject, true);
-  cpr.AddPaths(rectClips,    ClipperLib.PolyType.ptClip,    true);
-  const tree = new ClipperLib.PolyTree();
-  cpr.Execute(ClipperLib.ClipType.ctDifference, tree,
-    ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
-
-  // Walk result tree — outer nodes = layer '0', hole nodes = layer 'HOLES'
-  const resultPaths = [];
-  function walkDiff(node) {
-    if(node.m_polygon && node.m_polygon.length > 1) {
-      const isHole = typeof node.IsHole==='function' ? node.IsHole() : false;
-      resultPaths.push({
-        pts: node.m_polygon.map(pt=>[pt.X/SCALE, pt.Y/SCALE]),
-        closed: true,
-        layer: isHole ? 'HOLES' : '0'
-      });
-    }
-    (node.m_Childs||[]).forEach(walkDiff);
-  }
-  walkDiff(tree);
-
-  return [...nonLetter, ...resultPaths];
+  return [...polylines, ...cutLines];
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
