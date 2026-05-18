@@ -14222,53 +14222,80 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: rectangle slot from inside the hole through the wall to outside the letter.
-  // Method: centroid of hole → nearest point on outer boundary = thinnest wall by definition.
+  // شارع: Boolean Difference — subtract channel rectangle FROM letter shape.
+  // Exactly mirrors the Illustrator workflow: draw rectangle → Pathfinder Minus Front.
+  // Result: channel slot is carved INTO the letter outline (one connected path),
+  // not a separate shape added on top.
+  if(!window.ClipperLib) return polylines;
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
-  const cutLines = [];
 
+  const SCALE = 100000;
+  const nonLetter = polylines.filter(p=>p.layer!=='0'&&p.layer!=='HOLES');
+
+  // Build one channel rectangle per hole
+  const rectClips = [];
   for(const hole of holes) {
-    const bestOi = _dxfFindParentOuter(hole, outers);
-    if(bestOi < 0) continue;
+    const oi = _dxfFindParentOuter(hole, outers);
+    if(oi < 0) continue;
 
-    // Hole centroid — geometric center of the void
     let cx=0, cy=0;
     for(const [x,y] of hole.pts) { cx+=x; cy+=y; }
     cx /= hole.pts.length; cy /= hole.pts.length;
 
-    // Nearest point on outer polygon to the centroid = thinnest wall point
-    const near = _dxfClosestOnPoly(outers[bestOi].pts, [cx, cy]);
+    const near = _dxfClosestOnPoly(outers[oi].pts, [cx, cy]);
     const [ox, oy] = near.pt;
-
-    // Direction: centroid → nearest outer point (outward through thinnest wall)
     const sd = Math.hypot(ox-cx, oy-cy) || 1;
     const dx = (ox-cx)/sd, dy = (oy-cy)/sd;
     const perp = [-dy, dx];
     const hw = Math.max(channelWidth/2, 0.05);
+    const margin = 2;
 
-    // Where ray exits the hole boundary
     const holeHits = _dxfLinePolyIntersect(hole.pts, cx, cy, dx, dy).filter(t=>t>0.01);
     const holeExitT = holeHits.length ? Math.min(...holeHits) : sd * 0.4;
+    const A = [cx+dx*(holeExitT-margin), cy+dy*(holeExitT-margin)];
+    const B = [ox+dx*margin, oy+dy*margin];
 
-    const margin = 1.5;
-    // A = just inside the void, B = just outside the letter wall
-    const A = [cx + dx*(holeExitT - margin), cy + dy*(holeExitT - margin)];
-    const B = [ox + dx*margin, oy + dy*margin];
-
-    cutLines.push({
-      pts: [
-        [A[0]+perp[0]*hw, A[1]+perp[1]*hw],
-        [B[0]+perp[0]*hw, B[1]+perp[1]*hw],
-        [B[0]-perp[0]*hw, B[1]-perp[1]*hw],
-        [A[0]-perp[0]*hw, A[1]-perp[1]*hw]
-      ],
-      closed: true, layer: '0'
-    });
+    rectClips.push([
+      {X:Math.round((A[0]+perp[0]*hw)*SCALE), Y:Math.round((A[1]+perp[1]*hw)*SCALE)},
+      {X:Math.round((B[0]+perp[0]*hw)*SCALE), Y:Math.round((B[1]+perp[1]*hw)*SCALE)},
+      {X:Math.round((B[0]-perp[0]*hw)*SCALE), Y:Math.round((B[1]-perp[1]*hw)*SCALE)},
+      {X:Math.round((A[0]-perp[0]*hw)*SCALE), Y:Math.round((A[1]-perp[1]*hw)*SCALE)}
+    ]);
   }
+  if(!rectClips.length) return polylines;
 
-  return [...polylines, ...cutLines];
+  // Subject = all letter paths (outer + holes), EvenOdd = letter body (between outer and holes)
+  const subjectPaths = [
+    ...outers.map(p=>p.pts.map(([x,y])=>({X:Math.round(x*SCALE),Y:Math.round(y*SCALE)}))),
+    ...holes.map(p=>p.pts.map(([x,y])=>({X:Math.round(x*SCALE),Y:Math.round(y*SCALE)})))
+  ];
+
+  // Clipper Difference = letter body MINUS channel rectangles
+  const cpr = new ClipperLib.Clipper();
+  cpr.AddPaths(subjectPaths, ClipperLib.PolyType.ptSubject, true);
+  cpr.AddPaths(rectClips,    ClipperLib.PolyType.ptClip,    true);
+  const tree = new ClipperLib.PolyTree();
+  cpr.Execute(ClipperLib.ClipType.ctDifference, tree,
+    ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+
+  // Walk result tree — outer nodes = layer '0', hole nodes = layer 'HOLES'
+  const resultPaths = [];
+  function walkDiff(node) {
+    if(node.m_polygon && node.m_polygon.length > 1) {
+      const isHole = typeof node.IsHole==='function' ? node.IsHole() : false;
+      resultPaths.push({
+        pts: node.m_polygon.map(pt=>[pt.X/SCALE, pt.Y/SCALE]),
+        closed: true,
+        layer: isHole ? 'HOLES' : '0'
+      });
+    }
+    (node.m_Childs||[]).forEach(walkDiff);
+  }
+  walkDiff(tree);
+
+  return [...nonLetter, ...resultPaths];
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
