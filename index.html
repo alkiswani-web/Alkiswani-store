@@ -14223,9 +14223,52 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع = نفس خوارزمية الجسر: فتح فجوة في مسار الخارج + فجوة في مسار التجويف.
-  // النتيجة: الحرف بفتحة مستطيلة في جداره — تماماً كخطوات Shape Builder في Illustrator.
-  return _dxfApplyBridges(polylines, channelWidth);
+  // شارع: يضيف شق U-notch مغلق في مسار الخارج + U-protrusion مغلق في مسار التجويف.
+  // النتيجة: مسارات مغلقة بجدران الشارع مدمجة — لا مسارات مفتوحة.
+  const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
+  const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
+  const others = polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
+  if(!holes.length) return polylines;
+
+  const workOuters = outers.map(p=>({...p, pts:[...p.pts]}));
+  const resultHoles = [];
+
+  for(const hole of holes) {
+    const bestOi = _dxfFindParentOuter(hole, workOuters);
+    if(bestOi < 0) { resultHoles.push(hole); continue; }
+
+    // أقرب زوج نقاط (حدود التجويف ↔ حدود الحرف) = أرق جدار
+    let bestHoleSeg=null, bestOuterSeg=null, bestDist=Infinity;
+    const hStep=Math.max(1, Math.floor(hole.pts.length/60));
+    for(let vi=0; vi<hole.pts.length; vi+=hStep) {
+      const r=_dxfClosestOnPoly(workOuters[bestOi].pts, hole.pts[vi]);
+      if(r.dist<bestDist){ bestDist=r.dist; bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt); bestOuterSeg=r; }
+    }
+    bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts, bestHoleSeg.pt);
+
+    // اتجاه الجدار: من الخارج باتجاه التجويف
+    const wallVec=[bestHoleSeg.pt[0]-bestOuterSeg.pt[0], bestHoleSeg.pt[1]-bestOuterSeg.pt[1]];
+    const wallLen=Math.hypot(wallVec[0],wallVec[1])||1;
+    const wd=[wallVec[0]/wallLen, wallVec[1]/wallLen]; // wall direction (outer→hole)
+
+    // مسار الخارج: فتح فجوة ثم إغلاق بجداري الشارع (شكل U داخل الجدار)
+    const outerOpen=_dxfInsertGap(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, channelWidth);
+    const gEnd=outerOpen[0], gStart=outerOpen[outerOpen.length-1];
+    // جداران باتجاه التجويف (عمق = سماكة الجدار)
+    const gS_in=[gStart[0]+wd[0]*wallLen, gStart[1]+wd[1]*wallLen];
+    const gE_in =[gEnd[0]+wd[0]*wallLen,   gEnd[1]+wd[1]*wallLen];
+    workOuters[bestOi]={...workOuters[bestOi], pts:[...outerOpen, gS_in, gE_in], closed:true};
+
+    // مسار التجويف: فتح فجوة ثم إغلاق بجداري الشارع (شكل U نحو الخارج)
+    const holeOpen=_dxfInsertGap(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, channelWidth);
+    const hEnd=holeOpen[0], hStart=holeOpen[holeOpen.length-1];
+    // جداران باتجاه الخارج (= عكس wd)
+    const hS_out=[hStart[0]-wd[0]*wallLen, hStart[1]-wd[1]*wallLen];
+    const hE_out=[hEnd[0]-wd[0]*wallLen,   hEnd[1]-wd[1]*wallLen];
+    resultHoles.push({pts:[...holeOpen, hS_out, hE_out], closed:true, layer:'HOLES'});
+  }
+
+  return [...workOuters, ...resultHoles, ...others];
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
