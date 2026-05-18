@@ -14171,31 +14171,31 @@ function _dxfPtLineDist(px,py,ax,ay,bx,by) {
   return Math.hypot(px-ax-t*dx, py-ay-t*dy);
 }
 
-function _dxfPathToPolylines(path, maxDev) {
+function _dxfPathToPolylinesRaw(path, maxDev) {
   const polylines = [];
   let current = null, cx = 0, cy = 0;
   for (const cmd of path.commands) {
     switch(cmd.type) {
       case 'M':
         if (current && current.pts.length > 1) polylines.push(current);
-        current = {pts:[[cmd.x,-cmd.y]],closed:false};
+        current = {pts:[[cmd.x, cmd.y]], closed:false};
         cx=cmd.x; cy=cmd.y; break;
       case 'L':
-        if (!current) current={pts:[[cx,-cy]],closed:false};
-        current.pts.push([cmd.x,-cmd.y]);
+        if (!current) current={pts:[[cx,cy]],closed:false};
+        current.pts.push([cmd.x,cmd.y]);
         cx=cmd.x; cy=cmd.y; break;
       case 'C': {
-        if (!current) current={pts:[[cx,-cy]],closed:false};
+        if (!current) current={pts:[[cx,cy]],closed:false};
         const pts=_dxfSubdivideCubic(cx,cy,cmd.x1,cmd.y1,cmd.x2,cmd.y2,cmd.x,cmd.y,maxDev,0);
-        pts.forEach(([x,y])=>current.pts.push([x,-y]));
+        pts.forEach(([x,y])=>current.pts.push([x,y]));
         cx=cmd.x; cy=cmd.y; break;
       }
       case 'Q': {
-        if (!current) current={pts:[[cx,-cy]],closed:false};
+        if (!current) current={pts:[[cx,cy]],closed:false};
         const qx1=cx+2/3*(cmd.x1-cx),qy1=cy+2/3*(cmd.y1-cy);
         const qx2=cmd.x+2/3*(cmd.x1-cmd.x),qy2=cmd.y+2/3*(cmd.y1-cmd.y);
         const pts=_dxfSubdivideCubic(cx,cy,qx1,qy1,qx2,qy2,cmd.x,cmd.y,maxDev,0);
-        pts.forEach(([x,y])=>current.pts.push([x,-y]));
+        pts.forEach(([x,y])=>current.pts.push([x,y]));
         cx=cmd.x; cy=cmd.y; break;
       }
       case 'Z':
@@ -14207,12 +14207,21 @@ function _dxfPathToPolylines(path, maxDev) {
   return polylines;
 }
 
+function _dxfPathToPolylines(path, maxDev) {
+  return _dxfPathToPolylinesRaw(path, maxDev).map(pl=>({...pl, pts:pl.pts.map(([x,y])=>[x,-y])}));
+}
+
+function _dxfFlipY(polylines) {
+  return polylines.map(pl=>({...pl, pts:pl.pts.map(([x,y])=>[x,-y])}));
+}
+
 function _dxfBuildString(polylines) {
   let h = 100;
   const ents = polylines.map(pl => {
     const handle = (h++).toString(16).toUpperCase();
+    const layer = pl.layer || '0';
     const verts = pl.pts.map(([x,y])=>`10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}`).join('\n');
-    return ['0','LWPOLYLINE','5',handle,'100','AcDbEntity','8','0','100','AcDbPolyline',
+    return ['0','LWPOLYLINE','5',handle,'100','AcDbEntity','8',layer,'100','AcDbPolyline',
       '90',pl.pts.length,'70',pl.closed?1:0,'43','0',verts].join('\n');
   }).join('\n');
   return ['0','SECTION','2','HEADER',
@@ -14235,27 +14244,37 @@ function dxfLoadClipper() {
   });
 }
 
-function _dxfApplyUnion(polylines) {
-  if (!window.ClipperLib) return polylines;
+// Union in SCREEN coords (no Y flip) then returns layer-tagged polylines
+// outer shapes → layer "0", inner holes/islands → layer "HOLES"
+function _dxfApplyUnion(rawPolylines) {
+  if (!window.ClipperLib) return rawPolylines.map(pl=>({...pl, layer:'0'}));
   const SCALE = 100000;
-  const closed = polylines.filter(p => p.closed);
-  const open = polylines.filter(p => !p.closed);
-  if (closed.length < 2) return polylines;
+  const closed = rawPolylines.filter(p => p.closed);
+  const open = rawPolylines.filter(p => !p.closed);
+  if (!closed.length) return rawPolylines.map(pl=>({...pl, layer:'0'}));
   const clipPaths = closed.map(pl =>
     pl.pts.map(([x,y]) => ({X: Math.round(x*SCALE), Y: Math.round(y*SCALE)}))
   );
-  // Simplify each path first
-  const simplified = ClipperLib.Clipper.SimplifyPolygons(clipPaths, ClipperLib.PolyFillType.pftNonZero);
   const cpr = new ClipperLib.Clipper();
-  cpr.AddPaths(simplified, ClipperLib.PolyType.ptSubject, true);
-  const solution = new ClipperLib.Paths();
-  cpr.Execute(ClipperLib.ClipType.ctUnion, solution,
-    ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-  const merged = solution.map(path => ({
-    pts: path.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
-    closed: true
-  }));
-  return [...merged, ...open];
+  cpr.AddPaths(clipPaths, ClipperLib.PolyType.ptSubject, true);
+  const tree = new ClipperLib.PolyTree();
+  // EvenOdd fill = winding-independent, works regardless of font winding direction
+  cpr.Execute(ClipperLib.ClipType.ctUnion, tree,
+    ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+  const result = [];
+  function walk(node) {
+    if (node.m_polygon && node.m_polygon.length > 1) {
+      const isHole = typeof node.IsHole === 'function' ? node.IsHole() : false;
+      result.push({
+        pts: node.m_polygon.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
+        closed: true,
+        layer: isHole ? 'HOLES' : '0'
+      });
+    }
+    (node.m_Childs || []).forEach(walk);
+  }
+  walk(tree);
+  return [...result, ...open.map(pl=>({...pl, layer:'0'}))];
 }
 
 async function dxfDownload() {
@@ -14269,14 +14288,23 @@ async function dxfDownload() {
   try {
     path = _dxfFont.getPath(p.text, p.offX, p.offY, p.sizeMM);
   } catch(e) { alert('خطأ في توليد المسارات: ' + e.message); return; }
-  let polylines = _dxfPathToPolylines(path, p.res);
+  // Step 1: get raw polylines in SCREEN coords (no Y flip yet)
+  let polylines = _dxfPathToPolylinesRaw(path, p.res);
   if (!polylines.length) { alert('لم يتم توليد أي مسارات. تأكد من أن الخط يدعم الأحرف المُدخلة.'); return; }
   if (doMerge) {
     try {
       if (!window.ClipperLib) { if(dlEl) dlEl.textContent='⏳ تحميل مكتبة الدمج...'; await dxfLoadClipper(); }
+      // Step 2: union in screen coords (correct winding), tags layers
       polylines = _dxfApplyUnion(polylines);
-    } catch(e) { console.warn('Union failed, using raw paths:', e); }
+    } catch(e) {
+      console.warn('Union failed, using raw paths:', e);
+      polylines = polylines.map(pl=>({...pl, layer:'0'}));
+    }
+  } else {
+    polylines = polylines.map(pl=>({...pl, layer:'0'}));
   }
+  // Step 3: Y flip for DXF coordinate system
+  polylines = _dxfFlipY(polylines);
   const dxfStr = _dxfBuildString(polylines);
   const blob = new Blob([dxfStr], {type:'application/octet-stream'});
   const url = URL.createObjectURL(blob);
@@ -14285,8 +14313,10 @@ async function dxfDownload() {
   a.download = (p.filename || p.text.substring(0,20) || 'نقش') + '.dxf';
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  const holeCount = polylines.filter(pl=>pl.layer==='HOLES').length;
+  const outerCount = polylines.filter(pl=>pl.layer!=='HOLES').length;
   const totalPts = polylines.reduce((s,pl)=>s+pl.pts.length,0);
-  if (dlEl) dlEl.textContent = `✅ تم التحميل${doMerge?' (مع الدمج)':''} | ${polylines.length} مسار | ${totalPts} نقطة`;
+  if (dlEl) dlEl.textContent = `✅ تم التحميل | ${outerCount} شكل خارجي | ${holeCount} فراغ داخلي (طبقة HOLES) | ${totalPts} نقطة`;
 }
 
 window.dxfLoadFont=dxfLoadFont; window.dxfDownload=dxfDownload; window.dxfUpdatePreview=dxfUpdatePreview; window.dxfTabActivated=dxfTabActivated;
