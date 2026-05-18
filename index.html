@@ -14561,6 +14561,10 @@ async function dxfDownload() {
   if (p.doFrame && p.doMerge) {
     try { polylines = _dxfApplyFrame(polylines, p.frameWall); } catch(e) { console.warn('Frame failed:', e); }
   }
+  // Apply frame (expand outward) BEFORE Y flip
+  if (p.doFrame && p.doMerge) {
+    try { polylines = _dxfApplyFrame(polylines, p.frameWall); } catch(e) { console.warn('Frame failed:', e); }
+  }
   // Y flip for DXF coordinate system
   polylines = _dxfFlipY(polylines);
   const dxfStr = _dxfBuildString(polylines);
