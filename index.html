@@ -14112,94 +14112,63 @@ function _dxfClosestOnPoly(pts, target) {
   return best;
 }
 
-function _dxfSplitPolyAt(pts, segIdx, t) {
-  // Reorder closed polygon to start at the split point (open result)
+function _dxfInsertGap(pts, segIdx, t, gapWidth) {
+  // Open a closed polygon by inserting a gap of gapWidth centered at (segIdx,t).
+  // Returns an OPEN path: gapEnd → polygon vertices → gapStart
   const n=pts.length;
   const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
-  const sp=[ax+(bx-ax)*t, ay+(by-ay)*t];
-  const result=[sp];
-  for(let i=1;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
-  result.push(sp); // close back to split point
-  return result;
-}
-
-function _dxfBridgeHoleToOuter(outerPl, holePl, bridgeWidth) {
-  // Find closest pair between outer and hole
-  let bestDist=Infinity, outerBest=null, holeBest=null;
-  // Sample outer vertices → find closest on hole
-  const step=Math.max(1,Math.floor(outerPl.pts.length/80));
-  for(let i=0;i<outerPl.pts.length;i+=step){
-    const r=_dxfClosestOnPoly(holePl.pts, outerPl.pts[i]);
-    if(r.dist<bestDist){
-      bestDist=r.dist;
-      holeBest=r;
-      outerBest=_dxfClosestOnPoly(outerPl.pts, r.pt);
-    }
-  }
-  if(!outerBest||!holeBest) return null;
-
-  // Bridge direction (outer → hole) and perpendicular
-  const [ox,oy]=outerBest.pt,[hx,hy]=holeBest.pt;
-  const blen=Math.hypot(hx-ox,hy-oy)||1;
-  const perp=[-(hy-oy)/blen, (hx-ox)/blen];
-  const hw=bridgeWidth/2;
-
-  // Offset gap endpoints along perp
-  const oA=[ox+perp[0]*hw, oy+perp[1]*hw]; // outer gap side A
-  const oB=[ox-perp[0]*hw, oy-perp[1]*hw]; // outer gap side B
-  const hA=[hx+perp[0]*hw, hy+perp[1]*hw]; // hole gap side A
-  const hB=[hx-perp[0]*hw, hy-perp[1]*hw]; // hole gap side B
-
-  // Split outer at outerBest → open sequence: [splitPt, ... , splitPt]
-  const outerSeq=_dxfSplitPolyAt(outerPl.pts, outerBest.segIdx, outerBest.t);
-  // Split hole at holeBest
-  const holeSeq=_dxfSplitPolyAt(holePl.pts, holeBest.segIdx, holeBest.t);
-
-  // Combined path:
-  // oB → (outer perimeter from oB side) → oA → (bridge cut 1) → hA → (hole perimeter) → hB → (bridge cut 2) → oB
-  const combined=[
-    oB,
-    ...outerSeq.slice(1,-1), // outer perimeter, skipping the split point
-    oA,
-    hA,
-    ...holeSeq.slice(1,-1), // hole perimeter
-    hB,
-    // closes back to oB
-  ];
-
-  return {pts:combined, closed:true, layer:'0'};
+  const dx=bx-ax, dy=by-ay;
+  const segLen=Math.hypot(dx,dy)||1;
+  const dir=[dx/segLen, dy/segLen];
+  const cx=ax+dx*t, cy=ay+dy*t;
+  const hw=gapWidth/2;
+  const gEnd=[cx+dir[0]*hw, cy+dir[1]*hw];   // open path starts here
+  const gStart=[cx-dir[0]*hw, cy-dir[1]*hw]; // open path ends here
+  const result=[gEnd];
+  for(let i=0;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
+  result.push(gStart);
+  return result; // open path: gEnd → full polygon → gStart
 }
 
 function _dxfApplyBridges(polylines, bridgeWidth) {
+  // Each hole gets a gap; its nearest outer also gets a gap.
+  // Result: two OPEN paths facing each other — the uncut material between = bridge.
   const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
-  const holes=polylines.filter(p=>p.layer==='HOLES'&&p.closed);
-  const others=polylines.filter(p=>p.layer!=='0'&&p.layer!=='HOLES');
+  const holes =polylines.filter(p=>p.layer==='HOLES'&&p.closed);
+  const others=polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
   if(!holes.length) return polylines;
 
-  const workOuters=[...outers];
-  const usedHoles=new Set();
+  const workOuters=outers.map(p=>({...p,pts:[...p.pts]}));
+  const resultHoles=[];
 
   for(let hi=0;hi<holes.length;hi++){
     const hole=holes[hi];
-    // Find which outer is closest to this hole
-    let bestDist=Infinity,bestOi=-1,bestHolePt=null,bestOuterPt=null;
-    for(let oi=0;oi<workOuters.length;oi++){
-      const step=Math.max(1,Math.floor(hole.pts.length/60));
-      for(let vi=0;vi<hole.pts.length;vi+=step){
+    let bestDist=Infinity,bestOi=-1,bestOuterSeg=null,bestHoleSeg=null;
+    const hStep=Math.max(1,Math.floor(hole.pts.length/60));
+    for(let vi=0;vi<hole.pts.length;vi+=hStep){
+      for(let oi=0;oi<workOuters.length;oi++){
         const r=_dxfClosestOnPoly(workOuters[oi].pts, hole.pts[vi]);
-        if(r.dist<bestDist){bestDist=r.dist;bestOi=oi;bestHolePt=hole.pts[vi];bestOuterPt=r.pt;}
+        if(r.dist<bestDist){
+          bestDist=r.dist; bestOi=oi;
+          bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt);
+          bestOuterSeg=r;
+        }
       }
     }
-    if(bestOi<0) continue;
-    const bridged=_dxfBridgeHoleToOuter(workOuters[bestOi], hole, bridgeWidth);
-    if(bridged){
-      workOuters[bestOi]=bridged; // replace outer with bridged version
-      usedHoles.add(hi);
-    }
+    if(bestOi<0){resultHoles.push(hole);continue;}
+    // Refine outer closest point vs hole best
+    bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts, bestHoleSeg.pt);
+
+    // Gap in outer → open path, layer '0'
+    const outerGapped=_dxfInsertGap(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, bridgeWidth);
+    workOuters[bestOi]={pts:outerGapped, closed:false, layer:'0'};
+
+    // Gap in hole → open path, layer '0' (laser cuts it same as outer)
+    const holeGapped=_dxfInsertGap(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, bridgeWidth);
+    resultHoles.push({pts:holeGapped, closed:false, layer:'0'});
   }
 
-  const remainHoles=holes.filter((_,i)=>!usedHoles.has(i));
-  return [...workOuters, ...remainHoles, ...others];
+  return [...workOuters, ...resultHoles, ...others];
 }
 
 async function dxfUpdatePreview() {
