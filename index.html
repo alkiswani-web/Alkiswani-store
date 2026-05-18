@@ -1695,6 +1695,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button id="admin-tab-btn-aboutedit" class="admin-tab-btn" onclick="switchAdminTab('aboutedit')">🌿 من نحن</button>
       <button id="admin-tab-btn-operator" class="admin-tab-btn" onclick="switchAdminTab('operator')">💼 حساب المشغل</button>
       <button id="admin-tab-btn-adminusers" class="admin-tab-btn" onclick="switchAdminTab('adminusers')">🔑 المستخدمون</button>
+      <button id="admin-tab-btn-dxf" class="admin-tab-btn" onclick="switchAdminTab('dxf')">✂️ مولد DXF</button>
       <button id="admin-tab-btn-emporders" class="admin-tab-btn" onclick="switchAdminTab('emporders')" style="display:none;">📋 طلبات الصفحات</button>
     </div>
 
@@ -2959,6 +2960,100 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div class="admin-tab-content" id="tab-emporders">
       <div style="max-width:900px;">
         <!-- merged into حساب المشغل -->
+      </div>
+    </div>
+
+    <!-- ===== DXF GENERATOR TAB ===== -->
+    <div class="admin-tab-content" id="tab-dxf">
+      <div style="max-width:860px;">
+        <h2 style="color:var(--green-dark);margin-bottom:6px;">✂️ مولّد DXF للنقش بالليزر</h2>
+        <p style="color:var(--text-mid);font-size:0.85rem;margin-bottom:20px;">ارفع ملف الخط من حاسوبك، أدخل النص، واضبط الحجم — ثم حمّل ملف DXF جاهز لماكينة الليزر</p>
+
+        <!-- Step 1: Font -->
+        <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-weight:700;color:#374151;margin-bottom:8px;">① رفع ملف الخط</div>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#166534;line-height:1.6;">
+            💡 خطوطك: <strong>Simplified Arabic Bold</strong> و <strong>Diwani Letter</strong><br>
+            مسار ملفات الخطوط على ويندوز: <code style="background:#dcfce7;padding:1px 6px;border-radius:4px;font-size:0.8rem;">C:\Windows\Fonts\</code>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <label style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--green-dark);color:#fff;border-radius:10px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+              📂 رفع خط (.ttf / .otf)
+              <input type="file" id="dxfFontInput" accept=".ttf,.otf" onchange="dxfLoadFont(this)" style="display:none;">
+            </label>
+            <div id="dxfFontStatus" style="font-size:0.85rem;color:#6b7280;">لم يُرفع أي خط بعد</div>
+          </div>
+        </div>
+
+        <!-- Step 2: Text Settings -->
+        <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-weight:700;color:#374151;margin-bottom:14px;">② النص والإعدادات</div>
+          <div style="margin-bottom:14px;">
+            <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">النص المراد نقشه</label>
+            <input type="text" id="dxfText" dir="rtl" placeholder="اكتب النص هنا..."
+              style="width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1.1rem;outline:none;box-sizing:border-box;"
+              onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'"
+              oninput="dxfUpdatePreview()">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
+            <div>
+              <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">حجم الخط (مم)</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="range" id="dxfSize" min="5" max="200" value="30" style="flex:1;accent-color:var(--green-dark);"
+                  oninput="document.getElementById('dxfSizeVal').textContent=this.value;dxfUpdatePreview()">
+                <span id="dxfSizeVal" style="font-weight:700;color:var(--green-dark);min-width:30px;font-size:0.95rem;">30</span>
+                <span style="font-size:0.78rem;color:#6b7280;">مم</span>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">إزاحة X (مم)</label>
+              <input type="number" id="dxfOffX" value="0" step="0.5"
+                style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;box-sizing:border-box;"
+                oninput="dxfUpdatePreview()">
+            </div>
+            <div>
+              <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">إزاحة Y (مم)</label>
+              <input type="number" id="dxfOffY" value="0" step="0.5"
+                style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;box-sizing:border-box;"
+                oninput="dxfUpdatePreview()">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div>
+              <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">دقة المنحنيات</label>
+              <select id="dxfRes" style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onchange="dxfUpdatePreview()">
+                <option value="0.3">عالية جداً (0.3مم)</option>
+                <option value="0.5" selected>عالية (0.5مم)</option>
+                <option value="1">متوسطة (1مم)</option>
+                <option value="2">منخفضة (2مم)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">اسم الملف</label>
+              <input type="text" id="dxfFilename" dir="rtl" placeholder="اسم الملف (اختياري)"
+                style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Preview -->
+        <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-weight:700;color:#374151;margin-bottom:10px;">③ معاينة المسارات</div>
+          <div style="background:#0d1117;border-radius:10px;padding:10px;overflow:auto;">
+            <canvas id="dxfCanvas" width="780" height="200" style="display:block;max-width:100%;"></canvas>
+          </div>
+          <div id="dxfInfo" style="margin-top:8px;font-size:0.8rem;color:#6b7280;min-height:16px;"></div>
+        </div>
+
+        <!-- Step 4: Download -->
+        <div style="background:#fff;border-radius:14px;padding:20px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-weight:700;color:#374151;margin-bottom:14px;">④ تحميل الملف</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <button onclick="dxfDownload()" style="padding:12px 28px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(26,58,42,0.25);">⬇️ تحميل DXF</button>
+            <button onclick="dxfUpdatePreview()" style="padding:12px 20px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">🔄 تحديث المعاينة</button>
+            <div id="dxfDownloadInfo" style="font-size:0.82rem;color:#6b7280;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -4646,19 +4741,19 @@ function logoutAdmin(){
 function applyAdminPerms(){
   const isMain=_currentAdminUser==='MAIN';
   const perms=_currentAdminPerms;
-  const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers','emporders'];
+  const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers','dxf','emporders'];
   allTabs.forEach(tab=>{
     const btn=document.getElementById('admin-tab-btn-'+tab);
     if(!btn)return;
     if(tab==='emporders'){btn.style.display='none';return;} // merged into حساب المشغل
     if(isMain){btn.style.display='';}
-    else if(tab==='adminusers'){btn.style.display='none';}
+    else if(tab==='adminusers'||tab==='dxf'){btn.style.display='none';}
     else if(perms&&perms.includes(tab)){btn.style.display='';}
     else{btn.style.display='none';}
   });
   const firstTab=allTabs.find(tab=>{
     if(tab==='emporders')return false;
-    if(tab==='adminusers')return isMain;
+    if(tab==='adminusers'||tab==='dxf')return isMain;
     return isMain||(perms&&perms.includes(tab));
   });
   if(firstTab){
@@ -4693,6 +4788,7 @@ function switchAdminTab(tab){
     switchOpTab('oporders');
   }
   if(tab==='adminusers')loadAdminUsers();
+  if(tab==='dxf')dxfTabActivated();
   // emporders is merged into operator tab — nothing to do
 }
 
@@ -13922,6 +14018,228 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
   }
   toast(`✅ تم إرسال ${orders.length} طلب لـ ${repName}`);
 }
+
+// ===== DXF GENERATOR =====
+let _dxfFont = null;
+
+function dxfLoadOpentype() {
+  return new Promise((resolve, reject) => {
+    if (window.opentype) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('فشل تحميل مكتبة opentype.js'));
+    document.head.appendChild(s);
+  });
+}
+
+function dxfTabActivated() {
+  dxfUpdatePreview();
+}
+
+async function dxfLoadFont(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('dxfFontStatus');
+  statusEl.textContent = '⏳ جاري تحميل الخط...';
+  statusEl.style.color = '#6b7280';
+  try {
+    if (!window.opentype) await dxfLoadOpentype();
+    const buffer = await file.arrayBuffer();
+    _dxfFont = opentype.parse(buffer);
+    const nameObj = _dxfFont.names.fullName;
+    const name = (nameObj && (nameObj.ar || nameObj.en || Object.values(nameObj)[0])) || file.name.replace(/\.[^.]+$/, '');
+    statusEl.textContent = '✅ ' + name;
+    statusEl.style.color = '#16a34a';
+    const fnEl = document.getElementById('dxfFilename');
+    if (fnEl && !fnEl.value) fnEl.value = name;
+    dxfUpdatePreview();
+  } catch(e) {
+    statusEl.textContent = '❌ ' + (e.message || 'خطأ في تحميل الخط');
+    statusEl.style.color = '#dc2626';
+  }
+}
+
+function dxfGetParams() {
+  return {
+    text: (document.getElementById('dxfText')?.value || '').trim(),
+    sizeMM: Math.max(1, parseFloat(document.getElementById('dxfSize')?.value) || 30),
+    offX: parseFloat(document.getElementById('dxfOffX')?.value) || 0,
+    offY: parseFloat(document.getElementById('dxfOffY')?.value) || 0,
+    res: parseFloat(document.getElementById('dxfRes')?.value) || 0.5,
+    filename: (document.getElementById('dxfFilename')?.value || '').trim(),
+  };
+}
+
+function dxfUpdatePreview() {
+  const canvas = document.getElementById('dxfCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+  // subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  const infoEl = document.getElementById('dxfInfo');
+  if (!_dxfFont) {
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = "15px 'Tajawal',sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('ارفع ملف الخط لرؤية المعاينة', W/2, H/2);
+    if (infoEl) infoEl.textContent = '';
+    return;
+  }
+  const p = dxfGetParams();
+  if (!p.text) {
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = "15px 'Tajawal',sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('أدخل النص لرؤية المعاينة', W/2, H/2);
+    if (infoEl) infoEl.textContent = '';
+    return;
+  }
+  try {
+    const SCALE = 3; // 3px per mm for preview
+    const fsPx = p.sizeMM * SCALE;
+    // Place text so it's centered on canvas; Arabic paths extend leftward from startX
+    const path = _dxfFont.getPath(p.text, W - 20 + p.offX * SCALE, H/2 + fsPx * 0.35 + p.offY * SCALE, fsPx);
+    const bb = path.getBoundingBox();
+    // Shift to fit within canvas if out of bounds
+    const shiftX = bb.x1 < 5 ? 5 - bb.x1 : (bb.x2 > W-5 ? W-5-bb.x2 : 0);
+    ctx.save();
+    ctx.translate(shiftX, 0);
+    ctx.beginPath();
+    for (const cmd of path.commands) {
+      switch(cmd.type) {
+        case 'M': ctx.moveTo(cmd.x, cmd.y); break;
+        case 'L': ctx.lineTo(cmd.x, cmd.y); break;
+        case 'C': ctx.bezierCurveTo(cmd.x1,cmd.y1,cmd.x2,cmd.y2,cmd.x,cmd.y); break;
+        case 'Q': ctx.quadraticCurveTo(cmd.x1,cmd.y1,cmd.x,cmd.y); break;
+        case 'Z': ctx.closePath(); break;
+      }
+    }
+    ctx.fillStyle = 'rgba(0,255,136,0.18)';
+    ctx.fill('evenodd');
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    // dashed bounding box
+    ctx.strokeStyle = 'rgba(255,220,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,4]);
+    ctx.strokeRect(bb.x1, bb.y1, bb.x2-bb.x1, bb.y2-bb.y1);
+    ctx.setLineDash([]);
+    ctx.restore();
+    const wMM = ((bb.x2-bb.x1)/SCALE).toFixed(1);
+    const hMM = ((bb.y2-bb.y1)/SCALE).toFixed(1);
+    if (infoEl) infoEl.textContent = `أبعاد النص: ${wMM} × ${hMM} مم`;
+  } catch(e) {
+    ctx.fillStyle = '#ef4444'; ctx.font = "13px 'Tajawal',sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('خطأ: ' + e.message, W/2, H/2);
+    if (infoEl) infoEl.textContent = '';
+  }
+}
+
+function _dxfSubdivideCubic(x0,y0,x1,y1,x2,y2,x3,y3,maxDev,depth) {
+  if ((depth||0) > 12) return [[x3,y3]];
+  const d1 = _dxfPtLineDist(x1,y1,x0,y0,x3,y3);
+  const d2 = _dxfPtLineDist(x2,y2,x0,y0,x3,y3);
+  if (d1 <= maxDev && d2 <= maxDev) return [[x3,y3]];
+  const ax=(x0+x1)/2,ay=(y0+y1)/2, bx=(x1+x2)/2,by=(y1+y2)/2, cx=(x2+x3)/2,cy=(y2+y3)/2;
+  const dx=(ax+bx)/2,dy=(ay+by)/2, ex=(bx+cx)/2,ey=(by+cy)/2;
+  const mx=(dx+ex)/2,my=(dy+ey)/2;
+  return [
+    ..._dxfSubdivideCubic(x0,y0,ax,ay,dx,dy,mx,my,maxDev,(depth||0)+1),
+    ..._dxfSubdivideCubic(mx,my,ex,ey,cx,cy,x3,y3,maxDev,(depth||0)+1)
+  ];
+}
+
+function _dxfPtLineDist(px,py,ax,ay,bx,by) {
+  const dx=bx-ax, dy=by-ay, len2=dx*dx+dy*dy;
+  if (len2===0) return Math.hypot(px-ax,py-ay);
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len2));
+  return Math.hypot(px-ax-t*dx, py-ay-t*dy);
+}
+
+function _dxfPathToPolylines(path, maxDev) {
+  const polylines = [];
+  let current = null, cx = 0, cy = 0;
+  for (const cmd of path.commands) {
+    switch(cmd.type) {
+      case 'M':
+        if (current && current.pts.length > 1) polylines.push(current);
+        current = {pts:[[cmd.x,-cmd.y]],closed:false};
+        cx=cmd.x; cy=cmd.y; break;
+      case 'L':
+        if (!current) current={pts:[[cx,-cy]],closed:false};
+        current.pts.push([cmd.x,-cmd.y]);
+        cx=cmd.x; cy=cmd.y; break;
+      case 'C': {
+        if (!current) current={pts:[[cx,-cy]],closed:false};
+        const pts=_dxfSubdivideCubic(cx,cy,cmd.x1,cmd.y1,cmd.x2,cmd.y2,cmd.x,cmd.y,maxDev,0);
+        pts.forEach(([x,y])=>current.pts.push([x,-y]));
+        cx=cmd.x; cy=cmd.y; break;
+      }
+      case 'Q': {
+        if (!current) current={pts:[[cx,-cy]],closed:false};
+        const qx1=cx+2/3*(cmd.x1-cx),qy1=cy+2/3*(cmd.y1-cy);
+        const qx2=cmd.x+2/3*(cmd.x1-cmd.x),qy2=cmd.y+2/3*(cmd.y1-cmd.y);
+        const pts=_dxfSubdivideCubic(cx,cy,qx1,qy1,qx2,qy2,cmd.x,cmd.y,maxDev,0);
+        pts.forEach(([x,y])=>current.pts.push([x,-y]));
+        cx=cmd.x; cy=cmd.y; break;
+      }
+      case 'Z':
+        if (current && current.pts.length > 1) { current.closed=true; polylines.push(current); }
+        current=null; break;
+    }
+  }
+  if (current && current.pts.length > 1) polylines.push(current);
+  return polylines;
+}
+
+function _dxfBuildString(polylines) {
+  let h = 100;
+  const ents = polylines.map(pl => {
+    const handle = (h++).toString(16).toUpperCase();
+    const verts = pl.pts.map(([x,y])=>`10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}`).join('\n');
+    return ['0','LWPOLYLINE','5',handle,'100','AcDbEntity','8','0','100','AcDbPolyline',
+      '90',pl.pts.length,'70',pl.closed?1:0,'43','0',verts].join('\n');
+  }).join('\n');
+  return ['0','SECTION','2','HEADER',
+    '9','$ACADVER','1','AC1015',
+    '9','$INSUNITS','70','4',
+    '0','ENDSEC',
+    '0','SECTION','2','ENTITIES',
+    ents,
+    '0','ENDSEC','0','EOF',''].join('\n');
+}
+
+function dxfDownload() {
+  if (!_dxfFont) { alert('الرجاء رفع ملف الخط أولاً'); return; }
+  const p = dxfGetParams();
+  if (!p.text) { alert('الرجاء إدخال النص'); return; }
+  let path;
+  try {
+    path = _dxfFont.getPath(p.text, p.offX, p.offY, p.sizeMM);
+  } catch(e) { alert('خطأ في توليد المسارات: ' + e.message); return; }
+  const polylines = _dxfPathToPolylines(path, p.res);
+  if (!polylines.length) { alert('لم يتم توليد أي مسارات. تأكد من أن الخط يدعم الأحرف المُدخلة.'); return; }
+  const dxfStr = _dxfBuildString(polylines);
+  const blob = new Blob([dxfStr], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (p.filename || p.text.substring(0,20) || 'نقش') + '.dxf';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  const totalPts = polylines.reduce((s,pl)=>s+pl.pts.length,0);
+  const dlEl = document.getElementById('dxfDownloadInfo');
+  if (dlEl) dlEl.textContent = `✅ تم التحميل | ${polylines.length} مسار | ${totalPts} نقطة`;
+}
+
+window.dxfLoadFont=dxfLoadFont; window.dxfDownload=dxfDownload; window.dxfUpdatePreview=dxfUpdatePreview; window.dxfTabActivated=dxfTabActivated;
 </script>
 
 <!-- PRODUCT ADVISOR -->
