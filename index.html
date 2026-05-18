@@ -14156,9 +14156,25 @@ function _dxfInsertGap(pts, segIdx, t, gapWidth) {
   return result; // open path: gEnd → full polygon → gStart
 }
 
+function _dxfFindParentOuter(hole, outers) {
+  // Use PolyTree hierarchy tag if available; otherwise fall back to closest point.
+  if (hole._parentOid != null) {
+    const oi = outers.findIndex(o => o._oid === hole._parentOid);
+    if (oi >= 0) return oi;
+  }
+  // Fallback: find closest outer by sampling hole vertices
+  let bestDist=Infinity, bestOi=-1;
+  const hStep=Math.max(1,Math.floor(hole.pts.length/60));
+  for(let vi=0;vi<hole.pts.length;vi+=hStep){
+    for(let oi=0;oi<outers.length;oi++){
+      const r=_dxfClosestOnPoly(outers[oi].pts, hole.pts[vi]);
+      if(r.dist<bestDist){bestDist=r.dist;bestOi=oi;}
+    }
+  }
+  return bestOi;
+}
+
 function _dxfApplyBridges(polylines, bridgeWidth) {
-  // Each hole gets a gap; its nearest outer also gets a gap.
-  // Result: two OPEN paths facing each other — the uncut material between = bridge.
   const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes =polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   const others=polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
@@ -14167,39 +14183,31 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
   const workOuters=outers.map(p=>({...p,pts:[...p.pts]}));
   const resultHoles=[];
 
-  for(let hi=0;hi<holes.length;hi++){
-    const hole=holes[hi];
-    let bestDist=Infinity,bestOi=-1,bestOuterSeg=null,bestHoleSeg=null;
+  for(const hole of holes){
+    const bestOi=_dxfFindParentOuter(hole, workOuters);
+    if(bestOi<0){resultHoles.push(hole);continue;}
+
+    // Find closest point pair between this hole and its parent outer
+    let bestHoleSeg=null, bestOuterSeg=null, bestDist=Infinity;
     const hStep=Math.max(1,Math.floor(hole.pts.length/60));
     for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      for(let oi=0;oi<workOuters.length;oi++){
-        const r=_dxfClosestOnPoly(workOuters[oi].pts, hole.pts[vi]);
-        if(r.dist<bestDist){
-          bestDist=r.dist; bestOi=oi;
-          bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt);
-          bestOuterSeg=r;
-        }
-      }
+      const r=_dxfClosestOnPoly(workOuters[bestOi].pts, hole.pts[vi]);
+      if(r.dist<bestDist){bestDist=r.dist;bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt);bestOuterSeg=r;}
     }
-    if(bestOi<0){resultHoles.push(hole);continue;}
-    // Refine outer closest point vs hole best
     bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts, bestHoleSeg.pt);
 
-    // Gap in outer → open path, layer '0'
-    const outerGapped=_dxfInsertGap(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, bridgeWidth);
-    workOuters[bestOi]={pts:outerGapped, closed:false, layer:'0'};
+    const outerGapped=_dxfInsertGap(workOuters[bestOi].pts,bestOuterSeg.segIdx,bestOuterSeg.t,bridgeWidth);
+    workOuters[bestOi]={...workOuters[bestOi],pts:outerGapped,closed:false};
 
-    // Gap in hole → open path, layer '0' (laser cuts it same as outer)
-    const holeGapped=_dxfInsertGap(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, bridgeWidth);
-    resultHoles.push({pts:holeGapped, closed:false, layer:'0'});
+    const holeGapped=_dxfInsertGap(hole.pts,bestHoleSeg.segIdx,bestHoleSeg.t,bridgeWidth);
+    resultHoles.push({pts:holeGapped,closed:false,layer:'0'});
   }
 
   return [...workOuters, ...resultHoles, ...others];
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: adds straight cut line(s) through the letter wall so inner pieces fall out.
-  // Does NOT modify existing polygon shapes — only appends cut lines.
+  // شارع: short cut lines through the wall only — shapes stay closed and clean.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
@@ -14207,16 +14215,19 @@ function _dxfApplyChannel(polylines, channelWidth) {
   const cutLines = [];
 
   for(const hole of holes){
-    let bestDist=Infinity, outerPt=null, holePt=null;
+    const bestOi=_dxfFindParentOuter(hole, outers);
+    if(bestOi<0) continue;
+
+    // Find closest point pair within the correct outer-hole pair
+    let outerPt=null, holePt=null, bestDist=Infinity;
     const hStep=Math.max(1,Math.floor(hole.pts.length/60));
+    const outerForSearch=outers[bestOi];
     for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      for(const outer of outers){
-        const r=_dxfClosestOnPoly(outer.pts, hole.pts[vi]);
-        if(r.dist<bestDist){
-          bestDist=r.dist;
-          holePt=_dxfClosestOnPoly(hole.pts, r.pt).pt;
-          outerPt=r.pt;
-        }
+      const r=_dxfClosestOnPoly(outerForSearch.pts, hole.pts[vi]);
+      if(r.dist<bestDist){
+        bestDist=r.dist;
+        holePt=_dxfClosestOnPoly(hole.pts, r.pt).pt;
+        outerPt=r.pt;
       }
     }
     if(!outerPt) continue;
@@ -14481,25 +14492,33 @@ function _dxfApplyUnion(rawPolylines, epsilonMM) {
     ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
   // Deflate result back to original size
   const result = [];
-  function walk(node) {
+  let _oidSeq = 0;
+  function walk(node, parentOid) {
+    let myOid = parentOid;
     if (node.m_polygon && node.m_polygon.length > 1) {
       const isHole = typeof node.IsHole === 'function' ? node.IsHole() : false;
-      // Deflate: outer shrinks inward (-EPS), holes expand outward (+EPS)
       const co2 = new ClipperLib.ClipperOffset();
       co2.AddPath(node.m_polygon, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
       const deflated = new ClipperLib.Paths();
       co2.Execute(deflated, isHole ? EPS : -EPS);
+      const newOid = isHole ? null : _oidSeq++;
       (deflated.length ? deflated : [node.m_polygon]).forEach(p => {
-        if (p.length > 1) result.push({
-          pts: p.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
-          closed: true,
-          layer: isHole ? 'HOLES' : '0'
-        });
+        if (p.length > 1) {
+          const entry = {
+            pts: p.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
+            closed: true,
+            layer: isHole ? 'HOLES' : '0'
+          };
+          if (!isHole) entry._oid = newOid;
+          if (isHole && parentOid != null) entry._parentOid = parentOid;
+          result.push(entry);
+        }
       });
+      if (!isHole) myOid = newOid;
     }
-    (node.m_Childs || []).forEach(walk);
+    (node.m_Childs || []).forEach(child => walk(child, myOid));
   }
-  walk(tree);
+  walk(tree, null);
   return [...result, ...open.map(pl=>({...pl, layer:'0'}))];
 }
 
