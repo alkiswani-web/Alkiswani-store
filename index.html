@@ -14222,62 +14222,72 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: closed rectangle cut from outside, through wall, through hole, through wall, to outside.
-  // The far-side exit is computed locally: first outer crossing AFTER the line exits the hole.
+  // شارع: a rectangle slot cut through the thinnest wall of each letter hole.
+  // Strategy: cast rays from hole centroid in all directions; pick direction with
+  // minimum wall thickness (holeExit → outerExit). Guaranteed to find the local
+  // wall of the specific letter, not a wall of an adjacent merged letter.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
+  const cutLines = [];
 
-  const margin=2;
-  const cutLines=[];
+  for(const hole of holes) {
+    const bestOi = _dxfFindParentOuter(hole, outers);
+    if(bestOi < 0) continue;
+    const outer = outers[bestOi];
 
-  for(const hole of holes){
-    const bestOi=_dxfFindParentOuter(hole, outers);
-    if(bestOi<0) continue;
+    // Centroid of hole — always inside the hole for typical Arabic letter voids
+    let cx=0, cy=0;
+    for(const [x,y] of hole.pts) { cx+=x; cy+=y; }
+    cx /= hole.pts.length; cy /= hole.pts.length;
 
-    let outerPt=null,holePt=null,bestDist=Infinity;
-    const hStep=Math.max(1,Math.floor(hole.pts.length/60));
-    for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      const r=_dxfClosestOnPoly(outers[bestOi].pts,hole.pts[vi]);
-      if(r.dist<bestDist){
-        bestDist=r.dist;
-        holePt=_dxfClosestOnPoly(hole.pts,r.pt).pt;
-        outerPt=r.pt;
+    // Cast rays every 5° from centroid; find thinnest wall
+    let bestDir=null, bestHoleT=0, bestOuterT=0, bestWall=Infinity;
+    const NRAYS = 36;
+    for(let ri=0; ri<NRAYS; ri++) {
+      const angle = (ri / NRAYS) * Math.PI * 2;
+      const dx = Math.cos(angle), dy = Math.sin(angle);
+
+      // First crossing with hole boundary = ray exits the hole
+      const holeHits = _dxfLinePolyIntersect(hole.pts, cx, cy, dx, dy).filter(t=>t>0.01);
+      if(!holeHits.length) continue;
+      const holeExitT = Math.min(...holeHits);
+
+      // First crossing with outer boundary AFTER exiting hole = ray exits the wall
+      const outerHits = _dxfLinePolyIntersect(outer.pts, cx, cy, dx, dy)
+                          .filter(t=>t > holeExitT + 0.05);
+      if(!outerHits.length) continue;
+      const outerExitT = Math.min(...outerHits);
+
+      const wall = outerExitT - holeExitT;
+      if(wall > 0.05 && wall < bestWall) {
+        bestWall = wall;
+        bestDir = [dx, dy];
+        bestHoleT = holeExitT;
+        bestOuterT = outerExitT;
       }
     }
-    if(!outerPt) continue;
 
-    const [ox,oy]=outerPt,[hx,hy]=holePt;
-    const sd=Math.hypot(hx-ox,hy-oy)||1;
-    const dir=[(hx-ox)/sd,(hy-oy)/sd];
-    const perp=[-dir[1],dir[0]];
-    const hw=Math.max(channelWidth/2,0.05);
+    if(!bestDir) continue;
 
-    // Step 1: find where the ray exits the HOLE on the far side
-    const holeHits=_dxfLinePolyIntersect(hole.pts, ox,oy, dir[0],dir[1])
-                     .filter(t=>t>0.1).sort((a,b)=>a-b);
-    // Hole should have entry≈sd and an exit further; take last hit (exit)
-    const holeExitT = holeHits.length ? holeHits[holeHits.length-1] : (sd+bestDist);
+    const margin = 1.5;
+    const [dx, dy] = bestDir;
+    const perp = [-dy, dx];
+    const hw = Math.max(channelWidth / 2, 0.05);
 
-    // Step 2: find first outer crossing AFTER the hole exit = same-letter far wall
-    const outerHits=_dxfLinePolyIntersect(outers[bestOi].pts, ox,oy, dir[0],dir[1])
-                      .filter(t=>t>holeExitT+0.05).sort((a,b)=>a-b);
-    const exitT = outerHits.length ? outerHits[0] : (holeExitT+bestDist+margin);
+    // A = inside the hole, B = outside the letter
+    const A = [cx + dx*(bestHoleT - margin), cy + dy*(bestHoleT - margin)];
+    const B = [cx + dx*(bestOuterT + margin), cy + dy*(bestOuterT + margin)];
 
-    // Endpoints: just outside both walls
-    const A=[ox-dir[0]*margin, oy-dir[1]*margin];
-    const B=[ox+dir[0]*(exitT+margin), oy+dir[1]*(exitT+margin)];
-
-    // CLOSED rectangle (4 sides) — matches the user's manual Illustrator workflow
     cutLines.push({
-      pts:[
+      pts: [
         [A[0]+perp[0]*hw, A[1]+perp[1]*hw],
         [B[0]+perp[0]*hw, B[1]+perp[1]*hw],
         [B[0]-perp[0]*hw, B[1]-perp[1]*hw],
         [A[0]-perp[0]*hw, A[1]-perp[1]*hw]
       ],
-      closed:true,
-      layer:'0'
+      closed: true,
+      layer: '0'
     });
   }
 
