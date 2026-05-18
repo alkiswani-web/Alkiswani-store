@@ -14118,7 +14118,8 @@ async function dxfUpdatePreview() {
       if(infoEl)infoEl.textContent='⏳ جاري الدمج...';
       if(!window.ClipperLib) await dxfLoadClipper();
       const rawPl=_dxfPathToPolylinesRaw(path, p.res);
-      const merged=_dxfApplyUnion(rawPl);
+      const eps=Math.min(1.0, Math.max(0.2, p.sizeMM*0.012));
+      const merged=_dxfApplyUnion(rawPl, eps);
       drawBg();
       ctx.save(); ctx.translate(shiftX,0);
       for(const pl of merged) {
@@ -14263,29 +14264,45 @@ function dxfLoadClipper() {
 
 // Union in SCREEN coords (no Y flip) then returns layer-tagged polylines
 // outer shapes → layer "0", inner holes/islands → layer "HOLES"
-function _dxfApplyUnion(rawPolylines) {
+// epsilonMM: inflate amount to bridge touching-but-not-overlapping letter edges
+function _dxfApplyUnion(rawPolylines, epsilonMM) {
   if (!window.ClipperLib) return rawPolylines.map(pl=>({...pl, layer:'0'}));
   const SCALE = 100000;
+  const EPS = Math.round((epsilonMM || 0.3) * SCALE);
   const closed = rawPolylines.filter(p => p.closed);
   const open = rawPolylines.filter(p => !p.closed);
   if (!closed.length) return rawPolylines.map(pl=>({...pl, layer:'0'}));
   const clipPaths = closed.map(pl =>
     pl.pts.map(([x,y]) => ({X: Math.round(x*SCALE), Y: Math.round(y*SCALE)}))
   );
+  // Inflate slightly so touching Arabic letter edges actually overlap → union merges them
+  const co = new ClipperLib.ClipperOffset();
+  co.AddPaths(clipPaths, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+  const inflated = new ClipperLib.Paths();
+  co.Execute(inflated, EPS);
+  if (!inflated.length) return rawPolylines.map(pl=>({...pl, layer:'0'}));
+  // Union with PolyTree to get outer/hole hierarchy
   const cpr = new ClipperLib.Clipper();
-  cpr.AddPaths(clipPaths, ClipperLib.PolyType.ptSubject, true);
+  cpr.AddPaths(inflated, ClipperLib.PolyType.ptSubject, true);
   const tree = new ClipperLib.PolyTree();
-  // EvenOdd fill = winding-independent, works regardless of font winding direction
   cpr.Execute(ClipperLib.ClipType.ctUnion, tree,
     ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+  // Deflate result back to original size
   const result = [];
   function walk(node) {
     if (node.m_polygon && node.m_polygon.length > 1) {
       const isHole = typeof node.IsHole === 'function' ? node.IsHole() : false;
-      result.push({
-        pts: node.m_polygon.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
-        closed: true,
-        layer: isHole ? 'HOLES' : '0'
+      // Deflate: outer shrinks inward (-EPS), holes expand outward (+EPS)
+      const co2 = new ClipperLib.ClipperOffset();
+      co2.AddPath(node.m_polygon, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+      const deflated = new ClipperLib.Paths();
+      co2.Execute(deflated, isHole ? EPS : -EPS);
+      (deflated.length ? deflated : [node.m_polygon]).forEach(p => {
+        if (p.length > 1) result.push({
+          pts: p.map(pt => [pt.X/SCALE, pt.Y/SCALE]),
+          closed: true,
+          layer: isHole ? 'HOLES' : '0'
+        });
       });
     }
     (node.m_Childs || []).forEach(walk);
@@ -14311,8 +14328,9 @@ async function dxfDownload() {
   if (doMerge) {
     try {
       if (!window.ClipperLib) { if(dlEl) dlEl.textContent='⏳ تحميل مكتبة الدمج...'; await dxfLoadClipper(); }
-      // Step 2: union in screen coords (correct winding), tags layers
-      polylines = _dxfApplyUnion(polylines);
+      // Step 2: union in screen coords; epsilon bridges touching letter edges
+      const eps = Math.min(1.0, Math.max(0.2, p.sizeMM * 0.012));
+      polylines = _dxfApplyUnion(polylines, eps);
     } catch(e) {
       console.warn('Union failed, using raw paths:', e);
       polylines = polylines.map(pl=>({...pl, layer:'0'}));
