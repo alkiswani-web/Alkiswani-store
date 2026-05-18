@@ -14223,65 +14223,9 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: two open parallel cut lines through the thinnest wall between void and outside.
-  // Uses nearest boundary-point pair (same logic as bridge) — robust for any hole shape.
-  const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
-  const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
-  if(!holes.length) return polylines;
-  const cutLines = [];
-
-  for(const hole of holes) {
-    const oi = _dxfFindParentOuter(hole, outers);
-    if(oi < 0) continue;
-
-    // Hole bounding radius — used to limit search to THIS letter's wall
-    let cx=0, cy=0;
-    for(const [x,y] of hole.pts) { cx+=x; cy+=y; }
-    cx /= hole.pts.length; cy /= hole.pts.length;
-    const holeR = Math.sqrt(hole.pts.reduce((s,[x,y])=>s+(cx-x)**2+(cy-y)**2,0)/hole.pts.length);
-    const maxD = holeR * 4;
-
-    // Find nearest (hole point, outer point) pair within local radius — = thinnest wall
-    const outerPts = outers[oi].pts;
-    let bestDist=Infinity, bestHolePt=null, bestOuterPt=null;
-    const hStep = Math.max(1, Math.floor(hole.pts.length / 80));
-    for(let hi=0; hi<hole.pts.length; hi+=hStep) {
-      const [hx,hy] = hole.pts[hi];
-      for(let i=0; i<outerPts.length; i++) {
-        const [ax,ay]=outerPts[i],[bx,by]=outerPts[(i+1)%outerPts.length];
-        const ex=bx-ax,ey=by-ay,len2=ex*ex+ey*ey;
-        if(len2<1e-10) continue;
-        let t=((hx-ax)*ex+(hy-ay)*ey)/len2;
-        t=Math.max(0,Math.min(1,t));
-        const px=ax+t*ex,py=ay+t*ey;
-        const d=Math.hypot(px-hx,py-hy);
-        if(d<bestDist&&d<=maxD){bestDist=d;bestHolePt=[hx,hy];bestOuterPt=[px,py];}
-      }
-    }
-    // Fallback: global nearest if nothing within radius
-    if(!bestHolePt) {
-      const hMid = hole.pts[Math.floor(hole.pts.length/2)];
-      const r = _dxfClosestOnPoly(outerPts, hMid);
-      bestHolePt = hMid; bestOuterPt = r.pt; bestDist = r.dist;
-    }
-
-    // Direction: from hole boundary → outer boundary (through the wall)
-    const wallDx=bestOuterPt[0]-bestHolePt[0], wallDy=bestOuterPt[1]-bestHolePt[1];
-    const wallLen=Math.hypot(wallDx,wallDy)||1;
-    const dx=wallDx/wallLen, dy=wallDy/wallLen;
-    const perp=[-dy,dx];
-    const hw=Math.max(channelWidth/2,0.05);
-
-    // Extend slightly into the void and outside the letter
-    const ext=Math.min(0.4, wallLen*0.25);
-    const A=[bestHolePt[0]-dx*ext, bestHolePt[1]-dy*ext];  // inside void
-    const B=[bestOuterPt[0]+dx*ext, bestOuterPt[1]+dy*ext]; // outside letter
-
-    cutLines.push({pts:[[A[0]+perp[0]*hw,A[1]+perp[1]*hw],[B[0]+perp[0]*hw,B[1]+perp[1]*hw]], closed:false, layer:'0'});
-    cutLines.push({pts:[[A[0]-perp[0]*hw,A[1]-perp[1]*hw],[B[0]-perp[0]*hw,B[1]-perp[1]*hw]], closed:false, layer:'0'});
-  }
-
-  return [...polylines, ...cutLines];
+  // شارع = نفس خوارزمية الجسر: فتح فجوة في مسار الخارج + فجوة في مسار التجويف.
+  // النتيجة: الحرف بفتحة مستطيلة في جداره — تماماً كخطوات Shape Builder في Illustrator.
+  return _dxfApplyBridges(polylines, channelWidth);
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
