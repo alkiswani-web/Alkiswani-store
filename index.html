@@ -14254,7 +14254,9 @@ function _dxfApplyChannel(polylines, channelWidth) {
 
     // Find where the line exits the outer boundary on the far side (t > wall thickness)
     const hits=_dxfLinePolyIntersect(outers[bestOi].pts, ox,oy, dir[0],dir[1]);
-    const exitT=hits.find(t=>t>sd*0.3) ?? (sd*3); // first crossing past the hole
+    // Far-side exit = largest positive t (last crossing of the outer boundary)
+    const posHits=hits.filter(t=>t>0.5);
+    const exitT=posHits.length ? Math.max(...posHits) : (sd*4);
 
     // Endpoints: slightly behind entry, slightly past exit — only within this letter
     const A=[ox-dir[0]*margin, oy-dir[1]*margin];
