@@ -198,6 +198,7 @@ body.dark-mode .cats-section{background:#1f2937!important;}
 }
 @keyframes bannerShimmer{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
 @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+@keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:0.75}}
 #eidBanner.show{display:block;}
 .eid-banner-text{color:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;}
 .eid-banner-close{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
@@ -2775,6 +2776,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <button class="order-stab active" onclick="setOpOrderFilter('all',this)">الكل <span id="ooc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+            <button class="order-stab" onclick="setOpOrderFilter('urgent',this)" style="color:#dc2626;font-weight:700;">🔥 مستعجل <span id="ooc-urgent" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('pending',this)">جديد <span id="ooc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('preparing',this)">تجهيز <span id="ooc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('prepared',this)">تم التجهيز <span id="ooc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -3131,6 +3133,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
       </div>
 
+      <button id="empUrgentBtn" onclick="toggleEmpUrgent()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all 0.2s;">🔥 طلب مستعجل</button>
+
       <button onclick="submitEmpOrder()" style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسجيل الطلب</button>
     </div>
 
@@ -3270,6 +3274,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <option value="">— اختار الصفحة —</option>
         </select>
       </div>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;cursor:pointer;margin-bottom:10px;">
+        <input type="checkbox" id="empEdit_urgent" style="width:18px;height:18px;accent-color:#dc2626;cursor:pointer;">
+        <span style="font-size:0.86rem;font-weight:700;color:#dc2626;">🔥 طلب مستعجل</span>
+      </label>
       <div style="margin-bottom:12px;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">صورة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -4784,6 +4792,26 @@ function closeEmpLogin(){
 let _empPagesCache=[];
 let _empSharedProducts=null;
 let _empOrderCart=[];
+let _empOrderUrgent=false;
+function toggleEmpUrgent(){
+  _empOrderUrgent=!_empOrderUrgent;
+  const btn=document.getElementById('empUrgentBtn');
+  if(!btn)return;
+  if(_empOrderUrgent){
+    btn.style.background='linear-gradient(135deg,#dc2626,#ef4444)';
+    btn.style.color='#fff';
+    btn.style.border='1.5px solid #dc2626';
+    btn.textContent='🔥 مستعجل · مفعّل';
+    btn.style.boxShadow='0 0 0 4px rgba(220,38,38,0.15)';
+  }else{
+    btn.style.background='#fff';
+    btn.style.color='#374151';
+    btn.style.border='1.5px dashed #d1d5db';
+    btn.textContent='🔥 طلب مستعجل';
+    btn.style.boxShadow='none';
+  }
+}
+function resetEmpUrgentBtn(){_empOrderUrgent=false;const b=document.getElementById('empUrgentBtn');if(b){b.style.background='#fff';b.style.color='#374151';b.style.border='1.5px dashed #d1d5db';b.textContent='🔥 طلب مستعجل';b.style.boxShadow='none';}}
 let _empDeliveryFee=0;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
@@ -5193,13 +5221,15 @@ async function submitEmpOrder(){
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
       ...(_empCurrentImages.length?{imageDataUrls:_empCurrentImages,imageDataUrl:_empCurrentImages[0]}:{}),
       status:'pending',
+      ...(_empOrderUrgent?{urgent:true}:{}),
       totalPrice,deliveryFee,netPrice,
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
-    toast('✅ تم تسجيل الطلب بنجاح');
+    toast(_empOrderUrgent?'🔥 تم تسجيل الطلب المستعجل':'✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=0;_empCurrentImages=[];
+    resetEmpUrgentBtn();
     renderEmpOrderCart();
     setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
     document.getElementById('emp_phone').value='';
@@ -5728,6 +5758,7 @@ function _showOpOrderDetail(o){
       </div>
       <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:3px 11px;font-size:0.75rem;font-weight:800;">${st.label}</span>
     </div>
+    ${o.urgent?`<div style="background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;padding:10px 16px;font-weight:800;text-align:center;font-size:0.95rem;">🔥 طلب مستعجل</div>`:''}
     <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
       <!-- Customer -->
       <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">
@@ -5806,6 +5837,8 @@ function openEmpOrderEdit(orderId){
         if(!pageEl.value&&o.pageName){const opt=document.createElement('option');opt.value='';opt.textContent=o.pageName;opt.selected=true;pageEl.prepend(opt);}
       }).catch(()=>{});
     }
+    const urgEl=document.getElementById('empEdit_urgent');
+    if(urgEl) urgEl.checked=!!o.urgent;
     const totalEl=document.getElementById('empEditTotalInput');
     if(totalEl)totalEl.value=(o.totalPrice!=null?o.totalPrice-(_empEditDeliveryFee||0):_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0)).toFixed(2);
     const dlv=_empEditDeliveryFee;
@@ -5928,9 +5961,11 @@ async function saveEmpOrderEdit(){
     const selectedPageOpt=pageEl&&pageEl.options[pageEl.selectedIndex];
     const newPageId=pageEl?pageEl.value:'';
     const newPageName=selectedPageOpt?(selectedPageOpt.dataset.name||selectedPageOpt.textContent):'';
+    const urgent=document.getElementById('empEdit_urgent')?.checked||false;
     const updateData={
       products:_empEditCart.map(i=>({id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{})})),
       customerPhone:phone,address,notes,area,
+      urgent,
       ...(newPageName?{pageName:newPageName}:{}),
       ...(newPageId?{pageId:newPageId}:{}),
       totalPrice:prodsTotal+deliveryFee,deliveryFee,netPrice,
@@ -6007,7 +6042,8 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
       </div>`
     :'';
 
-  return `<div style="background:#fff;border-radius:11px;margin-bottom:7px;border:1px solid #e5e7eb;border-right:4px solid ${st.color};box-shadow:0 1px 4px rgba(0,0,0,0.05);overflow:hidden;">
+  return `<div style="background:${o.urgent?'#fef2f2':'#fff'};border-radius:11px;margin-bottom:7px;border:1px solid ${o.urgent?'#fca5a5':'#e5e7eb'};border-right:4px solid ${o.urgent?'#dc2626':st.color};box-shadow:${o.urgent?'0 2px 10px rgba(220,38,38,0.15)':'0 1px 4px rgba(0,0,0,0.05)'};overflow:hidden;">
+    ${o.urgent?`<div style="background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;padding:4px 12px;font-size:0.72rem;font-weight:800;display:flex;align-items:center;gap:6px;animation:urgentPulse 1.4s infinite;">🔥 طلب مستعجل</div>`:''}
     <div onclick="openOpOrderDetail('${o.id}')" style="display:flex;cursor:pointer;direction:ltr;min-height:80px;">
       ${imgPanel}
       <div style="flex:1;min-width:0;padding:10px 12px 8px;direction:rtl;">
@@ -6052,6 +6088,8 @@ function _renderKanban(orders, isOperator, filterStatus, customerHist){
   const groups={};
   STATUS_ORDER.forEach(s=>groups[s]=[]);
   orders.forEach(o=>{ if(groups[o.status])groups[o.status].push(o); else groups['pending'].push(o); });
+  // Urgent orders pinned to top of each group
+  Object.keys(groups).forEach(s=>groups[s].sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0)));
   if(filterStatus&&filterStatus!=='all'){
     const grp=groups[filterStatus]||[];
     return grp.length
@@ -6101,11 +6139,12 @@ function _renderKanbanCard(o,isOperator,customerHist){
 }
 
 function _updateEmpChipCounts(data, prefix){
-  const counts={all:data.length,edited:0};
+  const counts={all:data.length,edited:0,urgent:0};
   Object.keys(EMP_STATUSES).forEach(s=>counts[s]=0);
   data.forEach(o=>{
     if(counts[o.status]!==undefined)counts[o.status]++;
     if(o.needsReview)counts.edited++;
+    if(o.urgent&&!['delivered','cancelled','returned','refused'].includes(o.status))counts.urgent++;
   });
   // delivering chip shows queued+delivering combined count
   counts.delivering=(counts.delivering||0)+(counts.queued||0);
@@ -6208,7 +6247,8 @@ function loadOperatorOrders(){
         if(fresh.length){
           _playNewOrderSound();
           const fo=fresh[0];
-          sendPushNotification('طلب جديد 🛒',(fo.pageName||'')+(fo.customerPhone?' — '+fo.customerPhone:''),{tag:'new-order',orderId:fo.id||''});
+          const title=fo.urgent?'🔥 طلب مستعجل جديد!':'طلب جديد 🛒';
+          sendPushNotification(title,(fo.pageName||'')+(fo.customerPhone?' — '+fo.customerPhone:''),{tag:fo.urgent?'urgent-order':'new-order',orderId:fo.id||''});
         }
       }
       newData.forEach(o=>_seenOpOrderIds.add(o.id));
@@ -6242,13 +6282,14 @@ function _renderOpOrdersView(){
   let orders;
   if(_opOrdersFilter==='all') orders=_opOrdersAllData;
   else if(_opOrdersFilter==='edited') orders=_opOrdersAllData.filter(o=>o.needsReview);
+  else if(_opOrdersFilter==='urgent') orders=_opOrdersAllData.filter(o=>o.urgent&&!['delivered','cancelled','returned','refused'].includes(o.status));
   else orders=_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
   if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
   if(_opAdvFilter) orders=_applyAdvFilter(orders,_opAdvFilter);
   if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
   wrap.innerHTML=_opGroupByArea
     ?_renderGroupedByArea(orders,true,customerHist)
-    :_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter,customerHist);
+    :_renderKanban(orders,true,(_opOrdersFilter==='edited'||_opOrdersFilter==='urgent')?'all':_opOrdersFilter,customerHist);
   // Show reports after render
   if(_opOrdersFilter==='cancelled'){
     setTimeout(renderCancelReport,10);
@@ -6480,6 +6521,7 @@ body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:
 .foot{text-align:center;margin-top:20px;font-size:0.72rem;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px;}
 @media print{.no-print{display:none;}}
 </style></head><body>
+${o.urgent?`<div style="background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;padding:8px 16px;font-weight:800;text-align:center;font-size:1rem;border-radius:8px;margin-bottom:14px;letter-spacing:1px;">🔥 طلب مستعجل 🔥</div>`:''}
 <div class="hd"><div class="hd-title">الكسواني روزميري</div><div class="hd-sub">فاتورة طلب &nbsp;·&nbsp; ${jordanDisplayDate()}</div></div>
 <div class="row"><span class="lbl">رقم الطلب</span><span class="val">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())}</span></div>
 <div class="row"><span class="lbl">الصفحة</span><span class="val">${o.pageName}</span></div>
@@ -11492,7 +11534,7 @@ window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; wi
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
 window.selectEmpColor=selectEmpColor;
 window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
-window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory;
+window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory; window.toggleEmpUrgent=toggleEmpUrgent;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
