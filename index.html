@@ -3046,14 +3046,23 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <label style="display:flex;align-items:center;gap:12px;margin-top:10px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:12px 16px;cursor:pointer;">
             <input type="checkbox" id="dxfBridge" checked style="width:18px;height:18px;accent-color:#ea580c;flex-shrink:0;cursor:pointer;" onchange="dxfUpdatePreview()">
             <div style="flex:1;">
-              <div style="font-size:0.88rem;font-weight:700;color:#9a3412;">إضافة جسر للفراغات الداخلية</div>
-              <div style="font-size:0.78rem;color:#c2410c;margin-top:2px;">يربط الفراغ الداخلي بالشكل الخارجي — تشيله بيدك بعد القطع</div>
+              <div style="font-size:0.88rem;font-weight:700;color:#9a3412;">فتح الفراغات الداخلية</div>
+              <div style="font-size:0.78rem;color:#c2410c;margin-top:2px;">يعمل قطع من الخارج للفراغ الداخلي — اختار الطريقة تحت</div>
             </div>
           </label>
-          <div id="dxfBridgeWidthRow" style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:0 4px;">
-            <span style="font-size:0.82rem;color:#9a3412;white-space:nowrap;">عرض الجسر:</span>
-            <input type="range" id="dxfBridgeWidth" min="0.3" max="20" step="0.1" value="0.8" style="flex:1;accent-color:#ea580c;" oninput="document.getElementById('dxfBridgeWidthVal').textContent=parseFloat(this.value).toFixed(1);dxfUpdatePreview()">
-            <input type="number" id="dxfBridgeWidthNum" min="0.1" max="200" step="0.1" value="0.8" style="width:52px;padding:2px 4px;border:1px solid #ea580c;border-radius:4px;font-size:0.85rem;color:#ea580c;font-weight:700;text-align:center;" oninput="document.getElementById('dxfBridgeWidth').value=Math.min(20,Math.max(0.3,this.value));document.getElementById('dxfBridgeWidthVal').textContent=parseFloat(this.value).toFixed(1);dxfUpdatePreview()">
+          <div id="dxfBridgeWidthRow" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding:0 4px;">
+            <!-- Mode selector -->
+            <div style="display:flex;gap:6px;width:100%;margin-bottom:4px;">
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.82rem;color:#9a3412;font-weight:600;background:#fff;border:1.5px solid #ea580c;border-radius:6px;padding:4px 10px;">
+                <input type="radio" name="dxfBridgeMode" id="dxfBridgeModeJosr" value="bridge" checked style="accent-color:#ea580c;" onchange="dxfUpdatePreview()"> 🔗 جسر
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.82rem;color:#9a3412;font-weight:600;background:#fff;border:1.5px solid #ea580c;border-radius:6px;padding:4px 10px;">
+                <input type="radio" name="dxfBridgeMode" id="dxfBridgeModeShare3" value="channel" style="accent-color:#ea580c;" onchange="dxfUpdatePreview()"> 🛣️ شارع
+              </label>
+            </div>
+            <span style="font-size:0.82rem;color:#9a3412;white-space:nowrap;">العرض:</span>
+            <input type="range" id="dxfBridgeWidth" min="0.3" max="20" step="0.1" value="0.8" style="flex:1;accent-color:#ea580c;" oninput="document.getElementById('dxfBridgeWidthNum').value=parseFloat(this.value).toFixed(1);dxfUpdatePreview()">
+            <input type="number" id="dxfBridgeWidthNum" min="0.1" max="200" step="0.1" value="0.8" style="width:52px;padding:2px 4px;border:1px solid #ea580c;border-radius:4px;font-size:0.85rem;color:#ea580c;font-weight:700;text-align:center;" oninput="document.getElementById('dxfBridgeWidth').value=Math.min(20,Math.max(0.3,this.value));dxfUpdatePreview()">
             <span style="font-size:0.78rem;color:#9a3412;">مم</span>
           </div>
           <!-- Frame/outline toggle -->
@@ -14107,6 +14116,7 @@ function dxfGetParams() {
     doMerge: document.getElementById('dxfMerge')?.checked !== false,
     doBridge: document.getElementById('dxfBridge')?.checked !== false,
     bridgeWidth: parseFloat(document.getElementById('dxfBridgeWidthNum')?.value || document.getElementById('dxfBridgeWidth')?.value) || 0.8,
+    bridgeMode: (document.querySelector('input[name="dxfBridgeMode"]:checked')?.value) || 'bridge',
     doFrame: document.getElementById('dxfFrame')?.checked === true,
     frameWall: parseFloat(document.getElementById('dxfFrameWallNum')?.value || document.getElementById('dxfFrameWall')?.value) || 3,
   };
@@ -14187,6 +14197,75 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
   return [...workOuters, ...resultHoles, ...others];
 }
 
+function _dxfApplyChannel(polylines, channelWidth) {
+  // Cuts a straight slot (شارع) all the way from outer edge to each inner hole.
+  // Both outer and hole get aligned gaps; two straight lines close the slot walls.
+  // The inner piece is completely free to fall out.
+  const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
+  const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
+  const others = polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
+  if(!holes.length) return polylines;
+
+  const workOuters = outers.map(p=>({...p,pts:[...p.pts]}));
+  const resultLines = [];
+  const resultHoles = [];
+
+  for(let hi=0;hi<holes.length;hi++){
+    const hole=holes[hi];
+    let bestDist=Infinity,bestOi=-1,bestOuterSeg=null,bestHoleSeg=null;
+    const hStep=Math.max(1,Math.floor(hole.pts.length/60));
+    for(let vi=0;vi<hole.pts.length;vi+=hStep){
+      for(let oi=0;oi<workOuters.length;oi++){
+        const r=_dxfClosestOnPoly(workOuters[oi].pts,hole.pts[vi]);
+        if(r.dist<bestDist){
+          bestDist=r.dist;bestOi=oi;
+          bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt);
+          bestOuterSeg=r;
+        }
+      }
+    }
+    if(bestOi<0){resultHoles.push(hole);continue;}
+    bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts,bestHoleSeg.pt);
+
+    // Slot direction: outer→hole; perp = side-wall direction
+    const [ox,oy]=bestOuterSeg.pt,[hx,hy]=bestHoleSeg.pt;
+    const sd=Math.hypot(hx-ox,hy-oy)||1;
+    const perp=[-(hy-oy)/sd,(hx-ox)/sd]; // perpendicular to slot
+    const hw=channelWidth/2;
+
+    // Gap endpoints (perp offset, same direction for both)
+    const oA=[ox+perp[0]*hw,oy+perp[1]*hw], oB=[ox-perp[0]*hw,oy-perp[1]*hw];
+    const hA=[hx+perp[0]*hw,hy+perp[1]*hw], hB=[hx-perp[0]*hw,hy-perp[1]*hw];
+
+    // Insert gaps using perp offset (override _dxfInsertGap's seg-direction)
+    const outerOpen=_dxfInsertGapPerp(workOuters[bestOi].pts,bestOuterSeg.segIdx,bestOuterSeg.t,channelWidth,perp);
+    workOuters[bestOi]={pts:outerOpen,closed:false,layer:'0'};
+
+    const holeOpen=_dxfInsertGapPerp(hole.pts,bestHoleSeg.segIdx,bestHoleSeg.t,channelWidth,perp);
+    resultHoles.push({pts:holeOpen,closed:false,layer:'0'});
+
+    // Two straight cut lines = the walls of the شارع
+    resultLines.push({pts:[oA,hA],closed:false,layer:'0'});
+    resultLines.push({pts:[oB,hB],closed:false,layer:'0'});
+  }
+
+  return [...workOuters,...resultHoles,...resultLines,...others];
+}
+
+function _dxfInsertGapPerp(pts, segIdx, t, gapWidth, perpDir) {
+  // Like _dxfInsertGap but gap endpoints offset along perpDir (not segment direction)
+  const n=pts.length;
+  const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
+  const cx=ax+(bx-ax)*t,cy=ay+(by-ay)*t;
+  const hw=gapWidth/2;
+  const gEnd=[cx+perpDir[0]*hw,cy+perpDir[1]*hw];
+  const gStart=[cx-perpDir[0]*hw,cy-perpDir[1]*hw];
+  const result=[gEnd];
+  for(let i=0;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
+  result.push(gStart);
+  return result;
+}
+
 function _dxfApplyFrame(polylines, wallMM) {
   // For each outer shape (layer '0'), expand outward by wallMM using ClipperOffset.
   // Returns: expanded outer paths (layer 'FRAME') + original paths unchanged.
@@ -14255,7 +14334,7 @@ async function dxfUpdatePreview() {
       const rawPl=_dxfPathToPolylinesRaw(path, p.res);
       const eps=Math.min(1.0, Math.max(0.2, p.sizeMM*0.012));
       let merged=_dxfApplyUnion(rawPl, eps);
-      if(p.doBridge){try{merged=_dxfApplyBridges(merged,p.bridgeWidth);}catch(e){}}
+      if(p.doBridge){try{merged=p.bridgeMode==='channel'?_dxfApplyChannel(merged,p.bridgeWidth):_dxfApplyBridges(merged,p.bridgeWidth);}catch(e){}}
       if(p.doFrame){try{merged=_dxfApplyFrame(merged,p.frameWall);}catch(e){}}
       drawBg();
       ctx.save(); ctx.translate(shiftX,0);
@@ -14476,7 +14555,11 @@ async function dxfDownload() {
   }
   // Apply bridges BEFORE Y flip (screen coords)
   if (p.doBridge && p.doMerge) {
-    try { polylines = _dxfApplyBridges(polylines, p.bridgeWidth); } catch(e) { console.warn('Bridge failed:', e); }
+    try { polylines = p.bridgeMode==='channel' ? _dxfApplyChannel(polylines,p.bridgeWidth) : _dxfApplyBridges(polylines,p.bridgeWidth); } catch(e) { console.warn('Bridge/channel failed:', e); }
+  }
+  // Apply frame (expand outward) BEFORE Y flip
+  if (p.doFrame && p.doMerge) {
+    try { polylines = _dxfApplyFrame(polylines, p.frameWall); } catch(e) { console.warn('Frame failed:', e); }
   }
   // Apply frame (expand outward) BEFORE Y flip
   if (p.doFrame && p.doMerge) {
