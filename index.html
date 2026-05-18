@@ -14206,32 +14206,38 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
   return [...workOuters, ...resultHoles, ...others];
 }
 
+function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
+  // Returns sorted t-values where line (ox+t*dx, oy+t*dy) crosses polygon segments
+  const n=polyPts.length, hits=[];
+  for(let i=0;i<n;i++){
+    const [ax,ay]=polyPts[i],[bx,by]=polyPts[(i+1)%n];
+    const ex=bx-ax,ey=by-ay;
+    const det=dx*ey-dy*ex;
+    if(Math.abs(det)<1e-10) continue;
+    const t=((ax-ox)*ey-(ay-oy)*ex)/det;
+    const s=((ax-ox)*dy-(ay-oy)*dx)/det;
+    if(s>=0&&s<=1) hits.push(t);
+  }
+  return hits.sort((a,b)=>a-b);
+}
+
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: two parallel lines going ALL THE WAY THROUGH the letter (outside→outside).
-  // The slot passes through both the outer wall AND the inner hole — inner piece falls out.
+  // شارع: two parallel lines through the letter, from just outside one side to just outside the other.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
 
-  // Bounding box of all geometry → used to extend lines beyond letter boundaries
-  let mnX=Infinity,mnY=Infinity,mxX=-Infinity,mxY=-Infinity;
-  for(const pl of polylines) for(const [x,y] of pl.pts){
-    if(x<mnX)mnX=x; if(x>mxX)mxX=x; if(y<mnY)mnY=y; if(y>mxY)mxY=y;
-  }
-  const ext=Math.hypot(mxX-mnX,mxY-mnY)*0.6+5; // extends well beyond any boundary
-
-  const cutLines = [];
+  const margin=2; // mm extension beyond outer boundary
+  const cutLines=[];
 
   for(const hole of holes){
     const bestOi=_dxfFindParentOuter(hole, outers);
     if(bestOi<0) continue;
 
-    // Find closest point pair between hole and its parent outer
-    let outerPt=null, holePt=null, bestDist=Infinity;
+    let outerPt=null,holePt=null,bestDist=Infinity;
     const hStep=Math.max(1,Math.floor(hole.pts.length/60));
-    const outerForSearch=outers[bestOi];
     for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      const r=_dxfClosestOnPoly(outers[bestOi].pts, hole.pts[vi]);
+      const r=_dxfClosestOnPoly(outers[bestOi].pts,hole.pts[vi]);
       if(r.dist<bestDist){
         bestDist=r.dist;
         holePt=_dxfClosestOnPoly(hole.pts,r.pt).pt;
@@ -14240,18 +14246,20 @@ function _dxfApplyChannel(polylines, channelWidth) {
     }
     if(!outerPt) continue;
 
-    // Slot direction (outer→hole) and perpendicular
     const [ox,oy]=outerPt,[hx,hy]=holePt;
     const sd=Math.hypot(hx-ox,hy-oy)||1;
     const dir=[(hx-ox)/sd,(hy-oy)/sd];
     const perp=[-dir[1],dir[0]];
-    const hw=Math.max(channelWidth/2, 0.05);
+    const hw=Math.max(channelWidth/2,0.05);
 
-    // Extend the slot center line in BOTH directions far beyond the outer boundary
-    const A=[ox-dir[0]*ext, oy-dir[1]*ext]; // approach side (behind outer wall)
-    const B=[hx+dir[0]*ext, hy+dir[1]*ext]; // exit side (past inner hole)
+    // Find where the line exits the outer boundary on the far side (t > wall thickness)
+    const hits=_dxfLinePolyIntersect(outers[bestOi].pts, ox,oy, dir[0],dir[1]);
+    const exitT=hits.find(t=>t>sd*0.3) ?? (sd*3); // first crossing past the hole
 
-    // Two parallel cut lines = the شارع walls, spanning from outside to outside
+    // Endpoints: slightly behind entry, slightly past exit — only within this letter
+    const A=[ox-dir[0]*margin, oy-dir[1]*margin];
+    const B=[ox+dir[0]*(exitT+margin), oy+dir[1]*(exitT+margin)];
+
     cutLines.push({pts:[[A[0]+perp[0]*hw,A[1]+perp[1]*hw],[B[0]+perp[0]*hw,B[1]+perp[1]*hw]],closed:false,layer:'0'});
     cutLines.push({pts:[[A[0]-perp[0]*hw,A[1]-perp[1]*hw],[B[0]-perp[0]*hw,B[1]-perp[1]*hw]],closed:false,layer:'0'});
   }
