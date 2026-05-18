@@ -14229,6 +14229,7 @@ function _dxfApplyChannel(polylines, channelWidth) {
     // Find closest point pair between hole and its parent outer
     let outerPt=null, holePt=null, bestDist=Infinity;
     const hStep=Math.max(1,Math.floor(hole.pts.length/60));
+    const outerForSearch=outers[bestOi];
     for(let vi=0;vi<hole.pts.length;vi+=hStep){
       const r=_dxfClosestOnPoly(outers[bestOi].pts, hole.pts[vi]);
       if(r.dist<bestDist){
