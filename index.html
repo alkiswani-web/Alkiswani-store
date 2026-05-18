@@ -14207,10 +14207,18 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: short cut lines through the wall only — shapes stay closed and clean.
+  // شارع: two parallel lines going ALL THE WAY THROUGH the letter (outside→outside).
+  // The slot passes through both the outer wall AND the inner hole — inner piece falls out.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   if(!holes.length) return polylines;
+
+  // Bounding box of all geometry → used to extend lines beyond letter boundaries
+  let mnX=Infinity,mnY=Infinity,mxX=-Infinity,mxY=-Infinity;
+  for(const pl of polylines) for(const [x,y] of pl.pts){
+    if(x<mnX)mnX=x; if(x>mxX)mxX=x; if(y<mnY)mnY=y; if(y>mxY)mxY=y;
+  }
+  const ext=Math.hypot(mxX-mnX,mxY-mnY)*0.6+5; // extends well beyond any boundary
 
   const cutLines = [];
 
@@ -14218,34 +14226,33 @@ function _dxfApplyChannel(polylines, channelWidth) {
     const bestOi=_dxfFindParentOuter(hole, outers);
     if(bestOi<0) continue;
 
-    // Find closest point pair within the correct outer-hole pair
+    // Find closest point pair between hole and its parent outer
     let outerPt=null, holePt=null, bestDist=Infinity;
     const hStep=Math.max(1,Math.floor(hole.pts.length/60));
-    const outerForSearch=outers[bestOi];
     for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      const r=_dxfClosestOnPoly(outerForSearch.pts, hole.pts[vi]);
+      const r=_dxfClosestOnPoly(outers[bestOi].pts, hole.pts[vi]);
       if(r.dist<bestDist){
         bestDist=r.dist;
-        holePt=_dxfClosestOnPoly(hole.pts, r.pt).pt;
+        holePt=_dxfClosestOnPoly(hole.pts,r.pt).pt;
         outerPt=r.pt;
       }
     }
     if(!outerPt) continue;
 
-    // Direction of the slot and its perpendicular
+    // Slot direction (outer→hole) and perpendicular
     const [ox,oy]=outerPt,[hx,hy]=holePt;
     const sd=Math.hypot(hx-ox,hy-oy)||1;
-    const perp=[-(hy-oy)/sd,(hx-ox)/sd];
-    const hw=channelWidth/2;
+    const dir=[(hx-ox)/sd,(hy-oy)/sd];
+    const perp=[-dir[1],dir[0]];
+    const hw=Math.max(channelWidth/2, 0.05);
 
-    if(hw < 0.05){
-      // Single kerf line
-      cutLines.push({pts:[outerPt,holePt],closed:false,layer:'0'});
-    } else {
-      // Two parallel lines = channel walls
-      cutLines.push({pts:[[ox+perp[0]*hw,oy+perp[1]*hw],[hx+perp[0]*hw,hy+perp[1]*hw]],closed:false,layer:'0'});
-      cutLines.push({pts:[[ox-perp[0]*hw,oy-perp[1]*hw],[hx-perp[0]*hw,hy-perp[1]*hw]],closed:false,layer:'0'});
-    }
+    // Extend the slot center line in BOTH directions far beyond the outer boundary
+    const A=[ox-dir[0]*ext, oy-dir[1]*ext]; // approach side (behind outer wall)
+    const B=[hx+dir[0]*ext, hy+dir[1]*ext]; // exit side (past inner hole)
+
+    // Two parallel cut lines = the شارع walls, spanning from outside to outside
+    cutLines.push({pts:[[A[0]+perp[0]*hw,A[1]+perp[1]*hw],[B[0]+perp[0]*hw,B[1]+perp[1]*hw]],closed:false,layer:'0'});
+    cutLines.push({pts:[[A[0]-perp[0]*hw,A[1]-perp[1]*hw],[B[0]-perp[0]*hw,B[1]-perp[1]*hw]],closed:false,layer:'0'});
   }
 
   return [...polylines, ...cutLines];
