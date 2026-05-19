@@ -14259,20 +14259,53 @@ function _dxfClosestOnPoly(pts, target) {
   return best;
 }
 
-function _dxfBridgeGap(pts, segIdx, t, hw) {
-  // Open a closed polygon with a gap of 2*hw centered at (segIdx,t).
-  // Returns an OPEN path: R → polygon vertices → L
+// Walk along the polygon perimeter by `dist` mm from (segIdx, t).
+// Positive dist = forward (toward pts[segIdx+1]); negative = backward.
+// Returns the new position on the polygon — always ON the boundary.
+function _dxfWalkPoly(pts, segIdx, t, dist) {
   const n=pts.length;
-  const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
-  const dx=bx-ax,dy=by-ay,sl=Math.hypot(dx,dy)||1;
-  const ux=dx/sl,uy=dy/sl;
-  const cx=ax+dx*t,cy=ay+dy*t;
-  const R=[cx+ux*hw,cy+uy*hw];
-  const L=[cx-ux*hw,cy-uy*hw];
-  const res=[R];
-  for(let i=0;i<n;i++) res.push(pts[(segIdx+1+i)%n]);
-  res.push(L);
-  return res;
+  let cur=segIdx, curT=t, remain=Math.abs(dist);
+  const fwd=dist>=0;
+  for(let safety=0; safety<n*2 && remain>1e-9; safety++){
+    const [ax,ay]=pts[cur],[bx,by]=pts[(cur+1)%n];
+    const segLen=Math.hypot(bx-ax,by-ay);
+    if(segLen<1e-9){
+      if(fwd){cur=(cur+1)%n;curT=0;}else{cur=(cur-1+n)%n;curT=1;}
+      continue;
+    }
+    if(fwd){
+      const toEnd=segLen*(1-curT);
+      if(remain<=toEnd){curT+=remain/segLen;remain=0;}
+      else{remain-=toEnd;cur=(cur+1)%n;curT=0;}
+    }else{
+      const fromStart=segLen*curT;
+      if(remain<=fromStart){curT-=remain/segLen;remain=0;}
+      else{remain-=fromStart;cur=(cur-1+n)%n;curT=1;}
+    }
+  }
+  const [ax,ay]=pts[cur],[bx,by]=pts[(cur+1)%n];
+  return {pt:[ax+(bx-ax)*curT,ay+(by-ay)*curT], segIdx:cur, t:curT};
+}
+
+// Collect polygon vertices from (fromSegIdx, end of segment) up to AND including pts[toSegIdx].
+// Walks FORWARD around the polygon, wrapping if needed.
+function _dxfArcForward(pts, fromSegIdx, toSegIdx) {
+  const n=pts.length, out=[];
+  let i=(fromSegIdx+1)%n;
+  for(let safety=0; safety<n+1; safety++){
+    out.push(pts[i]);
+    if(i===toSegIdx) break;
+    i=(i+1)%n;
+  }
+  return out;
+}
+
+function _dxfBridgeGap(pts, segIdx, t, hw) {
+  // Open the closed polygon: R → polygon arc → L (open path).
+  // R and L are placed hw forward/backward ALONG THE PERIMETER from center (segIdx, t).
+  const R=_dxfWalkPoly(pts,segIdx,t,hw);
+  const L=_dxfWalkPoly(pts,segIdx,t,-hw);
+  return [R.pt, ..._dxfArcForward(pts,R.segIdx,L.segIdx), L.pt];
 }
 
 function _dxfFindParentOuter(hole, outers) {
@@ -14346,23 +14379,14 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfChannelNotch(pts, segIdx, t, hw, wd, depth) {
-  // Insert a rectangular U-notch of width 2*hw and given depth into a closed polygon.
-  // wd = unit vector pointing INTO the wall (from polygon boundary toward the notch bottom).
-  // Returns a CLOSED path (the polygon with the notch inserted).
-  const n=pts.length;
-  const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
-  const dx=bx-ax,dy=by-ay,sl=Math.hypot(dx,dy)||1;
-  const ux=dx/sl,uy=dy/sl;
-  const cx=ax+dx*t,cy=ay+dy*t;
-  const R=[cx+ux*hw,cy+uy*hw];
-  const L=[cx-ux*hw,cy-uy*hw];
-  const BL=[L[0]+wd[0]*depth,L[1]+wd[1]*depth];
-  const BR=[R[0]+wd[0]*depth,R[1]+wd[1]*depth];
-  // Closed path: R → polygon vertices → L → BL → BR → (back to R)
-  const res=[R];
-  for(let i=0;i<n;i++) res.push(pts[(segIdx+1+i)%n]);
-  res.push(L,BL,BR);
-  return res;
+  // Insert a rectangular U-notch of width 2*hw and given depth.
+  // R and L are placed hw forward/backward ALONG THE PERIMETER from center (segIdx, t).
+  // wd = unit vector INTO the wall. Returns a CLOSED path.
+  const R=_dxfWalkPoly(pts,segIdx,t,hw);
+  const L=_dxfWalkPoly(pts,segIdx,t,-hw);
+  const BL=[L.pt[0]+wd[0]*depth, L.pt[1]+wd[1]*depth];
+  const BR=[R.pt[0]+wd[0]*depth, R.pt[1]+wd[1]*depth];
+  return [R.pt, ..._dxfArcForward(pts,R.segIdx,L.segIdx), L.pt, BL, BR];
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
