@@ -14222,9 +14222,60 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
   return hits.sort((a,b)=>a-b);
 }
 
+function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, wallLen) {
+  // U-notch with quadratic-bezier fillets at all 4 corners (smooth stencil bridge).
+  // pts: closed polygon vertices
+  // segIdx, t: gap location (same convention as _dxfInsertGap)
+  // gapWidth: channel width
+  // wd: unit wall direction (from this polygon toward the opposite one)
+  // wallLen: wall thickness = depth of U-notch
+  // Returns: closed pts array with a smooth U-notch.
+  const n=pts.length;
+  const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
+  const dx=bx-ax,dy=by-ay,segLen=Math.hypot(dx,dy)||1;
+  const dir=[dx/segLen,dy/segLen]; // tangent along gap segment
+  const cx=ax+dx*t, cy=ay+dy*t;
+  const hw=gapWidth/2;
+
+  const gEnd  =[cx+dir[0]*hw,          cy+dir[1]*hw];
+  const gStart=[cx-dir[0]*hw,          cy-dir[1]*hw];
+  const gS_in =[gStart[0]+wd[0]*wallLen, gStart[1]+wd[1]*wallLen];
+  const gE_in =[gEnd[0]  +wd[0]*wallLen, gEnd[1]  +wd[1]*wallLen];
+
+  const r=Math.min(hw*0.48, wallLen*0.18);
+
+  function qbez(p0,ctrl,p1,N=6){
+    const o=[];
+    for(let i=1;i<=N;i++){const tt=i/N,mt=1-tt;o.push([mt*mt*p0[0]+2*mt*tt*ctrl[0]+tt*tt*p1[0],mt*mt*p0[1]+2*mt*tt*ctrl[1]+tt*tt*p1[1]]);}
+    return o;
+  }
+
+  // Pre-arc / post-arc anchor points for each of the 4 corners:
+  // Corner at gEnd   : arriving -wd, departing +dir
+  const eB=[gEnd[0]+wd[0]*r,   gEnd[1]+wd[1]*r];    // before (from -wd side)
+  const eA=[gEnd[0]+dir[0]*r,  gEnd[1]+dir[1]*r];   // after  (into polygon)
+  // Corner at gStart : arriving +dir, departing +wd
+  const sB=[gStart[0]-dir[0]*r, gStart[1]-dir[1]*r]; // before (polygon side)
+  const sA=[gStart[0]+wd[0]*r,  gStart[1]+wd[1]*r];  // after  (into wall)
+  // Corner at gS_in  : arriving +wd, departing +dir
+  const sIB=[gS_in[0]-wd[0]*r,  gS_in[1]-wd[1]*r];
+  const sIA=[gS_in[0]+dir[0]*r, gS_in[1]+dir[1]*r];
+  // Corner at gE_in  : arriving +dir, departing -wd
+  const eIB=[gE_in[0]-dir[0]*r, gE_in[1]-dir[1]*r];
+  const eIA=[gE_in[0]-wd[0]*r,  gE_in[1]-wd[1]*r];
+
+  // Build closed path: eA → polygon → sB → arc@gStart → sIB → arc@gS_in → eIB → arc@gE_in → eB → arc@gEnd → eA (Z)
+  const result=[eA];
+  for(let i=0;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
+  result.push(sB,...qbez(sB,gStart,sA));
+  result.push(sIB,...qbez(sIB,gS_in,sIA));
+  result.push(eIB,...qbez(eIB,gE_in,eIA));
+  result.push(eB,...qbez(eB,gEnd,eA));
+  return result;
+}
+
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: يضيف شق U-notch مغلق في مسار الخارج + U-protrusion مغلق في مسار التجويف.
-  // النتيجة: مسارات مغلقة بجدران الشارع مدمجة — لا مسارات مفتوحة.
+  // شارع: يضيف شق U-notch مغلق مع زوايا منحنية ناعمة في مسار الخارج + U-protrusion في التجويف.
   const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   const others = polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
@@ -14249,23 +14300,17 @@ function _dxfApplyChannel(polylines, channelWidth) {
     // اتجاه الجدار: من الخارج باتجاه التجويف
     const wallVec=[bestHoleSeg.pt[0]-bestOuterSeg.pt[0], bestHoleSeg.pt[1]-bestOuterSeg.pt[1]];
     const wallLen=Math.hypot(wallVec[0],wallVec[1])||1;
-    const wd=[wallVec[0]/wallLen, wallVec[1]/wallLen]; // wall direction (outer→hole)
+    const wd=[wallVec[0]/wallLen, wallVec[1]/wallLen];
 
-    // مسار الخارج: فتح فجوة ثم إغلاق بجداري الشارع (شكل U داخل الجدار)
-    const outerOpen=_dxfInsertGap(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, channelWidth);
-    const gEnd=outerOpen[0], gStart=outerOpen[outerOpen.length-1];
-    // جداران باتجاه التجويف (عمق = سماكة الجدار)
-    const gS_in=[gStart[0]+wd[0]*wallLen, gStart[1]+wd[1]*wallLen];
-    const gE_in =[gEnd[0]+wd[0]*wallLen,   gEnd[1]+wd[1]*wallLen];
-    workOuters[bestOi]={...workOuters[bestOi], pts:[...outerOpen, gS_in, gE_in], closed:true};
+    // مسار الخارج: U-notch ناعم نحو التجويف
+    workOuters[bestOi]={...workOuters[bestOi],
+      pts:_dxfInsertSmoothNotch(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, channelWidth, wd, wallLen),
+      closed:true};
 
-    // مسار التجويف: فتح فجوة ثم إغلاق بجداري الشارع (شكل U نحو الخارج)
-    const holeOpen=_dxfInsertGap(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, channelWidth);
-    const hEnd=holeOpen[0], hStart=holeOpen[holeOpen.length-1];
-    // جداران باتجاه الخارج (= عكس wd)
-    const hS_out=[hStart[0]-wd[0]*wallLen, hStart[1]-wd[1]*wallLen];
-    const hE_out=[hEnd[0]-wd[0]*wallLen,   hEnd[1]-wd[1]*wallLen];
-    resultHoles.push({pts:[...holeOpen, hS_out, hE_out], closed:true, layer:'HOLES'});
+    // مسار التجويف: U-protrusion ناعم نحو الخارج (اتجاه معاكس)
+    resultHoles.push({
+      pts:_dxfInsertSmoothNotch(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, channelWidth, [-wd[0],-wd[1]], wallLen),
+      closed:true, layer:'HOLES'});
   }
 
   return [...workOuters, ...resultHoles, ...others];
