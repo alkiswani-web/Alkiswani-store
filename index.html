@@ -13798,7 +13798,11 @@ async function openQRScanner(){
   overlay.style.display='block';
   _qrScanActive=true;
   try{
-    _qrScanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    try{
+      _qrScanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    }catch(e){
+      _qrScanStream=await navigator.mediaDevices.getUserMedia({video:true});
+    }
     const video=document.getElementById('qrVideo');
     video.srcObject=_qrScanStream;
     video.play();
