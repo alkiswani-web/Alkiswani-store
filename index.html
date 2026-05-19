@@ -5954,7 +5954,7 @@ function _showOpOrderDetail(o){
         ${isOperator?`<button onclick="closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')" style="padding:11px 14px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">📱</button>`:''}
       </div>
       ${!isClosed?`<div style="display:flex;gap:7px;margin-top:4px;">
-        ${o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','delivering')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
+        ${o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
         <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
       </div>`:''}
     </div>`;
@@ -5982,6 +5982,17 @@ async function _cancelOpOrderFromDetail(id){
     await docRef.update({status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('🚫 تم إلغاء الطلب');
   }catch(e){toast('❌ '+e.message);}
+}
+
+async function _openRepPickerFromDetail(orderId){
+  _qrAssignOrderId=orderId;
+  const modal=document.getElementById('qrRepAssignModal');
+  if(!modal)return;
+  modal.style.display='flex';
+  document.getElementById('qrAssignOrderInfo').textContent='';
+  document.getElementById('qrAssignStatusBadge').innerHTML='';
+  document.getElementById('qrAssignActionBtns').innerHTML='';
+  await _showRepPickerInModal(orderId);
 }
 
 function openEmpOrderEdit(orderId){
@@ -11787,7 +11798,7 @@ window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvIt
 window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
 window.submitEmpDelivery=submitEmpDelivery;
-window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail;
+window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail; window._openRepPickerFromDetail=_openRepPickerFromDetail;
 
 // ===== DELIVERY REPS =====
 let _deliveryModalOrder=null;
