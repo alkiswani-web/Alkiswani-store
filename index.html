@@ -11757,17 +11757,21 @@ window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders
 window.setEmpOrderFilter=setEmpOrderFilter; window.setOpOrderFilter=setOpOrderFilter; window.deleteEmpOrder=deleteEmpOrder;
 window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpOrder; window.printOrderQR=printOrderQR;
 
-// Auto-open order from QR scan: ?order=ORDER_ID
+// Auto-open order from QR scan: ?order=ORDER_ID (requires login)
 (function(){
   const p=new URLSearchParams(window.location.search);
   const qrOrder=p.get('order');
   if(!qrOrder) return;
-  // Wait until app is ready then open the order detail
   let tries=0;
   const tryOpen=()=>{
+    const loggedIn=_currentAdminUser||_empCurrentUser;
+    if(!loggedIn){
+      if(++tries<40) setTimeout(tryOpen,400);
+      return; // not logged in — silently ignore
+    }
     if(typeof openOpOrderDetail==='function'){
       openOpOrderDetail(qrOrder);
-    } else if(++tries<30){
+    } else if(++tries<40){
       setTimeout(tryOpen,400);
     }
   };
