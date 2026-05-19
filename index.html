@@ -13827,20 +13827,11 @@ function _qrScanLoop(){
   if(!video||!canvas||video.readyState!==video.HAVE_ENOUGH_DATA){
     _qrScanRaf=requestAnimationFrame(_qrScanLoop);return;
   }
-  const vw=video.videoWidth, vh=video.videoHeight;
-  // Map the 220px viewfinder box to video coordinates
-  const dispW=video.offsetWidth||window.innerWidth;
-  const dispH=video.offsetHeight||window.innerHeight;
-  const boxPx=220;
-  const scale=Math.min(vw/dispW, vh/dispH);
-  const cropSize=Math.round(boxPx*scale*1.4); // 40% margin for easier scanning
-  const sx=Math.round(vw/2-cropSize/2);
-  const sy=Math.round(vh/2-cropSize/2);
-  const size=Math.min(cropSize, vw, vh);
-  canvas.width=size; canvas.height=size;
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
   const ctx=canvas.getContext('2d');
-  ctx.drawImage(video, Math.max(0,sx), Math.max(0,sy), size, size, 0, 0, size, size);
-  const imageData=ctx.getImageData(0,0,size,size);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
   const code=jsQR(imageData.data,imageData.width,imageData.height,{inversionAttempts:'attemptBoth'});
   if(code&&code.data){
     closeQRScanner();
