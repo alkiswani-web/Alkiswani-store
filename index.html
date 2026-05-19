@@ -13813,12 +13813,8 @@ async function _handleQRResult(raw){
   let orderId=raw.trim();
   try{const u=new URL(orderId);const p=u.searchParams.get('order');if(p)orderId=p;}catch(e){}
   try{
-    const snap=await db.collection('employee_orders').doc(orderId).get();
-    if(!snap.exists){toast('⚠️ طلب غير موجود: '+orderId.slice(-6));return;}
-    const o={id:snap.id,...snap.data()};
-    _qrAssignOrderId=orderId;
-    _qrAssignOrder=o;
-    _openQRRepAssignModal(o);
+    closeQRScanner();
+    openOpOrderDetail(orderId);
   }catch(e){toast('❌ '+e.message);}
 }
 
