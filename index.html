@@ -13810,6 +13810,9 @@ let _qrAssignOrderId=null, _qrAssignOrder=null;
 async function openQRScanner(){
   const overlay=document.getElementById('qrScannerOverlay');
   if(!overlay)return;
+  // Reset any previous session
+  closeQRScanner();
+  _qrAssignOrderId=null; _qrAssignOrder=null;
   overlay.style.display='block';
   _qrScanActive=true;
   try{
@@ -13821,7 +13824,8 @@ async function openQRScanner(){
     const video=document.getElementById('qrVideo');
     video.srcObject=_qrScanStream;
     video.play();
-    _qrScanLoop();
+    // Short delay so camera stabilises before scanning starts
+    setTimeout(_qrScanLoop, 1200);
   }catch(e){
     document.getElementById('qrScanStatus').textContent='❌ تعذّر الوصول للكاميرا: '+e.message;
   }
