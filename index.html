@@ -14222,9 +14222,12 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
   return hits.sort((a,b)=>a-b);
 }
 
-function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, wallLen) {
+function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, depth) {
   // U-notch with a near-semicircular bottom + gentle quarter-circle fillets at the top.
-  // rB (bottom radius) ≈ hw  → bottom becomes a smooth D-shape (almost no flat bottom).
+  // depth = how deep this notch goes from the polygon boundary.
+  //   For stencil bridges: depth = (wallLen - bridgeMat) / 2
+  //   → the two notches (outer + inner) leave bridgeMat of uncut material in the wall centre.
+  // rB (bottom radius) ≈ hw  → bottom becomes a smooth D-shape.
   // rT (top radius)   ≈ 0.3*hw → gentle entry/exit at the letter boundary.
   const n=pts.length;
   const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
@@ -14235,10 +14238,10 @@ function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, wallLen) {
   const gE=[cx+dir[0]*hw,cy+dir[1]*hw];  // gap end
   const gS=[cx-dir[0]*hw,cy-dir[1]*hw];  // gap start
 
-  // Bottom-arc radius: up to full hw → semicircular bottom; capped by wall depth
-  const rB=Math.min(hw, wallLen*0.40);
-  // Top-arc radius: small gentle entry/exit; must leave straight wall sections
-  const rT=Math.min(hw*0.30, (wallLen-rB)*0.30);
+  // Bottom-arc radius: up to full hw → semicircular bottom; capped by notch depth
+  const rB=Math.min(hw, depth*0.45);
+  // Top-arc radius: small gentle fillet; must leave straight wall sections
+  const rT=Math.min(hw*0.30, (depth-rB)*0.30);
 
   function qbez(p0,c,p1,N=10){
     const o=[];
@@ -14246,9 +14249,9 @@ function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, wallLen) {
     return o;
   }
 
-  // Bottom arc centres (the old rectangular gS_in / gE_in)
-  const bL=[gS[0]+wd[0]*wallLen,gS[1]+wd[1]*wallLen];
-  const bR=[gE[0]+wd[0]*wallLen,gE[1]+wd[1]*wallLen];
+  // Bottom arc centres (at depth from polygon boundary)
+  const bL=[gS[0]+wd[0]*depth,gS[1]+wd[1]*depth];
+  const bR=[gE[0]+wd[0]*depth,gE[1]+wd[1]*depth];
 
   // Anchor points around each corner
   const tSB=[gS[0]-dir[0]*rT, gS[1]-dir[1]*rT]; // approach gS from polygon side
@@ -14308,14 +14311,22 @@ function _dxfApplyChannel(polylines, channelWidth) {
     const wallLen=Math.hypot(wallVec[0],wallVec[1])||1;
     const wd=[wallVec[0]/wallLen, wallVec[1]/wallLen];
 
-    // مسار الخارج: U-notch ناعم نحو التجويف
+    // عرض مادة الجسر الفعلية (الشريحة التي لا تُقطع في منتصف الجدار)
+    // bridgeMat = المادة الصلبة المتبقية بين القطعتين
+    const bridgeMat = Math.min(channelWidth * 0.35, wallLen * 0.20);
+    // عمق كل قطعة = نصف (سماكة الجدار - مادة الجسر)
+    // الخارج يقطع notchDepth من الخارج + الداخل يقطع notchDepth من الداخل
+    // = يتبقى bridgeMat في المنتصف = الجسر الفعلي
+    const notchDepth = (wallLen - bridgeMat) / 2;
+
+    // مسار الخارج: U-notch ناعم يقطع فقط حتى منتصف الجدار (ناقص نصف الجسر)
     workOuters[bestOi]={...workOuters[bestOi],
-      pts:_dxfInsertSmoothNotch(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, channelWidth, wd, wallLen),
+      pts:_dxfInsertSmoothNotch(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, channelWidth, wd, notchDepth),
       closed:true};
 
-    // مسار التجويف: U-protrusion ناعم نحو الخارج (اتجاه معاكس)
+    // مسار التجويف: U-protrusion ناعم من الداخل (نفس العمق، اتجاه معاكس)
     resultHoles.push({
-      pts:_dxfInsertSmoothNotch(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, channelWidth, [-wd[0],-wd[1]], wallLen),
+      pts:_dxfInsertSmoothNotch(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, channelWidth, [-wd[0],-wd[1]], notchDepth),
       closed:true, layer:'HOLES'});
   }
 
