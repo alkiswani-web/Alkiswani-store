@@ -5954,7 +5954,7 @@ function _showOpOrderDetail(o){
         ${isOperator?`<button onclick="closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')" style="padding:11px 14px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">📱</button>`:''}
       </div>
       ${!isClosed?`<div style="display:flex;gap:7px;margin-top:4px;">
-        ${o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
+        ${o.status==='waiting_rep'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🧍 تعيين مندوب</button>`:o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
         <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
       </div>`:''}
     </div>`;
@@ -13861,12 +13861,17 @@ function _qrScanLoop(){
 }
 
 async function _handleQRResult(raw){
-  // Support old format (plain orderId) and new label format (full URL with ?order=ID)
   let orderId=raw.trim();
   try{const u=new URL(orderId);const p=u.searchParams.get('order');if(p)orderId=p;}catch(e){}
   try{
     closeQRScanner();
-    openOpOrderDetail(orderId);
+    // If waiting for rep → open rep picker directly
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(snap.exists&&snap.data().status==='waiting_rep'){
+      _openRepPickerFromDetail(orderId);
+    } else {
+      openOpOrderDetail(orderId);
+    }
   }catch(e){toast('❌ '+e.message);}
 }
 
