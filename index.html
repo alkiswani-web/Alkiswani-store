@@ -13788,7 +13788,10 @@ function _qrScanLoop(){
   _qrScanRaf=requestAnimationFrame(_qrScanLoop);
 }
 
-async function _handleQRResult(orderId){
+async function _handleQRResult(raw){
+  // Support old format (plain orderId) and new label format (full URL with ?order=ID)
+  let orderId=raw.trim();
+  try{const u=new URL(orderId);const p=u.searchParams.get('order');if(p)orderId=p;}catch(e){}
   try{
     const snap=await db.collection('employee_orders').doc(orderId).get();
     if(!snap.exists){toast('⚠️ طلب غير موجود: '+orderId.slice(-6));return;}
