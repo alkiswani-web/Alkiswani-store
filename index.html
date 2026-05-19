@@ -14259,22 +14259,20 @@ function _dxfClosestOnPoly(pts, target) {
   return best;
 }
 
-function _dxfInsertGap(pts, segIdx, t, gapWidth) {
-  // Open a closed polygon by inserting a gap of gapWidth centered at (segIdx,t).
-  // Returns an OPEN path: gapEnd → polygon vertices → gapStart
+function _dxfBridgeGap(pts, segIdx, t, hw) {
+  // Open a closed polygon with a gap of 2*hw centered at (segIdx,t).
+  // Returns an OPEN path: R → polygon vertices → L
   const n=pts.length;
   const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
-  const dx=bx-ax, dy=by-ay;
-  const segLen=Math.hypot(dx,dy)||1;
-  const dir=[dx/segLen, dy/segLen];
-  const cx=ax+dx*t, cy=ay+dy*t;
-  const hw=gapWidth/2;
-  const gEnd=[cx+dir[0]*hw, cy+dir[1]*hw];   // open path starts here
-  const gStart=[cx-dir[0]*hw, cy-dir[1]*hw]; // open path ends here
-  const result=[gEnd];
-  for(let i=0;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
-  result.push(gStart);
-  return result; // open path: gEnd → full polygon → gStart
+  const dx=bx-ax,dy=by-ay,sl=Math.hypot(dx,dy)||1;
+  const ux=dx/sl,uy=dy/sl;
+  const cx=ax+dx*t,cy=ay+dy*t;
+  const R=[cx+ux*hw,cy+uy*hw];
+  const L=[cx-ux*hw,cy-uy*hw];
+  const res=[R];
+  for(let i=0;i<n;i++) res.push(pts[(segIdx+1+i)%n]);
+  res.push(L);
+  return res;
 }
 
 function _dxfFindParentOuter(hole, outers) {
@@ -14295,36 +14293,33 @@ function _dxfFindParentOuter(hole, outers) {
   return bestOi;
 }
 
+function _dxfFindBestBridge(hole, workOuters, oi) {
+  let bHSeg=null,bOSeg=null,bDist=Infinity;
+  const step=Math.max(1,Math.floor(hole.pts.length/80));
+  for(let vi=0;vi<hole.pts.length;vi+=step){
+    const r=_dxfClosestOnPoly(workOuters[oi].pts,hole.pts[vi]);
+    if(r.dist<bDist){bDist=r.dist;bHSeg=_dxfClosestOnPoly(hole.pts,r.pt);bOSeg=r;}
+  }
+  bOSeg=_dxfClosestOnPoly(workOuters[oi].pts,bHSeg.pt);
+  return {holeSeg:bHSeg,outerSeg:bOSeg,wallLen:bDist};
+}
+
 function _dxfApplyBridges(polylines, bridgeWidth) {
   const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
-  const holes =polylines.filter(p=>p.layer==='HOLES'&&p.closed);
-  const others=polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
+  const holes=polylines.filter(p=>p.layer==='HOLES'&&p.closed);
+  const others=polylines.filter(p=>!((p.layer==='0'||p.layer==='HOLES')&&p.closed));
   if(!holes.length) return polylines;
-
   const workOuters=outers.map(p=>({...p,pts:[...p.pts]}));
-  const resultHoles=[];
-
+  const outHoles=[];
+  const hw=bridgeWidth/2;
   for(const hole of holes){
-    const bestOi=_dxfFindParentOuter(hole, workOuters);
-    if(bestOi<0){resultHoles.push(hole);continue;}
-
-    // Find closest point pair between this hole and its parent outer
-    let bestHoleSeg=null, bestOuterSeg=null, bestDist=Infinity;
-    const hStep=Math.max(1,Math.floor(hole.pts.length/60));
-    for(let vi=0;vi<hole.pts.length;vi+=hStep){
-      const r=_dxfClosestOnPoly(workOuters[bestOi].pts, hole.pts[vi]);
-      if(r.dist<bestDist){bestDist=r.dist;bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt);bestOuterSeg=r;}
-    }
-    bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts, bestHoleSeg.pt);
-
-    const outerGapped=_dxfInsertGap(workOuters[bestOi].pts,bestOuterSeg.segIdx,bestOuterSeg.t,bridgeWidth);
-    workOuters[bestOi]={...workOuters[bestOi],pts:outerGapped,closed:false};
-
-    const holeGapped=_dxfInsertGap(hole.pts,bestHoleSeg.segIdx,bestHoleSeg.t,bridgeWidth);
-    resultHoles.push({pts:holeGapped,closed:false,layer:'0'});
+    const oi=_dxfFindParentOuter(hole,workOuters);
+    if(oi<0){outHoles.push(hole);continue;}
+    const {holeSeg,outerSeg}=_dxfFindBestBridge(hole,workOuters,oi);
+    workOuters[oi]={...workOuters[oi],pts:_dxfBridgeGap(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,hw),closed:false};
+    outHoles.push({pts:_dxfBridgeGap(hole.pts,holeSeg.segIdx,holeSeg.t,hw),closed:false,layer:'HOLES'});
   }
-
-  return [...workOuters, ...resultHoles, ...others];
+  return [...workOuters,...outHoles,...others];
 }
 
 function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
@@ -14342,115 +14337,49 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
   return hits.sort((a,b)=>a-b);
 }
 
-function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, depth) {
-  // U-notch with a near-semicircular bottom + gentle quarter-circle fillets at the top.
-  // depth = how deep this notch goes from the polygon boundary.
-  //   For stencil bridges: depth = (wallLen - bridgeMat) / 2
-  //   → the two notches (outer + inner) leave bridgeMat of uncut material in the wall centre.
-  // rB (bottom radius) ≈ hw  → bottom becomes a smooth D-shape.
-  // rT (top radius)   ≈ 0.3*hw → gentle entry/exit at the letter boundary.
+function _dxfChannelNotch(pts, segIdx, t, hw, wd, depth) {
+  // Insert a rectangular U-notch of width 2*hw and given depth into a closed polygon.
+  // wd = unit vector pointing INTO the wall (from polygon boundary toward the notch bottom).
+  // Returns a CLOSED path (the polygon with the notch inserted).
   const n=pts.length;
   const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
   const dx=bx-ax,dy=by-ay,sl=Math.hypot(dx,dy)||1;
-  const dir=[dx/sl,dy/sl];
-  const hw=gapWidth/2;
+  const ux=dx/sl,uy=dy/sl;
   const cx=ax+dx*t,cy=ay+dy*t;
-  const gE=[cx+dir[0]*hw,cy+dir[1]*hw];  // gap end
-  const gS=[cx-dir[0]*hw,cy-dir[1]*hw];  // gap start
-
-  // Bottom-arc radius: up to full hw → semicircular bottom; capped by notch depth
-  const rB=Math.min(hw, depth*0.45);
-  // Top-arc radius: small gentle fillet; must leave straight wall sections
-  const rT=Math.min(hw*0.30, (depth-rB)*0.30);
-
-  function qbez(p0,c,p1,N=10){
-    const o=[];
-    for(let i=1;i<=N;i++){const u=i/N,v=1-u;o.push([v*v*p0[0]+2*v*u*c[0]+u*u*p1[0],v*v*p0[1]+2*v*u*c[1]+u*u*p1[1]]);}
-    return o;
-  }
-
-  // Bottom arc centres (at depth from polygon boundary)
-  const bL=[gS[0]+wd[0]*depth,gS[1]+wd[1]*depth];
-  const bR=[gE[0]+wd[0]*depth,gE[1]+wd[1]*depth];
-
-  // Anchor points around each corner
-  const tSB=[gS[0]-dir[0]*rT, gS[1]-dir[1]*rT]; // approach gS from polygon side
-  const tSA=[gS[0]+wd[0]*rT,  gS[1]+wd[1]*rT];  // leave gS into wall
-  const bLB=[bL[0]-wd[0]*rB,  bL[1]-wd[1]*rB];  // approach bottom-left from above
-  const bLA=[bL[0]+dir[0]*rB, bL[1]+dir[1]*rB]; // leave bottom-left toward centre
-  const bRB=[bR[0]-dir[0]*rB, bR[1]-dir[1]*rB]; // approach bottom-right from centre
-  const bRA=[bR[0]-wd[0]*rB,  bR[1]-wd[1]*rB];  // leave bottom-right back up
-  const tEB=[gE[0]+wd[0]*rT,  gE[1]+wd[1]*rT];  // approach gE from wall
-  const tEA=[gE[0]+dir[0]*rT, gE[1]+dir[1]*rT]; // leave gE into polygon
-
-  // Build closed path starting just after the top-right fillet (tEA), going into the polygon
-  const res=[tEA];
+  const R=[cx+ux*hw,cy+uy*hw];
+  const L=[cx-ux*hw,cy-uy*hw];
+  const BL=[L[0]+wd[0]*depth,L[1]+wd[1]*depth];
+  const BR=[R[0]+wd[0]*depth,R[1]+wd[1]*depth];
+  // Closed path: R → polygon vertices → L → BL → BR → (back to R)
+  const res=[R];
   for(let i=0;i<n;i++) res.push(pts[(segIdx+1+i)%n]);
-  // Top-left fillet at gS
-  res.push(tSB,...qbez(tSB,gS,tSA));
-  // Straight wall down to bottom-left arc
-  res.push(bLB);
-  // Bottom-left quarter-arc (90°, radius rB)
-  res.push(...qbez(bLB,bL,bLA));
-  // Flat bottom only when rB < hw (otherwise bLA === bRB → no gap)
-  if(rB < hw-0.001) res.push(bRB);
-  // Bottom-right quarter-arc
-  res.push(...qbez(rB<hw-0.001?bRB:bLA, bR, bRA));
-  // Straight wall back up to top-right arc
-  res.push(tEB);
-  // Top-right fillet at gE
-  res.push(...qbez(tEB,gE,tEA));
+  res.push(L,BL,BR);
   return res;
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
-  // شارع: يضيف شق U-notch مغلق مع زوايا منحنية ناعمة في مسار الخارج + U-protrusion في التجويف.
-  const outers = polylines.filter(p=>p.layer==='0'&&p.closed);
-  const holes  = polylines.filter(p=>p.layer==='HOLES'&&p.closed);
-  const others = polylines.filter(p=>!(p.layer==='0'&&p.closed)&&!(p.layer==='HOLES'&&p.closed));
+  const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
+  const holes=polylines.filter(p=>p.layer==='HOLES'&&p.closed);
+  const others=polylines.filter(p=>!((p.layer==='0'||p.layer==='HOLES')&&p.closed));
   if(!holes.length) return polylines;
-
-  const workOuters = outers.map(p=>({...p, pts:[...p.pts]}));
-  const resultHoles = [];
-
-  for(const hole of holes) {
-    const bestOi = _dxfFindParentOuter(hole, workOuters);
-    if(bestOi < 0) { resultHoles.push(hole); continue; }
-
-    // أقرب زوج نقاط (حدود التجويف ↔ حدود الحرف) = أرق جدار
-    let bestHoleSeg=null, bestOuterSeg=null, bestDist=Infinity;
-    const hStep=Math.max(1, Math.floor(hole.pts.length/60));
-    for(let vi=0; vi<hole.pts.length; vi+=hStep) {
-      const r=_dxfClosestOnPoly(workOuters[bestOi].pts, hole.pts[vi]);
-      if(r.dist<bestDist){ bestDist=r.dist; bestHoleSeg=_dxfClosestOnPoly(hole.pts,r.pt); bestOuterSeg=r; }
-    }
-    bestOuterSeg=_dxfClosestOnPoly(workOuters[bestOi].pts, bestHoleSeg.pt);
-
-    // اتجاه الجدار: من الخارج باتجاه التجويف
-    const wallVec=[bestHoleSeg.pt[0]-bestOuterSeg.pt[0], bestHoleSeg.pt[1]-bestOuterSeg.pt[1]];
-    const wallLen=Math.hypot(wallVec[0],wallVec[1])||1;
-    const wd=[wallVec[0]/wallLen, wallVec[1]/wallLen];
-
-    // عرض مادة الجسر الفعلية (الشريحة التي لا تُقطع في منتصف الجدار)
-    // bridgeMat = المادة الصلبة المتبقية بين القطعتين
-    const bridgeMat = Math.min(channelWidth * 0.35, wallLen * 0.20);
-    // عمق كل قطعة = نصف (سماكة الجدار - مادة الجسر)
-    // الخارج يقطع notchDepth من الخارج + الداخل يقطع notchDepth من الداخل
-    // = يتبقى bridgeMat في المنتصف = الجسر الفعلي
-    const notchDepth = (wallLen - bridgeMat) / 2;
-
-    // مسار الخارج: U-notch ناعم يقطع فقط حتى منتصف الجدار (ناقص نصف الجسر)
-    workOuters[bestOi]={...workOuters[bestOi],
-      pts:_dxfInsertSmoothNotch(workOuters[bestOi].pts, bestOuterSeg.segIdx, bestOuterSeg.t, channelWidth, wd, notchDepth),
-      closed:true};
-
-    // مسار التجويف: U-protrusion ناعم من الداخل (نفس العمق، اتجاه معاكس)
-    resultHoles.push({
-      pts:_dxfInsertSmoothNotch(hole.pts, bestHoleSeg.segIdx, bestHoleSeg.t, channelWidth, [-wd[0],-wd[1]], notchDepth),
-      closed:true, layer:'HOLES'});
+  const workOuters=outers.map(p=>({...p,pts:[...p.pts]}));
+  const outHoles=[];
+  const hw=channelWidth/2;
+  for(const hole of holes){
+    const oi=_dxfFindParentOuter(hole,workOuters);
+    if(oi<0){outHoles.push(hole);continue;}
+    const {holeSeg,outerSeg,wallLen}=_dxfFindBestBridge(hole,workOuters,oi);
+    const wv=[holeSeg.pt[0]-outerSeg.pt[0],holeSeg.pt[1]-outerSeg.pt[1]];
+    const wl=Math.hypot(wv[0],wv[1])||1;
+    const wd=[wv[0]/wl,wv[1]/wl];
+    // Leave at least 0.3mm of solid material in the middle of the wall
+    const mat=Math.max(0.3,Math.min(channelWidth*0.4,wallLen*0.25));
+    const depth=(wallLen-mat)/2;
+    if(depth<=0){outHoles.push(hole);continue;}
+    workOuters[oi]={...workOuters[oi],pts:_dxfChannelNotch(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,hw,wd,depth),closed:true};
+    outHoles.push({pts:_dxfChannelNotch(hole.pts,holeSeg.segIdx,holeSeg.t,hw,[-wd[0],-wd[1]],depth),closed:true,layer:'HOLES'});
   }
-
-  return [...workOuters, ...resultHoles, ...others];
+  return [...workOuters,...outHoles,...others];
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
