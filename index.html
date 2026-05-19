@@ -14346,27 +14346,34 @@ function _dxfFindBestBridge(hole, workOuters, oi) {
 }
 
 function _dxfApplyBridges(polylines, bridgeWidth) {
+  // جسر = نفس منطق الشارع: مسار واحد مغلق يدمج الخارجي مع التجويف عبر جسر ضيّق.
+  // الفرق عن الشارع: عرض الجسر أضيق (bridgeWidth) وتسمية مختلفة فقط.
   const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes=polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   const others=polylines.filter(p=>!((p.layer==='0'||p.layer==='HOLES')&&p.closed));
   if(!holes.length) return polylines;
   const workOuters=outers.map(p=>({...p,pts:[...p.pts]}));
-  const outHoles=[];
   const hw=bridgeWidth/2;
   for(const hole of holes){
     const oi=_dxfFindParentOuter(hole,workOuters);
-    if(oi<0){outHoles.push(hole);continue;}
+    if(oi<0) continue;
     const {holeSeg,outerSeg}=_dxfFindBestBridge(hole,workOuters,oi);
-    workOuters[oi]={...workOuters[oi],pts:_dxfBridgeGap(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,hw),closed:false};
-    outHoles.push({pts:_dxfBridgeGap(hole.pts,holeSeg.segIdx,holeSeg.t,hw),closed:false,layer:'HOLES'});
-    // Two side lines connecting outer gap to hole gap (define bridge strip edges)
-    const wv=[holeSeg.pt[0]-outerSeg.pt[0],holeSeg.pt[1]-outerSeg.pt[1]];
-    const wl=Math.hypot(wv[0],wv[1])||1;
-    const px=-wv[1]/wl, py=wv[0]/wl; // perpendicular to wall direction
-    outHoles.push({pts:[[outerSeg.pt[0]+px*hw,outerSeg.pt[1]+py*hw],[holeSeg.pt[0]+px*hw,holeSeg.pt[1]+py*hw]],closed:false,layer:'0'});
-    outHoles.push({pts:[[outerSeg.pt[0]-px*hw,outerSeg.pt[1]-py*hw],[holeSeg.pt[0]-px*hw,holeSeg.pt[1]-py*hw]],closed:false,layer:'0'});
+    const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, hw);
+    const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-hw);
+    const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
+    const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
+    // Single merged closed path: outer arc → bridge left → hole arc → bridge right → close
+    const merged=[
+      Ro.pt,
+      ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
+      Lo.pt,
+      Lh.pt,
+      ..._dxfArcForward(hole.pts,Lh.segIdx,Rh.segIdx),
+      Rh.pt,
+    ];
+    workOuters[oi]={...workOuters[oi],pts:merged,closed:true};
   }
-  return [...workOuters,...outHoles,...others];
+  return [...workOuters,...others];
 }
 
 function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
