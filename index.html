@@ -5931,7 +5931,17 @@ function _showOpOrderDetail(o){
           <div style="font-weight:900;font-size:1rem;color:#166534;">${net.toFixed(2)} د.أ</div>
         </div>
       </div>
-      ${o.deliveryRepName?`<div style="background:#eff6ff;border-radius:12px;padding:12px 14px;border:1px solid #bfdbfe;font-size:0.82rem;color:#1e40af;">🚚 المندوب: <strong>${o.deliveryRepName}</strong></div>`:''}
+      ${['delivering','queued','waiting_rep'].includes(o.status)?`<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #bfdbfe;">
+        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:8px;">🚚 قيد التوصيل</div>
+        ${o.deliveryRepName?`<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;">
+          <span style="font-weight:700;color:#1e40af;">${o.deliveryRepName}</span>
+          ${o.deliveryRepPhone?`<a href="tel:${o.deliveryRepPhone}" style="font-weight:700;color:#0369a1;direction:ltr;text-decoration:none;">${o.deliveryRepPhone}</a>`:''}
+        </div>`:`<div style="font-size:0.82rem;color:#6b7280;">⏳ لم يُعيَّن مندوب بعد</div>`}
+      </div>`:''}
+      ${o.status==='cancelled'?`<div style="background:#fef2f2;border-radius:12px;padding:14px;border:1px solid #fecaca;">
+        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:6px;">🚫 ملغي</div>
+        <div style="font-size:0.85rem;font-weight:700;color:#dc2626;">${o.cancelReason||'لم يُحدَّد سبب'}</div>
+      </div>`:''}
       ${o.workerName?`<div style="background:#f9fafb;border-radius:12px;padding:10px 14px;border:1px solid #e5e7eb;font-size:0.8rem;color:#374151;">👤 الموظف: <strong>${o.workerName}</strong></div>`:''}
       ${o.editHistory&&o.editHistory.length?`<div style="background:#fffbeb;border-radius:12px;padding:10px 14px;border:1px solid #fde68a;font-size:0.75rem;color:#92400e;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' ← ')}</div>`:''}
       ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:zoom-in;">`).join('')}</div>`:''}
