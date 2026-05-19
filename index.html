@@ -5953,6 +5953,10 @@ function _showOpOrderDetail(o){
         <button onclick="printOrderQR('${o.id}')" title="طباعة ليبل QR" style="padding:11px 14px;background:#fdf4ff;color:#7e22ce;border:1.5px solid #e9d5ff;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">🏷️</button>
         ${isOperator?`<button onclick="closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')" style="padding:11px 14px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">📱</button>`:''}
       </div>
+      ${!isClosed?`<div style="display:flex;gap:7px;margin-top:4px;">
+        ${o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','delivering')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
+        <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
+      </div>`:''}
     </div>`;
 
   el.style.display='flex';
@@ -5963,6 +5967,21 @@ function closeOpOrderDetail(){
   const el=document.getElementById('opOrderDetailSheet');
   if(el)el.style.display='none';
   document.body.style.overflow='';
+}
+
+async function _cancelOpOrderFromDetail(id){
+  const reason=prompt('سبب الإلغاء:');
+  if(reason===null)return;
+  closeOpOrderDetail();
+  try{
+    const docRef=db.collection('employee_orders').doc(id);
+    const snap=await docRef.get();
+    const data=snap.data();
+    const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
+    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('cancelled').label}`};
+    await docRef.update({status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast('🚫 تم إلغاء الطلب');
+  }catch(e){toast('❌ '+e.message);}
 }
 
 function openEmpOrderEdit(orderId){
@@ -11764,7 +11783,7 @@ window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvIt
 window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
 window.submitEmpDelivery=submitEmpDelivery;
-window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail;
+window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail;
 
 // ===== DELIVERY REPS =====
 let _deliveryModalOrder=null;
