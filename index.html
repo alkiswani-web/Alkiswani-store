@@ -6637,6 +6637,7 @@ function openEmpOrderImage(src){
 function printOrderQR(orderId) {
   db.collection('employee_orders').doc(orderId).get().then(snap=>{
     const o=snap.exists?{id:snap.id,...snap.data()}:{id:orderId,customerPhone:'',address:''};
+    if(o.status==='pending'){updateEmpOrderStatus(orderId,'preparing');o.status='preparing';}
     const url=window.location.origin+window.location.pathname+'?order='+orderId;
     const phone=(o.customerPhone||'').replace(/\s+/g,'');
     const addr=(o.address||'').trim();
