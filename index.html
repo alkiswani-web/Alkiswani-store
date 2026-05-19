@@ -14396,28 +14396,37 @@ function _dxfChannelNotch(pts, segIdx, t, hw, wd, depth) {
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
+  // شارع = دمج: يدمج كل تجويف داخلي مع محيطه الخارجي في مسار واحد مغلق متصل.
+  // النتيجة: مسار واحد لكل حرف — الليزر يقطعه بدفقة واحدة، ما في قطع معلقة.
+  // المسار يسير: على الخارجي → ينزل جانب الجسر → يدور على التجويف → يطلع الجانب الثاني → يرجع.
   const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes=polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   const others=polylines.filter(p=>!((p.layer==='0'||p.layer==='HOLES')&&p.closed));
   if(!holes.length) return polylines;
   const workOuters=outers.map(p=>({...p,pts:[...p.pts]}));
-  const outHoles=[];
   const hw=channelWidth/2;
   for(const hole of holes){
     const oi=_dxfFindParentOuter(hole,workOuters);
-    if(oi<0){outHoles.push(hole);continue;}
-    const {holeSeg,outerSeg,wallLen}=_dxfFindBestBridge(hole,workOuters,oi);
-    const wv=[holeSeg.pt[0]-outerSeg.pt[0],holeSeg.pt[1]-outerSeg.pt[1]];
-    const wl=Math.hypot(wv[0],wv[1])||1;
-    const wd=[wv[0]/wl,wv[1]/wl];
-    // Leave at least 0.3mm of solid material in the middle of the wall
-    const mat=Math.max(0.3,Math.min(channelWidth*0.4,wallLen*0.25));
-    const depth=(wallLen-mat)/2;
-    if(depth<=0){outHoles.push(hole);continue;}
-    workOuters[oi]={...workOuters[oi],pts:_dxfChannelNotch(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,hw,wd,depth),closed:true};
-    outHoles.push({pts:_dxfChannelNotch(hole.pts,holeSeg.segIdx,holeSeg.t,hw,[-wd[0],-wd[1]],depth),closed:true,layer:'HOLES'});
+    if(oi<0) continue;
+    const {holeSeg,outerSeg}=_dxfFindBestBridge(hole,workOuters,oi);
+    // Walk hw along each polygon perimeter to get the channel entry points
+    const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, hw);
+    const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-hw);
+    const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
+    const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
+    // Single merged closed path:
+    //   Ro → [outer arc long way] → Lo → Lh → [hole arc long way] → Rh → close(Ro)
+    const merged=[
+      Ro.pt,
+      ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
+      Lo.pt,
+      Lh.pt,
+      ..._dxfArcForward(hole.pts,Lh.segIdx,Rh.segIdx),
+      Rh.pt,
+    ];
+    workOuters[oi]={...workOuters[oi],pts:merged,closed:true};
   }
-  return [...workOuters,...outHoles,...others];
+  return [...workOuters,...others];
 }
 
 function _dxfApplyFrame(polylines, wallMM) {
