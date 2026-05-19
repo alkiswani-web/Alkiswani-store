@@ -14359,6 +14359,12 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
     const {holeSeg,outerSeg}=_dxfFindBestBridge(hole,workOuters,oi);
     workOuters[oi]={...workOuters[oi],pts:_dxfBridgeGap(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,hw),closed:false};
     outHoles.push({pts:_dxfBridgeGap(hole.pts,holeSeg.segIdx,holeSeg.t,hw),closed:false,layer:'HOLES'});
+    // Two side lines connecting outer gap to hole gap (define bridge strip edges)
+    const wv=[holeSeg.pt[0]-outerSeg.pt[0],holeSeg.pt[1]-outerSeg.pt[1]];
+    const wl=Math.hypot(wv[0],wv[1])||1;
+    const px=-wv[1]/wl, py=wv[0]/wl; // perpendicular to wall direction
+    outHoles.push({pts:[[outerSeg.pt[0]+px*hw,outerSeg.pt[1]+py*hw],[holeSeg.pt[0]+px*hw,holeSeg.pt[1]+py*hw]],closed:false,layer:'0'});
+    outHoles.push({pts:[[outerSeg.pt[0]-px*hw,outerSeg.pt[1]-py*hw],[holeSeg.pt[0]-px*hw,holeSeg.pt[1]-py*hw]],closed:false,layer:'0'});
   }
   return [...workOuters,...outHoles,...others];
 }
