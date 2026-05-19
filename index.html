@@ -14223,55 +14223,61 @@ function _dxfLinePolyIntersect(polyPts, ox, oy, dx, dy) {
 }
 
 function _dxfInsertSmoothNotch(pts, segIdx, t, gapWidth, wd, wallLen) {
-  // U-notch with quadratic-bezier fillets at all 4 corners (smooth stencil bridge).
-  // pts: closed polygon vertices
-  // segIdx, t: gap location (same convention as _dxfInsertGap)
-  // gapWidth: channel width
-  // wd: unit wall direction (from this polygon toward the opposite one)
-  // wallLen: wall thickness = depth of U-notch
-  // Returns: closed pts array with a smooth U-notch.
+  // U-notch with a near-semicircular bottom + gentle quarter-circle fillets at the top.
+  // rB (bottom radius) ≈ hw  → bottom becomes a smooth D-shape (almost no flat bottom).
+  // rT (top radius)   ≈ 0.3*hw → gentle entry/exit at the letter boundary.
   const n=pts.length;
   const [ax,ay]=pts[segIdx],[bx,by]=pts[(segIdx+1)%n];
-  const dx=bx-ax,dy=by-ay,segLen=Math.hypot(dx,dy)||1;
-  const dir=[dx/segLen,dy/segLen]; // tangent along gap segment
-  const cx=ax+dx*t, cy=ay+dy*t;
+  const dx=bx-ax,dy=by-ay,sl=Math.hypot(dx,dy)||1;
+  const dir=[dx/sl,dy/sl];
   const hw=gapWidth/2;
+  const cx=ax+dx*t,cy=ay+dy*t;
+  const gE=[cx+dir[0]*hw,cy+dir[1]*hw];  // gap end
+  const gS=[cx-dir[0]*hw,cy-dir[1]*hw];  // gap start
 
-  const gEnd  =[cx+dir[0]*hw,          cy+dir[1]*hw];
-  const gStart=[cx-dir[0]*hw,          cy-dir[1]*hw];
-  const gS_in =[gStart[0]+wd[0]*wallLen, gStart[1]+wd[1]*wallLen];
-  const gE_in =[gEnd[0]  +wd[0]*wallLen, gEnd[1]  +wd[1]*wallLen];
+  // Bottom-arc radius: up to full hw → semicircular bottom; capped by wall depth
+  const rB=Math.min(hw, wallLen*0.40);
+  // Top-arc radius: small gentle entry/exit; must leave straight wall sections
+  const rT=Math.min(hw*0.30, (wallLen-rB)*0.30);
 
-  const r=Math.min(hw*0.48, wallLen*0.18);
-
-  function qbez(p0,ctrl,p1,N=6){
+  function qbez(p0,c,p1,N=10){
     const o=[];
-    for(let i=1;i<=N;i++){const tt=i/N,mt=1-tt;o.push([mt*mt*p0[0]+2*mt*tt*ctrl[0]+tt*tt*p1[0],mt*mt*p0[1]+2*mt*tt*ctrl[1]+tt*tt*p1[1]]);}
+    for(let i=1;i<=N;i++){const u=i/N,v=1-u;o.push([v*v*p0[0]+2*v*u*c[0]+u*u*p1[0],v*v*p0[1]+2*v*u*c[1]+u*u*p1[1]]);}
     return o;
   }
 
-  // Pre-arc / post-arc anchor points for each of the 4 corners:
-  // Corner at gEnd   : arriving -wd, departing +dir
-  const eB=[gEnd[0]+wd[0]*r,   gEnd[1]+wd[1]*r];    // before (from -wd side)
-  const eA=[gEnd[0]+dir[0]*r,  gEnd[1]+dir[1]*r];   // after  (into polygon)
-  // Corner at gStart : arriving +dir, departing +wd
-  const sB=[gStart[0]-dir[0]*r, gStart[1]-dir[1]*r]; // before (polygon side)
-  const sA=[gStart[0]+wd[0]*r,  gStart[1]+wd[1]*r];  // after  (into wall)
-  // Corner at gS_in  : arriving +wd, departing +dir
-  const sIB=[gS_in[0]-wd[0]*r,  gS_in[1]-wd[1]*r];
-  const sIA=[gS_in[0]+dir[0]*r, gS_in[1]+dir[1]*r];
-  // Corner at gE_in  : arriving +dir, departing -wd
-  const eIB=[gE_in[0]-dir[0]*r, gE_in[1]-dir[1]*r];
-  const eIA=[gE_in[0]-wd[0]*r,  gE_in[1]-wd[1]*r];
+  // Bottom arc centres (the old rectangular gS_in / gE_in)
+  const bL=[gS[0]+wd[0]*wallLen,gS[1]+wd[1]*wallLen];
+  const bR=[gE[0]+wd[0]*wallLen,gE[1]+wd[1]*wallLen];
 
-  // Build closed path: eA → polygon → sB → arc@gStart → sIB → arc@gS_in → eIB → arc@gE_in → eB → arc@gEnd → eA (Z)
-  const result=[eA];
-  for(let i=0;i<n;i++) result.push(pts[(segIdx+1+i)%n]);
-  result.push(sB,...qbez(sB,gStart,sA));
-  result.push(sIB,...qbez(sIB,gS_in,sIA));
-  result.push(eIB,...qbez(eIB,gE_in,eIA));
-  result.push(eB,...qbez(eB,gEnd,eA));
-  return result;
+  // Anchor points around each corner
+  const tSB=[gS[0]-dir[0]*rT, gS[1]-dir[1]*rT]; // approach gS from polygon side
+  const tSA=[gS[0]+wd[0]*rT,  gS[1]+wd[1]*rT];  // leave gS into wall
+  const bLB=[bL[0]-wd[0]*rB,  bL[1]-wd[1]*rB];  // approach bottom-left from above
+  const bLA=[bL[0]+dir[0]*rB, bL[1]+dir[1]*rB]; // leave bottom-left toward centre
+  const bRB=[bR[0]-dir[0]*rB, bR[1]-dir[1]*rB]; // approach bottom-right from centre
+  const bRA=[bR[0]-wd[0]*rB,  bR[1]-wd[1]*rB];  // leave bottom-right back up
+  const tEB=[gE[0]+wd[0]*rT,  gE[1]+wd[1]*rT];  // approach gE from wall
+  const tEA=[gE[0]+dir[0]*rT, gE[1]+dir[1]*rT]; // leave gE into polygon
+
+  // Build closed path starting just after the top-right fillet (tEA), going into the polygon
+  const res=[tEA];
+  for(let i=0;i<n;i++) res.push(pts[(segIdx+1+i)%n]);
+  // Top-left fillet at gS
+  res.push(tSB,...qbez(tSB,gS,tSA));
+  // Straight wall down to bottom-left arc
+  res.push(bLB);
+  // Bottom-left quarter-arc (90°, radius rB)
+  res.push(...qbez(bLB,bL,bLA));
+  // Flat bottom only when rB < hw (otherwise bLA === bRB → no gap)
+  if(rB < hw-0.001) res.push(bRB);
+  // Bottom-right quarter-arc
+  res.push(...qbez(rB<hw-0.001?bRB:bLA, bR, bRA));
+  // Straight wall back up to top-right arc
+  res.push(tEB);
+  // Top-right fillet at gE
+  res.push(...qbez(tEB,gE,tEA));
+  return res;
 }
 
 function _dxfApplyChannel(polylines, channelWidth) {
