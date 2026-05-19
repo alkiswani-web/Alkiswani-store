@@ -14295,13 +14295,21 @@ function _dxfFindParentOuter(hole, outers) {
 
 function _dxfFindBestBridge(hole, workOuters, oi) {
   let bHSeg=null,bOSeg=null,bDist=Infinity;
-  const step=Math.max(1,Math.floor(hole.pts.length/80));
+  // Sample all hole vertices (coarse pass) to find approximate closest pair
+  const step=Math.max(1,Math.floor(hole.pts.length/120));
   for(let vi=0;vi<hole.pts.length;vi+=step){
     const r=_dxfClosestOnPoly(workOuters[oi].pts,hole.pts[vi]);
     if(r.dist<bDist){bDist=r.dist;bHSeg=_dxfClosestOnPoly(hole.pts,r.pt);bOSeg=r;}
   }
-  bOSeg=_dxfClosestOnPoly(workOuters[oi].pts,bHSeg.pt);
-  return {holeSeg:bHSeg,outerSeg:bOSeg,wallLen:bDist};
+  // Refine: iterate a few times to converge on the true closest point pair
+  for(let pass=0;pass<3;pass++){
+    const o2=_dxfClosestOnPoly(workOuters[oi].pts,bHSeg.pt);
+    const h2=_dxfClosestOnPoly(hole.pts,o2.pt);
+    bOSeg=o2; bHSeg=h2;
+  }
+  // wallLen = actual distance between refined closest points (NOT the coarse bDist)
+  const wallLen=Math.hypot(bHSeg.pt[0]-bOSeg.pt[0],bHSeg.pt[1]-bOSeg.pt[1]);
+  return {holeSeg:bHSeg,outerSeg:bOSeg,wallLen};
 }
 
 function _dxfApplyBridges(polylines, bridgeWidth) {
