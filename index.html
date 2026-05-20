@@ -13906,6 +13906,7 @@ init();
 // ===== QR SCANNER =====
 let _qrScanActive=false, _qrScanStream=null, _qrScanRaf=null;
 let _qrAssignOrderId=null, _qrAssignOrder=null;
+let _qrBarcodeDetector=null, _qrLoopRunning=false;
 
 async function openQRScanner(){
   const overlay=document.getElementById('qrScannerOverlay');
@@ -13914,24 +13915,62 @@ async function openQRScanner(){
   _qrAssignOrderId=null; _qrAssignOrder=null;
   overlay.style.display='block';
   document.getElementById('qrScanStatus').textContent='وجّه الكاميرا نحو QR Code على الفاتورة';
-  _qrScanActive=true;
+  _qrScanActive=true; _qrLoopRunning=false;
+  // Init native BarcodeDetector (hardware-accelerated on Android/iOS)
+  _qrBarcodeDetector=null;
+  if('BarcodeDetector' in window){
+    try{_qrBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}
+  }
   try{
-    const constraints={video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
-    try{ _qrScanStream=await navigator.mediaDevices.getUserMedia(constraints); }
-    catch(e){ _qrScanStream=await navigator.mediaDevices.getUserMedia({video:true}); }
+    const c={video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
+    try{_qrScanStream=await navigator.mediaDevices.getUserMedia(c);}
+    catch(e){_qrScanStream=await navigator.mediaDevices.getUserMedia({video:true});}
     const video=document.getElementById('qrVideo');
     video.srcObject=_qrScanStream;
-    // Start scanning as soon as video has data — no artificial delay
-    video.onloadedmetadata=()=>{ video.play(); _qrScanRaf=requestAnimationFrame(_qrScanLoop); };
-    video.play().catch(()=>{});
-    if(video.readyState>=2) _qrScanRaf=requestAnimationFrame(_qrScanLoop);
+    video.onloadedmetadata=()=>{video.play().catch(()=>{});if(_qrScanActive&&!_qrLoopRunning)_qrRunLoop();};
+    await video.play().catch(()=>{});
+    if(video.readyState>=2&&!_qrLoopRunning)_qrRunLoop();
   }catch(e){
     document.getElementById('qrScanStatus').textContent='❌ تعذّر الوصول للكاميرا: '+e.message;
   }
 }
 
+async function _qrRunLoop(){
+  _qrLoopRunning=true;
+  const video=document.getElementById('qrVideo');
+  const canvas=document.getElementById('qrCanvas');
+  let ctx=null;
+  while(_qrScanActive){
+    if(video&&video.readyState>=2&&video.videoWidth){
+      try{
+        let raw=null;
+        if(_qrBarcodeDetector){
+          // Native hardware API — much faster & more reliable than jsQR
+          const codes=await _qrBarcodeDetector.detect(video);
+          if(codes.length)raw=codes[0].rawValue;
+        }else{
+          // jsQR fallback — use higher res (960px) for reliable decode
+          const MAX=960;
+          const sc=Math.min(1,MAX/Math.max(video.videoWidth,video.videoHeight));
+          canvas.width=Math.round(video.videoWidth*sc);
+          canvas.height=Math.round(video.videoHeight*sc);
+          if(!ctx)ctx=canvas.getContext('2d',{willReadFrequently:true});
+          ctx.drawImage(video,0,0,canvas.width,canvas.height);
+          const id=ctx.getImageData(0,0,canvas.width,canvas.height);
+          const code=jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
+          if(code&&code.data)raw=code.data.trim();
+        }
+        if(raw&&_qrScanActive){_qrOnDetected(raw);return;}
+      }catch(e){}
+    }
+    // BarcodeDetector: 40ms loop (25fps) | jsQR at 960px: 100ms loop (10fps, decode takes ~80ms)
+    await new Promise(r=>setTimeout(r,_qrBarcodeDetector?40:100));
+  }
+  _qrLoopRunning=false;
+}
+
 function closeQRScanner(){
-  _qrScanActive=false;
+  _qrScanActive=false; _qrLoopRunning=false;
   if(_qrScanRaf){cancelAnimationFrame(_qrScanRaf);_qrScanRaf=null;}
   if(_qrScanStream){_qrScanStream.getTracks().forEach(t=>t.stop());_qrScanStream=null;}
   const overlay=document.getElementById('qrScannerOverlay');
@@ -13942,14 +13981,12 @@ let _qrLastDecode=0;
 function _qrScanLoop(){
   if(!_qrScanActive)return;
   _qrScanRaf=requestAnimationFrame(_qrScanLoop);
-  // Throttle decode to ~20fps — camera runs at 30/60fps but jsQR doesn't need every frame
   const now=Date.now();
   if(now-_qrLastDecode<50)return;
   _qrLastDecode=now;
   const video=document.getElementById('qrVideo');
   const canvas=document.getElementById('qrCanvas');
   if(!video||!canvas||video.readyState<2||!video.videoWidth)return;
-  // Scale down to max 640px — jsQR is equally accurate and much faster at lower res
   const MAX=640;
   const sc=Math.min(1,MAX/Math.max(video.videoWidth,video.videoHeight));
   canvas.width=Math.round(video.videoWidth*sc);
