@@ -2983,6 +2983,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </label>
             <div id="dxfFontStatus" style="font-size:0.85rem;color:#6b7280;">لم يُرفع أي خط بعد</div>
           </div>
+          <div id="dxfFontsList" style="margin-top:8px;"></div>
         </div>
 
         <!-- Step 2: Text Settings -->
@@ -14197,24 +14198,74 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
 
 // ===== DXF GENERATOR =====
 let _dxfFont = null;
+let _dxfFontsMap = {}; // docId → {name, downloadURL, storagePath}
 
-// ── Font persistence via IndexedDB ──────────────────────────────────────────
-function _dxfIDB() {
-  return new Promise((res, rej) => {
-    const r = indexedDB.open('dxf_store', 1);
-    r.onupgradeneeded = e => e.target.result.createObjectStore('fonts');
-    r.onsuccess = e => res(e.target.result);
-    r.onerror = () => rej(r.error);
-  });
-}
-async function _dxfSaveFont(buffer, name) {
-  try { const db=await _dxfIDB(); const tx=db.transaction('fonts','readwrite'); tx.objectStore('fonts').put({buffer,name},'last'); } catch(e) {}
-}
-async function _dxfLoadSavedFont() {
+// ── Font cloud storage ──────────────────────────────────────────────────────
+async function _dxfUploadFontCloud(buffer, name, fileName) {
   try {
-    const db=await _dxfIDB();
-    return await new Promise(res=>{const r=db.transaction('fonts','readonly').objectStore('fonts').get('last');r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null);});
-  } catch(e) { return null; }
+    const path = 'dxf_fonts/' + Date.now() + '_' + fileName;
+    const ref = storage.ref(path);
+    const snap = await ref.put(new Blob([buffer]));
+    const url = await snap.ref.getDownloadURL();
+    await db.collection('dxf_fonts').add({
+      name, fileName, storagePath: path, downloadURL: url,
+      fileSize: buffer.byteLength,
+      uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    _dxfRenderFontsList();
+  } catch(e) { console.warn('Font cloud upload failed:', e); }
+}
+
+async function _dxfRenderFontsList() {
+  const el = document.getElementById('dxfFontsList');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:0.78rem;color:#9ca3af;padding:4px 0;">⏳ تحميل...</div>';
+  try {
+    const snap = await db.collection('dxf_fonts').orderBy('uploadedAt','desc').get();
+    _dxfFontsMap = {};
+    if (snap.empty) { el.innerHTML = '<div style="font-size:0.78rem;color:#9ca3af;padding:4px 2px;">لا توجد خطوط محفوظة</div>'; return; }
+    snap.docs.forEach(d => { _dxfFontsMap[d.id] = {...d.data()}; });
+    el.innerHTML = '<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px;">' +
+      snap.docs.map(d => {
+        const data = d.data();
+        const kb = data.fileSize ? Math.round(data.fileSize/1024) + ' KB' : '';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
+          <span style="font-size:0.83rem;font-weight:700;color:#111;">${data.name}<span style="font-weight:400;color:#9ca3af;font-size:0.72rem;margin-right:6px;">${kb}</span></span>
+          <span style="display:flex;gap:5px;">
+            <button onclick="_dxfSelectFont('${d.id}')" style="padding:4px 12px;background:var(--green-dark);color:#fff;border:none;border-radius:6px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">تحميل</button>
+            <button onclick="_dxfDeleteFont('${d.id}')" style="padding:4px 9px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:0.78rem;cursor:pointer;">🗑</button>
+          </span>
+        </div>`;
+      }).join('') + '</div>';
+  } catch(e) { el.innerHTML = '<div style="font-size:0.78rem;color:#dc2626;">❌ ' + e.message + '</div>'; }
+}
+
+async function _dxfSelectFont(docId) {
+  const data = _dxfFontsMap[docId];
+  if (!data) return;
+  const statusEl = document.getElementById('dxfFontStatus');
+  if (statusEl) { statusEl.textContent = '⏳ جاري تحميل الخط...'; statusEl.style.color = '#6b7280'; }
+  try {
+    if (!window.opentype) await dxfLoadOpentype();
+    const buf = await (await fetch(data.downloadURL)).arrayBuffer();
+    _dxfFont = opentype.parse(buf);
+    if (statusEl) { statusEl.textContent = '✅ ' + data.name; statusEl.style.color = '#16a34a'; }
+    const fnEl = document.getElementById('dxfFilename');
+    if (fnEl && !fnEl.value) fnEl.value = data.name;
+    dxfUpdatePreview();
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '❌ فشل تحميل الخط'; statusEl.style.color = '#dc2626'; }
+  }
+}
+
+async function _dxfDeleteFont(docId) {
+  if (!confirm('حذف هذا الخط؟')) return;
+  try {
+    const data = _dxfFontsMap[docId];
+    await db.collection('dxf_fonts').doc(docId).delete();
+    if (data?.storagePath) { try { await storage.ref(data.storagePath).delete(); } catch(e) {} }
+    _dxfRenderFontsList();
+  } catch(e) { alert('❌ فشل الحذف: ' + e.message); }
 }
 
 function dxfLoadOpentype() {
@@ -14229,19 +14280,7 @@ function dxfLoadOpentype() {
 }
 
 async function dxfTabActivated() {
-  if (!_dxfFont) {
-    const saved = await _dxfLoadSavedFont();
-    if (saved) {
-      try {
-        if (!window.opentype) await dxfLoadOpentype();
-        _dxfFont = opentype.parse(saved.buffer);
-        const statusEl = document.getElementById('dxfFontStatus');
-        if (statusEl) { statusEl.textContent = '✅ ' + saved.name + ' (محفوظ)'; statusEl.style.color = '#16a34a'; }
-        const fnEl = document.getElementById('dxfFilename');
-        if (fnEl && !fnEl.value) fnEl.value = saved.name;
-      } catch(e) {}
-    }
-  }
+  _dxfRenderFontsList();
   dxfUpdatePreview();
 }
 
@@ -14261,7 +14300,7 @@ async function dxfLoadFont(input) {
     statusEl.style.color = '#16a34a';
     const fnEl = document.getElementById('dxfFilename');
     if (fnEl && !fnEl.value) fnEl.value = name;
-    _dxfSaveFont(buffer, name);
+    _dxfUploadFontCloud(buffer, name, file.name);
     dxfUpdatePreview();
   } catch(e) {
     statusEl.textContent = '❌ ' + (e.message || 'خطأ في تحميل الخط');
