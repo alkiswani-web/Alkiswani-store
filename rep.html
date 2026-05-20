@@ -457,13 +457,23 @@ function showOrderDetail(o){
       <span style="background:${s.color}20;color:${s.color};padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;">${s.label}</span>
     </div>
 
-    <div style="background:#f9fafb;border-radius:13px;padding:13px 15px;margin-bottom:14px;">
-      ${o.customerPhone?`<div style="font-size:0.88rem;color:#374151;margin-bottom:8px;display:flex;align-items:center;gap:8px;">📱 <a href="tel:${o.customerPhone}" style="color:#1d4ed8;text-decoration:none;font-weight:800;font-size:0.92rem;">${o.customerPhone}</a></div>`:''}
+    <div style="background:#f9fafb;border-radius:13px;padding:13px 15px;margin-bottom:10px;">
       ${o.name?`<div style="font-size:0.83rem;color:#374151;margin-bottom:6px;">👤 ${o.name}</div>`:''}
+      ${o.customerPhone?`<div style="font-size:0.88rem;color:#374151;margin-bottom:4px;">📱 ${o.customerPhone}</div>`:''}
       ${o.address?`<div style="font-size:0.83rem;color:#374151;margin-bottom:6px;">📍 ${o.address}</div>`:''}
       ${o.area?`<div style="font-size:0.8rem;color:#6b7280;margin-bottom:4px;">🗺 ${o.area}</div>`:''}
       ${o.notes?`<div style="font-size:0.8rem;color:#d97706;background:#fffbeb;border-radius:7px;padding:7px 10px;margin-top:4px;">📝 ${o.notes}</div>`:''}
     </div>
+
+    ${o.customerPhone?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <a href="tel:${o.customerPhone}" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:15px 10px;background:#1d4ed8;color:#fff;border-radius:14px;text-decoration:none;font-weight:800;font-size:0.95rem;box-shadow:0 3px 10px rgba(29,78,216,0.3);">
+        <span style="font-size:1.5rem;">📞</span> اتصال
+      </a>
+      <a href="https://wa.me/${(o.customerPhone||'').replace(/\D/g,'')}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:15px 10px;background:#25D366;color:#fff;border-radius:14px;text-decoration:none;font-weight:800;font-size:0.95rem;box-shadow:0 3px 10px rgba(37,211,102,0.3);">
+        <span style="font-size:1.5rem;">💬</span> واتساب
+      </a>
+    </div>`:''}
+
 
     <div style="margin-bottom:16px;">
       ${prods.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:0.84rem;">
