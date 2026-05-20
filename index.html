@@ -13283,6 +13283,7 @@ const _repMapColors=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'
 let _repMapInstance=null;
 let _repMapUnsub=null;
 let _repMapMarkers=[];
+let _repMapInitialFit=false;
 
 function _empToggleLocationShare(){
   if(_empLocShareActive)_empStopLocationShare();
@@ -13300,7 +13301,7 @@ function _empStartLocationShare(){
     _empGeoWatchId=navigator.geolocation.watchPosition(
       p=>_empSendLocation(p.coords.latitude,p.coords.longitude),
       ()=>{},
-      {enableHighAccuracy:true,maximumAge:10000,timeout:20000}
+      {enableHighAccuracy:true,maximumAge:0,timeout:30000}
     );
     if(btn){btn.textContent='⏹ إيقاف';btn.disabled=false;btn.style.background='#dc2626';}
     if(status)status.textContent='✅ موقعك يُشارك الآن مع الأدمن';
@@ -13362,6 +13363,7 @@ async function openRepMap(){
     setTimeout(()=>_repMapInstance.invalidateSize(),200);
   }
   if(_repMapUnsub)_repMapUnsub();
+  _repMapInitialFit=false;
   _repMapUnsub=db.collection('rep_locations').where('isActive','==',true)
     .onSnapshot(snap=>{_updateRepMapMarkers(snap.docs.map(d=>({id:d.id,...d.data()})));});
 }
@@ -13370,6 +13372,7 @@ function closeRepMap(){
   const modal=document.getElementById('repMapModal');
   if(modal)modal.style.display='none';
   if(_repMapUnsub){_repMapUnsub();_repMapUnsub=null;}
+  _repMapInitialFit=false;
 }
 
 function _updateRepMapMarkers(reps){
@@ -13404,8 +13407,11 @@ function _updateRepMapMarkers(reps){
     _repMapMarkers.push(marker);
     bounds.push([rep.lat,rep.lng]);
   });
-  if(bounds.length>1)_repMapInstance.fitBounds(bounds,{padding:[40,40]});
-  else if(bounds.length===1)_repMapInstance.setView(bounds[0],14);
+  if(!_repMapInitialFit){
+    _repMapInitialFit=true;
+    if(bounds.length>1)_repMapInstance.fitBounds(bounds,{padding:[40,40]});
+    else if(bounds.length===1)_repMapInstance.setView(bounds[0],14);
+  }
   if(legend){
     legend.innerHTML=active.map((r,i)=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#fff;border-radius:20px;border:1px solid #e5e7eb;"><span style="width:10px;height:10px;border-radius:50%;background:${_repMapColors[i%_repMapColors.length]};display:inline-block;flex-shrink:0;"></span><span style="font-size:0.78rem;font-weight:600;color:#374151;">${r.repName||'مندوب'}</span></span>`).join('');
   }

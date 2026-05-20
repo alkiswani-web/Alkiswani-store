@@ -220,6 +220,7 @@ let currentUser=null;
 let ordersUnsub=null;
 let locActive=false;
 let geoWatchId=null;
+let geoIntervalId=null;
 let qrStream=null;
 let qrActive=false;
 let pwaPrompt=null;
@@ -539,8 +540,19 @@ function startLocation(){
     sendLocation(pos.coords.latitude,pos.coords.longitude);
     geoWatchId=navigator.geolocation.watchPosition(
       p=>sendLocation(p.coords.latitude,p.coords.longitude),
-      ()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:20000}
+      e=>{ /* silent — interval backup handles retry */ },
+      {enableHighAccuracy:true,maximumAge:0,timeout:30000}
     );
+    // Fallback: force a fresh GPS read every 25 seconds in case watchPosition stalls
+    if(geoIntervalId)clearInterval(geoIntervalId);
+    geoIntervalId=setInterval(()=>{
+      if(!locActive)return;
+      navigator.geolocation.getCurrentPosition(
+        p=>sendLocation(p.coords.latitude,p.coords.longitude),
+        ()=>{},
+        {enableHighAccuracy:true,maximumAge:0,timeout:20000}
+      );
+    },25000);
     if(btn){btn.textContent='⏹ موقع';btn.disabled=false;btn.style.background='rgba(239,68,68,0.7)';}
     toast('📍 بدأ مشاركة الموقع مع الأدمن');
   },()=>{
@@ -551,6 +563,7 @@ function startLocation(){
 
 function stopLocation(){
   if(geoWatchId!==null){navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null;}
+  if(geoIntervalId){clearInterval(geoIntervalId);geoIntervalId=null;}
   locActive=false;
   if(currentUser){
     const key=currentUser.phone||currentUser.name;
