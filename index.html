@@ -14299,6 +14299,19 @@ function _dxfArcForward(pts, fromSegIdx, toSegIdx) {
   }
   return out;
 }
+function _dxfArcBackward(pts, fromSegIdx, toSegIdx) {
+  // Collect vertices going BACKWARD from fromSegIdx to (toSegIdx+1)%n.
+  // Used for hole arc in bridge merge: backward on a CW-stored hole = CCW traversal
+  // = opposite winding to the CW outer = proper hole in merged path.
+  const n=pts.length, out=[];
+  let i=fromSegIdx;
+  for(let safety=0; safety<n+1; safety++){
+    out.push(pts[i]);
+    if(i===(toSegIdx+1)%n) break;
+    i=(i-1+n)%n;
+  }
+  return out;
+}
 
 function _dxfBridgeGap(pts, segIdx, t, hw) {
   // Open the closed polygon: R → polygon arc → L (open path).
@@ -14363,17 +14376,17 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
     const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
     const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
     // Single merged closed path:
-    // Ro → [outer long arc] → Lo → Rh → [hole long arc CCW] → Lh → close(Ro)
-    // Lo-Rh and Lh-Ro are the two parallel bridge walls (non-crossing).
-    // Hole arc uses _dxfArcForward(Rh→Lh) which is the LONG arc and traverses
-    // the hole in opposite winding to the outer, preserving the inner void.
+    // Ro → [outer long arc CW] → Lo → Lh → [hole long arc CCW backward] → Rh → close(Ro)
+    // Lo-Lh and Ro-Rh are the two parallel bridge walls (non-crossing).
+    // Hole arc uses _dxfArcBackward(Lh→Rh): backward on a CW-stored hole = CCW traversal
+    // = opposite winding to the outer, preserving the inner void as a proper hole.
     const merged=[
       Ro.pt,
       ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
       Lo.pt,
-      Rh.pt,
-      ..._dxfArcForward(hole.pts,Rh.segIdx,Lh.segIdx),
       Lh.pt,
+      ..._dxfArcBackward(hole.pts,Lh.segIdx,Rh.segIdx),
+      Rh.pt,
     ];
     workOuters[oi]={...workOuters[oi],pts:merged,closed:true};
   }
@@ -14425,15 +14438,14 @@ function _dxfApplyChannel(polylines, channelWidth) {
     const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-hw);
     const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
     const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
-    // Single merged closed path:
-    // Ro → [outer long arc] → Lo → Rh → [hole long arc CCW] → Lh → close(Ro)
+    // Single merged closed path: Ro → [outer CW] → Lo → Lh → [hole CCW backward] → Rh → close(Ro)
     const merged=[
       Ro.pt,
       ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
       Lo.pt,
-      Rh.pt,
-      ..._dxfArcForward(hole.pts,Rh.segIdx,Lh.segIdx),
       Lh.pt,
+      ..._dxfArcBackward(hole.pts,Lh.segIdx,Rh.segIdx),
+      Rh.pt,
     ];
     workOuters[oi]={...workOuters[oi],pts:merged,closed:true};
   }
