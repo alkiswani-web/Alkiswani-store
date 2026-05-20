@@ -310,9 +310,11 @@ function renderOrders(orders){
     const s=ST[o.status]||{label:o.status,color:'#6b7280'};
     const prods=(o.products||[{name:o.productName||'؟',qty:1}]);
     const ps=prods.map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');
-    const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2);
+    const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
+    const dlv=o.deliveryFee||0;
+    const collect=Math.max(0,total-dlv);
     const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
-    return `<div onclick="openOrderById('${o.id}')" style="background:#fff;border-radius:14px;padding:15px 16px;margin-bottom:10px;border:1.5px solid #e5e7eb;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);active:background:#f9fafb;">
+    return `<div onclick="openOrderById('${o.id}')" style="background:#fff;border-radius:14px;padding:15px 16px;margin-bottom:10px;border:1.5px solid #e5e7eb;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-weight:800;font-size:0.9rem;color:#1a3a2a;">${lbl}</span>
         <span style="background:${s.color}20;color:${s.color};padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;">${s.label}</span>
@@ -320,7 +322,10 @@ function renderOrders(orders){
       ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:4px;">📱 ${o.customerPhone}</div>`:''}
       <div style="font-size:0.79rem;color:#6b7280;margin-bottom:4px;">📦 ${ps}</div>
       ${o.address?`<div style="font-size:0.79rem;color:#6b7280;margin-bottom:4px;">📍 ${o.address}</div>`:''}
-      <div style="font-weight:800;color:#166534;font-size:0.92rem;direction:ltr;text-align:left;">${total} د.أ</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f3f4f6;">
+        <span style="font-size:0.74rem;color:#6b7280;">💰 للتحصيل</span>
+        <span style="font-weight:900;color:#166534;font-size:1rem;direction:ltr;">${collect.toFixed(2)} د.أ</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -342,6 +347,7 @@ function showOrderDetail(o){
   const prods=o.products||[{name:o.productName||'؟',qty:1,price:o.totalPrice||0}];
   const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
   const dlv=o.deliveryFee||0;
+  const collectAmount=Math.max(0,total-dlv);
   const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
   const isClosed=TERMINAL.includes(o.status);
 
@@ -369,6 +375,15 @@ function showOrderDetail(o){
         <span style="font-weight:800;color:#1a3a2a;">الإجمالي</span>
         <span style="font-weight:900;color:#166534;font-size:1.1rem;">${total.toFixed(2)} د.أ</span>
       </div>
+    </div>
+
+    <!-- COLLECTION AMOUNT -->
+    <div style="background:linear-gradient(135deg,#166534,#15803d);border-radius:14px;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="color:rgba(255,255,255,0.75);font-size:0.78rem;margin-bottom:3px;">💰 المبلغ المطلوب تحصيله</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:0.72rem;">(الإجمالي بدون التوصيل)</div>
+      </div>
+      <div style="color:#fff;font-weight:900;font-size:1.6rem;direction:ltr;">${collectAmount.toFixed(2)} <span style="font-size:1rem;font-weight:700;">د.أ</span></div>
     </div>
 
     ${isClosed
