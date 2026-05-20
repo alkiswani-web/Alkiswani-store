@@ -3999,27 +3999,29 @@ async function loadProducts(){
 
 async function updateHeroStats(){
   try{
-    // عدد المنتجات
     const pc=document.getElementById('heroProductsCount');
     if(pc) pc.textContent='+'+products.length;
-    // عدد الزبائن (من orders)
-    const ordersSnap=await db.collection('orders').get();
-    const uniquePhones=new Set(ordersSnap.docs.map(d=>d.data().phone).filter(Boolean));
     const cc=document.getElementById('heroCustomersCount');
-    if(cc) cc.textContent='+'+uniquePhones.size;
-    // متوسط التقييم
-    let totalStars=0, totalReviews=0;
-    products.forEach(function(p){
-      (p.reviews||[]).forEach(function(r){
-        totalStars+=r.stars||0;
-        totalReviews++;
-      });
-    });
+    if(cc){
+      // Cache customer count for 15 min — avoids loading all orders on every visit
+      let customerCount;
+      try{
+        const raw=sessionStorage.getItem('_heroStatsCust');
+        if(raw){const p=JSON.parse(raw);if(Date.now()-p.ts<15*60*1000)customerCount=p.v;}
+      }catch(e){}
+      if(customerCount===undefined){
+        const ordersSnap=await db.collection('orders').get();
+        customerCount=new Set(ordersSnap.docs.map(d=>d.data().phone).filter(Boolean)).size;
+        try{sessionStorage.setItem('_heroStatsCust',JSON.stringify({v:customerCount,ts:Date.now()}));}catch(e){}
+      }
+      cc.textContent='+'+customerCount;
+    }
+    let totalStars=0,totalReviews=0;
+    products.forEach(function(p){(p.reviews||[]).forEach(function(r){totalStars+=r.stars||0;totalReviews++;});});
     const avg=totalReviews>0?(totalStars/totalReviews).toFixed(1):'4.9';
     const rc=document.getElementById('heroRatingCount');
     if(rc) rc.textContent=avg+'★';
   }catch(e){
-    // fallback
     const pc=document.getElementById('heroProductsCount');
     const cc=document.getElementById('heroCustomersCount');
     const rc=document.getElementById('heroRatingCount');
@@ -11422,9 +11424,17 @@ function updateEidPositions(){
 
 async function loadEidSettings(){
   try{
-    const snap=await db.collection('settings').doc('eid').get();
-    if(!snap.exists) return;
-    const d=snap.data();
+    let d;
+    try{
+      const raw=sessionStorage.getItem('_cache_eid');
+      if(raw){const c=JSON.parse(raw);if(Date.now()-c.ts<5*60*1000)d=c.data;}
+    }catch(e){}
+    if(!d){
+      const snap=await db.collection('settings').doc('eid').get();
+      if(!snap.exists) return;
+      d=snap.data();
+      try{sessionStorage.setItem('_cache_eid',JSON.stringify({data:d,ts:Date.now()}));}catch(e){}
+    }
     // Banner
     if(d.bannerEnabled){
       document.getElementById('eidBanner').classList.add('show');
@@ -11474,6 +11484,7 @@ async function saveEidSettings(){
     eidDate:document.getElementById('eidDateInput').value
   };
   await db.collection('settings').doc('eid').set(data);
+  try{sessionStorage.removeItem('_cache_eid');}catch(e){}
   // Apply immediately
   const banner=document.getElementById('eidBanner');
   const countdown=document.getElementById('eidCountdown');
@@ -11528,19 +11539,23 @@ async function init(){
   try{ initDarkMode(); }catch(e){}
   try{ checkReferral(); }catch(e){}
   try{ updateWishBadge(); }catch(e){}
-  try{ await loadPointsSettings(); }catch(e){}
-  try{ await loadCategories(); }catch(e){ console.log('loadCategories error',e); }
-  try{ await loadProducts(); }catch(e){ console.error('loadProducts error:',e); }
-  try{ await loadCustomerPhotos(); }catch(e){}
-  try{ await loadEidSettings(); }catch(e){}
-  try{ await loadAboutSettings(); }catch(e){}
+  // Run all 3 critical reads in parallel instead of one after another
+  await Promise.all([
+    loadPointsSettings().catch(()=>{}),
+    loadCategories().catch(e=>console.log('loadCategories error',e)),
+    loadProducts().catch(e=>console.error('loadProducts error:',e))
+  ]);
+  // Non-critical: run in background, don't block the page
+  loadCustomerPhotos().catch(()=>{});
+  loadEidSettings().catch(()=>{});
+  loadAboutSettings().catch(()=>{});
   try{ trackVisit(); }catch(e){}
   try{ updateCartCount(); }catch(e){}
   try{ updateNavUser(); }catch(e){}
   try{ startSocialProof(); }catch(e){}
   try{ showWelcome(); }catch(e){}
-  try{ await _initTrackingPage(); }catch(e){}
-  try{ await _initDeliveryBatchPage(); }catch(e){}
+  _initTrackingPage().catch(()=>{});
+  _initDeliveryBatchPage().catch(()=>{});
 }
 
 // ===== CATEGORIES MANAGEMENT =====
@@ -13141,9 +13156,17 @@ async function confirmCustomerCancel(){
 // ===== ABOUT SETTINGS =====
 async function loadAboutSettings(){
   try{
-    const snap=await db.collection('settings').doc('about').get();
-    if(!snap.exists) return;
-    const d=snap.data();
+    let d;
+    try{
+      const raw=sessionStorage.getItem('_cache_about');
+      if(raw){const c=JSON.parse(raw);if(Date.now()-c.ts<5*60*1000)d=c.data;}
+    }catch(e){}
+    if(!d){
+      const snap=await db.collection('settings').doc('about').get();
+      if(!snap.exists) return;
+      d=snap.data();
+      try{sessionStorage.setItem('_cache_about',JSON.stringify({data:d,ts:Date.now()}));}catch(e){}
+    }
     const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.textContent=val;};
     if(d.story) set('about_story',d.story);
     if(d.c1e) set('about_c1e',d.c1e);
@@ -13198,6 +13221,7 @@ async function saveAboutSettings(){
   };
   try{
     await db.collection('settings').doc('about').set(data);
+    try{sessionStorage.removeItem('_cache_about');}catch(e){}
     await loadAboutSettings();
     toast('✅ تم حفظ صفحة "من نحن"');
   }catch(e){ toast('❌ خطأ في الحفظ'); }
