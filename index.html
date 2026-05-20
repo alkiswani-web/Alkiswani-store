@@ -2967,9 +2967,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div class="admin-tab-content" id="tab-dxf">
       <div style="max-width:860px;">
         <h2 style="color:var(--green-dark);margin-bottom:6px;">✂️ مولّد DXF للنقش بالليزر</h2>
-        <p style="color:var(--text-mid);font-size:0.85rem;margin-bottom:20px;">ارفع ملف الخط من حاسوبك، أدخل النص، واضبط الحجم — ثم حمّل ملف DXF جاهز لماكينة الليزر</p>
+        <p style="color:var(--text-mid);font-size:0.85rem;margin-bottom:12px;">ارفع ملف الخط من حاسوبك، أدخل النص، واضبط الحجم — ثم حمّل ملف DXF جاهز لماكينة الليزر</p>
 
-        <!-- Step 1: Font -->
+        <!-- Mode toggle -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button id="dxfModeTextBtn" onclick="dxfSetMode('text')" style="padding:10px 20px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">📝 من نص</button>
+          <button id="dxfModeImageBtn" onclick="dxfSetMode('image')" style="padding:10px 20px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">🖼 من صورة</button>
+        </div>
+
+        <!-- Step 1: Font (text mode) -->
+        <div id="dxfFontSection">
         <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
           <div style="font-weight:700;color:#374151;margin-bottom:8px;">① رفع ملف الخط</div>
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#166534;line-height:1.6;">
@@ -2985,10 +2992,39 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <div id="dxfFontsList" style="margin-top:8px;"></div>
         </div>
+        </div><!-- /dxfFontSection -->
+
+        <!-- Step 1: Image upload (image mode) -->
+        <div id="dxfImageSection" style="display:none;background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="font-weight:700;color:#374151;margin-bottom:12px;">① رفع الصورة</div>
+          <div style="background:#fefce8;border:1px solid #fef08a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#713f12;line-height:1.6;">
+            💡 ارفع صورة رسمة أو خط عربي مكتوب — سيتم تتبع المسارات تلقائياً
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+            <label style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--green-dark);color:#fff;border-radius:10px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+              🖼 رفع صورة
+              <input type="file" id="dxfTraceImageInput" accept="image/*" onchange="dxfLoadTraceImage(this)" style="display:none;">
+            </label>
+            <div id="dxfTraceImageStatus" style="font-size:0.85rem;color:#6b7280;">لم ترفع أي صورة بعد</div>
+          </div>
+          <div id="dxfThreshWrap" style="display:none;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <span style="font-size:0.82rem;color:#374151;font-weight:600;white-space:nowrap;">حد التعرف:</span>
+              <input type="range" id="dxfThreshSlider" min="1" max="254" value="128" style="flex:1;accent-color:var(--green-dark);" oninput="dxfApplyThreshold()">
+              <span id="dxfThreshValSpan" style="font-weight:700;color:var(--green-dark);min-width:30px;font-size:0.9rem;">128</span>
+              <span style="font-size:0.78rem;color:#6b7280;">درجة</span>
+            </div>
+            <div style="background:#e5e7eb;border-radius:8px;padding:8px;overflow:auto;text-align:center;">
+              <canvas id="dxfThreshCanvas" style="max-width:100%;border-radius:4px;"></canvas>
+            </div>
+            <div style="font-size:0.75rem;color:#6b7280;margin-top:6px;text-align:center;">معاينة أسود وأبيض — الأجزاء السوداء ستُتتبع</div>
+          </div>
+        </div>
 
         <!-- Step 2: Text Settings -->
         <div style="background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-          <div style="font-weight:700;color:#374151;margin-bottom:14px;">② النص والإعدادات</div>
+          <div style="font-weight:700;color:#374151;margin-bottom:14px;">② الإعدادات</div>
+          <div id="dxfTextInputsWrap">
           <div style="margin-bottom:14px;">
             <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">النص المراد نقشه</label>
             <input type="text" id="dxfText" dir="rtl" placeholder="اكتب النص هنا..."
@@ -3036,6 +3072,35 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;">
             </div>
           </div>
+          </div><!-- /dxfTextInputsWrap -->
+
+          <!-- Image mode inputs -->
+          <div id="dxfImageInputsWrap" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+              <div>
+                <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">عرض الإخراج (مم)</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="range" id="dxfTraceWidth" min="10" max="500" value="100" style="flex:1;accent-color:var(--green-dark);" oninput="document.getElementById('dxfTraceWidthVal').textContent=this.value;">
+                  <span id="dxfTraceWidthVal" style="font-weight:700;color:var(--green-dark);min-width:36px;font-size:0.95rem;">100</span>
+                  <span style="font-size:0.78rem;color:#6b7280;">مم</span>
+                </div>
+              </div>
+              <div>
+                <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">تصفية المسارات الصغيرة</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="range" id="dxfTraceMinArea" min="1" max="200" value="20" style="flex:1;accent-color:var(--green-dark);" oninput="document.getElementById('dxfTraceMinAreaVal').textContent=this.value;">
+                  <span id="dxfTraceMinAreaVal" style="font-weight:700;color:var(--green-dark);min-width:30px;font-size:0.9rem;">20</span>
+                  <span style="font-size:0.78rem;color:#6b7280;">نقطة</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-bottom:14px;">
+              <label style="font-size:0.82rem;font-weight:600;color:#374151;display:block;margin-bottom:5px;">اسم الملف</label>
+              <input type="text" id="dxfFilenameImg" dir="rtl" placeholder="اسم الملف (اختياري)"
+                style="width:100%;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;">
+            </div>
+          </div><!-- /dxfImageInputsWrap -->
+
           <!-- Merge toggle -->
           <label style="display:flex;align-items:center;gap:12px;margin-top:14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;cursor:pointer;">
             <input type="checkbox" id="dxfMerge" checked style="width:18px;height:18px;accent-color:var(--green-dark);flex-shrink:0;cursor:pointer;">
@@ -14198,7 +14263,251 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
 
 // ===== DXF GENERATOR =====
 let _dxfFont = null;
-let _dxfFontsMap = {}; // docId → {name, downloadURL, storagePath}
+let _dxfFontsMap = {};
+let _dxfTraceMode = 'text';
+let _dxfTraceImg = null;
+
+function dxfSetMode(mode) {
+  _dxfTraceMode = mode;
+  const isImg = mode === 'image';
+  const fs = document.getElementById('dxfFontSection');
+  const is = document.getElementById('dxfImageSection');
+  const tiw = document.getElementById('dxfTextInputsWrap');
+  const iiw = document.getElementById('dxfImageInputsWrap');
+  if (fs) fs.style.display = isImg ? 'none' : 'block';
+  if (is) is.style.display = isImg ? 'block' : 'none';
+  if (tiw) tiw.style.display = isImg ? 'none' : 'block';
+  if (iiw) iiw.style.display = isImg ? 'block' : 'none';
+  const tb = document.getElementById('dxfModeTextBtn');
+  const ib = document.getElementById('dxfModeImageBtn');
+  if (tb) { tb.style.background = isImg ? '#f3f4f6' : 'var(--green-dark)'; tb.style.color = isImg ? '#374151' : '#fff'; tb.style.border = isImg ? '1.5px solid #e5e7eb' : 'none'; }
+  if (ib) { ib.style.background = isImg ? 'var(--green-dark)' : '#f3f4f6'; ib.style.color = isImg ? '#fff' : '#374151'; ib.style.border = isImg ? 'none' : '1.5px solid #e5e7eb'; }
+}
+
+function dxfLoadTraceImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('dxfTraceImageStatus');
+  if (statusEl) statusEl.textContent = '⏳ جاري التحميل...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      _dxfTraceImg = img;
+      if (statusEl) statusEl.textContent = `✅ ${file.name} (${img.naturalWidth}×${img.naturalHeight})`;
+      const wrap = document.getElementById('dxfThreshWrap');
+      if (wrap) wrap.style.display = 'block';
+      dxfApplyThreshold();
+    };
+    img.onerror = () => { if (statusEl) statusEl.textContent = '❌ فشل تحميل الصورة'; };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function dxfApplyThreshold() {
+  if (!_dxfTraceImg) return;
+  const thresh = parseInt(document.getElementById('dxfThreshSlider')?.value || '128');
+  const valSpan = document.getElementById('dxfThreshValSpan');
+  if (valSpan) valSpan.textContent = thresh;
+  const prevCanvas = document.getElementById('dxfThreshCanvas');
+  if (!prevCanvas) return;
+  const W = _dxfTraceImg.naturalWidth, H = _dxfTraceImg.naturalHeight;
+  const maxDim = 420;
+  const sc = Math.min(1, maxDim / Math.max(W, H));
+  const pW = Math.round(W * sc), pH = Math.round(H * sc);
+  prevCanvas.width = pW; prevCanvas.height = pH;
+  const ctx = prevCanvas.getContext('2d');
+  ctx.drawImage(_dxfTraceImg, 0, 0, pW, pH);
+  const id = ctx.getImageData(0, 0, pW, pH);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) < thresh ? 0 : 255;
+    d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+function _dxfLoadImageTracer() {
+  return new Promise((resolve, reject) => {
+    if (window.ImageTracer) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('فشل تحميل مكتبة التتبع'));
+    document.head.appendChild(s);
+  });
+}
+
+function _dxfSvgDToPolylines(d, scaleX, scaleY) {
+  const polylines = [];
+  const re = /([MmLlCcQqZzHhVvSsTtAa])|(-?[0-9]*\.?[0-9]+(?:e[-+]?[0-9]+)?)/gi;
+  const tokens = []; let m;
+  while ((m = re.exec(d)) !== null) tokens.push(m[0]);
+  let i = 0;
+  const getNum = () => parseFloat(tokens[i++] || '0');
+  let curPts = [], cx = 0, cy = 0, startX = 0, startY = 0;
+  const DEV = 0.5;
+  const pushPt = (x, y) => curPts.push([x * scaleX, y * scaleY]);
+  while (i < tokens.length) {
+    const tok = tokens[i];
+    if (!/^[MmLlCcQqZzHhVvSsTtAa]$/.test(tok)) { i++; continue; }
+    i++;
+    switch (tok) {
+      case 'M': { if (curPts.length > 1) polylines.push({pts:curPts,closed:false,layer:'0'}); curPts=[]; cx=getNum();cy=getNum();startX=cx;startY=cy;pushPt(cx,cy); break; }
+      case 'm': { if (curPts.length > 1) polylines.push({pts:curPts,closed:false,layer:'0'}); curPts=[]; cx+=getNum();cy+=getNum();startX=cx;startY=cy;pushPt(cx,cy); break; }
+      case 'L': { cx=getNum();cy=getNum();pushPt(cx,cy); break; }
+      case 'l': { cx+=getNum();cy+=getNum();pushPt(cx,cy); break; }
+      case 'H': { cx=getNum();pushPt(cx,cy); break; }
+      case 'h': { cx+=getNum();pushPt(cx,cy); break; }
+      case 'V': { cy=getNum();pushPt(cx,cy); break; }
+      case 'v': { cy+=getNum();pushPt(cx,cy); break; }
+      case 'C': { const x1=getNum(),y1=getNum(),x2=getNum(),y2=getNum(),x3=getNum(),y3=getNum(); const ps=_dxfSubdivideCubic(cx,cy,x1,y1,x2,y2,x3,y3,DEV,0); for(const[px,py]of ps)pushPt(px,py); cx=x3;cy=y3; break; }
+      case 'c': { const rx1=getNum(),ry1=getNum(),rx2=getNum(),ry2=getNum(),rx3=getNum(),ry3=getNum(); const x1=cx+rx1,y1=cy+ry1,x2=cx+rx2,y2=cy+ry2,x3=cx+rx3,y3=cy+ry3; const ps=_dxfSubdivideCubic(cx,cy,x1,y1,x2,y2,x3,y3,DEV,0); for(const[px,py]of ps)pushPt(px,py); cx=x3;cy=y3; break; }
+      case 'Q': { const x1=getNum(),y1=getNum(),x2=getNum(),y2=getNum(); const qx1=cx+(x1-cx)*2/3,qy1=cy+(y1-cy)*2/3,qx2=x2+(x1-x2)*2/3,qy2=y2+(y1-y2)*2/3; const ps=_dxfSubdivideCubic(cx,cy,qx1,qy1,qx2,qy2,x2,y2,DEV,0); for(const[px,py]of ps)pushPt(px,py); cx=x2;cy=y2; break; }
+      case 'q': { const rx1=getNum(),ry1=getNum(),rx2=getNum(),ry2=getNum(); const x1=cx+rx1,y1=cy+ry1,x2=cx+rx2,y2=cy+ry2; const qx1=cx+(x1-cx)*2/3,qy1=cy+(y1-cy)*2/3,qx2=x2+(x1-x2)*2/3,qy2=y2+(y1-y2)*2/3; const ps=_dxfSubdivideCubic(cx,cy,qx1,qy1,qx2,qy2,x2,y2,DEV,0); for(const[px,py]of ps)pushPt(px,py); cx=x2;cy=y2; break; }
+      case 'Z': case 'z': { if (curPts.length > 2) polylines.push({pts:curPts,closed:true,layer:'0'}); curPts=[]; cx=startX;cy=startY; break; }
+      case 'A': { getNum();getNum();getNum();getNum();getNum();cx=getNum();cy=getNum();pushPt(cx,cy); break; }
+      case 'a': { getNum();getNum();getNum();getNum();getNum();cx+=getNum();cy+=getNum();pushPt(cx,cy); break; }
+      case 'S': { const x2=getNum(),y2=getNum(),x3=getNum(),y3=getNum(); cx=x3;cy=y3;pushPt(cx,cy); break; }
+      case 's': { getNum();getNum();cx+=getNum();cy+=getNum();pushPt(cx,cy); break; }
+      case 'T': { cx=getNum();cy=getNum();pushPt(cx,cy); break; }
+      case 't': { cx+=getNum();cy+=getNum();pushPt(cx,cy); break; }
+    }
+  }
+  if (curPts.length > 1) polylines.push({pts:curPts,closed:false,layer:'0'});
+  return polylines;
+}
+
+async function _dxfTraceGetPolylines() {
+  if (!_dxfTraceImg) throw new Error('ارفع صورة أولاً');
+  const thresh = parseInt(document.getElementById('dxfThreshSlider')?.value || '128');
+  const widthMM = parseFloat(document.getElementById('dxfTraceWidth')?.value || '100');
+  const minArea = parseInt(document.getElementById('dxfTraceMinArea')?.value || '20');
+  const W = _dxfTraceImg.naturalWidth, H = _dxfTraceImg.naturalHeight;
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = W; offCanvas.height = H;
+  const octx = offCanvas.getContext('2d');
+  octx.drawImage(_dxfTraceImg, 0, 0);
+  const id = octx.getImageData(0, 0, W, H);
+  const data = id.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const v = (data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114) < thresh ? 0 : 255;
+    data[i] = data[i+1] = data[i+2] = v; data[i+3] = 255;
+  }
+  octx.putImageData(id, 0, 0);
+  if (!window.ImageTracer) await _dxfLoadImageTracer();
+  const svgStr = ImageTracer.imagedataToSVG(
+    octx.getImageData(0, 0, W, H),
+    { numberofcolors: 2, colorsampling: 0, colorquantcycles: 1, ltres: 1, qtres: 1,
+      pathomit: minArea, scale: 1, strokewidth: 0, linefilter: false, rightangleenhance: false }
+  );
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgStr, 'image/svg+xml');
+  const scaleX = widthMM / W, scaleY = scaleX;
+  let polylines = [];
+  for (const pathEl of doc.querySelectorAll('path')) {
+    const fill = (pathEl.getAttribute('fill') || '').toLowerCase().replace(/\s/g, '');
+    const mc = fill.match(/rgb\((\d+),(\d+),(\d+)\)/);
+    if (mc) { if ((+mc[1] + +mc[2] + +mc[3]) / 3 > 200) continue; }
+    else if (fill === '#ffffff' || fill === 'white') continue;
+    const dAttr = pathEl.getAttribute('d') || '';
+    if (dAttr) polylines.push(..._dxfSvgDToPolylines(dAttr, scaleX, scaleY));
+  }
+  return polylines;
+}
+
+async function _dxfImageModePreview() {
+  const canvas = document.getElementById('dxfCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const infoEl = document.getElementById('dxfInfo');
+  function drawBg() {
+    ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+    for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  }
+  drawBg();
+  if (!_dxfTraceImg) {
+    ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font="15px 'Tajawal',sans-serif";
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('ارفع صورة لرؤية المعاينة',W/2,H/2);
+    if(infoEl)infoEl.textContent=''; return;
+  }
+  if(infoEl)infoEl.textContent='⏳ جاري التتبع...';
+  try {
+    let polylines = await _dxfTraceGetPolylines();
+    if (!window.ClipperLib) await dxfLoadClipper();
+    polylines = _dxfApplyUnion(polylines, 0.1);
+    const p = dxfGetParams();
+    if (p.doBridge) { try { polylines = p.bridgeMode==='channel'?_dxfApplyChannel(polylines,p.bridgeWidth):_dxfApplyBridges(polylines,p.bridgeWidth); } catch(e){} }
+    if (p.doFrame) { try { polylines = _dxfApplyFrame(polylines,p.frameWall); } catch(e){} }
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const pl of polylines) for(const[x,y] of pl.pts){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;}
+    if (!isFinite(minX)) {
+      drawBg();
+      ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font="15px 'Tajawal',sans-serif";
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('لا مسارات — جرّب تعديل إعدادات التتبع',W/2,H/2);
+      if(infoEl)infoEl.textContent=''; return;
+    }
+    const pad=10, scX=(W-pad*2)/(maxX-minX||1), scY=(H-pad*2)/(maxY-minY||1), sc=Math.min(scX,scY);
+    const offX=pad-minX*sc+(W-pad*2-(maxX-minX)*sc)/2;
+    const offY=pad-minY*sc+(H-pad*2-(maxY-minY)*sc)/2;
+    drawBg();
+    ctx.save(); ctx.translate(offX,offY); ctx.scale(sc,sc);
+    for (const pl of polylines) {
+      if (pl.pts.length < 2) continue;
+      ctx.beginPath(); ctx.moveTo(pl.pts[0][0],pl.pts[0][1]);
+      for(let j=1;j<pl.pts.length;j++) ctx.lineTo(pl.pts[j][0],pl.pts[j][1]);
+      if(pl.closed) ctx.closePath();
+      const isHole=pl.layer==='HOLES', isFrame=pl.layer==='FRAME';
+      ctx.fillStyle=isFrame?'rgba(59,130,246,0.10)':isHole?'rgba(255,100,50,0.25)':'rgba(0,255,136,0.12)';
+      ctx.fill('evenodd');
+      ctx.strokeStyle=isFrame?'#3b82f6':isHole?'#ff6432':'#00ff88';
+      ctx.lineWidth=1/sc; ctx.stroke();
+    }
+    ctx.restore();
+    const wMM=(maxX-minX).toFixed(1), hMM=(maxY-minY).toFixed(1);
+    const outerN=polylines.filter(pl=>pl.layer==='0').length;
+    const holeN=polylines.filter(pl=>pl.layer==='HOLES').length;
+    if(infoEl)infoEl.innerHTML=`أبعاد: ${wMM}×${hMM} مم &nbsp;|&nbsp; <span style="color:#00ff88">■ ${outerN} شكل</span>${holeN?` &nbsp;<span style="color:#ff6432">■ ${holeN} فراغ</span>`:''}`;
+  } catch(e) {
+    drawBg();
+    ctx.fillStyle='#ef4444';ctx.font="13px 'Tajawal',sans-serif";
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('خطأ: '+e.message,W/2,H/2);
+    if(infoEl)infoEl.textContent='';
+  }
+}
+
+async function _dxfImageModeDownload() {
+  const dlEl = document.getElementById('dxfDownloadInfo');
+  if (dlEl) dlEl.textContent = '⏳ جاري التتبع...';
+  try {
+    let polylines = await _dxfTraceGetPolylines();
+    if (!window.ClipperLib) { if(dlEl)dlEl.textContent='⏳ تحميل مكتبة الدمج...'; await dxfLoadClipper(); }
+    polylines = _dxfApplyUnion(polylines, 0.1);
+    const p = dxfGetParams();
+    if (p.doBridge) { try { polylines = p.bridgeMode==='channel'?_dxfApplyChannel(polylines,p.bridgeWidth):_dxfApplyBridges(polylines,p.bridgeWidth); } catch(e){} }
+    if (p.doFrame) { try { polylines = _dxfApplyFrame(polylines,p.frameWall); } catch(e){} }
+    const svgStr = _svgBuildString(polylines);
+    const blob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ((document.getElementById('dxfFilenameImg')?.value||'').trim() || 'رسمة') + '.svg';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const holeCount=polylines.filter(pl=>pl.layer==='HOLES').length;
+    const outerCount=polylines.filter(pl=>pl.layer!=='HOLES').length;
+    if(dlEl)dlEl.textContent=`✅ تم التحميل | ${outerCount} شكل | ${holeCount} فراغ`;
+  } catch(e) {
+    if(dlEl)dlEl.textContent='❌ '+e.message;
+  }
+}
 
 // ── Font cloud storage ──────────────────────────────────────────────────────
 async function _dxfUploadFontCloud(buffer, name, fileName) {
@@ -14593,6 +14902,7 @@ function _dxfApplyFrame(polylines, wallMM) {
 }
 
 async function dxfUpdatePreview() {
+  if (_dxfTraceMode === 'image') { await _dxfImageModePreview(); return; }
   const canvas = document.getElementById('dxfCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -14859,6 +15169,7 @@ function _dxfApplyUnion(rawPolylines, epsilonMM) {
 }
 
 async function dxfDownload() {
+  if (_dxfTraceMode === 'image') { await _dxfImageModeDownload(); return; }
   if (!_dxfFont) { alert('الرجاء رفع ملف الخط أولاً'); return; }
   const p = dxfGetParams();
   if (!p.text) { alert('الرجاء إدخال النص'); return; }
@@ -14906,6 +15217,7 @@ async function dxfDownload() {
 }
 
 window.dxfLoadFont=dxfLoadFont; window.dxfDownload=dxfDownload; window.dxfUpdatePreview=dxfUpdatePreview; window.dxfTabActivated=dxfTabActivated;
+window.dxfSetMode=dxfSetMode; window.dxfLoadTraceImage=dxfLoadTraceImage; window.dxfApplyThreshold=dxfApplyThreshold;
 </script>
 
 <!-- PRODUCT ADVISOR -->
