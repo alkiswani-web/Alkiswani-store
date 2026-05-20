@@ -14880,9 +14880,9 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
     const oi=_dxfFindParentOuter(hole,workOuters);
     if(oi<0) continue;
     const {holeSeg,outerSeg,wallLen}=_dxfFindBestBridge(hole,workOuters,oi);
-    // Cap bridge width: large holes → full width; tiny holes → narrower bridge that fits
+    // Cap: can't exceed 1/4 of hole perimeter (geometric limit) or user request
     const holePeri=_dxfPolyPerimeter(hole.pts);
-    const ehw=Math.min(hw, holePeri/4, wallLen*0.45);
+    const ehw=Math.min(hw, holePeri/4);
     if(ehw<0.05) continue;
     const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, ehw);
     const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-ehw);
@@ -14942,7 +14942,7 @@ function _dxfApplyChannel(polylines, channelWidth) {
     if(oi<0) continue;
     const {holeSeg,outerSeg,wallLen}=_dxfFindBestBridge(hole,workOuters,oi);
     const holePeri=_dxfPolyPerimeter(hole.pts);
-    const ehw=Math.min(hw, holePeri/4, wallLen*0.45);
+    const ehw=Math.min(hw, holePeri/4);
     if(ehw<0.05) continue;
     const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, ehw);
     const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-ehw);
