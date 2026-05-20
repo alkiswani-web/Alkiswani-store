@@ -2292,6 +2292,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button id="optab-btn-workers" onclick="switchOpTab('workers')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">👥 موظفون</button>
         <button id="optab-btn-emppoints" onclick="switchOpTab('emppoints')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏆 نقاط</button>
         <button id="optab-btn-settings" onclick="switchOpTab('settings')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;white-space:nowrap;">⚙️ إعدادات</button>
+        <button id="optab-btn-reps" onclick="switchOpTab('reps')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1px solid var(--border);white-space:nowrap;">🚚 مناديب</button>
       </div>
 
       <!-- ========== QUICK DELIVER SUB-TAB ========== -->
@@ -2732,6 +2733,35 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <span>📋 سجل الحركات</span><span>▼</span>
           </button>
           <div id="opstore_tx_list" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- REPS ACCOUNTING sub-tab -->
+      <div id="optab-reps" style="display:none;">
+        <!-- List view -->
+        <div id="repAcctListView">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <div style="font-size:0.92rem;font-weight:800;color:#1a3a2a;">🚚 كشف حسابات المناديب</div>
+            <button onclick="loadRepAccounting()" style="padding:6px 14px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">↻ تحديث</button>
+          </div>
+          <div id="repAcctList"><div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">اضغط تحديث لتحميل الحسابات</div></div>
+        </div>
+        <!-- Detail view -->
+        <div id="repAcctDetailView" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <button onclick="repAcctBackToList()" style="padding:7px 14px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;font-weight:600;">← رجوع</button>
+            <div id="repAcctDetailTitle" style="font-size:0.92rem;font-weight:800;color:#1a3a2a;"></div>
+          </div>
+          <div id="repAcctSummary" style="margin-bottom:14px;"></div>
+          <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">💰 تسجيل دفعة جديدة</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="repAcctPayAmt" type="number" min="0.5" step="0.5" placeholder="المبلغ (د.أ)" style="flex:1;min-width:90px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+              <input id="repAcctPayNotes" type="text" placeholder="ملاحظات (اختياري)" style="flex:2;min-width:120px;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+              <button onclick="addRepPayment()" style="padding:9px 18px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
+            </div>
+          </div>
+          <div id="repAcctDetail"></div>
         </div>
       </div>
 
@@ -8376,7 +8406,7 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  const allTabs=['oporders','products','stores','sales','account','balance','daysheet','workers','emppoints','settings'];
+  const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','emppoints','settings'];
   allTabs.forEach(t=>{
     const panelId=t==='oporders'?'emp-subtab-operator':
                   ['daysheet','workers','emppoints','settings'].includes(t)?'emp-subtab-'+t:
@@ -8402,6 +8432,7 @@ function switchOpTab(tab){
   if(tab==='workers')loadEmpWorkers();
   if(tab==='emppoints')loadAdminEmpPoints();
   if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
+  if(tab==='reps')loadRepAccounting();
 }
 
 // ===== QUICK DELIVER TAB (تسليم سريع) =====
@@ -13379,6 +13410,156 @@ function _updateRepMapMarkers(reps){
     legend.innerHTML=active.map((r,i)=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#fff;border-radius:20px;border:1px solid #e5e7eb;"><span style="width:10px;height:10px;border-radius:50%;background:${_repMapColors[i%_repMapColors.length]};display:inline-block;flex-shrink:0;"></span><span style="font-size:0.78rem;font-weight:600;color:#374151;">${r.repName||'مندوب'}</span></span>`).join('');
   }
 }
+
+// ===== REP ACCOUNTING =====
+let _repAcctRep=null;
+
+async function loadRepAccounting(){
+  const listEl=document.getElementById('repAcctList');
+  if(!listEl)return;
+  listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
+  try{
+    const repSnap=await db.collection('operator_config').doc('delivery_reps').get();
+    const reps=((repSnap.exists?repSnap.data()?.reps:[])||[]);
+    if(!reps.length){listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">لا يوجد مناديب مسجلين — أضفهم من قائمة المناديب في تاب الطلبات</div>';return;}
+    const paymentsSnap=await db.collection('rep_payments').get();
+    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const paidByPhone={};
+    payments.forEach(p=>{paidByPhone[p.repPhone]=(paidByPhone[p.repPhone]||0)+(p.amount||0);});
+    listEl.innerHTML=reps.map(r=>{
+      const paid=paidByPhone[r.phone]||0;
+      return `<div onclick="showRepStatement('${r.phone}','${(r.name||'').replace(/'/g,'')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-weight:800;font-size:0.9rem;color:#1a3a2a;">🚚 ${r.name||'مندوب'}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">${r.phone||''}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:#dcfce7;border-radius:8px;padding:9px;text-align:center;">
+            <div style="font-size:0.68rem;color:#166534;margin-bottom:2px;">إجمالي دفع</div>
+            <div style="font-weight:800;font-size:0.92rem;color:#166534;">${paid.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:#f0f9ff;border-radius:8px;padding:9px;text-align:center;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:0.8rem;color:#0ea5e9;font-weight:700;">اضغط لعرض الكشف →</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
+}
+
+async function showRepStatement(phone,name){
+  _repAcctRep={phone,name};
+  document.getElementById('repAcctListView').style.display='none';
+  document.getElementById('repAcctDetailView').style.display='block';
+  const titleEl=document.getElementById('repAcctDetailTitle');
+  if(titleEl)titleEl.textContent='🚚 '+name;
+  const summaryEl=document.getElementById('repAcctSummary');
+  const detailEl=document.getElementById('repAcctDetail');
+  if(detailEl)detailEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
+  try{
+    const [ordersSnap,paymentsSnap]=await Promise.all([
+      db.collection('employee_orders').where('deliveryRepPhone','==',phone).get(),
+      db.collection('rep_payments').where('repPhone','==',phone).get()
+    ]);
+    const orders=ordersSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(o=>o.status==='delivered')
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const totalOwed=orders.reduce((s,o)=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return s+Math.max(0,t-(o.deliveryFee||0));},0);
+    const totalPaid=payments.reduce((s,p)=>s+(p.amount||0),0);
+    const balance=totalOwed-totalPaid;
+    if(summaryEl){
+      summaryEl.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div style="background:#fee2e2;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:0.7rem;color:#dc2626;margin-bottom:4px;">مطلوب منه</div>
+          <div style="font-weight:900;font-size:1.1rem;color:#dc2626;">${totalOwed.toFixed(2)}</div>
+          <div style="font-size:0.65rem;color:#9ca3af;">د.أ</div>
+        </div>
+        <div style="background:#dcfce7;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:0.7rem;color:#166534;margin-bottom:4px;">دفع</div>
+          <div style="font-weight:900;font-size:1.1rem;color:#166534;">${totalPaid.toFixed(2)}</div>
+          <div style="font-size:0.65rem;color:#9ca3af;">د.أ</div>
+        </div>
+        <div style="background:${balance>0?'#fee2e2':'#dcfce7'};border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:0.7rem;color:${balance>0?'#dc2626':'#166534'};margin-bottom:4px;">${balance>0?'ضايل':'مسوّى ✓'}</div>
+          <div style="font-weight:900;font-size:1.1rem;color:${balance>0?'#dc2626':'#166534'};">${Math.abs(balance).toFixed(2)}</div>
+          <div style="font-size:0.65rem;color:#9ca3af;">د.أ</div>
+        </div>
+      </div>`;
+    }
+    let html='';
+    html+=`<div style="font-size:0.85rem;font-weight:700;color:#374151;margin-bottom:8px;margin-top:4px;">💰 الدفعات (${payments.length})</div>`;
+    if(payments.length){
+      html+=payments.map(p=>`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:9px;padding:10px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:0.88rem;font-weight:800;color:#166534;">${(p.amount||0).toFixed(2)} د.أ</div>
+          ${p.notes?`<div style="font-size:0.76rem;color:#6b7280;">${p.notes}</div>`:''}
+          <div style="font-size:0.72rem;color:#9ca3af;">${p.date||''} • ${p.addedBy||'أدمن'}</div>
+        </div>
+        <button onclick="deleteRepPayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:5px 10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;cursor:pointer;font-weight:600;">حذف</button>
+      </div>`).join('');
+    }else{html+='<div style="color:#9ca3af;font-size:0.8rem;padding:6px 0 12px;">لا يوجد دفعات مسجلة بعد</div>';}
+    html+=`<div style="font-size:0.85rem;font-weight:700;color:#374151;margin-bottom:8px;margin-top:10px;">📦 الطلبات المُسلَّمة (${orders.length})</div>`;
+    if(orders.length){
+      html+=orders.map(o=>{
+        const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);
+        const collect=Math.max(0,t-(o.deliveryFee||0));
+        const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+        const dt=o.deliveredDate||o.date||'';
+        return `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:10px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:0.84rem;font-weight:700;color:#1a3a2a;">${lbl}</div>
+            <div style="font-size:0.75rem;color:#6b7280;">${o.customerPhone||''}${dt?' · '+dt:''}</div>
+            ${o.address?`<div style="font-size:0.74rem;color:#9ca3af;">📍 ${o.address}</div>`:''}
+          </div>
+          <div style="font-weight:900;color:#dc2626;font-size:0.92rem;direction:ltr;text-align:left;">${collect.toFixed(2)} <span style="font-size:0.7rem;font-weight:600;">د.أ</span></div>
+        </div>`;
+      }).join('');
+    }else{html+='<div style="color:#9ca3af;font-size:0.8rem;padding:6px 0;">لا يوجد طلبات مُسلَّمة</div>';}
+    if(detailEl)detailEl.innerHTML=html;
+  }catch(e){if(detailEl)detailEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
+}
+
+function repAcctBackToList(){
+  document.getElementById('repAcctListView').style.display='block';
+  document.getElementById('repAcctDetailView').style.display='none';
+  _repAcctRep=null;
+}
+
+async function addRepPayment(){
+  if(!_repAcctRep){toast('لم يتم تحديد المندوب');return;}
+  const amtEl=document.getElementById('repAcctPayAmt');
+  const notesEl=document.getElementById('repAcctPayNotes');
+  const amount=parseFloat(amtEl?.value||'0');
+  if(!amount||amount<=0){toast('أدخل مبلغاً صحيحاً');return;}
+  const notes=(notesEl?.value||'').trim();
+  try{
+    await db.collection('rep_payments').add({
+      repPhone:_repAcctRep.phone,repName:_repAcctRep.name,
+      amount,notes,date:jordanDateStr(),
+      addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    if(amtEl)amtEl.value='';
+    if(notesEl)notesEl.value='';
+    toast('✅ تم تسجيل الدفعة');
+    showRepStatement(_repAcctRep.phone,_repAcctRep.name);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteRepPayment(id){
+  if(!confirm('حذف هذه الدفعة؟'))return;
+  try{
+    await db.collection('rep_payments').doc(id).delete();
+    toast('تم الحذف');
+    showRepStatement(_repAcctRep.phone,_repAcctRep.name);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+window.loadRepAccounting=loadRepAccounting; window.showRepStatement=showRepStatement;
+window.repAcctBackToList=repAcctBackToList; window.addRepPayment=addRepPayment;
+window.deleteRepPayment=deleteRepPayment;
 
 window.openRepMap=openRepMap; window.closeRepMap=closeRepMap;
 window._empToggleLocationShare=_empToggleLocationShare;
