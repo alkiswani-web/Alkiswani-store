@@ -6421,18 +6421,28 @@ function _playNewOrderSound(){
   if(navigator.vibrate)navigator.vibrate([200,80,200]);
 }
 
+function _ordersLoadingSkeleton(){
+  const c=`<div style="background:#f9fafb;border:1px solid #f3f4f6;border-radius:10px;padding:12px;margin-bottom:8px;animation:_skelPulse 1.2s ease-in-out infinite;"><div style="height:13px;background:#e5e7eb;border-radius:4px;width:55%;margin-bottom:8px;"></div><div style="height:10px;background:#e5e7eb;border-radius:4px;width:38%;"></div></div>`;
+  return `<style>@keyframes _skelPulse{0%,100%{opacity:1}50%{opacity:.35}}</style>${c.repeat(6)}`;
+}
+function _ordersDateCutoff(){
+  const d=new Date();d.setDate(d.getDate()-60);
+  return firebase.firestore.Timestamp.fromDate(d);
+}
 function loadEmpOrders(){
   const wrap=document.getElementById('empOrdersAdminWrap');
   if(!wrap)return;
   if(_empOrdersUnsub&&_empOrdersAllData.length){_renderEmpOrdersView();return;}
   if(_empOrdersUnsub){_empOrdersUnsub();_empOrdersUnsub=null;}
-  wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
+  wrap.innerHTML=_ordersLoadingSkeleton();
   if(!_empSharedProducts){
     db.collection('operator_products').get()
       .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);})
       .catch(()=>{});
   }
-  _empOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
+  _empOrdersUnsub=db.collection('employee_orders')
+    .where('createdAt','>=',_ordersDateCutoff())
+    .orderBy('createdAt','desc')
     .onSnapshot(snap=>{
       const newData=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(_seenEmpOrderIds.size){
@@ -6484,14 +6494,15 @@ function loadOperatorOrders(){
   if(!wrap)return;
   if(_opOrdersUnsub&&_opOrdersAllData.length){_renderOpOrdersView();return;}
   if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
-  wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
-  // Ensure product images are available for card rendering
+  wrap.innerHTML=_ordersLoadingSkeleton();
   if(!_empSharedProducts){
     db.collection('operator_products').get()
       .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);})
       .catch(()=>{});
   }
-  _opOrdersUnsub=db.collection('employee_orders').orderBy('createdAt','desc')
+  _opOrdersUnsub=db.collection('employee_orders')
+    .where('createdAt','>=',_ordersDateCutoff())
+    .orderBy('createdAt','desc')
     .onSnapshot(snap=>{
       const newData=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(_seenOpOrderIds.size){
