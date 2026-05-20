@@ -1,0 +1,28 @@
+{
+  "name": "مناديب التوصيل",
+  "short_name": "مناديب",
+  "description": "تطبيق مناديب التوصيل - الكسواني روزميري",
+  "start_url": "/rep.html",
+  "scope": "/rep.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a3a2a",
+  "theme_color": "#1a3a2a",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"]
+}
