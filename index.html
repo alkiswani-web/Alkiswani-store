@@ -14198,6 +14198,25 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
 // ===== DXF GENERATOR =====
 let _dxfFont = null;
 
+// ── Font persistence via IndexedDB ──────────────────────────────────────────
+function _dxfIDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('dxf_store', 1);
+    r.onupgradeneeded = e => e.target.result.createObjectStore('fonts');
+    r.onsuccess = e => res(e.target.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function _dxfSaveFont(buffer, name) {
+  try { const db=await _dxfIDB(); const tx=db.transaction('fonts','readwrite'); tx.objectStore('fonts').put({buffer,name},'last'); } catch(e) {}
+}
+async function _dxfLoadSavedFont() {
+  try {
+    const db=await _dxfIDB();
+    return await new Promise(res=>{const r=db.transaction('fonts','readonly').objectStore('fonts').get('last');r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null);});
+  } catch(e) { return null; }
+}
+
 function dxfLoadOpentype() {
   return new Promise((resolve, reject) => {
     if (window.opentype) return resolve();
@@ -14209,7 +14228,20 @@ function dxfLoadOpentype() {
   });
 }
 
-function dxfTabActivated() {
+async function dxfTabActivated() {
+  if (!_dxfFont) {
+    const saved = await _dxfLoadSavedFont();
+    if (saved) {
+      try {
+        if (!window.opentype) await dxfLoadOpentype();
+        _dxfFont = opentype.parse(saved.buffer);
+        const statusEl = document.getElementById('dxfFontStatus');
+        if (statusEl) { statusEl.textContent = '✅ ' + saved.name + ' (محفوظ)'; statusEl.style.color = '#16a34a'; }
+        const fnEl = document.getElementById('dxfFilename');
+        if (fnEl && !fnEl.value) fnEl.value = saved.name;
+      } catch(e) {}
+    }
+  }
   dxfUpdatePreview();
 }
 
@@ -14229,6 +14261,7 @@ async function dxfLoadFont(input) {
     statusEl.style.color = '#16a34a';
     const fnEl = document.getElementById('dxfFilename');
     if (fnEl && !fnEl.value) fnEl.value = name;
+    _dxfSaveFont(buffer, name);
     dxfUpdatePreview();
   } catch(e) {
     statusEl.textContent = '❌ ' + (e.message || 'خطأ في تحميل الخط');
@@ -14368,9 +14401,9 @@ function _dxfFindBestBridge(hole, workOuters, oi) {
   return {holeSeg:bHSeg,outerSeg:bOSeg,wallLen};
 }
 
+function _dxfPolyPerimeter(pts){let s=0;for(let i=0;i<pts.length;i++){const[ax,ay]=pts[i],[bx,by]=pts[(i+1)%pts.length];s+=Math.hypot(bx-ax,by-ay);}return s;}
+
 function _dxfApplyBridges(polylines, bridgeWidth) {
-  // جسر = نفس منطق الشارع: مسار واحد مغلق يدمج الخارجي مع التجويف عبر جسر ضيّق.
-  // الفرق عن الشارع: عرض الجسر أضيق (bridgeWidth) وتسمية مختلفة فقط.
   const outers=polylines.filter(p=>p.layer==='0'&&p.closed);
   const holes=polylines.filter(p=>p.layer==='HOLES'&&p.closed);
   const others=polylines.filter(p=>!((p.layer==='0'||p.layer==='HOLES')&&p.closed));
@@ -14380,16 +14413,15 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
   for(const hole of holes){
     const oi=_dxfFindParentOuter(hole,workOuters);
     if(oi<0) continue;
-    const {holeSeg,outerSeg}=_dxfFindBestBridge(hole,workOuters,oi);
-    const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, hw);
-    const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-hw);
-    const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
-    const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
-    // Single merged closed path:
-    // Ro → [outer long arc CW] → Lo → Lh → [hole long arc CCW backward] → Rh → close(Ro)
-    // Lo-Lh and Ro-Rh are the two parallel bridge walls (non-crossing).
-    // Hole arc uses _dxfArcBackward(Lh→Rh): backward on a CW-stored hole = CCW traversal
-    // = opposite winding to the outer, preserving the inner void as a proper hole.
+    const {holeSeg,outerSeg,wallLen}=_dxfFindBestBridge(hole,workOuters,oi);
+    // Cap bridge width: large holes → full width; tiny holes → narrower bridge that fits
+    const holePeri=_dxfPolyPerimeter(hole.pts);
+    const ehw=Math.min(hw, holePeri/4, wallLen*0.45);
+    if(ehw<0.05) continue;
+    const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, ehw);
+    const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-ehw);
+    const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, ehw);
+    const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-ehw);
     const merged=[
       Ro.pt,
       ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
@@ -14442,12 +14474,14 @@ function _dxfApplyChannel(polylines, channelWidth) {
   for(const hole of holes){
     const oi=_dxfFindParentOuter(hole,workOuters);
     if(oi<0) continue;
-    const {holeSeg,outerSeg}=_dxfFindBestBridge(hole,workOuters,oi);
-    // Walk hw along each polygon perimeter to get the channel entry points
-    const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, hw);
-    const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-hw);
-    const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
-    const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
+    const {holeSeg,outerSeg,wallLen}=_dxfFindBestBridge(hole,workOuters,oi);
+    const holePeri=_dxfPolyPerimeter(hole.pts);
+    const ehw=Math.min(hw, holePeri/4, wallLen*0.45);
+    if(ehw<0.05) continue;
+    const Ro=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t, ehw);
+    const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-ehw);
+    const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, ehw);
+    const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-ehw);
     // Single merged closed path: Ro → [outer CW] → Lo → Lh → [hole CCW backward] → Rh → close(Ro)
     const merged=[
       Ro.pt,
