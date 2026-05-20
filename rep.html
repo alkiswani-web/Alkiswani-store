@@ -220,6 +220,8 @@ let currentUser=null;
 let ordersUnsub=null;
 let locActive=false;
 let geoWatchId=null;
+let geoIntervalId=null;
+let wakeLock=null;
 let qrStream=null;
 let qrActive=false;
 let pwaPrompt=null;
@@ -539,8 +541,23 @@ function startLocation(){
     sendLocation(pos.coords.latitude,pos.coords.longitude);
     geoWatchId=navigator.geolocation.watchPosition(
       p=>sendLocation(p.coords.latitude,p.coords.longitude),
-      ()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:20000}
+      ()=>{},
+      {enableHighAccuracy:true,maximumAge:0,timeout:30000}
     );
+    // Fallback every 25s in case watchPosition stalls (battery-saver / background)
+    if(geoIntervalId)clearInterval(geoIntervalId);
+    geoIntervalId=setInterval(()=>{
+      if(!locActive)return;
+      navigator.geolocation.getCurrentPosition(
+        p=>sendLocation(p.coords.latitude,p.coords.longitude),
+        ()=>{},
+        {enableHighAccuracy:true,maximumAge:0,timeout:20000}
+      );
+    },25000);
+    // Keep screen on while sharing location (prevents JS freeze)
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(wl=>{wakeLock=wl;}).catch(()=>{});
+    }
     if(btn){btn.textContent='⏹ موقع';btn.disabled=false;btn.style.background='rgba(239,68,68,0.7)';}
     toast('📍 بدأ مشاركة الموقع مع الأدمن');
   },()=>{
@@ -551,6 +568,8 @@ function startLocation(){
 
 function stopLocation(){
   if(geoWatchId!==null){navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null;}
+  if(geoIntervalId){clearInterval(geoIntervalId);geoIntervalId=null;}
+  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null;}
   locActive=false;
   if(currentUser){
     const key=currentUser.phone||currentUser.name;
@@ -559,6 +578,20 @@ function stopLocation(){
   const btn=document.getElementById('locBtn');
   if(btn){btn.style.background='rgba(255,255,255,0.12)';btn.textContent='📍 موقع';}
 }
+
+// Re-acquire wake lock and resend location when tab becomes visible again
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&locActive){
+    if('wakeLock' in navigator&&!wakeLock){
+      navigator.wakeLock.request('screen').then(wl=>{wakeLock=wl;}).catch(()=>{});
+    }
+    navigator.geolocation.getCurrentPosition(
+      p=>sendLocation(p.coords.latitude,p.coords.longitude),
+      ()=>{},
+      {enableHighAccuracy:true,maximumAge:0,timeout:20000}
+    );
+  }
+});
 
 function sendLocation(lat,lng){
   if(!currentUser)return;
