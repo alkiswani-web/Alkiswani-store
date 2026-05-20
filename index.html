@@ -14207,13 +14207,22 @@ async function _dxfUploadFontCloud(buffer, name, fileName) {
     const ref = storage.ref(path);
     const snap = await ref.put(new Blob([buffer]));
     const url = await snap.ref.getDownloadURL();
-    await db.collection('dxf_fonts').add({
+    const small = buffer.byteLength < 900 * 1024; // store bytes in Firestore if < 900 KB
+    const docRef = await db.collection('dxf_fonts').add({
       name, fileName, storagePath: path, downloadURL: url,
-      fileSize: buffer.byteLength,
+      fileSize: buffer.byteLength, hasBytes: small,
       uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    if (small) {
+      await db.collection('dxf_fonts').doc(docRef.id)
+        .collection('data').doc('bytes')
+        .set({ fontBytes: firebase.firestore.Blob.fromUint8Array(new Uint8Array(buffer)) });
+    }
     _dxfRenderFontsList();
-  } catch(e) { console.warn('Font cloud upload failed:', e); }
+  } catch(e) {
+    console.error('Font upload error:', e);
+    toast('❌ فشل رفع الخط: ' + (e.message || e));
+  }
 }
 
 async function _dxfRenderFontsList() {
@@ -14242,19 +14251,39 @@ async function _dxfRenderFontsList() {
 
 async function _dxfSelectFont(docId) {
   const data = _dxfFontsMap[docId];
-  if (!data) return;
   const statusEl = document.getElementById('dxfFontStatus');
+  if (!data) {
+    if (statusEl) { statusEl.textContent = '❌ أعد فتح التبويب وحاول ثانية'; statusEl.style.color = '#dc2626'; }
+    return;
+  }
   if (statusEl) { statusEl.textContent = '⏳ جاري تحميل الخط...'; statusEl.style.color = '#6b7280'; }
   try {
     if (!window.opentype) await dxfLoadOpentype();
-    const buf = await (await fetch(data.downloadURL)).arrayBuffer();
+    let buf;
+    // Primary: read bytes directly from Firestore (no CORS issue)
+    if (data.hasBytes) {
+      try {
+        const snap = await db.collection('dxf_fonts').doc(docId).collection('data').doc('bytes').get();
+        if (snap.exists && snap.data().fontBytes) {
+          buf = snap.data().fontBytes.toUint8Array().buffer;
+        }
+      } catch(e2) { console.warn('Firestore bytes read failed:', e2); }
+    }
+    // Fallback: Firebase Storage (fresh URL to avoid expiry)
+    if (!buf) {
+      const freshUrl = await storage.ref(data.storagePath).getDownloadURL();
+      const resp = await fetch(freshUrl);
+      if (!resp.ok) throw new Error('تعذّر تنزيل الملف (HTTP ' + resp.status + ')');
+      buf = await resp.arrayBuffer();
+    }
     _dxfFont = opentype.parse(buf);
     if (statusEl) { statusEl.textContent = '✅ ' + data.name; statusEl.style.color = '#16a34a'; }
     const fnEl = document.getElementById('dxfFilename');
     if (fnEl && !fnEl.value) fnEl.value = data.name;
     dxfUpdatePreview();
   } catch(e) {
-    if (statusEl) { statusEl.textContent = '❌ فشل تحميل الخط'; statusEl.style.color = '#dc2626'; }
+    console.error('Font load error:', e);
+    if (statusEl) { statusEl.textContent = '❌ ' + (e.message || 'فشل تحميل الخط'); statusEl.style.color = '#dc2626'; }
   }
 }
 
@@ -14262,6 +14291,7 @@ async function _dxfDeleteFont(docId) {
   if (!confirm('حذف هذا الخط؟')) return;
   try {
     const data = _dxfFontsMap[docId];
+    try { await db.collection('dxf_fonts').doc(docId).collection('data').doc('bytes').delete(); } catch(e) {}
     await db.collection('dxf_fonts').doc(docId).delete();
     if (data?.storagePath) { try { await storage.ref(data.storagePath).delete(); } catch(e) {} }
     _dxfRenderFontsList();
