@@ -15069,7 +15069,12 @@ window.dxfLoadFont=dxfLoadFont; window.dxfDownload=dxfDownload; window.dxfUpdate
   <video id="qrVideo" style="width:100%;height:100%;object-fit:cover;" playsinline autoplay muted></video>
   <canvas id="qrCanvas" style="display:none;"></canvas>
   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-    <div style="width:220px;height:220px;border:3px solid #0ea5e9;border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);"></div>
+    <div style="position:relative;width:240px;height:240px;">
+      <span style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:3px solid #0ea5e9;border-left:3px solid #0ea5e9;border-radius:4px 0 0 0;"></span>
+      <span style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:3px solid #0ea5e9;border-right:3px solid #0ea5e9;border-radius:0 4px 0 0;"></span>
+      <span style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:3px solid #0ea5e9;border-left:3px solid #0ea5e9;border-radius:0 0 0 4px;"></span>
+      <span style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:3px solid #0ea5e9;border-right:3px solid #0ea5e9;border-radius:0 0 4px 0;"></span>
+    </div>
   </div>
   <div id="qrScanStatus" style="position:absolute;bottom:40px;left:0;right:0;text-align:center;color:#fff;font-size:0.85rem;opacity:0.8;">وجّه الكاميرا نحو QR Code على الفاتورة</div>
 </div>
