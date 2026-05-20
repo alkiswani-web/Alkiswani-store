@@ -13724,11 +13724,14 @@ async function showRepStatement(phone,name){
       <button onclick="deleteRepPayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:5px 10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;cursor:pointer;font-weight:600;">حذف</button>
     </div>`).join('');
     html+=`<div style="background:var(--card-bg);border:1.5px solid #86efac;border-radius:12px;overflow:hidden;margin-bottom:14px;">
-      <div style="background:#f0fdf4;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #86efac;">
+      <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.tog').textContent=this.nextElementSibling.style.display==='none'?'▼':'▲';" style="background:#f0fdf4;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <span style="font-size:0.85rem;font-weight:700;color:#166534;">💰 دفعات المندوب</span>
-        <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${payments.length} دفعة</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${payments.length} دفعة</span>
+          <span class="tog" style="color:#166534;font-size:0.8rem;">▼</span>
+        </div>
       </div>
-      <div style="max-height:220px;overflow-y:auto;padding:10px 12px;">
+      <div style="display:none;max-height:240px;overflow-y:auto;padding:10px 12px;border-top:1px solid #86efac;">
         ${payRows||'<div style="color:#9ca3af;font-size:0.8rem;text-align:center;padding:14px 0;">لا يوجد دفعات</div>'}
       </div>
     </div>`;
@@ -13759,11 +13762,14 @@ async function showRepStatement(phone,name){
       </div>`;
 
       html+=`<div style="background:var(--card-bg);border:1.5px solid #c4b5fd;border-radius:12px;overflow:hidden;margin-bottom:14px;">
-        <div style="background:#f5f3ff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #c4b5fd;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.tog').textContent=this.nextElementSibling.style.display==='none'?'▼':'▲';" style="background:#f5f3ff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
           <span style="font-size:0.85rem;font-weight:700;color:#6d28d9;">↩️ طلبات مرتجعة / ملغاة</span>
-          <span style="background:#ede9fe;color:#6d28d9;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${returnedOrders.length} طلب</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="background:#ede9fe;color:#6d28d9;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${returnedOrders.length} طلب</span>
+            <span class="tog" style="color:#6d28d9;font-size:0.8rem;">▼</span>
+          </div>
         </div>
-        <div style="max-height:220px;overflow-y:auto;padding:10px 12px;">
+        <div style="display:none;max-height:240px;overflow-y:auto;padding:10px 12px;border-top:1px solid #c4b5fd;">
           ${returnedOrders.map(o=>{
             const collect=_collectAmt(o);
             const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
@@ -13783,22 +13789,31 @@ async function showRepStatement(phone,name){
       </div>`;
     }
 
-    html+=`<div style="font-size:0.85rem;font-weight:700;color:#374151;margin-bottom:8px;margin-top:10px;">📦 الطلبات المُسلَّمة (${orders.length})</div>`;
-    if(orders.length){
-      html+=orders.map(o=>{
-        const collect=_collectAmt(o);
-        const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
-        const dt=o.deliveredDate||o.date||'';
-        return `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:10px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-size:0.84rem;font-weight:700;color:#1a3a2a;">${lbl}</div>
-            <div style="font-size:0.75rem;color:#6b7280;">${o.customerPhone||''}${dt?' · '+dt:''}</div>
-            ${o.address?`<div style="font-size:0.74rem;color:#9ca3af;">📍 ${o.address}</div>`:''}
-          </div>
-          <div style="font-weight:900;color:#dc2626;font-size:0.92rem;direction:ltr;">${collect.toFixed(2)} <span style="font-size:0.7rem;font-weight:600;">د.أ</span></div>
-        </div>`;
-      }).join('');
-    }else{html+='<div style="color:#9ca3af;font-size:0.8rem;padding:6px 0;">لا يوجد طلبات مُسلَّمة</div>';}
+    const orderRows=orders.map(o=>{
+      const collect=_collectAmt(o);
+      const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+      const dt=o.deliveredDate||o.date||'';
+      return `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:10px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:0.84rem;font-weight:700;color:#1a3a2a;">${lbl}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">${o.customerPhone||''}${dt?' · '+dt:''}</div>
+          ${o.address?`<div style="font-size:0.74rem;color:#9ca3af;">📍 ${o.address}</div>`:''}
+        </div>
+        <div style="font-weight:900;color:#dc2626;font-size:0.92rem;direction:ltr;">${collect.toFixed(2)} <span style="font-size:0.7rem;font-weight:600;">د.أ</span></div>
+      </div>`;
+    }).join('');
+    html+=`<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;">
+      <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.tog').textContent=this.nextElementSibling.style.display==='none'?'▼':'▲';" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+        <span style="font-size:0.85rem;font-weight:700;color:#374151;">📦 الطلبات المُسلَّمة</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="background:#f3f4f6;color:#374151;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:700;">${orders.length} طلب</span>
+          <span class="tog" style="color:#6b7280;font-size:0.8rem;">▼</span>
+        </div>
+      </div>
+      <div style="display:none;max-height:320px;overflow-y:auto;padding:10px 12px;border-top:1px solid var(--border);">
+        ${orderRows||'<div style="color:#9ca3af;font-size:0.8rem;text-align:center;padding:14px 0;">لا يوجد طلبات مُسلَّمة</div>'}
+      </div>
+    </div>`;
     if(detailEl)detailEl.innerHTML=html;
   }catch(e){if(detailEl)detailEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
 }
