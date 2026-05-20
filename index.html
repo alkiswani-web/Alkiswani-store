@@ -13392,18 +13392,23 @@ function _updateRepMapMarkers(reps){
   }
   const bounds=[];
   active.forEach((rep,i)=>{
-    const color=_repMapColors[i%_repMapColors.length];
     const name=rep.repName||'مندوب';
     const initials=name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2)||'م';
-    const timeStr=rep.updatedAt?.toDate
+    const updatedMs=rep.updatedAt?.toDate?rep.updatedAt.toDate().getTime():0;
+    const ageMin=updatedMs?Math.floor((Date.now()-updatedMs)/60000):999;
+    const isStale=ageMin>5;
+    const color=isStale?'#9ca3af':_repMapColors[i%_repMapColors.length];
+    const timeStr=updatedMs
       ?rep.updatedAt.toDate().toLocaleTimeString('ar-JO',{timeStyle:'short'}):'—';
+    const agoStr=ageMin<1?'الآن':ageMin<60?`منذ ${ageMin} د`:`منذ ${Math.floor(ageMin/60)} س`;
+    const staleWarning=isStale?`<div style="margin-top:5px;font-size:0.72rem;color:#ef4444;font-weight:600;">⚠️ موقع قديم — قد يكون الجهاز في الخلفية</div>`:'';
     const icon=L.divIcon({
-      html:`<div style="background:${color};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.75rem;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);font-family:'Tajawal',sans-serif;">${initials}</div>`,
+      html:`<div style="background:${color};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.75rem;border:3px solid ${isStale?'#d1d5db':'#fff'};box-shadow:0 2px 8px rgba(0,0,0,0.35);font-family:'Tajawal',sans-serif;opacity:${isStale?'0.7':'1'};">${initials}</div>`,
       className:'',iconSize:[34,34],iconAnchor:[17,17]
     });
     const marker=L.marker([rep.lat,rep.lng],{icon})
       .addTo(_repMapInstance)
-      .bindPopup(`<div style="direction:rtl;font-family:'Tajawal',sans-serif;min-width:140px;text-align:right;"><div style="font-weight:800;font-size:0.9rem;color:#1a3a2a;margin-bottom:4px;">🧑 ${name}</div><div style="font-size:0.76rem;color:#6b7280;">آخر تحديث: ${timeStr}</div></div>`);
+      .bindPopup(`<div style="direction:rtl;font-family:'Tajawal',sans-serif;min-width:160px;text-align:right;"><div style="font-weight:800;font-size:0.9rem;color:#1a3a2a;margin-bottom:4px;">🧑 ${name}</div><div style="font-size:0.76rem;color:#6b7280;">آخر تحديث: ${timeStr} (${agoStr})</div>${staleWarning}</div>`);
     _repMapMarkers.push(marker);
     bounds.push([rep.lat,rep.lng]);
   });
@@ -13413,7 +13418,13 @@ function _updateRepMapMarkers(reps){
     else if(bounds.length===1)_repMapInstance.setView(bounds[0],14);
   }
   if(legend){
-    legend.innerHTML=active.map((r,i)=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#fff;border-radius:20px;border:1px solid #e5e7eb;"><span style="width:10px;height:10px;border-radius:50%;background:${_repMapColors[i%_repMapColors.length]};display:inline-block;flex-shrink:0;"></span><span style="font-size:0.78rem;font-weight:600;color:#374151;">${r.repName||'مندوب'}</span></span>`).join('');
+    legend.innerHTML=active.map((r,i)=>{
+      const ageMin=r.updatedAt?.toDate?Math.floor((Date.now()-r.updatedAt.toDate().getTime())/60000):999;
+      const isStale=ageMin>5;
+      const color=isStale?'#9ca3af':_repMapColors[i%_repMapColors.length];
+      const agoStr=ageMin<1?'الآن':ageMin<60?`${ageMin}د`:`${Math.floor(ageMin/60)}س`;
+      return `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#fff;border-radius:20px;border:1px solid ${isStale?'#fca5a5':'#e5e7eb'};"><span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span><span style="font-size:0.78rem;font-weight:600;color:${isStale?'#9ca3af':'#374151'};">${r.repName||'مندوب'} <span style="font-weight:400;font-size:0.7rem;">${agoStr}</span></span></span>`;
+    }).join('');
   }
 }
 
