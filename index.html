@@ -13910,22 +13910,21 @@ let _qrAssignOrderId=null, _qrAssignOrder=null;
 async function openQRScanner(){
   const overlay=document.getElementById('qrScannerOverlay');
   if(!overlay)return;
-  // Reset any previous session
   closeQRScanner();
   _qrAssignOrderId=null; _qrAssignOrder=null;
   overlay.style.display='block';
+  document.getElementById('qrScanStatus').textContent='وجّه الكاميرا نحو QR Code على الفاتورة';
   _qrScanActive=true;
   try{
-    try{
-      _qrScanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}});
-    }catch(e){
-      _qrScanStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080}}});
-    }
+    const constraints={video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
+    try{ _qrScanStream=await navigator.mediaDevices.getUserMedia(constraints); }
+    catch(e){ _qrScanStream=await navigator.mediaDevices.getUserMedia({video:true}); }
     const video=document.getElementById('qrVideo');
     video.srcObject=_qrScanStream;
-    video.play();
-    // Short delay so camera stabilises before scanning starts
-    setTimeout(_qrScanLoop, 1200);
+    // Start scanning as soon as video has data — no artificial delay
+    video.onloadedmetadata=()=>{ video.play(); _qrScanRaf=requestAnimationFrame(_qrScanLoop); };
+    video.play().catch(()=>{});
+    if(video.readyState>=2) _qrScanRaf=requestAnimationFrame(_qrScanLoop);
   }catch(e){
     document.getElementById('qrScanStatus').textContent='❌ تعذّر الوصول للكاميرا: '+e.message;
   }
@@ -13939,25 +13938,53 @@ function closeQRScanner(){
   if(overlay)overlay.style.display='none';
 }
 
+let _qrLastDecode=0;
 function _qrScanLoop(){
   if(!_qrScanActive)return;
+  _qrScanRaf=requestAnimationFrame(_qrScanLoop);
+  // Throttle decode to ~20fps — camera runs at 30/60fps but jsQR doesn't need every frame
+  const now=Date.now();
+  if(now-_qrLastDecode<50)return;
+  _qrLastDecode=now;
   const video=document.getElementById('qrVideo');
   const canvas=document.getElementById('qrCanvas');
-  if(!video||!canvas||video.readyState!==video.HAVE_ENOUGH_DATA){
-    _qrScanRaf=requestAnimationFrame(_qrScanLoop);return;
-  }
-  canvas.width=video.videoWidth;
-  canvas.height=video.videoHeight;
-  const ctx=canvas.getContext('2d');
+  if(!video||!canvas||video.readyState<2||!video.videoWidth)return;
+  // Scale down to max 640px — jsQR is equally accurate and much faster at lower res
+  const MAX=640;
+  const sc=Math.min(1,MAX/Math.max(video.videoWidth,video.videoHeight));
+  canvas.width=Math.round(video.videoWidth*sc);
+  canvas.height=Math.round(video.videoHeight*sc);
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
   const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-  const code=jsQR(imageData.data,imageData.width,imageData.height,{inversionAttempts:'attemptBoth'});
+  const code=jsQR(imageData.data,imageData.width,imageData.height,{inversionAttempts:'dontInvert'});
   if(code&&code.data){
-    closeQRScanner();
-    _handleQRResult(code.data.trim());
-    return;
+    _qrOnDetected(code.data.trim());
   }
-  _qrScanRaf=requestAnimationFrame(_qrScanLoop);
+}
+
+function _qrOnDetected(raw){
+  _qrScanActive=false;
+  if(_qrScanRaf){cancelAnimationFrame(_qrScanRaf);_qrScanRaf=null;}
+  // Haptic feedback
+  try{navigator.vibrate&&navigator.vibrate([60,30,60]);}catch(e){}
+  // Green flash
+  const flash=document.getElementById('qrDetectFlash');
+  if(flash){flash.style.transition='none';flash.style.opacity='0.55';setTimeout(()=>{flash.style.transition='opacity 0.35s';flash.style.opacity='0';},80);}
+  // Beep
+  try{
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ac.createOscillator();const gain=ac.createGain();
+    osc.connect(gain);gain.connect(ac.destination);
+    osc.frequency.value=1480;gain.gain.setValueAtTime(0.25,ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.18);
+    osc.start();osc.stop(ac.currentTime+0.18);
+  }catch(e){}
+  // Small delay so flash is visible, then close and handle
+  setTimeout(()=>{
+    closeQRScanner();
+    _handleQRResult(raw);
+  },150);
 }
 
 async function _handleQRResult(raw){
@@ -15500,22 +15527,29 @@ window.dxfSetMode=dxfSetMode; window.dxfLoadTraceImage=dxfLoadTraceImage; window
 </div>
 
 <!-- ===== QR SCANNER OVERLAY ===== -->
+<style>
+@keyframes _qrLine{0%{top:0;opacity:0.9}50%{top:234px;opacity:1}100%{top:0;opacity:0.9}}
+@keyframes _qrCorner{0%,100%{border-color:#0ea5e9;filter:drop-shadow(0 0 2px #0ea5e9)}50%{border-color:#7dd3fc;filter:drop-shadow(0 0 8px #38bdf8)}}
+@keyframes _qrFound{0%{opacity:0.7}100%{opacity:0}}
+</style>
 <div id="qrScannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:10500;font-family:'Tajawal',sans-serif;">
-  <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:space-between;z-index:2;">
+  <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:space-between;z-index:2;backdrop-filter:blur(4px);">
     <div style="color:#fff;font-weight:700;font-size:0.95rem;">📷 مسح QR الطلب</div>
     <button onclick="closeQRScanner()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:7px 14px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">✕ إغلاق</button>
   </div>
   <video id="qrVideo" style="width:100%;height:100%;object-fit:cover;" playsinline autoplay muted></video>
   <canvas id="qrCanvas" style="display:none;"></canvas>
   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-    <div style="position:relative;width:240px;height:240px;">
-      <span style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:3px solid #0ea5e9;border-left:3px solid #0ea5e9;border-radius:4px 0 0 0;"></span>
-      <span style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:3px solid #0ea5e9;border-right:3px solid #0ea5e9;border-radius:0 4px 0 0;"></span>
-      <span style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:3px solid #0ea5e9;border-left:3px solid #0ea5e9;border-radius:0 0 0 4px;"></span>
-      <span style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:3px solid #0ea5e9;border-right:3px solid #0ea5e9;border-radius:0 0 4px 0;"></span>
+    <div id="qrScanFrame" style="position:relative;width:250px;height:250px;box-shadow:0 0 0 4000px rgba(0,0,0,0.52);">
+      <span style="position:absolute;top:-1px;left:-1px;width:36px;height:36px;border-top:3px solid #0ea5e9;border-left:3px solid #0ea5e9;border-radius:5px 0 0 0;animation:_qrCorner 2s ease-in-out infinite;"></span>
+      <span style="position:absolute;top:-1px;right:-1px;width:36px;height:36px;border-top:3px solid #0ea5e9;border-right:3px solid #0ea5e9;border-radius:0 5px 0 0;animation:_qrCorner 2s ease-in-out infinite 0.5s;"></span>
+      <span style="position:absolute;bottom:-1px;left:-1px;width:36px;height:36px;border-bottom:3px solid #0ea5e9;border-left:3px solid #0ea5e9;border-radius:0 0 0 5px;animation:_qrCorner 2s ease-in-out infinite 1s;"></span>
+      <span style="position:absolute;bottom:-1px;right:-1px;width:36px;height:36px;border-bottom:3px solid #0ea5e9;border-right:3px solid #0ea5e9;border-radius:0 0 5px 0;animation:_qrCorner 2s ease-in-out infinite 1.5s;"></span>
+      <div id="qrScanLine" style="position:absolute;left:6px;right:6px;height:2px;background:linear-gradient(90deg,transparent,#0ea5e9 25%,#7dd3fc 50%,#0ea5e9 75%,transparent);box-shadow:0 0 10px #0ea5e9,0 0 3px #fff;animation:_qrLine 2s ease-in-out infinite;"></div>
     </div>
   </div>
-  <div id="qrScanStatus" style="position:absolute;bottom:40px;left:0;right:0;text-align:center;color:#fff;font-size:0.85rem;opacity:0.8;">وجّه الكاميرا نحو QR Code على الفاتورة</div>
+  <div id="qrDetectFlash" style="position:absolute;inset:0;background:#00e676;opacity:0;pointer-events:none;"></div>
+  <div id="qrScanStatus" style="position:absolute;bottom:55px;left:0;right:0;text-align:center;color:#fff;font-size:0.88rem;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.9);letter-spacing:0.02em;">وجّه الكاميرا نحو QR Code على الفاتورة</div>
 </div>
 
 <!-- ===== QR REP ASSIGN MODAL ===== -->
