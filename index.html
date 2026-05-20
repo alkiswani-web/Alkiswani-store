@@ -9996,7 +9996,7 @@ function backToAcctList(){
   document.getElementById('opacct-operator-view').style.display='none';
   _acctCurrentStore=null;_acctCurrentSales=[];_acctCurrentPayments=[];_acctCurrentRefunds=[];
   _acctGroupMode=false;_acctCurrentGroupName='';
-  _opDailySales=[];_opDayRecord=null;
+  _opDailySales=[];_opDayRecord=null;_opDayOrders=[];
   checkOperatorDayStatus();
 }
 
@@ -10161,6 +10161,7 @@ async function loadAcctStoreList(){
 
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
+let _opDayOrders=[];
 let _opDayRecord=null;
 let _opViewDate=null; // currently viewed date (YYYY-MM-DD)
 const _opToday=()=>jordanDateStr();
@@ -10208,6 +10209,10 @@ async function _loadOpDayData(date){
     const snap=await db.collection('operator_sales').where('date','==',date).get();
     _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_opDailySales=[];}
+  try{
+    const snap=await db.collection('employee_orders').where('deliveredDate','==',date).get();
+    _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+  }catch(e){_opDayOrders=[];}
   renderOperatorDailyView();
 }
 
@@ -10354,6 +10359,51 @@ function renderOperatorDailyView(){
         <div style="font-weight:900;color:${isP?'#166534':'#dc2626'};font-size:1.2rem;">${Math.abs(totProfit).toFixed(2)} د.أ</div>
       </div>
     </div>`;
+  // ===== Delivered orders grouped by store =====
+  if(_opDayOrders.length){
+    const byStore={};
+    _opDayOrders.forEach(o=>{
+      const key=o.storeId||'__nostore__';
+      const sname=o.storeName||'بدون متجر';
+      if(!byStore[key]){byStore[key]={name:sname,orders:[],total:0};}
+      const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+      byStore[key].orders.push({...o,collectAmt:amt});
+      byStore[key].total+=amt;
+    });
+    const storeBlocks=Object.values(byStore).sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(store=>{
+      const orderRows=store.orders.map(o=>{
+        const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+        const prods=(o.products||[]).map(p=>`${p.name}×${p.quantity||p.qty||1}`).join('، ')||o.productName||'—';
+        return `<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #e5e7eb;gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${lbl}</span>
+              ${o.deliveryRepName?`<span style="background:#dbeafe;color:#1e40af;padding:1px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">🚚 ${o.deliveryRepName}</span>`:''}
+            </div>
+            <div style="font-size:0.74rem;color:#6b7280;margin-top:2px;">${o.customerPhone||''}${o.address?` · 📍 ${o.address}`:''}</div>
+            <div style="font-size:0.73rem;color:#9ca3af;margin-top:1px;">${prods}</div>
+          </div>
+          <div style="font-weight:900;color:#166534;font-size:0.88rem;white-space:nowrap;flex-shrink:0;">${o.collectAmt.toFixed(2)} <span style="font-size:0.65rem;font-weight:600;">د.أ</span></div>
+        </div>`;
+      }).join('');
+      return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;">
+        <div style="background:#1a3a2a;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#fff;font-weight:800;font-size:0.88rem;">🏪 ${store.name} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${store.orders.length} طلب)</span></div>
+          <div style="color:#86efac;font-weight:900;font-size:0.9rem;">${store.total.toFixed(2)} د.أ</div>
+        </div>
+        <div style="padding:4px 14px 8px;">${orderRows}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML+=`
+      <div style="margin-top:16px;">
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+          <span>📦 طلبات التوصيل المُسلَّمة (${_opDayOrders.length})</span>
+          <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${_opDayOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0).toFixed(2)} د.أ</span>
+        </div>
+        ${storeBlocks}
+      </div>`;
+  }
+
   // Action buttons — غلق only available for today's open account
   const isToday=(_opViewDate===_opToday());
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
