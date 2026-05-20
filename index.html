@@ -14362,14 +14362,18 @@ function _dxfApplyBridges(polylines, bridgeWidth) {
     const Lo=_dxfWalkPoly(workOuters[oi].pts,outerSeg.segIdx,outerSeg.t,-hw);
     const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
     const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
-    // Single merged closed path: outer arc → bridge left → hole arc → bridge right → close
+    // Single merged closed path:
+    // Ro → [outer long arc] → Lo → Rh → [hole long arc CCW] → Lh → close(Ro)
+    // Lo-Rh and Lh-Ro are the two parallel bridge walls (non-crossing).
+    // Hole arc uses _dxfArcForward(Rh→Lh) which is the LONG arc and traverses
+    // the hole in opposite winding to the outer, preserving the inner void.
     const merged=[
       Ro.pt,
       ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
       Lo.pt,
-      Lh.pt,
-      ..._dxfArcForward(hole.pts,Lh.segIdx,Rh.segIdx),
       Rh.pt,
+      ..._dxfArcForward(hole.pts,Rh.segIdx,Lh.segIdx),
+      Lh.pt,
     ];
     workOuters[oi]={...workOuters[oi],pts:merged,closed:true};
   }
@@ -14422,14 +14426,14 @@ function _dxfApplyChannel(polylines, channelWidth) {
     const Rh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t, hw);
     const Lh=_dxfWalkPoly(hole.pts,holeSeg.segIdx,holeSeg.t,-hw);
     // Single merged closed path:
-    //   Ro → [outer arc long way] → Lo → Lh → [hole arc long way] → Rh → close(Ro)
+    // Ro → [outer long arc] → Lo → Rh → [hole long arc CCW] → Lh → close(Ro)
     const merged=[
       Ro.pt,
       ..._dxfArcForward(workOuters[oi].pts,Ro.segIdx,Lo.segIdx),
       Lo.pt,
-      Lh.pt,
-      ..._dxfArcForward(hole.pts,Lh.segIdx,Rh.segIdx),
       Rh.pt,
+      ..._dxfArcForward(hole.pts,Rh.segIdx,Lh.segIdx),
+      Lh.pt,
     ];
     workOuters[oi]={...workOuters[oi],pts:merged,closed:true};
   }
