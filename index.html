@@ -5057,7 +5057,8 @@ const EMP_STATUSES={
   waiting_rep:{label:'انتظار مندوب',color:'#d97706',bg:'#fef3c7',border:'#fde68a'},
   delivered: {label:'تم التوصيل', color:'#22c55e',bg:'#f0fdf4',border:'#86efac'},
   queued:    {label:'قائمة توصيل', color:'#0ea5e9',bg:'#f0f9ff',border:'#bae6fd'},
-  onhold:    {label:'معلّق',        color:'#d97706',bg:'#fef3c7',border:'#fde68a'},
+  onhold:    {label:'عالق',         color:'#d97706',bg:'#fef3c7',border:'#fde68a'},
+  postponed: {label:'مؤجل',        color:'#f59e0b',bg:'#fffbeb',border:'#fde68a'},
   cancelled: {label:'ملغي',        color:'#ef4444',bg:'#fef2f2',border:'#fecaca'},
   returned:  {label:'مرتجع',       color:'#6b7280',bg:'#f9fafb',border:'#e5e7eb'},
   refused:   {label:'رفض الاستلام',color:'#dc2626',bg:'#fef2f2',border:'#fecaca'},
@@ -11557,6 +11558,7 @@ function initLazyImages(){
 let _lazyObs=null;
 
 async function init(){
+  if(new URLSearchParams(window.location.search).has('rep')){_initRepApp();return;}
   try{ initDarkMode(); }catch(e){}
   try{ checkReferral(); }catch(e){}
   try{ updateWishBadge(); }catch(e){}
@@ -13006,6 +13008,243 @@ window.openEmpCancelModal=openEmpCancelModal; window.closeEmpCancelModal=closeEm
 window.toggleEmpAdvFilter=toggleEmpAdvFilter; window.toggleOpAdvFilter=toggleOpAdvFilter;
 window.applyEmpAdvFilter=applyEmpAdvFilter; window.applyOpAdvFilter=applyOpAdvFilter;
 window.clearEmpAdvFilter=clearEmpAdvFilter; window.clearOpAdvFilter=clearOpAdvFilter;
+// ===== REP DELIVERY APP =====
+let _repCurrentUser=null;
+let _repMyOrdersUnsub=null;
+let _repLocActive=false;
+let _repGeoWatchId=null;
+let _repQRMode=false;
+
+function _initRepApp(){
+  document.getElementById('repAppPanel').style.display='block';
+  document.body.style.overflow='hidden';
+  try{const s=localStorage.getItem('_repUser');if(s)_repCurrentUser=JSON.parse(s);}catch(e){}
+  if(_repCurrentUser)_repShowMain();
+  else _repShowLogin();
+}
+
+function _repShowLogin(){
+  document.getElementById('repLoginView').style.display='block';
+  document.getElementById('repMainView').style.display='none';
+}
+
+function _repShowMain(){
+  document.getElementById('repLoginView').style.display='none';
+  document.getElementById('repMainView').style.display='block';
+  const lbl=document.getElementById('repNameLabel');
+  if(lbl)lbl.textContent=_repCurrentUser.name||'';
+  loadRepOrders();
+}
+
+async function repLogin(){
+  const phoneEl=document.getElementById('repLoginPhone');
+  const errEl=document.getElementById('repLoginError');
+  const phone=(phoneEl?.value||'').trim().replace(/\s/g,'');
+  if(!phone){if(errEl){errEl.textContent='أدخل رقم الهاتف';errEl.style.display='block';}return;}
+  if(errEl)errEl.style.display='none';
+  try{
+    const snap=await db.collection('operator_config').doc('delivery_reps').get();
+    const reps=(snap.exists?snap.data()?.reps:[])||[];
+    const rep=reps.find(r=>{
+      const rp=(r.phone||'').replace(/\D/g,'');
+      const lp=phone.replace(/\D/g,'');
+      return rp===lp||rp.slice(-8)===lp.slice(-8);
+    });
+    if(!rep){
+      if(errEl){errEl.textContent='رقم الهاتف غير موجود في قائمة المناديب — تواصل مع الإدارة';errEl.style.display='block';}
+      return;
+    }
+    _repCurrentUser={name:rep.name,phone:rep.phone};
+    localStorage.setItem('_repUser',JSON.stringify(_repCurrentUser));
+    _repShowMain();
+  }catch(e){if(errEl){errEl.textContent='❌ '+e.message;errEl.style.display='block';}}
+}
+
+function repLogout(){
+  if(_repMyOrdersUnsub){_repMyOrdersUnsub();_repMyOrdersUnsub=null;}
+  repStopLocation();
+  _repCurrentUser=null;
+  localStorage.removeItem('_repUser');
+  _repShowLogin();
+}
+
+function loadRepOrders(){
+  const wrap=document.getElementById('repOrdersList');
+  if(!wrap||!_repCurrentUser)return;
+  if(_repMyOrdersUnsub){_repMyOrdersUnsub();_repMyOrdersUnsub=null;}
+  wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;background:#fff;border-radius:14px;">⏳ تحميل...</div>';
+  _repMyOrdersUnsub=db.collection('employee_orders')
+    .where('deliveryRepPhone','==',_repCurrentUser.phone)
+    .limit(80)
+    .onSnapshot(snap=>{
+      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(o=>!['delivered','cancelled','returned','refused'].includes(o.status))
+        .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+      _renderRepOrders(orders);
+    },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:12px;text-align:center;">❌ '+e.message+'</div>';});
+}
+
+function _renderRepOrders(orders){
+  const wrap=document.getElementById('repOrdersList');
+  const countEl=document.getElementById('repOrdersCount');
+  if(!wrap)return;
+  if(countEl)countEl.textContent=orders.length;
+  if(!orders.length){
+    wrap.innerHTML='<div style="text-align:center;padding:36px;background:#fff;border-radius:14px;border:1.5px dashed #e5e7eb;"><div style="font-size:2.5rem;margin-bottom:8px;">📭</div><div style="color:#9ca3af;font-size:0.85rem;">لا يوجد طلبات نشطة<br><span style="font-size:0.75rem;">امسح QR لحجز طلب جديد</span></div></div>';
+    return;
+  }
+  const SL={delivering:'قيد التوصيل',queued:'قائمة التوصيل',waiting_rep:'انتظار التسليم',onhold:'عالق',postponed:'مؤجل',pending:'جديد',preparing:'قيد التجهيز',prepared:'جاهز'};
+  const SC={delivering:'#8b5cf6',queued:'#0ea5e9',waiting_rep:'#d97706',onhold:'#d97706',postponed:'#f59e0b',pending:'#f59e0b',preparing:'#f97316',prepared:'#3b82f6'};
+  wrap.innerHTML=orders.map(o=>{
+    const sc=SC[o.status]||'#6b7280',sl=SL[o.status]||o.status;
+    const prods=(o.products||[{name:o.productName||'?',qty:1}]);
+    const prodStr=prods.map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');
+    const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2);
+    const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+    return `<div onclick="repOpenOrderById('${o.id}')" style="background:#fff;border-radius:14px;padding:15px 16px;margin-bottom:10px;border:1.5px solid #e5e7eb;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:800;font-size:0.9rem;color:#1a3a2a;">${label}</span>
+        <span style="background:${sc}20;color:${sc};padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;">${sl}</span>
+      </div>
+      ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:4px;">📱 ${o.customerPhone}</div>`:''}
+      <div style="font-size:0.79rem;color:#6b7280;margin-bottom:4px;">📦 ${prodStr}</div>
+      ${o.address?`<div style="font-size:0.79rem;color:#6b7280;margin-bottom:4px;">📍 ${o.address}</div>`:''}
+      <div style="font-weight:800;color:#166534;font-size:0.92rem;text-align:left;direction:ltr;">${total} د.أ</div>
+    </div>`;
+  }).join('');
+}
+
+async function repOpenOrderById(id){
+  try{
+    const snap=await db.collection('employee_orders').doc(id).get();
+    if(snap.exists)_showRepOrderDetail({id:snap.id,...snap.data()});
+    else toast('❌ الطلب غير موجود');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+function repOpenQRScanner(){_repQRMode=true;openQRScanner();}
+
+function _showRepOrderDetail(o){
+  const modal=document.getElementById('repOrderModal');
+  const content=document.getElementById('repOrderDetailContent');
+  if(!modal||!content)return;
+  const prods=o.products||[{name:o.productName||'?',qty:1,price:o.totalPrice||0}];
+  const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
+  const dlv=o.deliveryFee||0;
+  const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+  const st=EMP_STATUSES[o.status]||{label:o.status,color:'#6b7280'};
+  const isTerminal=['delivered','cancelled','returned','refused'].includes(o.status);
+  content.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-weight:900;font-size:1.05rem;color:#1a3a2a;">${label}</div>
+      <span style="background:${st.color}20;color:${st.color};padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;">${st.label}</span>
+    </div>
+    <div style="background:#f9fafb;border-radius:12px;padding:13px 15px;margin-bottom:14px;">
+      ${o.customerPhone?`<div style="font-size:0.85rem;color:#374151;margin-bottom:7px;display:flex;align-items:center;gap:8px;">📱 <a href="tel:${o.customerPhone}" style="color:#1d4ed8;text-decoration:none;font-weight:700;">${o.customerPhone}</a></div>`:''}
+      ${o.name?`<div style="font-size:0.83rem;color:#374151;margin-bottom:6px;">👤 ${o.name}</div>`:''}
+      ${o.address?`<div style="font-size:0.83rem;color:#374151;margin-bottom:6px;">📍 ${o.address}</div>`:''}
+      ${o.area?`<div style="font-size:0.8rem;color:#6b7280;margin-bottom:4px;">🗺 ${o.area}</div>`:''}
+      ${o.notes?`<div style="font-size:0.8rem;color:#d97706;background:#fffbeb;border-radius:7px;padding:6px 9px;margin-top:4px;">📝 ${o.notes}</div>`:''}
+    </div>
+    <div style="margin-bottom:14px;">
+      ${prods.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:0.83rem;"><span style="color:#374151;">${p.name}${(p.qty||1)>1?` <b>×${p.qty}</b>`:''}</span><span style="font-weight:700;color:#374151;">${((p.price||0)*(p.qty||1)).toFixed(2)} د.أ</span></div>`).join('')}
+      ${dlv?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:0.83rem;"><span style="color:#6b7280;">🚗 التوصيل</span><span style="color:#374151;">${dlv.toFixed(2)} د.أ</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:1rem;"><span style="font-weight:800;color:#1a3a2a;">الإجمالي</span><span style="font-weight:900;color:#166534;font-size:1.1rem;">${total.toFixed(2)} د.أ</span></div>
+    </div>
+    ${isTerminal
+      ?`<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:12px;background:#f9fafb;border-radius:10px;">هذا الطلب أُغلق</div>`
+      :`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <button onclick="repSetStatus('${o.id}','delivering',this)" style="padding:14px 8px;background:#8b5cf6;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:1.3rem;">🚚</span>تم حجز الطلب</button>
+        <button onclick="repSetStatus('${o.id}','delivered',this)" style="padding:14px 8px;background:#22c55e;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:1.3rem;">✅</span>تسليم</button>
+        <button onclick="repSetStatus('${o.id}','postponed',this)" style="padding:14px 8px;background:#f59e0b;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:1.3rem;">⏸</span>مؤجل</button>
+        <button onclick="repSetStatus('${o.id}','onhold',this)" style="padding:14px 8px;background:#d97706;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:1.3rem;">⚠️</span>عالق</button>
+        <button onclick="repSetStatus('${o.id}','cancelled',this)" style="padding:14px 8px;background:#ef4444;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;grid-column:1/-1;flex-direction:row;gap:8px;justify-content:center;"><span style="font-size:1.2rem;">❌</span>ملغي</button>
+      </div>
+      <button onclick="repShareLocation('${o.customerPhone||''}')" style="width:100%;padding:12px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📍 أرسل موقعي للزبون عبر واتساب</button>`
+    }`;
+  modal.style.display='block';
+}
+
+function closeRepOrderModal(){document.getElementById('repOrderModal').style.display='none';}
+
+async function repSetStatus(orderId,status,btn){
+  if(btn){btn.disabled=true;btn.style.opacity='0.6';}
+  try{
+    const upd={status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(status==='delivered')upd.deliveredDate=jordanDateStr();
+    if(status==='delivering'&&_repCurrentUser){
+      upd.deliveryRepName=_repCurrentUser.name;
+      upd.deliveryRepPhone=_repCurrentUser.phone;
+    }
+    await db.collection('employee_orders').doc(orderId).update(upd);
+    closeRepOrderModal();
+    const msgs={delivering:'✅ تم حجز الطلب — وصلنا للأدمن',delivered:'✅ تم تسجيل التسليم',postponed:'⏸ تم تأجيل الطلب',onhold:'⚠️ تم تحديد الطلب كعالق',cancelled:'❌ تم إلغاء الطلب'};
+    toast(msgs[status]||'✅ تم التحديث');
+  }catch(e){
+    if(btn){btn.disabled=false;btn.style.opacity='';}
+    toast('❌ '+e.message);
+  }
+}
+
+function repToggleLocation(){if(_repLocActive)repStopLocation();else repStartLocation();}
+
+function repStartLocation(){
+  if(!navigator.geolocation){toast('GPS غير مدعوم في هذا الجهاز');return;}
+  const btn=document.getElementById('repLocBtn');
+  if(btn){btn.textContent='⏳ ...';btn.disabled=true;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    _repLocActive=true;
+    _repSendRepLocation(pos.coords.latitude,pos.coords.longitude);
+    _repGeoWatchId=navigator.geolocation.watchPosition(
+      p=>_repSendRepLocation(p.coords.latitude,p.coords.longitude),
+      ()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:20000}
+    );
+    if(btn){btn.textContent='⏹ موقع';btn.disabled=false;btn.style.background='rgba(239,68,68,0.7)';}
+    toast('📍 بدأ مشاركة الموقع مع الأدمن');
+  },()=>{
+    if(btn){btn.textContent='📍 موقع';btn.disabled=false;}
+    toast('تعذر تحديد الموقع — تأكد من تفعيل GPS');
+  },{enableHighAccuracy:true,timeout:12000});
+}
+
+function repStopLocation(){
+  if(_repGeoWatchId!==null){navigator.geolocation.clearWatch(_repGeoWatchId);_repGeoWatchId=null;}
+  _repLocActive=false;
+  if(_repCurrentUser){
+    db.collection('rep_locations').doc(_repCurrentUser.phone||_repCurrentUser.name)
+      .set({isActive:false,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
+  }
+  const btn=document.getElementById('repLocBtn');
+  if(btn){btn.style.background='rgba(255,255,255,0.12)';btn.textContent='📍 موقع';}
+}
+
+function _repSendRepLocation(lat,lng){
+  if(!_repCurrentUser)return;
+  const key=_repCurrentUser.phone||_repCurrentUser.name;
+  db.collection('rep_locations').doc(key).set({
+    repId:key,repName:_repCurrentUser.name,
+    lat,lng,isActive:true,
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(()=>{});
+}
+
+function repShareLocation(customerPhone){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const url=`https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+    const msg=`📍 موقعي الحالي:\n${url}`;
+    const clean=(customerPhone||'').replace(/\D/g,'');
+    if(clean)window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`,'_blank');
+    else{navigator.clipboard?.writeText(msg).then(()=>toast('تم نسخ رابط الموقع')).catch(()=>window.open(url,'_blank'));}
+  },()=>{toast('تعذر تحديد الموقع');},{enableHighAccuracy:true,timeout:10000});
+}
+
+window.addEventListener('beforeunload',()=>{if(_repLocActive)repStopLocation();});
+window.repLogin=repLogin; window.repLogout=repLogout;
+window.repOpenQRScanner=repOpenQRScanner; window.repOpenOrderById=repOpenOrderById;
+window.repSetStatus=repSetStatus; window.closeRepOrderModal=closeRepOrderModal;
+window.repToggleLocation=repToggleLocation; window.repShareLocation=repShareLocation;
+window.loadRepOrders=loadRepOrders;
+
 // ===== REP LOCATION TRACKING =====
 let _empGeoWatchId=null;
 let _empLocShareActive=false;
@@ -14188,7 +14427,13 @@ async function _handleQRResult(raw){
   try{const u=new URL(orderId);const p=u.searchParams.get('order');if(p)orderId=p;}catch(e){}
   try{
     closeQRScanner();
-    // If waiting for rep → open rep picker directly
+    if(_repQRMode){
+      _repQRMode=false;
+      const snap=await db.collection('employee_orders').doc(orderId).get();
+      if(snap.exists)_showRepOrderDetail({id:snap.id,...snap.data()});
+      else toast('❌ الطلب غير موجود');
+      return;
+    }
     const snap=await db.collection('employee_orders').doc(orderId).get();
     if(snap.exists&&snap.data().status==='waiting_rep'){
       _openRepPickerFromDetail(orderId);
@@ -15769,6 +16014,73 @@ window.dxfSetMode=dxfSetMode; window.dxfLoadTraceImage=dxfLoadTraceImage; window
       </div>
       <div id="qrAssignActionBtns" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;"></div>
     </div>
+  </div>
+</div>
+
+<!-- REP APP PANEL -->
+<div id="repAppPanel" style="display:none;position:fixed;inset:0;z-index:920;background:#f0f9ff;font-family:'Tajawal',sans-serif;overflow-y:auto;direction:rtl;">
+
+  <!-- LOGIN VIEW -->
+  <div id="repLoginView">
+    <div style="background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:50px 20px 36px;text-align:center;">
+      <div style="font-size:3rem;margin-bottom:10px;">🚚</div>
+      <div style="color:#c9a84c;font-weight:900;font-size:1.4rem;margin-bottom:4px;">نظام المناديب</div>
+      <div style="color:rgba(255,255,255,0.6);font-size:0.82rem;">سجّل دخولك لتبدأ العمل</div>
+    </div>
+    <div style="max-width:400px;margin:0 auto;padding:28px 20px;">
+      <div style="background:#fff;border-radius:18px;padding:26px;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
+        <div style="font-size:0.85rem;font-weight:700;color:#374151;margin-bottom:8px;">📱 رقم هاتفك</div>
+        <input id="repLoginPhone" type="tel" placeholder="962XXXXXXXX" autocomplete="off"
+          style="width:100%;padding:13px 14px;border:2px solid #e5e7eb;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:1rem;outline:none;box-sizing:border-box;direction:ltr;text-align:center;margin-bottom:12px;"
+          onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'"
+          onkeydown="if(event.key==='Enter')repLogin()">
+        <div id="repLoginError" style="display:none;background:#fee2e2;border-radius:8px;padding:9px 12px;font-size:0.82rem;color:#dc2626;margin-bottom:12px;text-align:center;"></div>
+        <button onclick="repLogin()" style="width:100%;padding:14px;background:#1a3a2a;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">دخول 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN VIEW -->
+  <div id="repMainView" style="display:none;">
+    <div style="background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,0.25);">
+      <button onclick="repLogout()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;padding:8px 14px;border-radius:9px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.82rem;">خروج 🚪</button>
+      <div style="text-align:center;">
+        <div style="color:#c9a84c;font-weight:800;font-size:0.95rem;">🚚 مندوب التوصيل</div>
+        <div id="repNameLabel" style="color:rgba(255,255,255,0.65);font-size:0.72rem;margin-top:1px;"></div>
+      </div>
+      <button id="repLocBtn" onclick="repToggleLocation()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.82rem;transition:background 0.2s;">📍 موقع</button>
+    </div>
+
+    <div style="max-width:480px;margin:0 auto;padding:18px 16px;">
+
+      <!-- QR scan button -->
+      <button onclick="repOpenQRScanner()" style="width:100%;padding:24px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:1.1rem;font-weight:800;cursor:pointer;margin-bottom:22px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 6px 20px rgba(29,78,216,0.35);">
+        <span style="font-size:2rem;">📷</span>
+        <div style="text-align:right;"><div>مسح QR الطلب</div><div style="font-size:0.75rem;font-weight:400;opacity:0.8;margin-top:2px;">اضغط وامسح رمز الطلب</div></div>
+      </button>
+
+      <!-- My orders header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:0.9rem;font-weight:800;color:#1a3a2a;display:flex;align-items:center;gap:8px;">
+          📦 طلباتي
+          <span id="repOrdersCount" style="background:#1a3a2a;color:#fff;border-radius:20px;padding:2px 9px;font-size:0.7rem;font-weight:700;">0</span>
+        </div>
+        <button onclick="loadRepOrders()" style="background:none;border:none;font-size:0.8rem;color:#6b7280;cursor:pointer;font-family:'Tajawal',sans-serif;">↻ تحديث</button>
+      </div>
+
+      <div id="repOrdersList">
+        <div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;background:#fff;border-radius:14px;">⏳ تحميل...</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- REP ORDER DETAIL MODAL -->
+<div id="repOrderModal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.6);font-family:'Tajawal',sans-serif;direction:rtl;" onclick="if(event.target===this)closeRepOrderModal()">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:22px 22px 0 0;max-height:92vh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,0.25);">
+    <div style="padding:12px 20px 0;text-align:center;"><div style="width:38px;height:4px;background:#e5e7eb;border-radius:2px;display:inline-block;"></div></div>
+    <div style="padding:18px 20px 24px;" id="repOrderDetailContent"></div>
   </div>
 </div>
 
