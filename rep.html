@@ -472,18 +472,14 @@ function supOrderCard(o){
   const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
   const prods=(o.products||[{name:o.productName||'؟',qty:1}]);
   const ps=prods.map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');
-  return `<div style="background:#fff;border-radius:14px;padding:14px 15px;margin-bottom:8px;border:1.5px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+  return `<div onclick="showSupOrderModal(supOrders.find(x=>x.id==='${o.id}'))" style="background:#fff;border-radius:14px;padding:14px 15px;margin-bottom:8px;border:1.5px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,0.05);cursor:pointer;active:opacity:0.8;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
       <span style="font-weight:800;color:#1a3a2a;font-size:0.9rem;">${lbl}</span>
       <span style="background:${s.color}20;color:${s.color};padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;">${s.label}</span>
     </div>
     ${o.name?`<div style="font-size:0.8rem;color:#374151;margin-bottom:3px;">👤 ${o.name}</div>`:''}
     ${o.address?`<div style="font-size:0.78rem;color:#6b7280;margin-bottom:3px;">📍 ${o.address}</div>`:''}
-    <div style="font-size:0.78rem;color:#6b7280;margin-bottom:8px;">📦 ${ps}</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid #f3f4f6;">
-      <span style="font-weight:900;color:#166534;font-size:0.95rem;">${total.toFixed(2)} د.أ</span>
-      <button onclick="openTransferModal('${o.id}')" style="padding:7px 14px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:0.8rem;font-weight:700;font-family:'Tajawal',sans-serif;">↔ تحويل</button>
-    </div>
+    <div style="font-size:0.78rem;color:#6b7280;">📦 ${ps}</div>
   </div>`;
 }
 
