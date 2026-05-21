@@ -246,11 +246,30 @@ input{font-family:'Tajawal',sans-serif;}
     </div>
   </div>
 
+  <!-- QR scan button -->
+  <div style="padding:0 16px 10px;flex-shrink:0;">
+    <button onclick="supOpenQR()" style="width:100%;padding:16px 20px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:16px;font-size:1rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 4px 16px rgba(124,58,237,0.4);font-family:'Tajawal',sans-serif;">
+      <span style="font-size:1.6rem;">📷</span>
+      <div style="text-align:right;">
+        <div>مسح QR طلب</div>
+        <div style="font-size:0.72rem;font-weight:400;opacity:0.8;margin-top:1px;">تغيير حالة أو تحويل للمندوب</div>
+      </div>
+    </button>
+  </div>
+
   <!-- Orders list -->
   <div style="flex:1;overflow-y:auto;padding:0 16px 24px;">
     <div id="supOrdersList">
       <div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div>
     </div>
+  </div>
+</div>
+
+<!-- ====== SUPERVISOR ORDER MODAL ====== -->
+<div id="supOrderModal" onclick="if(event.target===this)closeSupModal()" style="display:none;position:fixed;inset:0;z-index:280;background:rgba(0,0,0,0.6);">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:22px 22px 0 0;max-height:88dvh;overflow-y:auto;padding:16px 18px 28px;">
+    <div style="width:38px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 14px;"></div>
+    <div id="supOrderContent"></div>
   </div>
 </div>
 
@@ -303,6 +322,7 @@ let geoIntervalId=null;
 let wakeLock=null;
 let qrStream=null;
 let qrActive=false;
+let _supQRMode=false;
 let pwaPrompt=null;
 
 // ===== PWA INSTALL =====
@@ -769,7 +789,8 @@ function qrOnDetected(raw){
   if(flash){flash.style.opacity='0.7';setTimeout(()=>flash.style.opacity='0',300);}
   setTimeout(()=>{
     closeQR();
-    handleQRResult(raw);
+    if(_supQRMode){_supQRMode=false;supHandleQRResult(raw);}
+    else{handleQRResult(raw);}
   },200);
 }
 
@@ -811,6 +832,74 @@ async function doManualEntry(){
         toast('❌ ما لقيت طلب بهاد الرقم');
       }
     }
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// ===== SUPERVISOR QR =====
+function supOpenQR(){
+  _supQRMode=true;
+  openQR();
+}
+
+async function supHandleQRResult(raw){
+  let orderId=raw.trim();
+  try{const u=new URL(orderId);const p=u.searchParams.get('order');if(p)orderId=p;}catch(e){}
+  toast('⏳ تحميل الطلب...');
+  try{
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(!snap.exists){toast('❌ الطلب غير موجود في النظام');return;}
+    const o={id:snap.id,...snap.data()};
+    const idx=supOrders.findIndex(x=>x.id===o.id);
+    if(idx>=0)supOrders[idx]=o;else supOrders.push(o);
+    showSupOrderModal(o);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+function showSupOrderModal(o){
+  const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+  const s=ST[o.status]||{label:o.status,color:'#6b7280'};
+  const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
+  const prods=(o.products||[{name:o.productName||'؟',qty:1}]);
+  const ps=prods.map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');
+  const statusBtns=['pending','preparing','prepared','queued','waiting_rep','delivering','onhold','postponed','delivered','cancelled','returned']
+    .map(st=>{
+      const info=ST[st]||{label:st,color:'#6b7280'};
+      const cur=o.status===st;
+      return `<button onclick="supSetStatus('${o.id}','${st}')" style="padding:8px 4px;background:${cur?info.color+'25':'#f9fafb'};color:${cur?info.color:'#374151'};border:1.5px solid ${cur?info.color:'#e5e7eb'};border-radius:10px;font-size:0.7rem;font-weight:${cur?'800':'600'};font-family:'Tajawal',sans-serif;cursor:pointer;">${info.label}</button>`;
+    }).join('');
+  document.getElementById('supOrderContent').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-weight:900;color:#1a3a2a;font-size:1.05rem;">${lbl}</span>
+      <span style="background:${s.color}20;color:${s.color};padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;">${s.label}</span>
+    </div>
+    ${o.deliveryRepName?`<div style="font-size:0.82rem;color:#7c3aed;margin-bottom:4px;font-weight:700;">🚚 ${o.deliveryRepName}</div>`:'<div style="font-size:0.82rem;color:#ef4444;margin-bottom:4px;font-weight:700;">⚠️ بدون مندوب</div>'}
+    ${o.name?`<div style="font-size:0.84rem;color:#374151;margin-bottom:3px;">👤 ${o.name}</div>`:''}
+    ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:3px;">📱 ${o.customerPhone}</div>`:''}
+    ${o.address?`<div style="font-size:0.82rem;color:#374151;margin-bottom:3px;">📍 ${o.address}</div>`:''}
+    <div style="font-size:0.8rem;color:#6b7280;margin-bottom:12px;">📦 ${ps}</div>
+    <div style="font-size:0.88rem;font-weight:800;color:#374151;margin-bottom:8px;">تغيير الحالة:</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;">${statusBtns}</div>
+    <button onclick="closeSupModal();openTransferModal('${o.id}')" style="width:100%;padding:14px;background:#7c3aed;color:#fff;border:none;border-radius:13px;font-size:0.95rem;font-weight:800;font-family:'Tajawal',sans-serif;">↔ تحويل لمندوب</button>
+  `;
+  document.getElementById('supOrderModal').style.display='block';
+}
+
+function closeSupModal(){
+  document.getElementById('supOrderModal').style.display='none';
+}
+
+async function supSetStatus(orderId,newStatus){
+  try{
+    await db.collection('employee_orders').doc(orderId).update({status:newStatus});
+    toast('✅ '+(ST[newStatus]?.label||newStatus));
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(snap.exists){
+      const o={id:snap.id,...snap.data()};
+      const idx=supOrders.findIndex(x=>x.id===o.id);
+      if(idx>=0)supOrders[idx]=o;else supOrders.push(o);
+      showSupOrderModal(o);
+    }
+    loadSupData();
   }catch(e){toast('❌ '+e.message);}
 }
 
