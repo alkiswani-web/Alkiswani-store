@@ -506,6 +506,7 @@ async function loadRepsTab(){
       const repDelivered=delivered.filter(o=>(o.deliveryRepPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8));
       const repActive=supOrders.filter(o=>(o.deliveryRepPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8));
       const owed=repDelivered.reduce((s,o)=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return s+Math.max(0,t-(o.deliveryFee||0));},0);
+      const activeOwed=repActive.reduce((s,o)=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return s+Math.max(0,t-(o.deliveryFee||0));},0);
       const paid=payments.filter(p=>(p.repPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8)).reduce((s,p)=>s+(p.amount||0),0);
       const refunded=refunds.filter(p=>(p.repPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8)).reduce((s,p)=>s+(p.amount||0),0);
       const bal=owed-paid;
@@ -522,10 +523,10 @@ async function loadRepsTab(){
             <div style="font-size:0.65rem;color:#6b7280;">طلب نشط</div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
           <div style="background:#f0fdf4;border-radius:10px;padding:8px;text-align:center;">
             <div style="font-size:0.9rem;font-weight:800;color:#166534;">${owed.toFixed(2)}</div>
-            <div style="font-size:0.62rem;color:#6b7280;">مستحق</div>
+            <div style="font-size:0.62rem;color:#6b7280;">مستحق (مسلّم)</div>
           </div>
           <div style="background:#eff6ff;border-radius:10px;padding:8px;text-align:center;">
             <div style="font-size:0.9rem;font-weight:800;color:#1d4ed8;">${paid.toFixed(2)}</div>
@@ -534,6 +535,10 @@ async function loadRepsTab(){
           <div style="background:${balColor}10;border-radius:10px;padding:8px;text-align:center;border:1.5px solid ${balColor}30;">
             <div style="font-size:0.9rem;font-weight:900;color:${balColor};">${Math.abs(bal).toFixed(2)}</div>
             <div style="font-size:0.62rem;color:${balColor};">${balLabel}</div>
+          </div>
+          <div style="background:#fff7ed;border-radius:10px;padding:8px;text-align:center;border:1.5px solid #fed7aa;">
+            <div style="font-size:0.9rem;font-weight:800;color:#c2410c;">${activeOwed.toFixed(2)}</div>
+            <div style="font-size:0.62rem;color:#c2410c;">قيد التسليم</div>
           </div>
         </div>
         ${repActive.length?`<div style="font-size:0.75rem;color:#6b7280;padding-top:8px;border-top:1px dashed #e5e7eb;">
