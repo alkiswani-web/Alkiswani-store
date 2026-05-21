@@ -973,6 +973,7 @@ document.addEventListener('keydown',function(e){
 });
 function processHwScan(raw){
   try{navigator.vibrate&&navigator.vibrate([60,30,60]);}catch(e){}
+  if(qrActive)closeQR();
   if(document.getElementById('supView').classList.contains('active')){supHandleQRResult(raw);}
   else if(document.getElementById('mainView').classList.contains('active')){handleQRResult(raw);}
 }

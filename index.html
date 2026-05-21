@@ -14964,7 +14964,7 @@ async function _handleQRResult(raw){
     if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
     if(e.key==='Enter'){
       const raw=_buf.trim();_buf='';clearTimeout(_timer);
-      if(raw.length>3)_handleQRResult(raw);
+      if(raw.length>3){closeQRScanner();_handleQRResult(raw);}
       return;
     }
     if(e.key.length===1){
