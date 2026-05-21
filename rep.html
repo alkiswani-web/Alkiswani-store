@@ -275,6 +275,26 @@ input{font-family:'Tajawal',sans-serif;}
   </div>
 </div>
 
+<!-- ====== REP PAYMENT MODAL ====== -->
+<div id="repPayModal" onclick="if(event.target===this)closeRepPayModal()" style="display:none;position:fixed;inset:0;z-index:290;background:rgba(0,0,0,0.6);">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:22px 22px 0 0;padding:20px 18px 32px;">
+    <div style="width:38px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 16px;"></div>
+    <div id="repPayTitle" style="font-weight:800;font-size:1rem;color:#1a3a2a;margin-bottom:16px;text-align:center;">💰 تسجيل دفعة</div>
+    <div style="font-size:0.78rem;color:#6b7280;margin-bottom:6px;">المبلغ (د.أ)</div>
+    <input id="repPayAmount" type="number" inputmode="decimal" placeholder="0.00"
+      style="width:100%;padding:14px;border:2px solid #e5e7eb;border-radius:12px;font-size:1.1rem;font-family:'Tajawal',sans-serif;outline:none;direction:ltr;text-align:center;margin-bottom:12px;"
+      onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
+    <div style="font-size:0.78rem;color:#6b7280;margin-bottom:6px;">ملاحظات (اختياري)</div>
+    <input id="repPayNotes" type="text" placeholder="مثال: دفعة يومية"
+      style="width:100%;padding:12px;border:2px solid #e5e7eb;border-radius:12px;font-size:0.9rem;font-family:'Tajawal',sans-serif;outline:none;margin-bottom:16px;"
+      onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button onclick="closeRepPayModal()" style="padding:14px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:0.9rem;font-weight:700;font-family:'Tajawal',sans-serif;">إلغاء</button>
+      <button onclick="saveRepPay()" style="padding:14px;background:#7c3aed;color:#fff;border:none;border-radius:12px;font-size:0.9rem;font-weight:800;font-family:'Tajawal',sans-serif;">✅ تسجيل</button>
+    </div>
+  </div>
+</div>
+
 <!-- ====== SUPERVISOR ORDER MODAL ====== -->
 <div id="supOrderModal" onclick="if(event.target===this)closeSupModal()" style="display:none;position:fixed;inset:0;z-index:280;background:rgba(0,0,0,0.6);">
   <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:22px 22px 0 0;max-height:88dvh;overflow-y:auto;padding:16px 18px 28px;">
@@ -511,11 +531,46 @@ async function loadRepsTab(){
         ${repActive.length?`<div style="font-size:0.75rem;color:#6b7280;padding-top:8px;border-top:1px dashed #e5e7eb;">
           ${repActive.map(o=>{const lbl=o.orderNum?'#'+o.orderNum:'#'+o.id.slice(-6).toUpperCase();const st=ST[o.status]||{label:o.status,color:'#6b7280'};return `<span onclick="showSupOrderModal(supOrders.find(x=>x.id==='${o.id}'))" style="display:inline-flex;align-items:center;gap:4px;background:${st.color}15;color:${st.color};border-radius:8px;padding:3px 8px;margin:2px;cursor:pointer;font-weight:700;">${lbl} ${st.label}</span>`;}).join('')}
         </div>`:''}
+        <button onclick="openRepPayModal('${r.phone}','${(r.name||'').replace(/'/g,"\\'")}')" style="width:100%;margin-top:10px;padding:11px;background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe;border-radius:12px;font-size:0.88rem;font-weight:800;font-family:'Tajawal',sans-serif;">💰 تسجيل دفعة</button>
       </div>`;
     }).join('');
   }catch(e){
     document.getElementById('supRepsList').innerHTML='<div style="color:#dc2626;text-align:center;padding:20px;">❌ '+e.message+'</div>';
   }
+}
+
+let _repPayPhone='';
+let _repPayName='';
+
+function openRepPayModal(phone,name){
+  _repPayPhone=phone;_repPayName=name;
+  document.getElementById('repPayTitle').textContent='💰 دفعة — '+name;
+  document.getElementById('repPayAmount').value='';
+  document.getElementById('repPayNotes').value='';
+  document.getElementById('repPayModal').style.display='block';
+  setTimeout(()=>document.getElementById('repPayAmount').focus(),150);
+}
+
+function closeRepPayModal(){
+  document.getElementById('repPayModal').style.display='none';
+  _repPayPhone='';_repPayName='';
+}
+
+async function saveRepPay(){
+  const amt=parseFloat(document.getElementById('repPayAmount').value||'0');
+  if(!amt||amt<=0){toast('أدخل مبلغاً صحيحاً');return;}
+  const notes=(document.getElementById('repPayNotes').value||'').trim();
+  try{
+    const d=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
+    await db.collection('rep_payments').add({
+      repPhone:_repPayPhone,repName:_repPayName,
+      amount:amt,notes,date:d,addedBy:currentUser.name||'مشرف',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeRepPayModal();
+    toast('✅ تم تسجيل الدفعة '+amt.toFixed(2)+' د.أ');
+    loadRepsTab();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 function renderSupOrders(){
