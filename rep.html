@@ -152,13 +152,29 @@ input{font-family:'Tajawal',sans-serif;}
     </div>
 
     <!-- QR button -->
-    <button onclick="openQR()" style="width:100%;padding:24px 20px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:18px;font-size:1.1rem;font-weight:800;margin-bottom:22px;display:flex;align-items:center;justify-content:center;gap:14px;box-shadow:0 6px 20px rgba(29,78,216,0.35);">
+    <button onclick="openQR()" style="width:100%;padding:24px 20px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:18px;font-size:1.1rem;font-weight:800;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:14px;box-shadow:0 6px 20px rgba(29,78,216,0.35);">
       <span style="font-size:2rem;">📷</span>
       <div style="text-align:right;">
         <div>مسح QR الطلب</div>
         <div style="font-size:0.75rem;font-weight:400;opacity:0.8;margin-top:2px;">اضغط وامسح رمز الطلب</div>
       </div>
     </button>
+
+    <!-- Manual order entry -->
+    <button onclick="toggleManualEntry()" style="width:100%;padding:13px 20px;background:#f3f4f6;color:#374151;border:1.5px dashed #d1d5db;border-radius:14px;font-size:0.88rem;font-weight:700;margin-bottom:22px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      ⌨️ إدخال رقم الطلب يدوياً
+    </button>
+    <div id="manualEntryBox" style="display:none;background:#fff;border-radius:14px;border:1.5px solid #e5e7eb;padding:14px;margin-top:-18px;margin-bottom:22px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <div style="font-size:0.8rem;color:#6b7280;margin-bottom:8px;">أدخل رقم الطلب (مثال: 1234)</div>
+      <div style="display:flex;gap:8px;">
+        <input id="manualOrderInput" type="number" placeholder="رقم الطلب" inputmode="numeric"
+          style="flex:1;padding:12px;border:2px solid #e5e7eb;border-radius:10px;font-size:1rem;font-family:'Tajawal',sans-serif;outline:none;direction:ltr;text-align:center;"
+          onfocus="this.style.borderColor='#1d4ed8'"
+          onblur="this.style.borderColor='#e5e7eb'"
+          onkeydown="if(event.key==='Enter')doManualEntry()">
+        <button onclick="doManualEntry()" style="padding:12px 18px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-size:0.9rem;font-weight:800;white-space:nowrap;">بحث</button>
+      </div>
+    </div>
 
     <!-- Orders header -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -590,6 +606,37 @@ async function handleQRResult(raw){
     const snap=await db.collection('employee_orders').doc(orderId).get();
     if(snap.exists)showOrderDetail({id:snap.id,...snap.data()});
     else toast('❌ الطلب غير موجود في النظام');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+function toggleManualEntry(){
+  const box=document.getElementById('manualEntryBox');
+  const inp=document.getElementById('manualOrderInput');
+  if(box.style.display==='none'){box.style.display='block';setTimeout(()=>inp&&inp.focus(),100);}
+  else{box.style.display='none';}
+}
+
+async function doManualEntry(){
+  const inp=document.getElementById('manualOrderInput');
+  const val=(inp?.value||'').trim().replace(/^#/,'');
+  if(!val){toast('أدخل رقم الطلب');return;}
+  toast('⏳ جاري البحث...');
+  try{
+    const snap=await db.collection('employee_orders').where('orderNum','==',parseInt(val,10)).limit(1).get();
+    if(!snap.empty){
+      document.getElementById('manualEntryBox').style.display='none';
+      inp.value='';
+      showOrderDetail({id:snap.docs[0].id,...snap.docs[0].data()});
+    } else {
+      const snap2=await db.collection('employee_orders').where('orderNum','==',val).limit(1).get();
+      if(!snap2.empty){
+        document.getElementById('manualEntryBox').style.display='none';
+        inp.value='';
+        showOrderDetail({id:snap2.docs[0].id,...snap2.docs[0].data()});
+      } else {
+        toast('❌ ما لقيت طلب بهاد الرقم');
+      }
+    }
   }catch(e){toast('❌ '+e.message);}
 }
 
