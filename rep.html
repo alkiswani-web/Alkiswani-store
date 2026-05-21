@@ -853,29 +853,71 @@ async function supHandleQRResult(raw){
 }
 
 function showSupOrderModal(o){
+  if(!o)return;
   const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
   const s=ST[o.status]||{label:o.status,color:'#6b7280'};
-  const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
-  const prods=(o.products||[{name:o.productName||'؟',qty:1}]);
-  const ps=prods.map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');
+  const prods=(o.products||[{name:o.productName||'؟',price:o.price||0,qty:1}]);
+  const total=o.totalPrice||prods.reduce((s,p)=>s+(+(p.price||0))*(+(p.qty||1)),0);
+  const dlv=o.deliveryFee||0;
+  const net=o.netPrice!=null?o.netPrice:total+dlv;
   const statusBtns=['pending','preparing','prepared','queued','waiting_rep','delivering','onhold','postponed','delivered','cancelled','returned']
     .map(st=>{
       const info=ST[st]||{label:st,color:'#6b7280'};
       const cur=o.status===st;
-      return `<button onclick="supSetStatus('${o.id}','${st}')" style="padding:8px 4px;background:${cur?info.color+'25':'#f9fafb'};color:${cur?info.color:'#374151'};border:1.5px solid ${cur?info.color:'#e5e7eb'};border-radius:10px;font-size:0.7rem;font-weight:${cur?'800':'600'};font-family:'Tajawal',sans-serif;cursor:pointer;">${info.label}</button>`;
+      return `<button onclick="supSetStatus('${o.id}','${st}')" style="padding:9px 4px;background:${cur?info.color+'22':'#f9fafb'};color:${cur?info.color:'#374151'};border:1.5px solid ${cur?info.color:'#e5e7eb'};border-radius:10px;font-size:0.72rem;font-weight:${cur?'800':'600'};font-family:'Tajawal',sans-serif;cursor:pointer;">${info.label}</button>`;
     }).join('');
   document.getElementById('supOrderContent').innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-weight:900;color:#1a3a2a;font-size:1.05rem;">${lbl}</span>
-      <span style="background:${s.color}20;color:${s.color};padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;">${s.label}</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <button onclick="closeSupModal()" style="background:#f3f4f6;border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+      <div style="text-align:center;">
+        <div style="font-weight:900;color:#1a3a2a;font-size:1rem;">${lbl}</div>
+        ${o.pageName?`<div style="font-size:0.72rem;color:#6b7280;">${o.pageName}</div>`:''}
+      </div>
+      <span style="background:${s.color}20;color:${s.color};padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:800;">${s.label}</span>
     </div>
-    ${o.deliveryRepName?`<div style="font-size:0.82rem;color:#7c3aed;margin-bottom:4px;font-weight:700;">🚚 ${o.deliveryRepName}</div>`:'<div style="font-size:0.82rem;color:#ef4444;margin-bottom:4px;font-weight:700;">⚠️ بدون مندوب</div>'}
-    ${o.name?`<div style="font-size:0.84rem;color:#374151;margin-bottom:3px;">👤 ${o.name}</div>`:''}
-    ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:3px;">📱 ${o.customerPhone}</div>`:''}
-    ${o.address?`<div style="font-size:0.82rem;color:#374151;margin-bottom:3px;">📍 ${o.address}</div>`:''}
-    <div style="font-size:0.8rem;color:#6b7280;margin-bottom:12px;">📦 ${ps}</div>
-    <div style="font-size:0.88rem;font-weight:800;color:#374151;margin-bottom:8px;">تغيير الحالة:</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;">${statusBtns}</div>
+
+    <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;margin-bottom:10px;">
+      <div style="font-size:0.76rem;font-weight:700;color:#6b7280;margin-bottom:8px;">👤 معلومات الزبون</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.82rem;">
+        <div><span style="color:#9ca3af;font-size:0.72rem;">الاسم</span><div style="font-weight:600;color:#111;">${o.customerName||o.name||'—'}</div></div>
+        <div><span style="color:#9ca3af;font-size:0.72rem;">الهاتف</span>
+          ${o.customerPhone?`<div style="display:flex;gap:4px;align-items:center;margin-top:2px;flex-wrap:wrap;">
+            <a href="tel:${o.customerPhone}" style="font-weight:700;color:#1d4ed8;direction:ltr;text-decoration:none;">${o.customerPhone}</a>
+            <a href="https://wa.me/${toIntlPhone(o.customerPhone)}" target="_blank" style="background:#25D366;color:#fff;border-radius:6px;padding:1px 6px;font-size:0.7rem;text-decoration:none;">WA</a>
+          </div>`:`<div style="color:#9ca3af;">—</div>`}
+        </div>
+        <div style="grid-column:1/-1;"><span style="color:#9ca3af;font-size:0.72rem;">العنوان</span><div style="font-weight:600;color:#111;">${o.address||'—'}${o.area?' ('+o.area+')':''}</div></div>
+        ${o.notes?`<div style="grid-column:1/-1;"><span style="color:#9ca3af;font-size:0.72rem;">ملاحظات</span><div style="font-weight:600;color:#d97706;">${o.notes}</div></div>`:''}
+      </div>
+    </div>
+
+    <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;margin-bottom:10px;">
+      <div style="font-size:0.76rem;font-weight:700;color:#6b7280;margin-bottom:8px;">📦 المنتجات</div>
+      ${prods.map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #f0f0f0;gap:8px;">
+        <div style="flex:1;font-weight:700;font-size:0.85rem;color:#1a3a2a;">${p.name}</div>
+        <div style="text-align:left;flex-shrink:0;">
+          <div style="font-size:0.73rem;color:#6b7280;">${p.qty||1} × ${(+(p.price||0)).toFixed(2)}</div>
+          <div style="font-weight:800;color:#166534;">${((+(p.price||0))*(+(p.qty||1))).toFixed(2)} د.أ</div>
+        </div>
+      </div>`).join('')}
+      <div style="margin-top:8px;padding-top:8px;border-top:2px solid #1a3a2a;display:flex;justify-content:space-between;align-items:center;">
+        ${dlv>0?`<span style="font-size:0.75rem;color:#9ca3af;">+ توصيل ${dlv.toFixed(2)}</span>`:'<span></span>'}
+        <span style="font-weight:900;font-size:1rem;color:#166534;">${net.toFixed(2)} د.أ</span>
+      </div>
+    </div>
+
+    <div style="background:#eff6ff;border-radius:12px;padding:12px 14px;border:1px solid #bfdbfe;margin-bottom:10px;">
+      <div style="font-size:0.76rem;font-weight:700;color:#6b7280;margin-bottom:6px;">🚚 المندوب</div>
+      ${o.deliveryRepName
+        ?`<div style="font-weight:700;color:#1e40af;">${o.deliveryRepName}${o.deliveryRepPhone?` <span style="font-weight:400;color:#6b7280;font-size:0.78rem;">${o.deliveryRepPhone}</span>`:''}</div>`
+        :`<div style="font-size:0.82rem;color:#9ca3af;">لم يُعيَّن مندوب بعد</div>`}
+    </div>
+
+    <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;margin-bottom:12px;">
+      <div style="font-size:0.76rem;font-weight:700;color:#374151;margin-bottom:8px;">✏️ تغيير الحالة</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">${statusBtns}</div>
+    </div>
+
     <button onclick="closeSupModal();openTransferModal('${o.id}')" style="width:100%;padding:14px;background:#7c3aed;color:#fff;border:none;border-radius:13px;font-size:0.95rem;font-weight:800;font-family:'Tajawal',sans-serif;">↔ تحويل لمندوب</button>
   `;
   document.getElementById('supOrderModal').style.display='block';
