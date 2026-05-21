@@ -246,22 +246,32 @@ input{font-family:'Tajawal',sans-serif;}
     </div>
   </div>
 
-  <!-- QR scan button -->
-  <div style="padding:0 16px 10px;flex-shrink:0;">
-    <button onclick="supOpenQR()" style="width:100%;padding:16px 20px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:16px;font-size:1rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 4px 16px rgba(124,58,237,0.4);font-family:'Tajawal',sans-serif;">
-      <span style="font-size:1.6rem;">📷</span>
-      <div style="text-align:right;">
-        <div>مسح QR طلب</div>
-        <div style="font-size:0.72rem;font-weight:400;opacity:0.8;margin-top:1px;">تغيير حالة أو تحويل للمندوب</div>
-      </div>
-    </button>
+  <!-- Tabs -->
+  <div style="display:flex;gap:0;padding:0 16px 10px;flex-shrink:0;">
+    <button id="supTab-orders" onclick="switchSupTab('orders')" style="flex:1;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:12px 0 0 12px;font-size:0.88rem;font-weight:800;font-family:'Tajawal',sans-serif;">📦 الطلبات</button>
+    <button id="supTab-reps" onclick="switchSupTab('reps')" style="flex:1;padding:11px;background:rgba(255,255,255,0.15);color:#c4b5fd;border:none;border-radius:0 12px 12px 0;font-size:0.88rem;font-weight:800;font-family:'Tajawal',sans-serif;">🚚 المناديب</button>
   </div>
 
-  <!-- Orders list -->
-  <div style="flex:1;overflow-y:auto;padding:0 16px 24px;">
-    <div id="supOrdersList">
-      <div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div>
+  <!-- Orders tab -->
+  <div id="supTabOrders" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;">
+    <!-- QR scan button -->
+    <div style="padding:0 16px 10px;flex-shrink:0;">
+      <button onclick="supOpenQR()" style="width:100%;padding:14px 20px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:16px;font-size:1rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 4px 16px rgba(124,58,237,0.4);font-family:'Tajawal',sans-serif;">
+        <span style="font-size:1.5rem;">📷</span>
+        <div style="text-align:right;">
+          <div>مسح QR طلب</div>
+          <div style="font-size:0.72rem;font-weight:400;opacity:0.8;margin-top:1px;">تغيير حالة أو تحويل للمندوب</div>
+        </div>
+      </button>
     </div>
+    <div style="flex:1;overflow-y:auto;padding:0 16px 24px;">
+      <div id="supOrdersList"><div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div></div>
+    </div>
+  </div>
+
+  <!-- Reps tab -->
+  <div id="supTabReps" style="flex:1;overflow-y:auto;display:none;padding:0 16px 24px;">
+    <div id="supRepsList"><div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div></div>
   </div>
 </div>
 
@@ -408,6 +418,19 @@ function openMain(){
 let supReps=[];
 let supOrders=[];
 let _transferOrderId=null;
+let _supTab='orders';
+
+function switchSupTab(tab){
+  _supTab=tab;
+  const isOrders=tab==='orders';
+  document.getElementById('supTabOrders').style.display=isOrders?'flex':'none';
+  document.getElementById('supTabReps').style.display=isOrders?'none':'block';
+  const tO=document.getElementById('supTab-orders');
+  const tR=document.getElementById('supTab-reps');
+  if(tO){tO.style.background=isOrders?'#7c3aed':'rgba(255,255,255,0.15)';tO.style.color=isOrders?'#fff':'#c4b5fd';}
+  if(tR){tR.style.background=isOrders?'rgba(255,255,255,0.15)':'#7c3aed';tR.style.color=isOrders?'#c4b5fd':'#fff';}
+  if(!isOrders)loadRepsTab();
+}
 
 function openSupervisor(){
   const lbl=document.getElementById('supNameLbl');
@@ -431,6 +454,67 @@ async function loadSupData(){
     renderSupOrders();
   }catch(e){
     if(listEl)listEl.innerHTML='<div style="color:#dc2626;text-align:center;padding:20px;">❌ '+e.message+'</div>';
+  }
+}
+
+async function loadRepsTab(){
+  const el=document.getElementById('supRepsList');
+  if(el)el.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div>';
+  try{
+    const allReps=((await db.collection('operator_config').doc('delivery_reps').get()).data()?.reps||[]).filter(r=>r.role!=='supervisor');
+    const [delSnap,paySnap,refSnap]=await Promise.all([
+      db.collection('employee_orders').where('status','==','delivered').get(),
+      db.collection('rep_payments').get(),
+      db.collection('rep_refunds').get()
+    ]);
+    const delivered=delSnap.docs.map(d=>d.data());
+    const payments=paySnap.docs.map(d=>d.data());
+    const refunds=refSnap.docs.map(d=>d.data());
+
+    if(!allReps.length){el.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">لا يوجد مناديب مسجلين</div>';return;}
+
+    el.innerHTML=allReps.map(r=>{
+      const ph=(r.phone||'').replace(/\D/g,'');
+      const repDelivered=delivered.filter(o=>(o.deliveryRepPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8));
+      const repActive=supOrders.filter(o=>(o.deliveryRepPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8));
+      const owed=repDelivered.reduce((s,o)=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return s+Math.max(0,t-(o.deliveryFee||0));},0);
+      const paid=payments.filter(p=>(p.repPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8)).reduce((s,p)=>s+(p.amount||0),0);
+      const refunded=refunds.filter(p=>(p.repPhone||'').replace(/\D/g,'').slice(-8)===ph.slice(-8)).reduce((s,p)=>s+(p.amount||0),0);
+      const bal=owed-paid;
+      const balColor=bal>0?'#dc2626':bal<0?'#7c3aed':'#059669';
+      const balLabel=bal>0?'مستحق على المندوب':bal<0?'مستحق للمندوب':'مسوّى';
+      return `<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;border:1.5px solid #ede9fe;box-shadow:0 2px 8px rgba(124,58,237,0.08);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div style="font-weight:800;color:#1a3a2a;font-size:0.95rem;">🚚 ${r.name}</div>
+            <div style="font-size:0.73rem;color:#6b7280;direction:ltr;margin-top:2px;">${r.phone}</div>
+          </div>
+          <div style="text-align:center;background:#f5f3ff;border-radius:10px;padding:6px 12px;">
+            <div style="font-size:1.1rem;font-weight:900;color:#7c3aed;">${repActive.length}</div>
+            <div style="font-size:0.65rem;color:#6b7280;">طلب نشط</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+          <div style="background:#f0fdf4;border-radius:10px;padding:8px;text-align:center;">
+            <div style="font-size:0.9rem;font-weight:800;color:#166534;">${owed.toFixed(2)}</div>
+            <div style="font-size:0.62rem;color:#6b7280;">مستحق</div>
+          </div>
+          <div style="background:#eff6ff;border-radius:10px;padding:8px;text-align:center;">
+            <div style="font-size:0.9rem;font-weight:800;color:#1d4ed8;">${paid.toFixed(2)}</div>
+            <div style="font-size:0.62rem;color:#6b7280;">مدفوع</div>
+          </div>
+          <div style="background:${balColor}10;border-radius:10px;padding:8px;text-align:center;border:1.5px solid ${balColor}30;">
+            <div style="font-size:0.9rem;font-weight:900;color:${balColor};">${Math.abs(bal).toFixed(2)}</div>
+            <div style="font-size:0.62rem;color:${balColor};">${balLabel}</div>
+          </div>
+        </div>
+        ${repActive.length?`<div style="font-size:0.75rem;color:#6b7280;padding-top:8px;border-top:1px dashed #e5e7eb;">
+          ${repActive.map(o=>{const lbl=o.orderNum?'#'+o.orderNum:'#'+o.id.slice(-6).toUpperCase();const st=ST[o.status]||{label:o.status,color:'#6b7280'};return `<span onclick="showSupOrderModal(supOrders.find(x=>x.id==='${o.id}'))" style="display:inline-flex;align-items:center;gap:4px;background:${st.color}15;color:${st.color};border-radius:8px;padding:3px 8px;margin:2px;cursor:pointer;font-weight:700;">${lbl} ${st.label}</span>`;}).join('')}
+        </div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){
+    document.getElementById('supRepsList').innerHTML='<div style="color:#dc2626;text-align:center;padding:20px;">❌ '+e.message+'</div>';
   }
 }
 
