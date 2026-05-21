@@ -219,6 +219,51 @@ input{font-family:'Tajawal',sans-serif;}
 <!-- ====== TOAST ====== -->
 <div id="toast"></div>
 
+<!-- ====== SUPERVISOR VIEW ====== -->
+<div id="supView" class="view" style="background:#f5f3ff;">
+  <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,0.25);">
+    <button onclick="doLogout()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;padding:8px 14px;border-radius:9px;font-size:0.82rem;">خروج 🚪</button>
+    <div style="text-align:center;">
+      <div style="color:#c4b5fd;font-weight:800;font-size:0.95rem;">🗂 مشرف المناديب</div>
+      <div id="supNameLbl" style="color:rgba(255,255,255,0.65);font-size:0.72rem;margin-top:1px;"></div>
+    </div>
+    <button onclick="loadSupData()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;padding:8px 14px;border-radius:9px;font-size:1rem;">↻</button>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 16px;flex-shrink:0;">
+    <div id="supStatOrders" style="background:#fff;border-radius:12px;padding:10px;text-align:center;border:1.5px solid #ede9fe;">
+      <div style="font-size:1.4rem;font-weight:900;color:#7c3aed;">0</div>
+      <div style="font-size:0.68rem;color:#6b7280;">طلب نشط</div>
+    </div>
+    <div id="supStatReps" style="background:#fff;border-radius:12px;padding:10px;text-align:center;border:1.5px solid #dcfce7;">
+      <div style="font-size:1.4rem;font-weight:900;color:#059669;">0</div>
+      <div style="font-size:0.68rem;color:#6b7280;">مندوب نشط</div>
+    </div>
+    <div id="supStatUnassigned" style="background:#fff;border-radius:12px;padding:10px;text-align:center;border:1.5px solid #fee2e2;">
+      <div style="font-size:1.4rem;font-weight:900;color:#ef4444;">0</div>
+      <div style="font-size:0.68rem;color:#6b7280;">غير موزع</div>
+    </div>
+  </div>
+
+  <!-- Orders list -->
+  <div style="flex:1;overflow-y:auto;padding:0 16px 24px;">
+    <div id="supOrdersList">
+      <div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== TRANSFER MODAL ====== -->
+<div id="transferModal" onclick="if(event.target===this)closeTransfer()" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.6);">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:22px 22px 0 0;max-height:75dvh;overflow-y:auto;padding:16px 18px 28px;">
+    <div style="width:38px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 14px;"></div>
+    <div style="font-weight:800;font-size:1rem;color:#7c3aed;margin-bottom:14px;text-align:center;">↔ اختر المندوب</div>
+    <div id="transferRepList"></div>
+    <button onclick="closeTransfer()" style="width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:0.9rem;font-weight:700;margin-top:8px;font-family:'Tajawal',sans-serif;">إلغاء</button>
+  </div>
+</div>
+
 <script>
 // ===== FIREBASE =====
 const firebaseConfig={
@@ -276,7 +321,7 @@ if(/iphone|ipad/i.test(navigator.userAgent)&&!navigator.standalone&&!window.matc
 }
 
 // ===== UTILS =====
-function showView(id){['loginView','mainView','qrView'].forEach(v=>{const el=document.getElementById(v);if(el)el.classList.toggle('active',v===id);});}
+function showView(id){['loginView','mainView','qrView','supView'].forEach(v=>{const el=document.getElementById(v);if(el)el.classList.toggle('active',v===id);});}
 let _toastTimer=null;
 function toast(msg,dur=2800){
   const t=document.getElementById('toast');
@@ -312,9 +357,9 @@ function doLogin(){
         btn.textContent='دخول 🚀';btn.disabled=false;
         return;
       }
-      currentUser={name:rep.name,phone:rep.phone};
+      currentUser={name:rep.name,phone:rep.phone,role:rep.role||'rep'};
       localStorage.setItem('_repUser_v2',JSON.stringify(currentUser));
-      openMain();
+      if(currentUser.role==='supervisor')openSupervisor();else openMain();
     })
     .catch(e=>{
       errEl.textContent='❌ خطأ في الاتصال: '+e.message;
@@ -337,6 +382,135 @@ function openMain(){
   showView('mainView');
   loadMyOrders();
   loadBalance();
+}
+
+// ===== SUPERVISOR =====
+let supReps=[];
+let supOrders=[];
+let _transferOrderId=null;
+
+function openSupervisor(){
+  const lbl=document.getElementById('supNameLbl');
+  if(lbl)lbl.textContent=currentUser.name||'';
+  showView('supView');
+  loadSupData();
+}
+
+async function loadSupData(){
+  const listEl=document.getElementById('supOrdersList');
+  if(listEl)listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div>';
+  try{
+    const [repsSnap,ordersSnap]=await Promise.all([
+      db.collection('operator_config').doc('delivery_reps').get(),
+      db.collection('employee_orders')
+        .where('status','in',['pending','preparing','prepared','queued','waiting_rep','delivering','onhold','postponed'])
+        .get()
+    ]);
+    supReps=((repsSnap.exists?repsSnap.data().reps:[])||[]).filter(r=>r.role!=='supervisor');
+    supOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    renderSupOrders();
+  }catch(e){
+    if(listEl)listEl.innerHTML='<div style="color:#dc2626;text-align:center;padding:20px;">❌ '+e.message+'</div>';
+  }
+}
+
+function renderSupOrders(){
+  const unassigned=supOrders.filter(o=>!o.deliveryRepPhone);
+  const assigned=supOrders.filter(o=>o.deliveryRepPhone);
+  const activeRepPhones=[...new Set(assigned.map(o=>o.deliveryRepPhone).filter(Boolean))];
+
+  const statO=document.getElementById('supStatOrders');
+  const statR=document.getElementById('supStatReps');
+  const statU=document.getElementById('supStatUnassigned');
+  if(statO)statO.innerHTML=`<div style="font-size:1.4rem;font-weight:900;color:#7c3aed;">${supOrders.length}</div><div style="font-size:0.68rem;color:#6b7280;">طلب نشط</div>`;
+  if(statR)statR.innerHTML=`<div style="font-size:1.4rem;font-weight:900;color:#059669;">${activeRepPhones.length}</div><div style="font-size:0.68rem;color:#6b7280;">مندوب نشط</div>`;
+  if(statU)statU.innerHTML=`<div style="font-size:1.4rem;font-weight:900;color:${unassigned.length>0?'#ef4444':'#9ca3af'};">${unassigned.length}</div><div style="font-size:0.68rem;color:#6b7280;">غير موزع</div>`;
+
+  let html='';
+  if(unassigned.length){
+    html+=`<div style="margin-bottom:18px;">
+      <div style="font-weight:800;color:#dc2626;margin-bottom:8px;display:flex;align-items:center;gap:6px;">⚠️ بدون مندوب<span style="background:#fee2e2;color:#dc2626;border-radius:20px;padding:2px 8px;font-size:0.7rem;">${unassigned.length}</span></div>
+      ${unassigned.map(o=>supOrderCard(o)).join('')}
+    </div>`;
+  }
+  activeRepPhones.forEach(phone=>{
+    const repOrders=assigned.filter(o=>o.deliveryRepPhone===phone);
+    if(!repOrders.length)return;
+    const repName=repOrders[0].deliveryRepName||phone;
+    html+=`<div style="margin-bottom:18px;">
+      <div style="font-weight:800;color:#1a3a2a;margin-bottom:8px;display:flex;align-items:center;gap:6px;">🚚 ${repName}<span style="background:#dcfce7;color:#166534;border-radius:20px;padding:2px 8px;font-size:0.7rem;">${repOrders.length} طلب</span></div>
+      ${repOrders.map(o=>supOrderCard(o)).join('')}
+    </div>`;
+  });
+  if(!html)html='<div style="text-align:center;padding:40px;color:#9ca3af;background:#fff;border-radius:14px;border:1.5px dashed #e5e7eb;">✅ لا يوجد طلبات نشطة</div>';
+  document.getElementById('supOrdersList').innerHTML=html;
+}
+
+function supOrderCard(o){
+  const s=ST[o.status]||{label:o.status,color:'#6b7280'};
+  const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
+  const total=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
+  const prods=(o.products||[{name:o.productName||'؟',qty:1}]);
+  const ps=prods.map(p=>`${p.name}${(p.qty||1)>1?' ×'+p.qty:''}`).join('، ');
+  return `<div style="background:#fff;border-radius:14px;padding:14px 15px;margin-bottom:8px;border:1.5px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+      <span style="font-weight:800;color:#1a3a2a;font-size:0.9rem;">${lbl}</span>
+      <span style="background:${s.color}20;color:${s.color};padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;">${s.label}</span>
+    </div>
+    ${o.name?`<div style="font-size:0.8rem;color:#374151;margin-bottom:3px;">👤 ${o.name}</div>`:''}
+    ${o.address?`<div style="font-size:0.78rem;color:#6b7280;margin-bottom:3px;">📍 ${o.address}</div>`:''}
+    <div style="font-size:0.78rem;color:#6b7280;margin-bottom:8px;">📦 ${ps}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid #f3f4f6;">
+      <span style="font-weight:900;color:#166534;font-size:0.95rem;">${total.toFixed(2)} د.أ</span>
+      <button onclick="openTransferModal('${o.id}')" style="padding:7px 14px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:0.8rem;font-weight:700;font-family:'Tajawal',sans-serif;">↔ تحويل</button>
+    </div>
+  </div>`;
+}
+
+function openTransferModal(orderId){
+  _transferOrderId=orderId;
+  const order=supOrders.find(o=>o.id===orderId);
+  const currentPhone=order?.deliveryRepPhone||'';
+  let html='';
+  if(!supReps.length){
+    html='<div style="text-align:center;color:#9ca3af;padding:20px;">لا يوجد مناديب مسجلين</div>';
+  }else{
+    supReps.forEach(r=>{
+      const isCurrent=currentPhone&&((r.phone||'').slice(-8)===(currentPhone||'').slice(-8));
+      const cnt=supOrders.filter(o=>(o.deliveryRepPhone||'').slice(-8)===(r.phone||'').slice(-8)).length;
+      html+=`<div onclick="doTransfer('${r.phone}','${(r.name||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:${isCurrent?'#f5f3ff':'#f9fafb'};border-radius:12px;margin-bottom:8px;cursor:pointer;border:1.5px solid ${isCurrent?'#7c3aed':'#e5e7eb'};">
+        <div>
+          <div style="font-weight:800;color:#1a3a2a;font-size:0.92rem;">🚚 ${r.name}</div>
+          <div style="font-size:0.73rem;color:#6b7280;margin-top:2px;">${cnt} طلب نشط حالياً</div>
+        </div>
+        ${isCurrent?'<span style="font-size:0.7rem;color:#7c3aed;font-weight:700;background:#ede9fe;padding:3px 8px;border-radius:8px;">الحالي</span>':''}
+      </div>`;
+    });
+    html+=`<div onclick="doTransfer('','')" style="display:flex;align-items:center;padding:14px 16px;background:#fff7ed;border-radius:12px;margin-bottom:8px;cursor:pointer;border:1.5px solid #fed7aa;">
+      <div style="font-weight:700;color:#92400e;font-size:0.88rem;">⚠️ إلغاء التعيين (بدون مندوب)</div>
+    </div>`;
+  }
+  document.getElementById('transferRepList').innerHTML=html;
+  document.getElementById('transferModal').style.display='block';
+}
+
+function closeTransfer(){
+  document.getElementById('transferModal').style.display='none';
+  _transferOrderId=null;
+}
+
+async function doTransfer(repPhone,repName){
+  if(!_transferOrderId)return;
+  closeTransfer();
+  toast('⏳ جاري التحويل...');
+  try{
+    const upd=repPhone
+      ?{deliveryRepPhone:repPhone,deliveryRepName:repName}
+      :{deliveryRepPhone:firebase.firestore.FieldValue.delete(),deliveryRepName:firebase.firestore.FieldValue.delete()};
+    await db.collection('employee_orders').doc(_transferOrderId).update(upd);
+    toast('✅ تم التحويل'+(repName?' إلى '+repName:''));
+    await loadSupData();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 function loadBalance(){
@@ -725,7 +899,7 @@ window.addEventListener('beforeunload',()=>{if(locActive)stopLocation();});
 // ===== INIT =====
 try{
   const saved=localStorage.getItem('_repUser_v2');
-  if(saved){currentUser=JSON.parse(saved);openMain();}
+  if(saved){currentUser=JSON.parse(saved);if(currentUser.role==='supervisor')openSupervisor();else openMain();}
 }catch(e){}
 
 // Register service worker
