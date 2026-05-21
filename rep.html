@@ -520,14 +520,15 @@ function closeTransfer(){
 }
 
 async function doTransfer(repPhone,repName){
-  if(!_transferOrderId)return;
+  const orderId=_transferOrderId;
+  if(!orderId)return;
   closeTransfer();
   toast('⏳ جاري التحويل...');
   try{
     const upd=repPhone
       ?{deliveryRepPhone:repPhone,deliveryRepName:repName}
       :{deliveryRepPhone:firebase.firestore.FieldValue.delete(),deliveryRepName:firebase.firestore.FieldValue.delete()};
-    await db.collection('employee_orders').doc(_transferOrderId).update(upd);
+    await db.collection('employee_orders').doc(orderId).update(upd);
     toast('✅ تم التحويل'+(repName?' إلى '+repName:''));
     await loadSupData();
   }catch(e){toast('❌ '+e.message);}
