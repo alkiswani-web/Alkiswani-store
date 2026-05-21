@@ -953,6 +953,31 @@ async function handleQRResult(raw){
   }catch(e){toast('❌ '+e.message);}
 }
 
+// ====== HARDWARE SCANNER (USB/Bluetooth keyboard-mode) ======
+let _scanBuf='';
+let _scanTimer=null;
+document.addEventListener('keydown',function(e){
+  const tag=(document.activeElement||{}).tagName||'';
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+  if(e.key==='Enter'){
+    const raw=_scanBuf.trim();
+    _scanBuf='';clearTimeout(_scanTimer);
+    if(raw.length>3)processHwScan(raw);
+    return;
+  }
+  if(e.key.length===1){
+    _scanBuf+=e.key;
+    clearTimeout(_scanTimer);
+    _scanTimer=setTimeout(()=>{_scanBuf='';},500);
+  }
+});
+function processHwScan(raw){
+  try{navigator.vibrate&&navigator.vibrate([60,30,60]);}catch(e){}
+  if(document.getElementById('supView').classList.contains('active')){supHandleQRResult(raw);}
+  else if(document.getElementById('mainView').classList.contains('active')){handleQRResult(raw);}
+}
+// ====================================================
+
 function toggleManualEntry(){
   const box=document.getElementById('manualEntryBox');
   const inp=document.getElementById('manualOrderInput');
