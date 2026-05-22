@@ -15049,19 +15049,19 @@ async function _handleQRResult(raw){
   let _buf='',_bufStart=0,_timer=null;
   document.addEventListener('keydown',function(e){
     const now=Date.now();
-    if(e.key==='Enter'){
+    if(e.key==='Enter'||e.key==='\n'||e.key==='\r'){
       const raw=_buf.trim();
       const elapsed=now-_bufStart;
       _buf='';_bufStart=0;clearTimeout(_timer);
-      // Scanner sends all chars in <300ms; human can't match that
-      if(raw.length>3&&elapsed<300){closeQRScanner();_handleQRResult(raw);}
+      // 800ms threshold — covers slow Bluetooth scanners; humans can't type 4+ chars that fast
+      if(raw.length>3&&elapsed<800){closeQRScanner();_handleQRResult(raw);}
       return;
     }
     if(e.key.length===1){
       if(!_buf)_bufStart=now;
       _buf+=e.key;
       clearTimeout(_timer);
-      _timer=setTimeout(()=>{_buf='';_bufStart=0;},600);
+      _timer=setTimeout(()=>{_buf='';_bufStart=0;},1000);
     }
   });
 })();
