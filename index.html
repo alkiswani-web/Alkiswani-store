@@ -6233,11 +6233,26 @@ function renderEmpEditCart(){
 
 function changeEmpEditQty(i,delta){
   if(!_empEditCart[i])return;
-  _empEditCart[i].qty=Math.max(1,(_empEditCart[i].qty||1)+delta);
+  const oldQty=_empEditCart[i].qty||1;
+  const newQty=Math.max(1,oldQty+delta);
+  _empEditCart[i].qty=newQty;
+  const totalEl=document.getElementById('empEditTotalInput');
+  if(totalEl){
+    const diff=(newQty-oldQty)*parseFloat(_empEditCart[i].price||0);
+    totalEl.value=Math.max(0,parseFloat(totalEl.value||0)+diff).toFixed(2);
+  }
   renderEmpEditCart();
 }
 
 function removeEmpEditItem(i){
+  const removed=_empEditCart[i];
+  if(removed){
+    const totalEl=document.getElementById('empEditTotalInput');
+    if(totalEl){
+      const subtracted=parseFloat(removed.price||0)*(removed.qty||1);
+      totalEl.value=Math.max(0,parseFloat(totalEl.value||0)-subtracted).toFixed(2);
+    }
+  }
   _empEditCart.splice(i,1);
   renderEmpEditCart();
 }
@@ -6260,7 +6275,11 @@ function addItemToEmpEdit(){
   const opt=sel.value?sel.options[sel.selectedIndex]:null;
   const name=opt?opt.text.trim():'منتج مخصص';
   const qty=Math.max(1,parseInt(qtyEl.value)||1);
-  _empEditCart.push({id:sel.value||'',name,price:isNaN(price)?0:price,qty});
+  const finalPrice=isNaN(price)?0:price;
+  _empEditCart.push({id:sel.value||'',name,price:finalPrice,qty});
+  // Add product price × qty to the total field
+  const totalEl=document.getElementById('empEditTotalInput');
+  if(totalEl) totalEl.value=(parseFloat(totalEl.value||0)+finalPrice*qty).toFixed(2);
   sel.value='';priceEl.value='';qtyEl.value='1';
   renderEmpEditCart();
 }
