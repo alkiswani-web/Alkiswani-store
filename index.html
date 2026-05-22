@@ -15094,11 +15094,15 @@ async function _handleQRResult(raw){
 }
 
 // ====== HARDWARE SCANNER (USB/Bluetooth keyboard-mode) ======
+// Uses e.code (physical key) not e.key to handle Arabic/non-Latin OS keyboard layouts
 (function(){
+  // Map physical key codes → US-QWERTY characters (scanner always sends US layout HID codes)
+  const _K={'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e','KeyF':'f','KeyG':'g','KeyH':'h','KeyI':'i','KeyJ':'j','KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n','KeyO':'o','KeyP':'p','KeyQ':'q','KeyR':'r','KeyS':'s','KeyT':'t','KeyU':'u','KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z','Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4','Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9','Minus':'-','Equal':'=','BracketLeft':'[','BracketRight':']','Backslash':'\\','Semicolon':';','Quote':"'",'Comma':',','Period':'.','Slash':'/','Backquote':'`','Space':' '};
+  const _KS={'KeyA':'A','KeyB':'B','KeyC':'C','KeyD':'D','KeyE':'E','KeyF':'F','KeyG':'G','KeyH':'H','KeyI':'I','KeyJ':'J','KeyK':'K','KeyL':'L','KeyM':'M','KeyN':'N','KeyO':'O','KeyP':'P','KeyQ':'Q','KeyR':'R','KeyS':'S','KeyT':'T','KeyU':'U','KeyV':'V','KeyW':'W','KeyX':'X','KeyY':'Y','KeyZ':'Z','Digit0':')','Digit1':'!','Digit2':'@','Digit3':'#','Digit4':'$','Digit5':'%','Digit6':'^','Digit7':'&','Digit8':'*','Digit9':'(','Minus':'_','Equal':'+','BracketLeft':'{','BracketRight':'}','Backslash':'|','Semicolon':':','Quote':'"','Comma':'<','Period':'>','Slash':'?','Backquote':'~'};
   let _buf='',_bufStart=0,_timer=null;
   document.addEventListener('keydown',function(e){
     const now=Date.now();
-    if(e.key==='Enter'||e.key==='\n'||e.key==='\r'){
+    if(e.code==='Enter'||e.code==='NumpadEnter'){
       const raw=_buf.trim();
       const elapsed=now-_bufStart;
       _buf='';_bufStart=0;clearTimeout(_timer);
@@ -15109,9 +15113,11 @@ async function _handleQRResult(raw){
       }
       return;
     }
-    if(e.key.length===1){
+    // Use physical key code mapped to US-QWERTY, ignoring OS keyboard language
+    const ch=e.shiftKey?(_KS[e.code]||_K[e.code]):_K[e.code];
+    if(ch){
       if(!_buf)_bufStart=now;
-      _buf+=e.key;
+      _buf+=ch;
       clearTimeout(_timer);
       _timer=setTimeout(()=>{_buf='';_bufStart=0;},1500);
     }
