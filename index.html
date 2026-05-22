@@ -13777,7 +13777,9 @@ async function loadRepAccounting(){
       const paidPts=paidPointsByPhone[r.phone]||0;
       const pendingPts=Math.max(0,delivered-paidPts);
       const pendingAmt=pendingPts*_pointValue;
-      return `<div onclick="showRepStatement('${(r.phone||'').replace(/'/g,'\\'')}','${(r.name||'').replace(/'/g,'\\'')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+      const safePhone=(r.phone||'').replace(/'/g,"&#39;");
+      const safeName=(r.name||'').replace(/'/g,"&#39;");
+      return `<div onclick="showRepStatement('${safePhone}','${safeName}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="font-weight:800;font-size:0.9rem;color:#1a3a2a;">🚚 ${r.name||'مندوب'}</div>
           <div style="font-size:0.75rem;color:#6b7280;">${r.phone||''}</div>
