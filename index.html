@@ -6146,10 +6146,24 @@ function openEmpOrderEdit(orderId){
         if(!pageEl.value&&o.pageName){const opt=document.createElement('option');opt.value='';opt.textContent=o.pageName;opt.selected=true;pageEl.prepend(opt);}
       }).catch(()=>{});
     }
-    // Populate add-product dropdown
+    // Populate add-product dropdown with operator products (not website products)
     const addProdSel=document.getElementById('empEditAddProd');
     if(addProdSel){
-      addProdSel.innerHTML='<option value="">اختر منتج...</option>'+(products||[]).map(p=>`<option value="${p._docId||p.id}" data-price="${p.price||0}">${p.name}</option>`).join('');
+      const _populateEditProdSel=()=>{
+        const storeId=o.storeId||'';
+        addProdSel.innerHTML='<option value="">اختر منتج...</option>'+(_empSharedProducts||[]).map(p=>{
+          const price=storeId&&p.storePrices&&p.storePrices[storeId]?p.storePrices[storeId]:(p.price||p.defaultSellPrice||0);
+          return `<option value="${p.id}" data-price="${price}">${p.name}</option>`;
+        }).join('');
+      };
+      if(_empSharedProducts){
+        _populateEditProdSel();
+      } else {
+        addProdSel.innerHTML='<option value="">جاري التحميل...</option>';
+        db.collection('operator_products').get()
+          .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);_populateEditProdSel();})
+          .catch(()=>{addProdSel.innerHTML='<option value="">اختر منتج...</option>';});
+      }
     }
     const urgEl=document.getElementById('empEdit_urgent');
     if(urgEl) urgEl.checked=!!o.urgent;
