@@ -10503,11 +10503,13 @@ function renderOperatorDailyView(){
       const orderRows=store.orders.map(o=>{
         const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
         const prods=(o.products||[]).map(p=>`${p.name}×${p.quantity||p.qty||1}`).join('، ')||o.productName||'—';
+        const storeLabel=o.pageName||o.storeName||'';
         return `<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #e5e7eb;gap:8px;">
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
               <span style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${lbl}</span>
               ${o.deliveryRepName?`<span style="background:#dbeafe;color:#1e40af;padding:1px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">🚚 ${o.deliveryRepName}</span>`:''}
+              ${storeLabel?`<span style="background:#fef9c3;color:#92400e;padding:1px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">🏪 ${storeLabel}</span>`:''}
             </div>
             <div style="font-size:0.74rem;color:#6b7280;margin-top:2px;">${o.customerPhone||''}${o.address?` · 📍 ${o.address}`:''}</div>
             <div style="font-size:0.73rem;color:#9ca3af;margin-top:1px;">${prods}</div>
