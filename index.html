@@ -6152,7 +6152,7 @@ function openEmpOrderEdit(orderId){
       const _populateEditProdSel=()=>{
         const storeId=o.storeId||'';
         addProdSel.innerHTML='<option value="">اختر منتج...</option>'+(_empSharedProducts||[]).map(p=>{
-          const price=storeId&&p.storePrices&&p.storePrices[storeId]?p.storePrices[storeId]:(p.price||p.defaultSellPrice||0);
+          const price=storeId&&p.storePrices&&p.storePrices[storeId]?p.storePrices[storeId]:(p.sellPrice||p.price||p.defaultSellPrice||0);
           return `<option value="${p.id}" data-price="${price}">${p.name}</option>`;
         }).join('');
       };
