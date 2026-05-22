@@ -2522,7 +2522,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div onclick="openOperatorDailyAccount()" style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:0 4px 12px rgba(26,58,42,0.25);">
             <div>
               <div style="font-weight:800;color:#fff;font-size:1.05rem;">👤 المشغل</div>
-              <div style="font-size:0.75rem;color:rgba(255,255,255,0.7);margin-top:3px;">كشف اليوم الكامل — جميع المبيعات</div>
+              <div style="font-size:0.75rem;color:rgba(255,255,255,0.7);margin-top:3px;">كشف الفترة الحالية — جميع المبيعات</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
               <div id="opacct_op_status_badge" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,0.2);color:#fff;font-weight:700;">⏳ جاري...</div>
@@ -2542,6 +2542,14 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">⏳ تحميل...</div>
             </div>
           </div>
+
+          <!-- Archive Sessions -->
+          <div style="margin-top:20px;border-top:1.5px solid #e5e7eb;padding-top:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="font-weight:700;color:#374151;font-size:0.9rem;">📁 الكشوفات المغلقة</div>
+            </div>
+            <div id="op_sessions_archive"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">⏳ تحميل...</div></div>
+          </div>
         </div>
 
         <!-- ===== OPERATOR DAILY VIEW ===== -->
@@ -2550,12 +2558,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button onclick="backToAcctList()" style="padding:8px 14px;background:var(--border);color:var(--text-dark);border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
             <div style="font-size:1.05rem;font-weight:700;color:var(--green-dark);flex:1;">👤 حساب المشغل</div>
           </div>
-          <!-- Date navigation bar -->
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:8px 10px;">
-            <button onclick="prevOpDay()" title="اليوم السابق" style="padding:7px 11px;background:#f3f4f6;border:none;border-radius:8px;font-size:1rem;cursor:pointer;color:var(--green-dark);font-weight:700;flex-shrink:0;">◀</button>
-            <input type="date" id="opview_date" onchange="jumpOpDate(this.value)" style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;background:var(--card-bg);color:var(--text-dark);outline:none;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='var(--border)'">
-            <button onclick="nextOpDay()" id="opview_next_btn" title="اليوم التالي" style="padding:7px 11px;background:#f3f4f6;border:none;border-radius:8px;font-size:1rem;cursor:pointer;color:var(--green-dark);font-weight:700;flex-shrink:0;">▶</button>
-            <button onclick="goOpToday()" id="opview_today_btn" style="padding:7px 13px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;flex-shrink:0;">اليوم</button>
+          <!-- Session info bar -->
+          <div id="op_session_bar" style="margin-bottom:16px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:11px 14px;">
+            <div id="op_session_info" style="font-size:0.85rem;color:var(--text-mid);text-align:center;">⏳ تحميل...</div>
           </div>
           <div id="opacct_op_body"></div>
           <div id="opacct_op_actions" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;"></div>
@@ -10167,6 +10172,8 @@ let _opDailySales=[];
 let _opDayOrders=[];
 let _opDayRecord=null;
 let _opViewDate=null; // currently viewed date (YYYY-MM-DD)
+let _opCurrentSession=null; // current open or viewed session
+function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
 const _opToday=()=>jordanDateStr();
 
 function _opDateOffset(date, days){
@@ -10175,47 +10182,84 @@ function _opDateOffset(date, days){
   return d.toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
 }
 
-async function checkOperatorDayStatus(){
+async function checkOperatorDayStatus(){await loadOpSessionStatus();}
+async function loadOpSessionStatus(){
   const badge=document.getElementById('opacct_op_status_badge');
-  if(!badge) return;
   try{
-    const snap=await db.collection('operator_daily_close').doc(_opToday()).get();
-    if(snap.exists && snap.data().status==='closed'){
-      badge.textContent='🔒 مغلق';
-      badge.style.background='#dc2626';
+    const snap=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
+    if(!snap.empty){
+      _opCurrentSession={id:snap.docs[0].id,...snap.docs[0].data()};
+      if(badge){badge.textContent=`🟢 مفتوح منذ ${_fmtDate(_opCurrentSession.openedDate)}`;badge.style.background='rgba(255,255,255,0.2)';}
     } else {
-      badge.textContent='🟢 مفتوح';
-      badge.style.background='rgba(255,255,255,0.2)';
+      _opCurrentSession=null;
+      if(badge){badge.textContent='⚫ لا يوجد كشف';badge.style.background='rgba(220,38,38,0.5)';}
     }
   }catch(e){}
+  loadSessionArchive();
+}
+async function loadSessionArchive(){
+  const el=document.getElementById('op_sessions_archive');
+  if(!el)return;
+  try{
+    const snap=await db.collection('operator_sessions').where('status','==','closed').orderBy('closedAt','desc').limit(20).get();
+    if(snap.empty){el.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:12px;">لا توجد كشوفات مغلقة بعد</div>';return;}
+    el.innerHTML=snap.docs.map(d=>{
+      const s=d.data();
+      return `<div onclick="openOperatorDailyAccount('${d.id}')" style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:700;color:var(--text-dark);font-size:0.88rem;">📋 ${_fmtDate(s.openedDate)} ← ${_fmtDate(s.closedDate)}</div>
+          <div style="font-size:0.72rem;color:#9ca3af;margin-top:2px;">مغلق</div>
+        </div>
+        <span style="color:#9ca3af;font-size:1.1rem;">←</span>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='<div style="color:#dc2626;font-size:0.8rem;padding:8px;">❌ '+e.message+'</div>';}
 }
 
-async function openOperatorDailyAccount(date){
-  _opViewDate=date||_opToday();
+async function openOperatorDailyAccount(sessionId){
   document.getElementById('opacct-store-list').style.display='none';
   document.getElementById('opacct-operator-view').style.display='block';
-  const dateEl=document.getElementById('opview_date');
-  if(dateEl) dateEl.value=_opViewDate;
-  const nextBtn=document.getElementById('opview_next_btn');
-  if(nextBtn) nextBtn.disabled=(_opViewDate>=_opToday());
-  await _loadOpDayData(_opViewDate);
+  if(sessionId&&typeof sessionId==='string'&&sessionId.length>10){
+    const snap=await db.collection('operator_sessions').doc(sessionId).get();
+    if(snap.exists) _opCurrentSession={id:snap.id,...snap.data()};
+  } else if(!_opCurrentSession){
+    const snap=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
+    if(!snap.empty) _opCurrentSession={id:snap.docs[0].id,...snap.docs[0].data()};
+    else _opCurrentSession=null;
+  }
+  await _loadOpSessionData();
 }
 
-async function _loadOpDayData(date){
+async function _loadOpDayData(date){await _loadOpSessionData();}
+async function _loadOpSessionData(){
   const body=document.getElementById('opacct_op_body');
+  const actionsWrap=document.getElementById('opacct_op_actions');
   if(body) body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
+  if(!_opCurrentSession){
+    if(body) body.innerHTML=`<div style="text-align:center;padding:40px;background:var(--card-bg);border:1.5px dashed var(--border);border-radius:14px;"><div style="font-size:2rem;margin-bottom:8px;">📋</div><div style="font-weight:700;color:var(--text-dark);margin-bottom:6px;">لا يوجد كشف مفتوح</div><div style="font-size:0.8rem;color:#9ca3af;margin-bottom:16px;">أنشئ كشفاً جديداً لبدء تسجيل المبيعات</div><button onclick="openNewSession()" style="padding:12px 24px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button></div>`;
+    if(actionsWrap) actionsWrap.innerHTML='';
+    const infoEl=document.getElementById('op_session_info');
+    if(infoEl) infoEl.innerHTML='<span style="color:#9ca3af;">لا يوجد كشف مفتوح</span>';
+    return;
+  }
+  _opDayRecord={status:_opCurrentSession.status};
+  const from=_opCurrentSession.openedDate;
+  const to=_opCurrentSession.closedDate||jordanDateStr();
+  const infoEl=document.getElementById('op_session_info');
+  if(infoEl){
+    const isClosed=_opCurrentSession.status==='closed';
+    infoEl.innerHTML=isClosed
+      ?`<span style="color:#dc2626;font-weight:700;">🔒 مغلق — من ${_fmtDate(from)} إلى ${_fmtDate(to)}</span>`
+      :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
+  }
   try{
-    const cr=await db.collection('operator_daily_close').doc(date).get();
-    _opDayRecord=cr.exists?cr.data():null;
-  }catch(e){_opDayRecord=null;}
-  try{
-    const snap=await db.collection('operator_sales').where('date','==',date).get();
-    _opDailySales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
-  }catch(e){_opDailySales=[];}
-  try{
-    const snap=await db.collection('employee_orders').where('deliveredDate','==',date).get();
-    _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
-  }catch(e){_opDayOrders=[];}
+    const [salesSnap,ordersSnap]=await Promise.all([
+      db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get(),
+      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get()
+    ]);
+    _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
+    _opDayOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+  }catch(e){_opDailySales=[];_opDayOrders=[];}
   renderOperatorDailyView();
 }
 
@@ -10265,8 +10309,8 @@ function renderOperatorDailyView(){
   if(!body||!actionsWrap) return;
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
   if(!_opDailySales.length){
-    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات مسجلة اليوم</div>';
-    actionsWrap.innerHTML=isClosed?'<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الحساب مغلق ليوم '+_opViewDate+'</div>':'';
+    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
+    actionsWrap.innerHTML=isClosed?`<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الكشف مغلق — من ${_fmtDate(_opCurrentSession?.openedDate)} إلى ${_fmtDate(_opCurrentSession?.closedDate)}</div>`:'';
     return;
   }
   // Aggregate by product
@@ -10302,7 +10346,7 @@ function renderOperatorDailyView(){
     </tr>`;
   }).join('');
   body.innerHTML=`
-    ${isClosed?`<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الحساب مغلق — ${_opViewDate}</div>`:''}
+    ${isClosed?`<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الكشف مغلق — من ${_fmtDate(_opCurrentSession?.openedDate)} إلى ${_fmtDate(_opCurrentSession?.closedDate)}</div>`:''}
     <!-- Detailed table -->
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;">
       <div style="overflow-x:auto;">
@@ -10418,32 +10462,37 @@ function renderOperatorDailyView(){
   }
 }
 
-async function closeOperatorDay(){
-  if(!confirm('إغلاق حساب اليوم؟ لن تتمكن من إضافة مبيعات جديدة بعد الغلق.')) return;
-  const today=_opViewDate||_opToday();
-  const byProd={};
-  _opDailySales.forEach(s=>{
-    const key=s.productName;
-    if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,machine:0,assembly:0,sell:0};
-    byProd[key].qty+=s.qty||1;
-    byProd[key].raw+=(s.rawMaterialCost||0)*(s.qty||1);
-    byProd[key].machine+=(s.machineWorkerWage||0)*(s.qty||1);
-    byProd[key].assembly+=(s.assemblyWorkerWage||0)*(s.qty||1);
-    byProd[key].sell+=(s.sellPrice||0)*(s.qty||1);
-  });
-  const prods=Object.values(byProd);
-  const totRaw=prods.reduce((s,p)=>s+p.raw,0);
-  const totMachine=prods.reduce((s,p)=>s+p.machine,0);
-  const totAssembly=prods.reduce((s,p)=>s+p.assembly,0);
-  const totSell=prods.reduce((s,p)=>s+p.sell,0);
-  const totCost=totRaw+totMachine+totAssembly;
+async function closeOperatorDay(){await closeOperatorSession();}
+async function closeOperatorSession(){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  const today=jordanDateStr();
+  if(!confirm(`إغلاق الكشف؟\nالفترة: من ${_fmtDate(_opCurrentSession.openedDate)} إلى ${_fmtDate(today)}`)) return;
   try{
-    _opDayRecord={date:today,status:'closed',totalRaw:totRaw,totalMachine:totMachine,totalAssembly:totAssembly,totalSell:totSell,totalCost:totCost,totalProfit:totSell-totCost,products:prods,salesCount:_opDailySales.length};
-    await db.collection('operator_daily_close').doc(today).set({..._opDayRecord,closedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    toast('🔒 تم إغلاق حساب اليوم');
-    checkOperatorDayStatus();
-    renderOperatorDailyView();
-  }catch(e){toast('❌ خطأ في الإغلاق');}
+    await db.collection('operator_sessions').doc(_opCurrentSession.id).update({
+      status:'closed',closedDate:today,closedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    _opCurrentSession={..._opCurrentSession,status:'closed',closedDate:today};
+    toast('🔒 تم إغلاق الكشف');
+    loadOpSessionStatus();
+    _loadOpSessionData();
+  }catch(e){toast('❌ خطأ في الإغلاق: '+e.message);}
+}
+async function openNewSession(){
+  if(_opCurrentSession&&_opCurrentSession.status==='open'){
+    if(!confirm('يوجد كشف مفتوح بالفعل. هل تريد إغلاقه وفتح كشف جديد؟'))return;
+    await closeOperatorSession();
+  }
+  try{
+    const today=jordanDateStr();
+    const ref=await db.collection('operator_sessions').add({
+      status:'open',openedDate:today,closedDate:null,
+      openedAt:firebase.firestore.FieldValue.serverTimestamp(),closedAt:null
+    });
+    _opCurrentSession={id:ref.id,status:'open',openedDate:today,closedDate:null};
+    toast('✅ تم فتح كشف جديد');
+    loadOpSessionStatus();
+    _loadOpSessionData();
+  }catch(e){toast('❌ خطأ: '+e.message);}
 }
 
 function _buildOpDayHTML(forPrint){
