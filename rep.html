@@ -489,9 +489,20 @@ async function loadRepsTab(){
   const el=document.getElementById('supRepsList');
   if(el)el.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">⏳ تحميل...</div>';
   try{
-    const allReps=((await db.collection('operator_config').doc('delivery_reps').get()).data()?.reps||[]).filter(r=>r.role!=='supervisor');
-    const [delSnap,paySnap,refSnap]=await Promise.all([
-      db.collection('employee_orders').where('status','==','delivered').get(),
+    // Date cutoff: last 6 months to avoid loading all history
+    const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-6);
+    const cutoffStr=cutoff.toISOString().slice(0,10);
+
+    // Run all queries in parallel; reuse supReps if already loaded
+    const repsPromise=supReps.length
+      ? Promise.resolve(supReps)
+      : db.collection('operator_config').doc('delivery_reps').get()
+          .then(s=>((s.exists?s.data()?.reps:[])||[]).filter(r=>r.role!=='supervisor'));
+
+    const [allReps,delSnap,paySnap,refSnap]=await Promise.all([
+      repsPromise,
+      db.collection('employee_orders').where('status','==','delivered').where('deliveredDate','>=',cutoffStr).get()
+        .catch(()=>db.collection('employee_orders').where('status','==','delivered').get()),
       db.collection('rep_payments').get(),
       db.collection('rep_refunds').get()
     ]);
@@ -512,6 +523,8 @@ async function loadRepsTab(){
       const bal=owed-paid;
       const balColor=bal>0?'#dc2626':bal<0?'#7c3aed':'#059669';
       const balLabel=bal>0?'مستحق على المندوب':bal<0?'مستحق للمندوب':'مسوّى';
+      const safeName=(r.name||'').replace(/'/g,"&#39;");
+      const safePhone=(r.phone||'').replace(/'/g,"&#39;");
       return `<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;border:1.5px solid #ede9fe;box-shadow:0 2px 8px rgba(124,58,237,0.08);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div>
@@ -544,7 +557,7 @@ async function loadRepsTab(){
         ${repActive.length?`<div style="font-size:0.75rem;color:#6b7280;padding-top:8px;border-top:1px dashed #e5e7eb;">
           ${repActive.map(o=>{const lbl=o.orderNum?'#'+o.orderNum:'#'+o.id.slice(-6).toUpperCase();const st=ST[o.status]||{label:o.status,color:'#6b7280'};return `<span onclick="showSupOrderModal(supOrders.find(x=>x.id==='${o.id}'))" style="display:inline-flex;align-items:center;gap:4px;background:${st.color}15;color:${st.color};border-radius:8px;padding:3px 8px;margin:2px;cursor:pointer;font-weight:700;">${lbl} ${st.label}</span>`;}).join('')}
         </div>`:''}
-        <button onclick="openRepPayModal('${r.phone}','${(r.name||'').replace(/'/g,"\\'")}')" style="width:100%;margin-top:10px;padding:11px;background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe;border-radius:12px;font-size:0.88rem;font-weight:800;font-family:'Tajawal',sans-serif;">💰 تسجيل دفعة</button>
+        <button onclick="openRepPayModal('${safePhone}','${safeName}')" style="width:100%;margin-top:10px;padding:11px;background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe;border-radius:12px;font-size:0.88rem;font-weight:800;font-family:'Tajawal',sans-serif;">💰 تسجيل دفعة</button>
       </div>`;
     }).join('');
   }catch(e){
