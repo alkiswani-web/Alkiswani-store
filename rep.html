@@ -686,9 +686,15 @@ async function doTransfer(repPhone,repName){
   closeTransfer();
   toast('⏳ جاري التحويل...');
   try{
-    const upd=repPhone
-      ?{deliveryRepPhone:repPhone,deliveryRepName:repName}
-      :{deliveryRepPhone:firebase.firestore.FieldValue.delete(),deliveryRepName:firebase.firestore.FieldValue.delete()};
+    let upd;
+    if(repPhone){
+      const order=supOrders.find(o=>o.id===orderId);
+      const shouldSetDelivering=order&&!['delivered','cancelled','returned'].includes(order.status);
+      upd={deliveryRepPhone:repPhone,deliveryRepName:repName};
+      if(shouldSetDelivering) upd.status='delivering';
+    }else{
+      upd={deliveryRepPhone:firebase.firestore.FieldValue.delete(),deliveryRepName:firebase.firestore.FieldValue.delete()};
+    }
     await db.collection('employee_orders').doc(orderId).update(upd);
     toast('✅ تم التحويل'+(repName?' إلى '+repName:''));
     await loadSupData();
