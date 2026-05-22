@@ -15039,21 +15039,37 @@ function _qrOnDetected(raw){
 
 async function _handleQRResult(raw){
   let orderId=raw.trim();
+  // Extract ?order= param if full URL was scanned
   try{const u=new URL(orderId);const p=u.searchParams.get('order');if(p)orderId=p;}catch(e){}
   try{
     closeQRScanner();
+    // Helper: find order by docId or fallback search by orderNum / last-6 chars
+    const _findOrder=async(id)=>{
+      const direct=await db.collection('employee_orders').doc(id).get();
+      if(direct.exists)return{id:direct.id,...direct.data()};
+      // Fallback: search by orderNum field or last-6 chars of doc ID
+      const cleaned=id.replace(/^#/,'');
+      const byNum=await db.collection('employee_orders').where('orderNum','==',cleaned).limit(1).get()
+        .catch(()=>({empty:true}));
+      if(!byNum.empty)return{id:byNum.docs[0].id,...byNum.docs[0].data()};
+      const byNumHash=await db.collection('employee_orders').where('orderNum','==','#'+cleaned).limit(1).get()
+        .catch(()=>({empty:true}));
+      if(!byNumHash.empty)return{id:byNumHash.docs[0].id,...byNumHash.docs[0].data()};
+      return null;
+    };
     if(_repQRMode){
       _repQRMode=false;
-      const snap=await db.collection('employee_orders').doc(orderId).get();
-      if(snap.exists)_showRepOrderDetail({id:snap.id,...snap.data()});
-      else toast('❌ الطلب غير موجود');
+      const o=await _findOrder(orderId);
+      if(o)_showRepOrderDetail(o);
+      else toast('❌ الطلب غير موجود: '+orderId.slice(0,12));
       return;
     }
-    const snap=await db.collection('employee_orders').doc(orderId).get();
-    if(snap.exists&&snap.data().status==='waiting_rep'){
-      _openRepPickerFromDetail(orderId);
+    const o=await _findOrder(orderId);
+    if(!o){toast('❌ الطلب غير موجود: '+orderId.slice(0,12));return;}
+    if(o.status==='waiting_rep'){
+      _openRepPickerFromDetail(o.id);
     } else {
-      openOpOrderDetail(orderId);
+      openOpOrderDetail(o.id);
     }
   }catch(e){toast('❌ '+e.message);}
 }
@@ -15067,15 +15083,15 @@ async function _handleQRResult(raw){
       const raw=_buf.trim();
       const elapsed=now-_bufStart;
       _buf='';_bufStart=0;clearTimeout(_timer);
-      // 800ms threshold — covers slow Bluetooth scanners; humans can't type 4+ chars that fast
-      if(raw.length>3&&elapsed<800){closeQRScanner();_handleQRResult(raw);}
+      // 1200ms threshold — covers USB and slow Bluetooth scanners
+      if(raw.length>2&&elapsed<1200){closeQRScanner();_handleQRResult(raw);}
       return;
     }
     if(e.key.length===1){
       if(!_buf)_bufStart=now;
       _buf+=e.key;
       clearTimeout(_timer);
-      _timer=setTimeout(()=>{_buf='';_bufStart=0;},1000);
+      _timer=setTimeout(()=>{_buf='';_bufStart=0;},1500);
     }
   });
 })();
