@@ -10451,14 +10451,13 @@ function renderOperatorDailyView(){
       </div>`;
   }
 
-  // Action buttons — غلق only available for today's open account
-  const isToday=(_opViewDate===_opToday());
+  // Action buttons
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
-  if(!isClosed&&isToday){
-    actionsWrap.innerHTML=`<button onclick="closeOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق حساب اليوم</button>${printBtn}${waBtn}`;
+  if(!isClosed){
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${printBtn}${waBtn}`;
   } else {
-    actionsWrap.innerHTML=printBtn+waBtn;
+    actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
 }
 
@@ -14697,6 +14696,7 @@ window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePay
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
+window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
