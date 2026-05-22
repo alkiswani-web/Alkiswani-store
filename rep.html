@@ -893,16 +893,21 @@ async function setStatus(orderId,status,btn){
 }
 
 // ===== QR SCANNER =====
+let _repBarcodeDetector=null;
 function openQR(){
   document.getElementById('qrView').classList.add('active');
   qrActive=true;
+  _repBarcodeDetector=null;
+  if('BarcodeDetector' in window){
+    try{_repBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}
+  }
   navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}})
     .then(stream=>{
       qrStream=stream;
       const vid=document.getElementById('qrVideo');
       vid.srcObject=stream;
       vid.play().catch(()=>{});
-      vid.addEventListener('loadedmetadata',()=>{if(qrActive)requestAnimationFrame(qrScanFrame);},{once:true});
+      vid.addEventListener('loadedmetadata',()=>{if(qrActive)_qrRepRunLoop();},{once:true});
     })
     .catch(e=>{toast('❌ تعذر فتح الكاميرا: '+e.message);closeQR();});
 }
@@ -911,6 +916,36 @@ function closeQR(){
   qrActive=false;
   if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null;}
   document.getElementById('qrView').classList.remove('active');
+}
+
+async function _qrRepRunLoop(){
+  const vid=document.getElementById('qrVideo');
+  const canvas=document.getElementById('qrCanvas');
+  let ctx=null;
+  while(qrActive){
+    if(vid&&vid.readyState>=2&&vid.videoWidth){
+      try{
+        let raw=null;
+        if(_repBarcodeDetector){
+          // Native hardware-accelerated API (Android/Chrome)
+          const codes=await _repBarcodeDetector.detect(vid);
+          if(codes.length)raw=codes[0].rawValue;
+        } else {
+          // jsQR fallback
+          const W=Math.min(vid.videoWidth,960);
+          const sc=W/vid.videoWidth;
+          canvas.width=W;canvas.height=Math.round(vid.videoHeight*sc);
+          if(!ctx)ctx=canvas.getContext('2d',{willReadFrequently:true});
+          ctx.drawImage(vid,0,0,canvas.width,canvas.height);
+          const id=ctx.getImageData(0,0,canvas.width,canvas.height);
+          const code=jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
+          if(code&&code.data)raw=code.data.trim();
+        }
+        if(raw&&qrActive){qrOnDetected(raw);return;}
+      }catch(e){}
+    }
+    await new Promise(r=>setTimeout(r,_repBarcodeDetector?40:100));
+  }
 }
 
 function qrScanFrame(){
