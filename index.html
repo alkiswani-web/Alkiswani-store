@@ -2743,6 +2743,14 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- REPS ACCOUNTING sub-tab -->
       <div id="optab-reps" style="display:none;">
+        <!-- Points config bar -->
+        <div style="background:#fefce8;border:1.5px solid #fde047;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:0.82rem;font-weight:700;color:#92400e;">⭐ قيمة النقطة:</span>
+          <input type="number" id="pointValueInput" min="0.01" step="0.01" placeholder="0.00" style="width:80px;padding:6px 10px;border:1.5px solid #fde047;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;text-align:center;" onfocus="this.style.borderColor='#ca8a04'" onblur="this.style.borderColor='#fde047'">
+          <span style="font-size:0.8rem;color:#92400e;">د.أ / نقطة</span>
+          <button onclick="savePointValue()" style="padding:6px 14px;background:#ca8a04;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+          <span id="pointValueStatus" style="font-size:0.75rem;color:#6b7280;"></span>
+        </div>
         <!-- List view -->
         <div id="repAcctListView">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
@@ -2758,6 +2766,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <div id="repAcctDetailTitle" style="font-size:0.92rem;font-weight:800;color:#1a3a2a;"></div>
           </div>
           <div id="repAcctSummary" style="margin-bottom:14px;"></div>
+          <div id="repAcctPointsSection" style="margin-bottom:14px;"></div>
           <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:14px;">
             <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">💰 تسجيل دفعة جديدة</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -8510,7 +8519,7 @@ function switchOpTab(tab){
   if(tab==='workers')loadEmpWorkers();
   if(tab==='emppoints')loadAdminEmpPoints();
   if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
-  if(tab==='reps')loadRepAccounting();
+  if(tab==='reps'){loadPointValueSetting();loadRepAccounting();}
 }
 
 // ===== QUICK DELIVER TAB (تسليم سريع) =====
@@ -13745,29 +13754,48 @@ async function loadRepAccounting(){
   const listEl=document.getElementById('repAcctList');
   if(!listEl)return;
   listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
+  // Load point value if not loaded yet
+  if(!_pointValue)await loadPointValueSetting();
   try{
-    const repSnap=await db.collection('operator_config').doc('delivery_reps').get();
+    const [repSnap,paymentsSnap,ordersSnap,pointsSnap]=await Promise.all([
+      db.collection('operator_config').doc('delivery_reps').get(),
+      db.collection('rep_payments').get(),
+      db.collection('employee_orders').where('status','==','delivered').get(),
+      db.collection('rep_points_payments').get()
+    ]);
     const reps=((repSnap.exists?repSnap.data()?.reps:[])||[]);
     if(!reps.length){listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">لا يوجد مناديب مسجلين — أضفهم من قائمة المناديب في تاب الطلبات</div>';return;}
-    const paymentsSnap=await db.collection('rep_payments').get();
-    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
     const paidByPhone={};
-    payments.forEach(p=>{paidByPhone[p.repPhone]=(paidByPhone[p.repPhone]||0)+(p.amount||0);});
+    paymentsSnap.docs.forEach(d=>{const p=d.data();paidByPhone[p.repPhone]=(paidByPhone[p.repPhone]||0)+(p.amount||0);});
+    const deliveredByPhone={};
+    ordersSnap.docs.forEach(d=>{const o=d.data();if(o.deliveryRepPhone)deliveredByPhone[o.deliveryRepPhone]=(deliveredByPhone[o.deliveryRepPhone]||0)+1;});
+    const paidPointsByPhone={};
+    pointsSnap.docs.forEach(d=>{const p=d.data();paidPointsByPhone[p.repPhone]=(paidPointsByPhone[p.repPhone]||0)+(p.points||0);});
     listEl.innerHTML=reps.map(r=>{
       const paid=paidByPhone[r.phone]||0;
-      return `<div onclick="showRepStatement('${r.phone}','${(r.name||'').replace(/'/g,'')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+      const delivered=deliveredByPhone[r.phone]||0;
+      const paidPts=paidPointsByPhone[r.phone]||0;
+      const pendingPts=Math.max(0,delivered-paidPts);
+      const pendingAmt=pendingPts*_pointValue;
+      return `<div onclick="showRepStatement('${(r.phone||'').replace(/'/g,'\\'')}','${(r.name||'').replace(/'/g,'\\'')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="font-weight:800;font-size:0.9rem;color:#1a3a2a;">🚚 ${r.name||'مندوب'}</div>
           <div style="font-size:0.75rem;color:#6b7280;">${r.phone||''}</div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr${_pointValue?` 1fr`:''};gap:8px;">
           <div style="background:#dcfce7;border-radius:8px;padding:9px;text-align:center;">
             <div style="font-size:0.68rem;color:#166534;margin-bottom:2px;">إجمالي دفع</div>
             <div style="font-weight:800;font-size:0.92rem;color:#166534;">${paid.toFixed(2)} د.أ</div>
           </div>
-          <div style="background:#f0f9ff;border-radius:8px;padding:9px;text-align:center;display:flex;align-items:center;justify-content:center;">
-            <span style="font-size:0.8rem;color:#0ea5e9;font-weight:700;">اضغط لعرض الكشف →</span>
+          <div style="background:#f0f9ff;border-radius:8px;padding:9px;text-align:center;">
+            <div style="font-size:0.68rem;color:#0369a1;margin-bottom:2px;">طلبات مسلّمة</div>
+            <div style="font-weight:800;font-size:0.92rem;color:#0369a1;">${delivered}</div>
           </div>
+          ${_pointValue?`<div style="background:${pendingPts>0?'#fef9c3':'#f0fdf4'};border-radius:8px;padding:9px;text-align:center;">
+            <div style="font-size:0.68rem;color:#92400e;margin-bottom:2px;">⭐ نقاط معلّقة</div>
+            <div style="font-weight:800;font-size:0.92rem;color:${pendingPts>0?'#b45309':'#166534'};">${pendingPts}</div>
+            <div style="font-size:0.6rem;color:#9ca3af;">${pendingAmt.toFixed(2)} د.أ</div>
+          </div>`:''}
         </div>
       </div>`;
     }).join('');
@@ -13798,6 +13826,8 @@ async function showRepStatement(phone,name){
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const repRefunds=refundsSnap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    // Render points section (non-blocking)
+    _renderRepPoints(phone,name,orders.length);
     const _collectAmt=o=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return Math.max(0,t-(o.deliveryFee||0));};
     const totalOwed=orders.reduce((s,o)=>s+_collectAmt(o),0);
     const totalPaid=payments.reduce((s,p)=>s+(p.amount||0),0);
@@ -13953,6 +13983,114 @@ function repAcctBackToList(){
   _repAcctRep=null;
 }
 
+// ====== POINTS SYSTEM ======
+let _pointValue=0;
+
+async function loadPointValueSetting(){
+  try{
+    const snap=await db.collection('operator_config').doc('points_config').get();
+    _pointValue=snap.exists?(snap.data()?.pointValue||0):0;
+  }catch(e){_pointValue=0;}
+  const inp=document.getElementById('pointValueInput');
+  if(inp&&_pointValue>0)inp.value=_pointValue.toFixed(2);
+  const st=document.getElementById('pointValueStatus');
+  if(st&&_pointValue>0)st.textContent=`الحالي: ${_pointValue.toFixed(2)} د.أ / نقطة`;
+}
+
+async function savePointValue(){
+  const inp=document.getElementById('pointValueInput');
+  const val=parseFloat(inp?.value||'0');
+  if(!val||val<=0){toast('⚠️ أدخل قيمة صحيحة للنقطة');return;}
+  try{
+    await db.collection('operator_config').doc('points_config').set({pointValue:val},{merge:true});
+    _pointValue=val;
+    const st=document.getElementById('pointValueStatus');
+    if(st)st.textContent=`محفوظ ✓ — ${val.toFixed(2)} د.أ / نقطة`;
+    toast('✅ تم حفظ قيمة النقطة');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function _renderRepPoints(phone,name,deliveredCount){
+  const el=document.getElementById('repAcctPointsSection');
+  if(!el)return;
+  if(!_pointValue){el.innerHTML='';return;}
+  try{
+    const snap=await db.collection('rep_points_payments').where('repPhone','==',phone).get();
+    const ppays=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const paidPoints=ppays.reduce((s,p)=>s+(p.points||0),0);
+    const pendingPoints=Math.max(0,deliveredCount-paidPoints);
+    const pendingAmt=pendingPoints*_pointValue;
+    const totalAmt=deliveredCount*_pointValue;
+    const paidAmt=paidPoints*_pointValue;
+    el.innerHTML=`
+      <div style="background:#fefce8;border:1.5px solid #fde047;border-radius:12px;padding:14px;">
+        <div style="font-size:0.82rem;font-weight:800;color:#92400e;margin-bottom:10px;">⭐ نقاط التوصيل</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div style="background:#fff9c4;border-radius:8px;padding:9px;text-align:center;">
+            <div style="font-size:0.65rem;color:#92400e;margin-bottom:2px;">إجمالي النقاط</div>
+            <div style="font-weight:900;font-size:1.1rem;color:#92400e;">${deliveredCount}</div>
+            <div style="font-size:0.6rem;color:#a16207;">${totalAmt.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:#dcfce7;border-radius:8px;padding:9px;text-align:center;">
+            <div style="font-size:0.65rem;color:#166534;margin-bottom:2px;">مصروف</div>
+            <div style="font-weight:900;font-size:1.1rem;color:#166534;">${paidPoints}</div>
+            <div style="font-size:0.6rem;color:#166534;">${paidAmt.toFixed(2)} د.أ</div>
+          </div>
+          <div style="background:${pendingPoints>0?'#fef3c7':'#dcfce7'};border-radius:8px;padding:9px;text-align:center;">
+            <div style="font-size:0.65rem;color:${pendingPoints>0?'#92400e':'#166534'};margin-bottom:2px;">${pendingPoints>0?'رصيد النقاط':'مسوّى ✓'}</div>
+            <div style="font-weight:900;font-size:1.1rem;color:${pendingPoints>0?'#b45309':'#166534'};">${pendingPoints}</div>
+            <div style="font-size:0.6rem;color:${pendingPoints>0?'#b45309':'#166534'};">${pendingAmt.toFixed(2)} د.أ</div>
+          </div>
+        </div>
+        ${pendingPoints>0?`
+        <button onclick="payRepPoints(${pendingPoints},${pendingAmt.toFixed(2)})" style="width:100%;padding:10px;background:#ca8a04;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;margin-bottom:10px;">
+          💳 صرف ${pendingPoints} نقطة (${pendingAmt.toFixed(2)} د.أ)
+        </button>`:''}
+        ${ppays.length?`
+        <div style="background:#fff;border:1px solid #fde047;border-radius:8px;overflow:hidden;">
+          <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.ptog').textContent=this.nextElementSibling.style.display==='none'?'▼':'▲';" style="background:#fef9c3;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+            <span style="font-size:0.78rem;font-weight:700;color:#92400e;">سجل صرف النقاط (${ppays.length})</span>
+            <span class="ptog" style="color:#92400e;font-size:0.75rem;">▼</span>
+          </div>
+          <div style="display:none;max-height:200px;overflow-y:auto;padding:8px 10px;">
+            ${ppays.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #fef9c3;">
+              <div>
+                <span style="font-size:0.82rem;font-weight:700;color:#92400e;">⭐ ${p.points} نقطة = ${(p.amount||0).toFixed(2)} د.أ</span>
+                <div style="font-size:0.7rem;color:#9ca3af;">${p.date||''} • ${p.addedBy||'أدمن'}</div>
+              </div>
+              <button onclick="deleteRepPointsPayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:4px 9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;font-weight:600;">حذف</button>
+            </div>`).join('')}
+          </div>
+        </div>`:''}
+      </div>`;
+  }catch(e){el.innerHTML='';}
+}
+
+async function payRepPoints(points,amount){
+  if(!_repAcctRep)return;
+  if(!confirm(`صرف ${points} نقطة بقيمة ${parseFloat(amount).toFixed(2)} د.أ للمندوب ${_repAcctRep.name}؟`))return;
+  try{
+    await db.collection('rep_points_payments').add({
+      repPhone:_repAcctRep.phone,repName:_repAcctRep.name,
+      points,amount:parseFloat(amount),
+      date:jordanDateStr(),addedBy:'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم تسجيل صرف النقاط');
+    showRepStatement(_repAcctRep.phone,_repAcctRep.name);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteRepPointsPayment(id){
+  if(!confirm('حذف هذا السجل؟'))return;
+  try{
+    await db.collection('rep_points_payments').doc(id).delete();
+    toast('🗑 تم الحذف');
+    showRepStatement(_repAcctRep.phone,_repAcctRep.name);
+  }catch(e){toast('❌ '+e.message);}
+}
+// ============================
+
 async function addRepPayment(){
   if(!_repAcctRep){toast('لم يتم تحديد المندوب');return;}
   const amtEl=document.getElementById('repAcctPayAmt');
@@ -14012,6 +14150,9 @@ window.loadRepAccounting=loadRepAccounting; window.showRepStatement=showRepState
 window.repAcctBackToList=repAcctBackToList; window.addRepPayment=addRepPayment;
 window.deleteRepPayment=deleteRepPayment; window.addRepRefund=addRepRefund;
 window.deleteRepRefund=deleteRepRefund;
+window.savePointValue=savePointValue; window.payRepPoints=payRepPoints;
+window.deleteRepPointsPayment=deleteRepPointsPayment;
+window.loadPointValueSetting=loadPointValueSetting;
 
 window.openRepMap=openRepMap; window.closeRepMap=closeRepMap;
 window._empToggleLocationShare=_empToggleLocationShare;
