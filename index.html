@@ -15046,18 +15046,22 @@ async function _handleQRResult(raw){
 
 // ====== HARDWARE SCANNER (USB/Bluetooth keyboard-mode) ======
 (function(){
-  let _buf='',_timer=null;
+  let _buf='',_bufStart=0,_timer=null;
   document.addEventListener('keydown',function(e){
-    const tag=(document.activeElement||{}).tagName||'';
-    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+    const now=Date.now();
     if(e.key==='Enter'){
-      const raw=_buf.trim();_buf='';clearTimeout(_timer);
-      if(raw.length>3){closeQRScanner();_handleQRResult(raw);}
+      const raw=_buf.trim();
+      const elapsed=now-_bufStart;
+      _buf='';_bufStart=0;clearTimeout(_timer);
+      // Scanner sends all chars in <300ms; human can't match that
+      if(raw.length>3&&elapsed<300){closeQRScanner();_handleQRResult(raw);}
       return;
     }
     if(e.key.length===1){
-      _buf+=e.key;clearTimeout(_timer);
-      _timer=setTimeout(()=>{_buf='';},500);
+      if(!_buf)_bufStart=now;
+      _buf+=e.key;
+      clearTimeout(_timer);
+      _timer=setTimeout(()=>{_buf='';_bufStart=0;},600);
     }
   });
 })();
