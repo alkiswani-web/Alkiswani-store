@@ -1162,7 +1162,9 @@ function closeSupModal(){
 
 async function supSetStatus(orderId,newStatus){
   try{
-    await db.collection('employee_orders').doc(orderId).update({status:newStatus});
+    const upd={status:newStatus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(newStatus==='delivered') upd.deliveredDate=jordanDate();
+    await db.collection('employee_orders').doc(orderId).update(upd);
     toast('✅ '+(ST[newStatus]?.label||newStatus));
     const snap=await db.collection('employee_orders').doc(orderId).get();
     if(snap.exists){
