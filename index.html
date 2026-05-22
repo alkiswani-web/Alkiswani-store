@@ -15103,7 +15103,10 @@ async function _handleQRResult(raw){
       const elapsed=now-_bufStart;
       _buf='';_bufStart=0;clearTimeout(_timer);
       // 1200ms threshold — covers USB and slow Bluetooth scanners
-      if(raw.length>2&&elapsed<1200){closeQRScanner();_handleQRResult(raw);}
+      if(raw.length>2&&elapsed<1200){
+        e.preventDefault();e.stopPropagation();
+        closeQRScanner();_handleQRResult(raw);
+      }
       return;
     }
     if(e.key.length===1){

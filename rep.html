@@ -962,7 +962,10 @@ document.addEventListener('keydown',function(e){
     const elapsed=now-_scanBufStart;
     _scanBuf='';_scanBufStart=0;clearTimeout(_scanTimer);
     // 1200ms threshold — hardware scanners send all chars in <100ms, humans can't match
-    if(raw.length>2&&elapsed<1200)processHwScan(raw);
+    if(raw.length>2&&elapsed<1200){
+      e.preventDefault();e.stopPropagation();
+      processHwScan(raw);
+    }
     return;
   }
   if(e.key.length===1){
