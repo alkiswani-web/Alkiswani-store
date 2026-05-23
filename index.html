@@ -10340,14 +10340,23 @@ async function _loadOpSessionData(){
   }catch(e){_opDailySales=[];}
   // Cancel previous listener if any
   if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
-  // Real-time listener for delivered orders in session range
+  // Real-time listener — listens to ALL delivered orders, filters client-side.
+  // This catches orders even if rep's app didn't set deliveredDate (legacy/cached PWA).
+  const fromDate=new Date(from+'T00:00:00');
+  const toDate=new Date(to+'T23:59:59');
   _opOrdersUnsub=db.collection('employee_orders')
-    .where('deliveredDate','>=',from)
-    .where('deliveredDate','<=',to)
+    .where('status','==','delivered')
     .onSnapshot(snap=>{
-      _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+      _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>{
+        if(o.deliveredDate) return o.deliveredDate>=from&&o.deliveredDate<=to;
+        if(o.updatedAt&&o.updatedAt.toDate){
+          const u=o.updatedAt.toDate();
+          return u>=fromDate&&u<=toDate;
+        }
+        return false;
+      });
       renderOperatorDailyView();
-    },()=>{});
+    },e=>{console.error('opStatement listener error:',e);});
 }
 
 function prevOpDay(){
