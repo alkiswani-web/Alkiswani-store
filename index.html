@@ -10532,7 +10532,8 @@ function renderOperatorDailyView(){
   if(!isClosed){
     const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
     const refreshBtn=`<button onclick="_loadOpSessionData()" style="flex:1;min-width:100px;padding:12px;background:#059669;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔄 تحديث</button>`;
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${refreshBtn}${editDateBtn}${printBtn}${waBtn}`;
+    const fetchRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:120px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚚 جلب تسليمات المناديب</button>`;
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${fetchRepsBtn}${refreshBtn}${editDateBtn}${printBtn}${waBtn}`;
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
@@ -10547,6 +10548,37 @@ async function removeOrderFromStatement(orderId){
     _opDayOrders=_opDayOrders.filter(o=>o.id!==orderId);
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
+}
+
+async function fetchRepDeliveries(btn){
+  if(!_opCurrentSession){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الجلب...';}
+  try{
+    const from=_opCurrentSession.openedDate;
+    const to=_opCurrentSession.closedDate||jordanDateStr();
+    // Fetch all delivered orders in session range by deliveredDate
+    const snap1=await db.collection('employee_orders')
+      .where('deliveredDate','>=',from).where('deliveredDate','<=',to).get();
+    const byDate=snap1.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+    // Also fetch by updatedAt range for orders without deliveredDate
+    const fromTs=firebase.firestore.Timestamp.fromDate(new Date(from+'T00:00:00'));
+    const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
+    let byUpdate=[];
+    try{
+      const snap2=await db.collection('employee_orders')
+        .where('status','==','delivered')
+        .where('updatedAt','>=',fromTs)
+        .where('updatedAt','<=',toTs).get();
+      byUpdate=snap2.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.deliveredDate);
+    }catch(e2){}
+    // Merge all into existing _opDayOrders
+    const map={};
+    [..._opDayOrders,...byDate,...byUpdate].forEach(o=>map[o.id]=o);
+    _opDayOrders=Object.values(map);
+    renderOperatorDailyView();
+    toast('✅ تم جلب '+_opDayOrders.length+' طلب مُسلَّم');
+  }catch(e){toast('❌ '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent='🚚 جلب تسليمات المناديب';}}
 }
 async function editSessionStartDate(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed') return;
@@ -14929,7 +14961,7 @@ window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePay
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
-window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive;
+window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
