@@ -10531,7 +10531,8 @@ function renderOperatorDailyView(){
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
   if(!isClosed){
     const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${editDateBtn}${printBtn}${waBtn}`;
+    const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✅ تسليم</button>`;
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${editDateBtn}${printBtn}${waBtn}`;
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
