@@ -10335,24 +10335,12 @@ async function _loadOpSessionData(){
       :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
-    const isClosed=_opCurrentSession.status==='closed';
-    const [salesSnap,ordersSnap,allDeliveredSnap]=await Promise.all([
+    const [salesSnap,ordersSnap]=await Promise.all([
       db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get(),
-      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get(),
-      // For open sessions: also fetch all delivered orders to catch those missing deliveredDate
-      isClosed
-        ? Promise.resolve({docs:[]})
-        : db.collection('employee_orders').where('status','==','delivered').get()
-            .catch(()=>({docs:[]}))
+      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get()
     ]);
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
-    const seenIds=new Set();
-    // orphans: delivered orders with no deliveredDate (legacy data before fix)
-    const orphanDocs=isClosed?[]:allDeliveredSnap.docs.filter(d=>!d.data().deliveredDate);
-    const allOrders=[...ordersSnap.docs,...orphanDocs]
-      .map(d=>({id:d.id,...d.data()}))
-      .filter(o=>{if(seenIds.has(o.id))return false;seenIds.add(o.id);return o.status==='delivered';});
-    _opDayOrders=allOrders;
+    _opDayOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
   }catch(e){_opDailySales=[];_opDayOrders=[];}
   renderOperatorDailyView();
 }
