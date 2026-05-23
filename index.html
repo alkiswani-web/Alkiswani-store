@@ -5092,6 +5092,7 @@ let _empDeliveryFee=0;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
 let _opStmtUnsub=null;
+let _opStmtPollId=null;
 let _empTodayUnsub=null;
 let _empEditOrderId=null;
 let _empEditCart=[];
@@ -10339,25 +10340,58 @@ async function _loadOpSessionData(){
     const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_opDailySales=[];}
-  // Cancel previous statement listener if any
+  // Cancel previous statement listener and poll if any
   if(_opStmtUnsub){_opStmtUnsub();_opStmtUnsub=null;}
-  // Real-time listener — listens to ALL delivered orders, filters client-side.
-  // This catches orders even if rep's app didn't set deliveredDate (legacy/cached PWA).
-  const fromDate=new Date(from+'T00:00:00');
-  const toDate=new Date(to+'T23:59:59');
+  if(_opStmtPollId){clearInterval(_opStmtPollId);_opStmtPollId=null;}
+
+  // Helper: fetch delivered orders for this session range
+  async function _fetchStmtOrders(){
+    try{
+      // Primary: orders with deliveredDate in session range (fast, indexed)
+      const snap=await db.collection('employee_orders')
+        .where('deliveredDate','>=',from).where('deliveredDate','<=',to).get();
+      const withDate=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+      // Fallback: orders without deliveredDate but updatedAt in range (old rep app)
+      const fromTs=firebase.firestore.Timestamp.fromDate(new Date(from+'T00:00:00'));
+      const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
+      let noDate=[];
+      try{
+        const snap2=await db.collection('employee_orders')
+          .where('status','==','delivered')
+          .where('updatedAt','>=',fromTs)
+          .where('updatedAt','<=',toTs).get();
+        noDate=snap2.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.deliveredDate);
+      }catch(e2){}
+      // Merge by id
+      const map={};
+      [...withDate,...noDate].forEach(o=>map[o.id]=o);
+      return Object.values(map);
+    }catch(e){return _opDayOrders;}
+  }
+
+  // Real-time listener on deliveredDate range (fast query)
   _opStmtUnsub=db.collection('employee_orders')
-    .where('status','==','delivered')
-    .onSnapshot(snap=>{
-      _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>{
-        if(o.deliveredDate) return o.deliveredDate>=from&&o.deliveredDate<=to;
-        if(o.updatedAt&&o.updatedAt.toDate){
-          const u=o.updatedAt.toDate();
-          return u>=fromDate&&u<=toDate;
-        }
-        return false;
-      });
+    .where('deliveredDate','>=',from)
+    .where('deliveredDate','<=',to)
+    .onSnapshot(async snap=>{
+      const withDate=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+      // merge with any no-deliveredDate orders already in _opDayOrders
+      const noDateOrders=_opDayOrders.filter(o=>!o.deliveredDate);
+      const map={};
+      [...withDate,...noDateOrders].forEach(o=>map[o.id]=o);
+      _opDayOrders=Object.values(map);
       renderOperatorDailyView();
     },e=>{console.error('opStatement listener error:',e);});
+
+  // Fallback poll every 30s (catches orders without deliveredDate or missed updates)
+  _opStmtPollId=setInterval(async()=>{
+    if(!_opCurrentSession)return;
+    _opDayOrders=await _fetchStmtOrders();
+    renderOperatorDailyView();
+  },30000);
+
+  // Initial load via poll
+  _fetchStmtOrders().then(orders=>{_opDayOrders=orders;renderOperatorDailyView();});
 }
 
 function prevOpDay(){
