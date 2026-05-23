@@ -10514,7 +10514,10 @@ function renderOperatorDailyView(){
             <div style="font-size:0.74rem;color:#6b7280;margin-top:2px;">${o.customerPhone||''}${o.address?` · 📍 ${o.address}`:''}</div>
             <div style="font-size:0.73rem;color:#9ca3af;margin-top:1px;">${prods}</div>
           </div>
-          <div style="font-weight:900;color:#166534;font-size:0.88rem;white-space:nowrap;flex-shrink:0;">${o.collectAmt.toFixed(2)} <span style="font-size:0.65rem;font-weight:600;">د.أ</span></div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <div style="font-weight:900;color:#166534;font-size:0.88rem;white-space:nowrap;">${o.collectAmt.toFixed(2)} <span style="font-size:0.65rem;font-weight:600;">د.أ</span></div>
+            <button onclick="removeOrderFromStatement('${o.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;line-height:1;" title="إزالة من الكشف">×</button>
+          </div>
         </div>`;
       }).join('');
       return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;">
@@ -10546,6 +10549,16 @@ function renderOperatorDailyView(){
   }
 }
 
+async function removeOrderFromStatement(orderId){
+  if(!confirm('إزالة هذا الطلب من الكشف؟')) return;
+  try{
+    await db.collection('employee_orders').doc(orderId).update({
+      deliveredDate:firebase.firestore.FieldValue.delete()
+    });
+    _opDayOrders=_opDayOrders.filter(o=>o.id!==orderId);
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
 async function editSessionStartDate(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed') return;
   const current=_opCurrentSession.openedDate;
