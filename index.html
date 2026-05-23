@@ -10678,13 +10678,26 @@ async function saveOperatorWithdrawal(){
   if(!storeId){toast('⚠️ اختر المتجر');return;}
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
-    await db.collection('operator_withdrawals').add({
+    const batch=db.batch();
+    // Save to operator_withdrawals (for statement)
+    const wRef=db.collection('operator_withdrawals').doc();
+    batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    // Also save to operator_store_balance (for رصيد المحل)
+    const balRef=db.collection('operator_store_balance').doc();
+    batch.set(balRef,{
+      type:'withdraw',
+      amount,date,
+      notes:(storeName?(storeName+(notes?' — '+notes:'')):(notes||'')),
+      sourceWithdrawalId:wRef.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
     document.getElementById('withdrawal_modal')?.remove();
-    toast('✅ تم تسجيل المسحوب');
+    toast('✅ تم تسجيل المسحوب في الكشف ورصيد المحل');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
     _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
     renderOperatorDailyView();
@@ -10694,7 +10707,12 @@ async function saveOperatorWithdrawal(){
 async function deleteOperatorWithdrawal(wid){
   if(!confirm('حذف هذا المسحوب؟')) return;
   try{
-    await db.collection('operator_withdrawals').doc(wid).delete();
+    // Delete from operator_store_balance too (linked by sourceWithdrawalId)
+    const balSnap=await db.collection('operator_store_balance').where('sourceWithdrawalId','==',wid).limit(1).get();
+    const batch=db.batch();
+    batch.delete(db.collection('operator_withdrawals').doc(wid));
+    if(!balSnap.empty) batch.delete(balSnap.docs[0].ref);
+    await batch.commit();
     _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
     renderOperatorDailyView();
     toast('✅ تم حذف المسحوب');
