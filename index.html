@@ -6749,7 +6749,7 @@ async function updateEmpOrderStatus(id,newStatus){
     await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
     sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
-    if(newStatus==='delivered') syncOrderToAccounting(id,data);
+    if(newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
       unsyncOrderFromAccounting(id);
       addPageRefundEntry(id,data,newStatus);
@@ -6760,7 +6760,7 @@ async function updateEmpOrderStatus(id,newStatus){
   }catch(e){toast('❌ '+e.message);}
 }
 
-async function syncOrderToAccounting(orderId,orderData,dateOverride,silent){
+async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessionId){
   // Find store linked to this page
   if(!_opStoresList.length) await loadOpStores();
   const store=_opStoresList.find(s=>s.pageId===orderData.pageId);
@@ -6802,6 +6802,7 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent){
         date:dateOverride||jordanDateStr(),
         delivered:true,
         fromOrderId:orderId,
+        sessionId:sessionId||null,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
     });
@@ -10339,7 +10340,10 @@ async function _loadOpSessionData(){
   }
   try{
     const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
-    _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
+    _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(s=>s.delivered!==false)
+      // exclude records that belong to a different session (old records with no sessionId are kept)
+      .filter(s=>!s.sessionId||s.sessionId===_opCurrentSession.id);
   }catch(e){_opDailySales=[];}
   try{
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
@@ -10624,7 +10628,7 @@ async function fetchRepDeliveries(btn){
     let synced=0;
     for(const order of allDelivered){
       try{
-        await syncOrderToAccounting(order.id,order,order.deliveredDate||jordanDateStr(),true);
+        await syncOrderToAccounting(order.id,order,order.deliveredDate||jordanDateStr(),true,_opCurrentSession.id);
         synced++;
       }catch(e){console.error('fetchRepDeliveries sync error:',order.id,e);}
     }
