@@ -10313,6 +10313,7 @@ async function openOperatorDailyAccount(sessionId){
 }
 
 async function _loadOpDayData(date){await _loadOpSessionData();}
+let _opOrdersUnsub=null;
 async function _loadOpSessionData(){
   const body=document.getElementById('opacct_op_body');
   const actionsWrap=document.getElementById('opacct_op_actions');
@@ -10335,14 +10336,19 @@ async function _loadOpSessionData(){
       :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
-    const [salesSnap,ordersSnap]=await Promise.all([
-      db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get(),
-      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get()
-    ]);
+    const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
-    _opDayOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
-  }catch(e){_opDailySales=[];_opDayOrders=[];}
-  renderOperatorDailyView();
+  }catch(e){_opDailySales=[];}
+  // Cancel previous listener if any
+  if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
+  // Real-time listener for delivered orders in session range
+  _opOrdersUnsub=db.collection('employee_orders')
+    .where('deliveredDate','>=',from)
+    .where('deliveredDate','<=',to)
+    .onSnapshot(snap=>{
+      _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+      renderOperatorDailyView();
+    },()=>{});
 }
 
 function prevOpDay(){
