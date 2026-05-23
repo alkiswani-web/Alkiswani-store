@@ -10335,12 +10335,26 @@ async function _loadOpSessionData(){
       :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
-    const [salesSnap,ordersSnap]=await Promise.all([
+    const [salesSnap,ordersSnap,allDeliveredSnap]=await Promise.all([
       db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get(),
-      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get()
+      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get(),
+      db.collection('employee_orders').where('status','==','delivered').get().catch(()=>({docs:[]}))
     ]);
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
-    _opDayOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+    const fromTs=new Date(from+'T00:00:00+03:00');
+    const toTs=new Date(to+'T23:59:59+03:00');
+    const seenIds=new Set();
+    // Also include delivered orders missing deliveredDate but updated within session range
+    const orphans=allDeliveredSnap.docs.filter(d=>{
+      const o=d.data();
+      if(o.deliveredDate) return false;
+      if(!o.updatedAt||!o.updatedAt.toDate) return false;
+      const t=o.updatedAt.toDate();
+      return t>=fromTs&&t<=toTs;
+    });
+    _opDayOrders=[...ordersSnap.docs,...orphans]
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(o=>{if(seenIds.has(o.id))return false;seenIds.add(o.id);return o.status==='delivered';});
   }catch(e){_opDailySales=[];_opDayOrders=[];}
   renderOperatorDailyView();
 }
