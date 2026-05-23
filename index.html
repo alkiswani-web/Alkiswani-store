@@ -2562,7 +2562,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div id="op_session_bar" style="margin-bottom:16px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:11px 14px;">
             <div id="op_session_info" style="font-size:0.85rem;color:var(--text-mid);text-align:center;">⏳ تحميل...</div>
           </div>
-          <div id="opacct_debug"></div>
           <div id="opacct_op_body"></div>
           <div id="opacct_op_actions" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;"></div>
         </div>
@@ -10336,23 +10335,12 @@ async function _loadOpSessionData(){
       :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
-    const [salesSnap,ordersSnap,dbgSnap]=await Promise.all([
+    const [salesSnap,ordersSnap]=await Promise.all([
       db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get(),
-      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get(),
-      db.collection('employee_orders').where('status','==','delivered').get()
+      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get()
     ]);
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
     _opDayOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
-    // DEBUG: show mismatch info in session body temporarily
-    const allDel=dbgSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const missing=allDel.filter(o=>!_opDayOrders.find(x=>x.id===o.id));
-    if(missing.length){
-      const dbgEl=document.getElementById('opacct_debug');
-      if(dbgEl) dbgEl.innerHTML=`<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:0.75rem;direction:ltr;text-align:left;margin-bottom:10px;">
-        <b>DEBUG — من:${from} إلى:${to}</b><br>
-        ${missing.map(o=>`#${o.orderNum||o.id.slice(-5)} | deliveredDate=${o.deliveredDate||'NULL'} | status=${o.status}`).join('<br>')}
-      </div>`;
-    }
   }catch(e){_opDailySales=[];_opDayOrders=[];}
   renderOperatorDailyView();
 }
@@ -10551,12 +10539,26 @@ function renderOperatorDailyView(){
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
   if(!isClosed){
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${printBtn}${waBtn}`;
+    const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${editDateBtn}${printBtn}${waBtn}`;
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
 }
 
+async function editSessionStartDate(){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed') return;
+  const current=_opCurrentSession.openedDate;
+  const newDate=prompt(`تعديل تاريخ بداية الكشف (الحالي: ${current})\nأدخل التاريخ بصيغة YYYY-MM-DD:`,current);
+  if(!newDate||newDate===current) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)){toast('❌ صيغة التاريخ غلط، استخدم: YYYY-MM-DD');return;}
+  try{
+    await db.collection('operator_sessions').doc(_opCurrentSession.id).update({openedDate:newDate});
+    _opCurrentSession.openedDate=newDate;
+    toast('✅ تم تعديل تاريخ البداية');
+    await _loadOpSessionData();
+  }catch(e){toast('❌ '+e.message);}
+}
 async function closeOperatorDay(){await closeOperatorSession();}
 async function closeOperatorSession(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
