@@ -10254,6 +10254,7 @@ async function loadAcctStoreList(){
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
 let _opDayOrders=[];
+let _opWithdrawals=[];
 let _opDayRecord=null;
 let _opViewDate=null; // currently viewed date (YYYY-MM-DD)
 let _opCurrentSession=null; // current open or viewed session
@@ -10340,6 +10341,10 @@ async function _loadOpSessionData(){
     const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_opDailySales=[];}
+  try{
+    const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
+    _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opWithdrawals=[];}
   // Cancel previous statement listener and poll if any
   if(_opStmtUnsub){_opStmtUnsub();_opStmtUnsub=null;}
   if(_opStmtPollId){clearInterval(_opStmtPollId);_opStmtPollId=null;}
@@ -10526,6 +10531,34 @@ function renderOperatorDailyView(){
       </div>`;
   }
 
+  // ===== Withdrawals section =====
+  if(_opWithdrawals.length||!isClosed){
+    const totWd=_opWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
+    const wRows=_opWithdrawals.map(w=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #fecaca;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${w.storeName||'—'}</div>
+          ${w.notes?`<div style="font-size:0.73rem;color:#9ca3af;">${w.notes}</div>`:''}
+          <div style="font-size:0.7rem;color:#9ca3af;">${w.date||''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <div style="font-weight:900;color:#dc2626;font-size:0.88rem;white-space:nowrap;">${(w.amount||0).toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></div>
+          ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;" title="حذف">×</button>`:''}
+        </div>
+      </div>`).join('');
+    body.innerHTML+=`
+      <div style="margin-top:16px;">
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+          <span>💸 المسحوبات (${_opWithdrawals.length})</span>
+          ${_opWithdrawals.length?`<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${totWd.toFixed(2)} د.أ</span>`:''}
+        </div>
+        <div style="background:#fff5f5;border:1.5px solid #fecaca;border-radius:12px;overflow:hidden;">
+          <div style="padding:4px 14px 8px;">${wRows||'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:14px;">لا توجد مسحوبات</div>'}</div>
+          ${!isClosed?`<div style="padding:8px 14px;border-top:1px solid #fecaca;"><button onclick="showAddWithdrawalModal()" style="width:100%;padding:9px;background:#dc2626;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ إضافة مسحوب</button></div>`:''}
+        </div>
+      </div>`;
+  }
+
   // Action buttons
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
@@ -10600,6 +10633,72 @@ async function editSessionStartDate(){
     await _loadOpSessionData();
   }catch(e){toast('❌ '+e.message);}
 }
+function showAddWithdrawalModal(){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!_opStoresList.length){toast('⚠️ جاري تحميل المتاجر...');loadOpStores().then(()=>showAddWithdrawalModal());return;}
+  const storeOptions=_opStoresList.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
+  const today=jordanDateStr();
+  const overlay=document.createElement('div');
+  overlay.id='withdrawal_modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;">
+      <div style="font-weight:800;font-size:1.05rem;color:#1a3a2a;margin-bottom:18px;text-align:center;">💸 تسجيل مسحوب</div>
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المتجر</label>
+      <select id="wd_store" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;">
+        <option value="">— اختر المتجر —</option>${storeOptions}
+      </select>
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
+      <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
+      <input id="wd_date" type="date" value="${today}" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
+      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveOperatorWithdrawal()" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 حفظ</button>
+        <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
+}
+
+async function saveOperatorWithdrawal(){
+  const storeEl=document.getElementById('wd_store');
+  const amountEl=document.getElementById('wd_amount');
+  const dateEl=document.getElementById('wd_date');
+  const notesEl=document.getElementById('wd_notes');
+  const storeId=storeEl?.value;
+  const storeName=storeEl?.options[storeEl.selectedIndex]?.dataset?.name||'';
+  const amount=parseFloat(amountEl?.value||'0');
+  const date=dateEl?.value||jordanDateStr();
+  const notes=notesEl?.value?.trim()||'';
+  if(!storeId){toast('⚠️ اختر المتجر');return;}
+  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    await db.collection('operator_withdrawals').add({
+      sessionId:_opCurrentSession.id,
+      storeId,storeName,amount,date,notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('withdrawal_modal')?.remove();
+    toast('✅ تم تسجيل المسحوب');
+    const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
+    _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteOperatorWithdrawal(wid){
+  if(!confirm('حذف هذا المسحوب؟')) return;
+  try{
+    await db.collection('operator_withdrawals').doc(wid).delete();
+    _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
+    renderOperatorDailyView();
+    toast('✅ تم حذف المسحوب');
+  }catch(e){toast('❌ '+e.message);}
+}
+
 async function closeOperatorDay(){await closeOperatorSession();}
 async function closeOperatorSession(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
@@ -14969,6 +15068,7 @@ window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
 window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries;
+window.showAddWithdrawalModal=showAddWithdrawalModal; window.saveOperatorWithdrawal=saveOperatorWithdrawal; window.deleteOperatorWithdrawal=deleteOperatorWithdrawal;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
