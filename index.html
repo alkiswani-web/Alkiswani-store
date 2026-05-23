@@ -10547,7 +10547,7 @@ function renderOperatorDailyView(){
 }
 
 async function fixMissingDeliveredDates(){
-  if(!confirm('سيتم تحديد تاريخ تسليم اليوم لكل الطلبات المسلمة التي لا تملك تاريخاً. متابعة؟')) return;
+  if(!confirm('سيتم تحديد تاريخ التسليم الصحيح لكل الطلبات المسلمة التي لا تملك تاريخاً. متابعة؟')) return;
   toast('⏳ جاري التصحيح...');
   try{
     const snap=await db.collection('employee_orders').where('status','==','delivered').get();
@@ -10555,8 +10555,14 @@ async function fixMissingDeliveredDates(){
     const batch=db.batch();
     let count=0;
     snap.docs.forEach(d=>{
-      if(!d.data().deliveredDate){
-        batch.update(d.ref,{deliveredDate:today});
+      const data=d.data();
+      if(!data.deliveredDate){
+        // Use updatedAt timestamp as delivery date if available, otherwise today
+        let dateStr=today;
+        if(data.updatedAt&&data.updatedAt.toDate){
+          dateStr=data.updatedAt.toDate().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
+        }
+        batch.update(d.ref,{deliveredDate:dateStr});
         count++;
       }
     });
