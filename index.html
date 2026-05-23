@@ -10335,9 +10335,24 @@ async function _loadOpSessionData(){
       :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
+    const isClosed=_opCurrentSession.status==='closed';
+    // For open sessions: look back to last closed session's end date so no order is missed
+    let ordersFrom=from;
+    if(!isClosed){
+      const prevSnap=await db.collection('operator_sessions')
+        .where('status','==','closed').get().catch(()=>({empty:true}));
+      if(!prevSnap.empty&&prevSnap.docs.length){
+        const lastClosed=prevSnap.docs
+          .map(d=>d.data().closedDate||'')
+          .filter(Boolean)
+          .sort()
+          .pop();
+        if(lastClosed) ordersFrom=lastClosed;
+      }
+    }
     const [salesSnap,ordersSnap]=await Promise.all([
       db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get(),
-      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get()
+      db.collection('employee_orders').where('deliveredDate','>=',ordersFrom).where('deliveredDate','<=',to).get()
     ]);
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
     _opDayOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
