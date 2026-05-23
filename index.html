@@ -10539,39 +10539,12 @@ function renderOperatorDailyView(){
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
   if(!isClosed){
-    const fixBtn=`<button onclick="fixMissingDeliveredDates()" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔧 تصحيح الطلبات</button>`;
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${fixBtn}${printBtn}${waBtn}`;
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${printBtn}${waBtn}`;
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
 }
 
-async function fixMissingDeliveredDates(){
-  if(!confirm('سيتم تحديد تاريخ التسليم الصحيح لكل الطلبات المسلمة التي لا تملك تاريخاً. متابعة؟')) return;
-  toast('⏳ جاري التصحيح...');
-  try{
-    const snap=await db.collection('employee_orders').where('status','==','delivered').get();
-    const today=jordanDateStr();
-    const batch=db.batch();
-    let count=0;
-    snap.docs.forEach(d=>{
-      const data=d.data();
-      if(!data.deliveredDate){
-        // Use updatedAt timestamp as delivery date if available, otherwise today
-        let dateStr=today;
-        if(data.updatedAt&&data.updatedAt.toDate){
-          dateStr=data.updatedAt.toDate().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
-        }
-        batch.update(d.ref,{deliveredDate:dateStr});
-        count++;
-      }
-    });
-    if(count===0){toast('✅ لا توجد طلبات تحتاج تصحيح');return;}
-    await batch.commit();
-    toast(`✅ تم تصحيح ${count} طلب`);
-    await _loadOpSessionData();
-  }catch(e){toast('❌ '+e.message);}
-}
 async function closeOperatorDay(){await closeOperatorSession();}
 async function closeOperatorSession(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
