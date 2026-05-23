@@ -5091,6 +5091,7 @@ function resetEmpUrgentBtn(){_empOrderUrgent=false;const b=document.getElementBy
 let _empDeliveryFee=0;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
+let _opStmtUnsub=null;
 let _empTodayUnsub=null;
 let _empEditOrderId=null;
 let _empEditCart=[];
@@ -10338,13 +10339,13 @@ async function _loadOpSessionData(){
     const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_opDailySales=[];}
-  // Cancel previous listener if any
-  if(_opOrdersUnsub){_opOrdersUnsub();_opOrdersUnsub=null;}
+  // Cancel previous statement listener if any
+  if(_opStmtUnsub){_opStmtUnsub();_opStmtUnsub=null;}
   // Real-time listener — listens to ALL delivered orders, filters client-side.
   // This catches orders even if rep's app didn't set deliveredDate (legacy/cached PWA).
   const fromDate=new Date(from+'T00:00:00');
   const toDate=new Date(to+'T23:59:59');
-  _opOrdersUnsub=db.collection('employee_orders')
+  _opStmtUnsub=db.collection('employee_orders')
     .where('status','==','delivered')
     .onSnapshot(snap=>{
       _opDayOrders=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>{
