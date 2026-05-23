@@ -10556,24 +10556,31 @@ async function fetchRepDeliveries(btn){
   try{
     const from=_opCurrentSession.openedDate;
     const to=_opCurrentSession.closedDate||jordanDateStr();
-    // Fetch all delivered orders in session range by deliveredDate
-    const snap1=await db.collection('employee_orders')
-      .where('deliveredDate','>=',from).where('deliveredDate','<=',to).get();
-    const byDate=snap1.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
-    // Also fetch by updatedAt range for orders without deliveredDate
     const fromTs=firebase.firestore.Timestamp.fromDate(new Date(from+'T00:00:00'));
     const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
-    let byUpdate=[];
-    try{
-      const snap2=await db.collection('employee_orders')
-        .where('status','==','delivered')
-        .where('updatedAt','>=',fromTs)
-        .where('updatedAt','<=',toTs).get();
-      byUpdate=snap2.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.deliveredDate);
-    }catch(e2){}
-    // Merge all into existing _opDayOrders
+
+    // Query 1: by deliveredDate range (no composite index needed — single field range)
+    const [snap1,snap2]=await Promise.all([
+      db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get(),
+      // Query 2: by updatedAt range only (single field range, no composite index needed)
+      // filter client-side for status=delivered and no deliveredDate
+      db.collection('employee_orders').where('updatedAt','>=',fromTs).where('updatedAt','<=',toTs).get()
+    ]);
+
     const map={};
-    [..._opDayOrders,...byDate,...byUpdate].forEach(o=>map[o.id]=o);
+    // Add existing orders first
+    _opDayOrders.forEach(o=>map[o.id]=o);
+    // Add orders with deliveredDate in range
+    snap1.docs.forEach(d=>{
+      const o={id:d.id,...d.data()};
+      if(o.status==='delivered') map[o.id]=o;
+    });
+    // Add orders updated in range without deliveredDate (old rep app)
+    snap2.docs.forEach(d=>{
+      const o={id:d.id,...d.data()};
+      if(o.status==='delivered'&&!o.deliveredDate) map[o.id]=o;
+    });
+
     _opDayOrders=Object.values(map);
     renderOperatorDailyView();
     toast('✅ تم جلب '+_opDayOrders.length+' طلب مُسلَّم');
