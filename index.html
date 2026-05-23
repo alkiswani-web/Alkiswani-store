@@ -10313,7 +10313,6 @@ async function openOperatorDailyAccount(sessionId){
 }
 
 async function _loadOpDayData(date){await _loadOpSessionData();}
-let _opOrdersUnsub=null;
 async function _loadOpSessionData(){
   const body=document.getElementById('opacct_op_body');
   const actionsWrap=document.getElementById('opacct_op_actions');
