@@ -6760,7 +6760,7 @@ async function updateEmpOrderStatus(id,newStatus){
   }catch(e){toast('❌ '+e.message);}
 }
 
-async function syncOrderToAccounting(orderId,orderData){
+async function syncOrderToAccounting(orderId,orderData,dateOverride,silent){
   // Find store linked to this page
   if(!_opStoresList.length) await loadOpStores();
   const store=_opStoresList.find(s=>s.pageId===orderData.pageId);
@@ -6799,14 +6799,14 @@ async function syncOrderToAccounting(orderId,orderData){
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
         assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
         notes:orderData.notes||'',
-        date:jordanDateStr(),
+        date:dateOverride||jordanDateStr(),
         delivered:true,
         fromOrderId:orderId,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
     });
     await batch.commit();
-    toast(`✅ تم تسجيل الطلب في حساب "${store.name}"`);
+    if(!silent) toast(`✅ تم تسجيل الطلب في حساب "${store.name}"`);
   }catch(e){console.error('syncOrderToAccounting error:',e);}
 }
 
@@ -10559,31 +10559,32 @@ async function fetchRepDeliveries(btn){
     const fromTs=firebase.firestore.Timestamp.fromDate(new Date(from+'T00:00:00'));
     const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
 
-    // Query 1: by deliveredDate range (no composite index needed — single field range)
+    // Two queries: by deliveredDate range AND by updatedAt range (catch old orders without deliveredDate)
     const [snap1,snap2]=await Promise.all([
       db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get(),
-      // Query 2: by updatedAt range only (single field range, no composite index needed)
-      // filter client-side for status=delivered and no deliveredDate
       db.collection('employee_orders').where('updatedAt','>=',fromTs).where('updatedAt','<=',toTs).get()
     ]);
 
     const map={};
-    // Add existing orders first
-    _opDayOrders.forEach(o=>map[o.id]=o);
-    // Add orders with deliveredDate in range
-    snap1.docs.forEach(d=>{
-      const o={id:d.id,...d.data()};
-      if(o.status==='delivered') map[o.id]=o;
-    });
-    // Add orders updated in range without deliveredDate (old rep app)
-    snap2.docs.forEach(d=>{
-      const o={id:d.id,...d.data()};
-      if(o.status==='delivered'&&!o.deliveredDate) map[o.id]=o;
-    });
+    snap1.docs.forEach(d=>{const o={id:d.id,...d.data()};if(o.status==='delivered') map[o.id]=o;});
+    snap2.docs.forEach(d=>{const o={id:d.id,...d.data()};if(o.status==='delivered'&&!o.deliveredDate) map[o.id]=o;});
+    const allDelivered=Object.values(map);
 
-    _opDayOrders=Object.values(map);
-    renderOperatorDailyView();
-    toast('✅ تم جلب '+_opDayOrders.length+' طلب مُسلَّم');
+    if(!allDelivered.length){toast('لا توجد تسليمات في هذه الفترة');return;}
+
+    // Sync each delivered order into operator_sales (same as admin flow)
+    // syncOrderToAccounting already skips duplicates (checks fromOrderId)
+    let synced=0;
+    for(const order of allDelivered){
+      try{
+        await syncOrderToAccounting(order.id,order,order.deliveredDate||jordanDateStr(),true);
+        synced++;
+      }catch(e){console.error('fetchRepDeliveries sync error:',order.id,e);}
+    }
+
+    toast('✅ تم مزامنة '+synced+' طلب مع الكشف');
+    // Reload statement fully so _opDailySales picks up the new operator_sales records
+    await _loadOpSessionData();
   }catch(e){toast('❌ '+e.message);}
   finally{if(btn){btn.disabled=false;btn.textContent='🚚 جلب تسليمات المناديب';}}
 }
