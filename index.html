@@ -10349,6 +10349,24 @@ async function _loadOpSessionData(){
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
     _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opWithdrawals=[];}
+
+  // For open sessions: find the latest closed session's closedDate
+  // so we don't pull orders that belong to the previous session
+  let ordersFrom=from;
+  if(_opCurrentSession.status!=='closed'){
+    try{
+      const prevSnap=await db.collection('operator_sessions').where('status','==','closed').get();
+      const prevSessions=prevSnap.docs.map(d=>d.data()).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+      const lastClosed=prevSessions[0];
+      if(lastClosed&&lastClosed.closedDate>=from){
+        // Shift orders start to day after last closed session
+        const d=new Date(lastClosed.closedDate+'T12:00:00');
+        d.setDate(d.getDate()+1);
+        ordersFrom=d.toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
+      }
+    }catch(e){}
+  }
+
   // Cancel previous statement listener and poll if any
   if(_opStmtUnsub){_opStmtUnsub();_opStmtUnsub=null;}
   if(_opStmtPollId){clearInterval(_opStmtPollId);_opStmtPollId=null;}
@@ -10356,12 +10374,10 @@ async function _loadOpSessionData(){
   // Helper: fetch delivered orders for this session range
   async function _fetchStmtOrders(){
     try{
-      // Primary: orders with deliveredDate in session range (fast, indexed)
       const snap=await db.collection('employee_orders')
-        .where('deliveredDate','>=',from).where('deliveredDate','<=',to).get();
+        .where('deliveredDate','>=',ordersFrom).where('deliveredDate','<=',to).get();
       const withDate=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
-      // Fallback: orders without deliveredDate but updatedAt in range (old rep app)
-      const fromTs=firebase.firestore.Timestamp.fromDate(new Date(from+'T00:00:00'));
+      const fromTs=firebase.firestore.Timestamp.fromDate(new Date(ordersFrom+'T00:00:00'));
       const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
       let noDate=[];
       try{
@@ -10371,20 +10387,18 @@ async function _loadOpSessionData(){
           .where('updatedAt','<=',toTs).get();
         noDate=snap2.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.deliveredDate);
       }catch(e2){}
-      // Merge by id
       const map={};
       [...withDate,...noDate].forEach(o=>map[o.id]=o);
       return Object.values(map);
     }catch(e){return _opDayOrders;}
   }
 
-  // Real-time listener on deliveredDate range (fast query)
+  // Real-time listener on deliveredDate range
   _opStmtUnsub=db.collection('employee_orders')
-    .where('deliveredDate','>=',from)
+    .where('deliveredDate','>=',ordersFrom)
     .where('deliveredDate','<=',to)
     .onSnapshot(async snap=>{
       const withDate=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
-      // merge with any no-deliveredDate orders already in _opDayOrders
       const noDateOrders=_opDayOrders.filter(o=>!o.deliveredDate);
       const map={};
       [...withDate,...noDateOrders].forEach(o=>map[o.id]=o);
@@ -10392,14 +10406,13 @@ async function _loadOpSessionData(){
       renderOperatorDailyView();
     },e=>{console.error('opStatement listener error:',e);});
 
-  // Fallback poll every 30s (catches orders without deliveredDate or missed updates)
+  // Fallback poll every 30s
   _opStmtPollId=setInterval(async()=>{
     if(!_opCurrentSession)return;
     _opDayOrders=await _fetchStmtOrders();
     renderOperatorDailyView();
   },30000);
 
-  // Initial load via poll
   _fetchStmtOrders().then(orders=>{_opDayOrders=orders;renderOperatorDailyView();});
 }
 
