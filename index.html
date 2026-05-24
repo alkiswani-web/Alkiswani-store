@@ -6093,6 +6093,9 @@ function _showOpOrderDetail(o){
       ${!isClosed?`<div style="display:flex;gap:7px;margin-top:4px;">
         ${o.status==='waiting_rep'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🧍 تعيين مندوب</button>`:o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
         <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
+      </div>`:o.status==='delivered'?`<div style="display:flex;gap:7px;margin-top:4px;">
+        <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')" style="flex:1;padding:11px;background:#f3f4f6;color:#374151;border:1.5px solid #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">↩️ مرتجع</button>
+        <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
       </div>`:''}
     </div>`;
 
