@@ -6893,7 +6893,7 @@ function printOrderQR(orderId) {
     const addr=(o.address||'').trim();
     const page=(o.pageName||'').trim();
     const prods=o.products&&o.products.length?o.products:[{name:o.productName||''}];
-    const prodNames=prods.map(p=>p.name).filter(Boolean).join('، ');
+    const prodLines=prods.map(p=>{const qty=p.qty||p.quantity||1;return p.name+(qty>1?' × '+qty:'');}).filter(Boolean).join('، ');
     const pw=window.open('','_blank','width=420,height=320');
     pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>QR #${orderId.slice(-6).toUpperCase()}</title>
@@ -6920,8 +6920,8 @@ html,body{width:80mm;height:55mm;background:#fff;overflow:hidden;font-family:Ari
   <div class="divider"></div>
   <div class="info">
     ${page?`<div class="row"><span class="icon">🏪</span><span class="txt page">${page}</span></div>`:''}
-    ${prodNames?`<div class="row"><span class="icon">📦</span><span class="txt prod">${prodNames}</span></div>`:''}
-    ${(page||prodNames)?`<div class="sep"></div>`:''}
+    ${prodLines?`<div class="row"><span class="icon">📦</span><span class="txt prod">${prodLines}</span></div>`:''}
+    ${(page||prodLines)?`<div class="sep"></div>`:''}
     ${phone?`<div class="row"><span class="icon">📞</span><span class="txt phone">${phone}</span></div>`:''}
     ${addr?`<div class="row"><span class="icon">📍</span><span class="txt">${addr}</span></div>`:''}
   </div>
