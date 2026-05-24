@@ -10350,33 +10350,42 @@ async function _loadOpSessionData(){
     _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opWithdrawals=[];}
 
-  // For open sessions: find the latest closed session's closedDate
-  // so we don't pull orders that belong to the previous session
-  let ordersFrom=from;
+  // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
+  // Use openedAt of current session (exact moment it was created)
+  let sessionOpenedAt=null; // Firestore Timestamp
   if(_opCurrentSession.status!=='closed'){
-    try{
-      const prevSnap=await db.collection('operator_sessions').where('status','==','closed').get();
-      const prevSessions=prevSnap.docs.map(d=>d.data()).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
-      const lastClosed=prevSessions[0];
-      if(lastClosed&&lastClosed.closedDate>=from){
-        // Shift orders start to day after last closed session
-        const d=new Date(lastClosed.closedDate+'T12:00:00');
-        d.setDate(d.getDate()+1);
-        ordersFrom=d.toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});
-      }
-    }catch(e){}
+    if(_opCurrentSession.openedAt&&_opCurrentSession.openedAt.toDate){
+      sessionOpenedAt=_opCurrentSession.openedAt;
+    } else {
+      // openedAt not in memory — reload session document to get it
+      try{
+        const sd=await db.collection('operator_sessions').doc(_opCurrentSession.id).get();
+        if(sd.exists) sessionOpenedAt=sd.data().openedAt||null;
+      }catch(e){}
+    }
   }
+  const ordersFrom=from;
 
   // Cancel previous statement listener and poll if any
   if(_opStmtUnsub){_opStmtUnsub();_opStmtUnsub=null;}
   if(_opStmtPollId){clearInterval(_opStmtPollId);_opStmtPollId=null;}
+
+  // Filter an order: include if it was updated at/after the session opened
+  // (handles same-day open/close — keeps only orders from THIS session)
+  function _orderBelongsToSession(o){
+    if(!sessionOpenedAt) return true; // closed sessions or no timestamp → no filter
+    const oTs=o.updatedAt; // Firestore Timestamp
+    if(!oTs||!oTs.toDate) return true; // no timestamp on order → include
+    return oTs.toDate()>=sessionOpenedAt.toDate();
+  }
 
   // Helper: fetch delivered orders for this session range
   async function _fetchStmtOrders(){
     try{
       const snap=await db.collection('employee_orders')
         .where('deliveredDate','>=',ordersFrom).where('deliveredDate','<=',to).get();
-      const withDate=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+      const withDate=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(o=>o.status==='delivered'&&_orderBelongsToSession(o));
       const fromTs=firebase.firestore.Timestamp.fromDate(new Date(ordersFrom+'T00:00:00'));
       const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
       let noDate=[];
@@ -10385,7 +10394,8 @@ async function _loadOpSessionData(){
           .where('status','==','delivered')
           .where('updatedAt','>=',fromTs)
           .where('updatedAt','<=',toTs).get();
-        noDate=snap2.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.deliveredDate);
+        noDate=snap2.docs.map(d=>({id:d.id,...d.data()}))
+          .filter(o=>!o.deliveredDate&&_orderBelongsToSession(o));
       }catch(e2){}
       const map={};
       [...withDate,...noDate].forEach(o=>map[o.id]=o);
@@ -10398,7 +10408,8 @@ async function _loadOpSessionData(){
     .where('deliveredDate','>=',ordersFrom)
     .where('deliveredDate','<=',to)
     .onSnapshot(async snap=>{
-      const withDate=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>o.status==='delivered');
+      const withDate=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(o=>o.status==='delivered'&&_orderBelongsToSession(o));
       const noDateOrders=_opDayOrders.filter(o=>!o.deliveredDate);
       const map={};
       [...withDate,...noDateOrders].forEach(o=>map[o.id]=o);
