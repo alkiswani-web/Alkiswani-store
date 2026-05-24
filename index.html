@@ -10584,7 +10584,8 @@ function renderOperatorDailyView(){
   if(!isClosed){
     const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
     const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✅ تسليم</button>`;
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${editDateBtn}${printBtn}${waBtn}`;
+    const deleteSessionBtn=`<button onclick="deleteCurrentSession()" style="flex:1;min-width:100px;padding:12px;background:#6b7280;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🗑️ حذف الكشف</button>`;
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${deleteSessionBtn}${editDateBtn}${printBtn}${waBtn}`;
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
@@ -10751,6 +10752,40 @@ async function closeOperatorSession(){
     _loadOpSessionData();
   }catch(e){toast('❌ خطأ في الإغلاق: '+e.message);}
 }
+async function deleteCurrentSession(){
+  if(!_opCurrentSession){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!confirm('⚠️ سيتم حذف هذا الكشف وكل مبيعاته نهائياً.\nهل أنت متأكد؟')) return;
+  try{
+    const sid=_opCurrentSession.id;
+    const from=_opCurrentSession.openedDate;
+    const to=jordanDateStr();
+    // Delete operator_sales records for this session only
+    const snap=await db.collection('operator_sales').where('sessionId','==',sid).get();
+    const BATCH=400;
+    for(let i=0;i<snap.docs.length;i+=BATCH){
+      const b=db.batch();
+      snap.docs.slice(i,i+BATCH).forEach(d=>b.delete(d.ref));
+      await b.commit();
+    }
+    // Delete operator_withdrawals for this session
+    const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',sid).get();
+    for(let i=0;i<wSnap.docs.length;i+=BATCH){
+      const b=db.batch();
+      wSnap.docs.slice(i,i+BATCH).forEach(d=>b.delete(d.ref));
+      await b.commit();
+    }
+    // Delete the session itself
+    await db.collection('operator_sessions').doc(sid).delete();
+    _opCurrentSession=null;
+    _opDailySales=[];
+    _opDayOrders=[];
+    _opWithdrawals=[];
+    toast('✅ تم حذف الكشف');
+    loadOpSessionStatus();
+    _loadOpSessionData();
+  }catch(e){toast('❌ '+e.message);}
+}
+
 async function openNewSession(){
   if(_opCurrentSession&&_opCurrentSession.status==='open'){
     if(!confirm('يوجد كشف مفتوح بالفعل. هل تريد إغلاقه وفتح كشف جديد؟'))return;
@@ -15122,7 +15157,7 @@ window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePay
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
-window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries;
+window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries; window.deleteCurrentSession=deleteCurrentSession;
 window.showAddWithdrawalModal=showAddWithdrawalModal; window.saveOperatorWithdrawal=saveOperatorWithdrawal; window.deleteOperatorWithdrawal=deleteOperatorWithdrawal;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
