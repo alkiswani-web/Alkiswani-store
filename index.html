@@ -10584,36 +10584,10 @@ function renderOperatorDailyView(){
   if(!isClosed){
     const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
     const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">✅ تسليم</button>`;
-    const clearBtn=`<button onclick="clearSessionSales()" style="flex:1;min-width:100px;padding:12px;background:#6b7280;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🗑️ تصفير</button>`;
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${clearBtn}${editDateBtn}${printBtn}${waBtn}`;
+    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${editDateBtn}${printBtn}${waBtn}`;
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
-}
-
-async function clearSessionSales(){
-  if(!_opCurrentSession){toast('⚠️ لا يوجد كشف مفتوح');return;}
-  if(!confirm('⚠️ هذا سيحذف كل مبيعات هذا الكشف من سجل المبيعات.\nهل أنت متأكد؟')) return;
-  try{
-    const from=_opCurrentSession.openedDate;
-    const to=_opCurrentSession.closedDate||jordanDateStr();
-    const snap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
-    // Delete records that belong to this session (by sessionId) or have no sessionId (legacy overlap)
-    const toDelete=snap.docs.filter(d=>{
-      const sid=d.data().sessionId;
-      return !sid||sid===_opCurrentSession.id;
-    });
-    if(!toDelete.length){toast('الكشف فارغ أصلاً');return;}
-    const BATCH=400;
-    for(let i=0;i<toDelete.length;i+=BATCH){
-      const batch=db.batch();
-      toDelete.slice(i,i+BATCH).forEach(d=>batch.delete(d.ref));
-      await batch.commit();
-    }
-    toast('✅ تم تصفير الكشف ('+toDelete.length+' سجل محذوف)');
-    _opDailySales=[];
-    renderOperatorDailyView();
-  }catch(e){toast('❌ '+e.message);}
 }
 
 async function removeOrderFromStatement(orderId){
@@ -10784,6 +10758,24 @@ async function openNewSession(){
   }
   try{
     const today=jordanDateStr();
+    // Retroactively stamp any untagged operator_sales records from the previous session
+    // so they don't bleed into the new session
+    if(_opCurrentSession){
+      try{
+        const prevFrom=_opCurrentSession.openedDate;
+        const prevTo=_opCurrentSession.closedDate||today;
+        const oldSnap=await db.collection('operator_sales').where('date','>=',prevFrom).where('date','<=',prevTo).get();
+        const untagged=oldSnap.docs.filter(d=>!d.data().sessionId);
+        if(untagged.length){
+          const BATCH=400;
+          for(let i=0;i<untagged.length;i+=BATCH){
+            const b=db.batch();
+            untagged.slice(i,i+BATCH).forEach(d=>b.update(d.ref,{sessionId:_opCurrentSession.id}));
+            await b.commit();
+          }
+        }
+      }catch(e){console.warn('stamp old records:',e);}
+    }
     const ref=await db.collection('operator_sessions').add({
       status:'open',openedDate:today,closedDate:null,
       openedAt:firebase.firestore.FieldValue.serverTimestamp(),closedAt:null
@@ -15130,7 +15122,7 @@ window.addStorePayment=addStorePayment; window.deleteStorePayment=deleteStorePay
 window.openOperatorDailyAccount=openOperatorDailyAccount;
 window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
-window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries; window.clearSessionSales=clearSessionSales;
+window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries;
 window.showAddWithdrawalModal=showAddWithdrawalModal; window.saveOperatorWithdrawal=saveOperatorWithdrawal; window.deleteOperatorWithdrawal=deleteOperatorWithdrawal;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
