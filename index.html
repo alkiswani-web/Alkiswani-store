@@ -14261,6 +14261,8 @@ async function showRepStatement(phone,name){
       db.collection('rep_refunds').where('repPhone','==',phone).get()
     ]);
     const allOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const activeOrders=allOrders.filter(o=>['delivering','queued','waiting_rep','onhold','postponed'].includes(o.status))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const orders=allOrders.filter(o=>o.status==='delivered')
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const returnedOrders=allOrders.filter(o=>o.status==='cancelled'||o.status==='returned')
@@ -14278,8 +14280,26 @@ async function showRepStatement(phone,name){
     const totalReturnPaid=repRefunds.reduce((s,r)=>s+(r.amount||0),0);
     const balance=totalOwed-totalPaid;
     const returnBalance=totalReturnOwed-totalReturnPaid;
+    const activeTotal=activeOrders.reduce((s,o)=>s+_collectAmt(o),0);
     if(summaryEl){
+      const stLabel={delivering:'قيد التوصيل',queued:'قائمة التوصيل',waiting_rep:'انتظار',onhold:'عالق',postponed:'مؤجل'};
+      const activeRows=activeOrders.map(o=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #bfdbfe;">
+          <div>
+            <span style="font-size:0.8rem;font-weight:700;color:#1e3a8a;">#${o.orderNum||o.id.slice(-6).toUpperCase()}</span>
+            <span style="font-size:0.72rem;color:#6b7280;margin-right:6px;">${o.pageName||''}</span>
+            <span style="font-size:0.68rem;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:6px;margin-right:4px;">${stLabel[o.status]||o.status}</span>
+          </div>
+          <span style="font-size:0.85rem;font-weight:900;color:#1e40af;">${_collectAmt(o).toFixed(2)} د.أ</span>
+        </div>`).join('');
       summaryEl.innerHTML=`
+        ${activeOrders.length>0?`<div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:0.85rem;font-weight:800;color:#1e40af;">📦 الطلبات الحالية معه</span>
+            <span style="background:#3b82f6;color:#fff;padding:3px 10px;border-radius:10px;font-size:0.82rem;font-weight:800;">${activeOrders.length} طلب — ${activeTotal.toFixed(2)} د.أ</span>
+          </div>
+          <div style="max-height:160px;overflow-y:auto;">${activeRows}</div>
+        </div>`:''}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${totalReturnOwed>0?'10px':'0'};">
           <div style="background:#fee2e2;border-radius:10px;padding:12px;text-align:center;">
             <div style="font-size:0.7rem;color:#dc2626;margin-bottom:4px;">مطلوب منه</div>
