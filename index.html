@@ -6770,11 +6770,26 @@ function _updateBulkBar(){
   const c=document.getElementById('opBulkCount');
   if(c)c.textContent=_opSelectedIds.size;
 }
+async function _moveToPreparing(orders){
+  const toMove=orders.filter(o=>o.status==='pending');
+  if(!toMove.length) return;
+  const batch=db.batch();
+  toMove.forEach(o=>{
+    batch.update(db.collection('employee_orders').doc(o.id),{
+      status:'preparing',
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+  });
+  await batch.commit();
+  toast(`⚙️ تم نقل ${toMove.length} طلب لـ"قيد التجهيز"`);
+}
+
 async function printSelectedOrders(){
   if(!_opSelectedIds.size){toast('⚠️ لم تحدد أي طلب');return;}
   const ids=[..._opSelectedIds];
   const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
   if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
+  await _moveToPreparing(orders);
   const pw=window.open('','_blank','width=700,height=900');
   const rows=orders.map(o=>{
     const prods=(o.products||[{name:o.productName||'?',qty:1,price:o.price||0}]);
@@ -6810,6 +6825,7 @@ async function printSelectedLabels(){
   const ids=[..._opSelectedIds];
   const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
   if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
+  await _moveToPreparing(orders);
   const pw=window.open('','_blank','width=900,height=800');
   const labels=orders.map(o=>{
     const url=window.location.origin+window.location.pathname+'?order='+o.id;
