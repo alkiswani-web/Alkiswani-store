@@ -2509,7 +2509,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button onclick="saveSaleEntry()" style="width:100%;padding:13px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;">💾 حفظ المبيعة</button>
         </div>
         <!-- Today's sales list -->
-        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">مبيعات اليوم</div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:8px;letter-spacing:1px;">المبيعات المعلقة (لم تُسلَّم بعد)</div>
         <div id="opsale_today_list"></div>
       </div>
 
@@ -9752,36 +9752,35 @@ function initSalesTab(){
 }
 
 function loadTodaySales(){
-  const today=jordanDateStr();
   const wrap=document.getElementById('opsale_today_list');
   if(!wrap) return;
   if(_todaySalesUnsub){_todaySalesUnsub();_todaySalesUnsub=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ تحميل...</div>';
-  _todaySalesUnsub=db.collection('operator_sales').where('date','==',today)
+  _todaySalesUnsub=db.collection('operator_sales').where('delivered','==',false)
     .onSnapshot(snap=>{
-      const pending=snap.docs.filter(d=>d.data().delivered===false);
+      const pending=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(!pending.length){
-        wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات معلقة اليوم</div>';
+        wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مبيعات معلقة</div>';
         return;
       }
-      wrap.innerHTML=pending.map(d=>{
-        const s=d.data();
+      wrap.innerHTML=pending.map(s=>{
         const total=(s.sellPrice||0)*(s.qty||1);
         const imgHtml=s.imageDataUrl?`<img src="${s.imageDataUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" />`:'';
         const byHtml=s.addedBy?`<span style="font-size:0.72rem;color:#6b7280;">👤 ${s.addedBy}</span>`:'';
+        const dateHtml=s.date?`<span style="font-size:0.7rem;color:#9ca3af;">📅 ${s.date}</span>`:'';
         return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
           <div style="display:flex;align-items:flex-start;gap:10px;">
             ${imgHtml}
             <div style="flex:1;min-width:0;">
               <div style="font-weight:700;font-size:0.88rem;color:var(--green-dark);">${s.productName} ×${s.qty}</div>
               <div style="font-size:0.75rem;color:var(--text-mid);">🏪 ${s.storeName}${s.notes?' — '+s.notes:''}</div>
-              ${byHtml}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">${byHtml}${dateHtml}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
               <span style="font-weight:800;color:#166534;font-size:0.9rem;">${total.toFixed(2)} د.أ</span>
               <div style="display:flex;gap:6px;">
-                <button onclick="confirmSaleDelivery('${d.id}')" style="background:#dcfce7;color:#166534;border:1.5px solid #86efac;padding:4px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✅ تسليم</button>
-                <button onclick="deleteSaleEntry('${d.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:0.8rem;">✕</button>
+                <button onclick="confirmSaleDelivery('${s.id}')" style="background:#dcfce7;color:#166534;border:1.5px solid #86efac;padding:4px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✅ تسليم</button>
+                <button onclick="deleteSaleEntry('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:0.8rem;">✕</button>
               </div>
             </div>
           </div>
