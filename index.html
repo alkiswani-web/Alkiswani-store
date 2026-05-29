@@ -10586,14 +10586,45 @@ async function _loadOpSessionData(){
       renderOperatorDailyView();
     },e=>{console.error('opStatement listener error:',e);});
 
-  // Fallback poll every 30s
+  // AUTO-SYNC: any delivered order not yet recorded in operator_sales is synced
+  // automatically — no manual "تسليم" button needed. Reuses the proven sync logic,
+  // runs in admin context (correct session + product costs + store link), dedups
+  // via fromOrderId, and only touches OPEN sessions (never archived/closed ones).
+  async function _autoSyncDeliveredToSales(orders){
+    if(!orders||!orders.length) return false;
+    if(_opCurrentSession.status==='closed') return false;
+    const syncedIds=new Set(_opDailySales.map(s=>s.fromOrderId).filter(Boolean));
+    const unsynced=orders.filter(o=>!syncedIds.has(o.id));
+    if(!unsynced.length) return false;
+    let did=0;
+    for(const o of unsynced){
+      try{ await syncOrderToAccounting(o.id,o,o.deliveredDate||jordanDateStr(),true,_opCurrentSession.id); did++; }catch(e){}
+    }
+    if(did){
+      try{
+        const s2=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
+        _opDailySales=s2.docs.map(d=>({id:d.id,...d.data()}))
+          .filter(s=>s.delivered!==false)
+          .filter(s=>!s.sessionId||s.sessionId===_opCurrentSession.id);
+      }catch(e){}
+    }
+    return did>0;
+  }
+
+  // Fallback poll every 30s (also catches reps' deliveries live while admin is viewing)
   _opStmtPollId=setInterval(async()=>{
     if(!_opCurrentSession)return;
     _opDayOrders=await _fetchStmtOrders();
+    await _autoSyncDeliveredToSales(_opDayOrders);
     renderOperatorDailyView();
   },30000);
 
-  _fetchStmtOrders().then(orders=>{_opDayOrders=orders;renderOperatorDailyView();});
+  _fetchStmtOrders().then(async orders=>{
+    _opDayOrders=orders;
+    renderOperatorDailyView();
+    const changed=await _autoSyncDeliveredToSales(orders);
+    if(changed) renderOperatorDailyView();
+  });
 }
 
 function prevOpDay(){
