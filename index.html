@@ -1697,7 +1697,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button id="admin-tab-btn-adminusers" class="admin-tab-btn" onclick="switchAdminTab('adminusers')">🔑 المستخدمون</button>
       <button id="admin-tab-btn-dxf" class="admin-tab-btn" onclick="switchAdminTab('dxf')">✂️ مولد DXF</button>
       <button id="admin-tab-btn-emporders" class="admin-tab-btn" onclick="switchAdminTab('emporders')" style="display:none;">📋 طلبات الصفحات</button>
-      <button id="admin-tab-btn-empwages" class="admin-tab-btn" onclick="switchAdminTab('empwages')">💰 رواتب الموظفين</button>
     </div>
 
     <!-- PRODUCTS TAB -->
@@ -2291,6 +2290,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 كشف</button>
         <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رصيد</button>
         <button id="optab-btn-workers" onclick="switchOpTab('workers')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">👥 موظفون</button>
+        <button id="optab-btn-empwages" onclick="switchOpTab('empwages')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رواتب</button>
         <button id="optab-btn-emppoints" onclick="switchOpTab('emppoints')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏆 نقاط</button>
         <button id="optab-btn-settings" onclick="switchOpTab('settings')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;white-space:nowrap;">⚙️ إعدادات</button>
         <button id="optab-btn-reps" onclick="switchOpTab('reps')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1px solid var(--border);white-space:nowrap;">🚚 مناديب</button>
@@ -2903,6 +2903,42 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
         </div>
 
+        <!-- EMPWAGES sub-tab -->
+        <div id="emp-subtab-empwages" style="display:none;">
+          <div style="max-width:700px;">
+            <div style="font-size:1.05rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;">💰 رواتب الموظفين</div>
+            <div id="empWagesList" style="display:flex;flex-direction:column;gap:10px;"></div>
+            <div id="empWageDetail" style="display:none;margin-top:18px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:14px;padding:16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div id="empWageDetailTitle" style="font-weight:800;font-size:1rem;color:var(--green-dark);"></div>
+                <button onclick="closeEmpWageDetail()" style="background:var(--bg);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.82rem;color:var(--text-mid);">✕ إغلاق</button>
+              </div>
+              <div id="empWageSummaryBar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;"></div>
+              <div style="background:var(--bg);border-radius:10px;padding:12px;margin-bottom:14px;">
+                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">⚙️ تحديد الأجر لكل صفحة (د.أ / طلب مُسلَّم)</div>
+                <div id="empWageRateRows" style="display:flex;flex-direction:column;gap:7px;"></div>
+                <button onclick="saveEmpWageRates()" style="margin-top:10px;width:100%;padding:9px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💾 حفظ الأسعار</button>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📊 تفصيل المستحقات</div>
+                <div id="empWageBreakdown" style="font-size:0.82rem;"></div>
+              </div>
+              <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:14px;">
+                <div style="font-size:0.82rem;font-weight:700;color:#166534;margin-bottom:8px;">💵 تسجيل دفعة</div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="number" id="empWagePayAmt" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;padding:9px 11px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;">
+                  <input type="text" id="empWagePayNotes" placeholder="ملاحظة (اختياري)" style="flex:2;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;background:#fff;">
+                  <button onclick="recordEmpWagePayment()" style="padding:9px 14px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📋 سجل الدفعات</div>
+                <div id="empWagePayHistory" style="font-size:0.82rem;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- EMPPOINTS sub-tab (moved from emporders) -->
         <div id="emp-subtab-emppoints" style="display:none;">
           <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;border:1.5px solid #e5e7eb;">
@@ -3018,48 +3054,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div class="admin-tab-content" id="tab-emporders">
       <div style="max-width:900px;">
         <!-- merged into حساب المشغل -->
-      </div>
-    </div>
-
-    <!-- ===== EMPLOYEE WAGES TAB ===== -->
-    <div class="admin-tab-content" id="tab-empwages">
-      <div style="max-width:700px;">
-        <div style="font-size:1.05rem;font-weight:800;color:#1a3a2a;margin-bottom:14px;">💰 رواتب الموظفين</div>
-        <div id="empWagesList" style="display:flex;flex-direction:column;gap:10px;"></div>
-        <!-- Detail modal -->
-        <div id="empWageDetail" style="display:none;margin-top:18px;background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-            <div id="empWageDetailTitle" style="font-weight:800;font-size:1rem;color:#1a3a2a;"></div>
-            <button onclick="closeEmpWageDetail()" style="background:#f3f4f6;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.82rem;">✕ إغلاق</button>
-          </div>
-          <!-- Summary bar -->
-          <div id="empWageSummaryBar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;"></div>
-          <!-- Rates settings -->
-          <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:14px;">
-            <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">⚙️ تحديد الأجر لكل صفحة (د.أ / طلب مُسلَّم)</div>
-            <div id="empWageRateRows" style="display:flex;flex-direction:column;gap:7px;"></div>
-            <button onclick="saveEmpWageRates()" style="margin-top:10px;width:100%;padding:9px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💾 حفظ الأسعار</button>
-          </div>
-          <!-- Earnings breakdown -->
-          <div style="margin-bottom:14px;">
-            <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;">📊 تفصيل المستحقات</div>
-            <div id="empWageBreakdown" style="font-size:0.82rem;"></div>
-          </div>
-          <!-- Record payment -->
-          <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:14px;">
-            <div style="font-size:0.82rem;font-weight:700;color:#166534;margin-bottom:8px;">💵 تسجيل دفعة</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="number" id="empWagePayAmt" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;padding:9px 11px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;">
-              <input type="text" id="empWagePayNotes" placeholder="ملاحظة (اختياري)" style="flex:2;padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;">
-              <button onclick="recordEmpWagePayment()" style="padding:9px 14px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
-            </div>
-          </div>
-          <!-- Payment history -->
-          <div>
-            <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;">📋 سجل الدفعات</div>
-            <div id="empWagePayHistory" style="font-size:0.82rem;"></div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -5043,8 +5037,7 @@ function switchAdminTab(tab){
   }
   if(tab==='adminusers')loadAdminUsers();
   if(tab==='dxf')dxfTabActivated();
-  if(tab==='empwages')loadEmpWages();
-  // emporders is merged into operator tab — nothing to do
+  // emporders/empwages are inside operator tab
 }
 
 // ===== EMPLOYEE WAGES =====
@@ -9095,10 +9088,10 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','emppoints','settings'];
+  const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','empwages','emppoints','settings'];
   allTabs.forEach(t=>{
     const panelId=t==='oporders'?'emp-subtab-operator':
-                  ['daysheet','workers','emppoints','settings'].includes(t)?'emp-subtab-'+t:
+                  ['daysheet','workers','empwages','emppoints','settings'].includes(t)?'emp-subtab-'+t:
                   'optab-'+t;
     const el=document.getElementById(panelId);
     const btn=document.getElementById('optab-btn-'+t);
@@ -9119,6 +9112,7 @@ function switchOpTab(tab){
   if(tab==='oporders'){_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
+  if(tab==='empwages')loadEmpWages();
   if(tab==='emppoints')loadAdminEmpPoints();
   if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
   if(tab==='reps'){loadPointValueSetting();loadRepAccounting();}
