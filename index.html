@@ -13126,6 +13126,8 @@ window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpO
   const p=new URLSearchParams(window.location.search);
   const qrOrder=p.get('order');
   if(!qrOrder) return;
+  // Clean the URL immediately so refreshing won't re-open the order
+  try{const clean=window.location.pathname+(window.location.search.replace(/[?&]order=[^&]*/,'').replace(/^&/,'?')||'');window.history.replaceState(null,'',clean);}catch(e){}
   let tries=0;
   const tryOpen=()=>{
     const loggedIn=_currentAdminUser||_empCurrentUser;
