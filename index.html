@@ -5193,7 +5193,8 @@ async function _renderEmpWageBreakdown(workerId){
 async function _renderEmpWagePayments(workerId){
   const wrap=document.getElementById('empWagePayHistory');
   try{
-    const snap=await db.collection('emp_wage_payments').where('workerId','==',workerId).orderBy('createdAt','desc').get();
+    const snap=await db.collection('emp_wage_payments').where('workerId','==',workerId).get();
+    snap.docs.sort((a,b)=>(b.data().createdAt?.toMillis?.()??0)-(a.data().createdAt?.toMillis?.()??0));
     if(snap.empty){wrap.innerHTML='<div style="color:#9ca3af;padding:6px;">لا توجد دفعات مسجّلة</div>';return;}
     wrap.innerHTML=snap.docs.map(d=>{
       const p=d.data();
