@@ -13639,6 +13639,8 @@ async function sendAndMarkDelivering_withRep(waUrl, repName, repPhone){
   window.open(finalWaUrl,'_blank');
   closeDeliveryModal();
   const repUpdate=repName?{deliveryRepName:repName,deliveryRepPhone:repPhone||''}:{};
+  // Shared batch timestamp so all orders handed over together group as one دفعة
+  const _batchAssignedAt=firebase.firestore.Timestamp.now();
   ids.forEach(async id=>{
     try{
       const docRef=db.collection('employee_orders').doc(id);
@@ -13646,7 +13648,7 @@ async function sendAndMarkDelivering_withRep(waUrl, repName, repPhone){
       const data=snap.data();
       const prevStatus=data?.status||'prepared';
       const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(prevStatus).label} ← ${_empSt('delivering').label}`};
-      await docRef.update({status:'delivering',...repUpdate,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      await docRef.update({status:'delivering',...repUpdate,assignedAt:_batchAssignedAt,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     }catch(e){}
   });
 }
@@ -14196,20 +14198,23 @@ async function loadRepAccounting(){
   listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
   if(!_pointValue)await loadPointValueSetting();
   try{
+    const _OWED_STATUSES=['delivered','delivering','queued','waiting_rep','onhold','postponed'];
     const [repSnap,paymentsSnap,ordersSnap,pointsSnap]=await Promise.all([
       db.collection('operator_config').doc('delivery_reps').get(),
       db.collection('rep_payments').get(),
-      db.collection('employee_orders').where('status','==','delivered').get(),
+      db.collection('employee_orders').where('status','in',_OWED_STATUSES).get(),
       db.collection('rep_points_payments').get()
     ]);
     const reps=((repSnap.exists?repSnap.data()?.reps:[])||[]);
     if(!reps.length){listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">لا يوجد مناديب مسجلين — أضفهم من قائمة المناديب في تاب الطلبات</div>';return;}
     const _ca=o=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return Math.max(0,t-(o.deliveryFee||0));};
+    // مطلوب منه = كل الطلبات اللي أخذها (معه + مُسلَّمة)، المرتجع/الملغي مستثنى
     const paidByPhone={};
     paymentsSnap.docs.forEach(d=>{const p=d.data();paidByPhone[p.repPhone]=(paidByPhone[p.repPhone]||0)+(p.amount||0);});
     const owedByPhone={};
     const countByPhone={};
-    ordersSnap.docs.forEach(d=>{const o=d.data();if(o.deliveryRepPhone){owedByPhone[o.deliveryRepPhone]=(owedByPhone[o.deliveryRepPhone]||0)+_ca(o);countByPhone[o.deliveryRepPhone]=(countByPhone[o.deliveryRepPhone]||0)+1;}});
+    const deliveredCountByPhone={};
+    ordersSnap.docs.forEach(d=>{const o=d.data();if(o.deliveryRepPhone){owedByPhone[o.deliveryRepPhone]=(owedByPhone[o.deliveryRepPhone]||0)+_ca(o);countByPhone[o.deliveryRepPhone]=(countByPhone[o.deliveryRepPhone]||0)+1;if(o.status==='delivered')deliveredCountByPhone[o.deliveryRepPhone]=(deliveredCountByPhone[o.deliveryRepPhone]||0)+1;}});
     const paidPointsByPhone={};
     pointsSnap.docs.forEach(d=>{const p=d.data();paidPointsByPhone[p.repPhone]=(paidPointsByPhone[p.repPhone]||0)+(p.points||0);});
 
@@ -14237,8 +14242,9 @@ async function loadRepAccounting(){
       const paid=paidByPhone[r.phone]||0;
       const balance=owed-paid;
       const count=countByPhone[r.phone]||0;
+      const deliveredCount=deliveredCountByPhone[r.phone]||0;
       const paidPts=paidPointsByPhone[r.phone]||0;
-      const pendingPts=Math.max(0,count-paidPts);
+      const pendingPts=Math.max(0,deliveredCount-paidPts);
       const safePhone=(r.phone||'').replace(/'/g,"&#39;");
       const safeName=(r.name||'').replace(/'/g,"&#39;");
       const settled=balance<=0;
@@ -14272,7 +14278,7 @@ async function loadRepAccounting(){
             <div style="font-size:0.6rem;color:#9ca3af;">${(pendingPts*_pointValue).toFixed(2)} د.أ</div>
           </div>`:''}
         </div>
-        <div style="margin-top:8px;font-size:0.72rem;color:#6b7280;text-align:left;">${count} طلب مُسلَّم ←</div>
+        <div style="margin-top:8px;font-size:0.72rem;color:#6b7280;text-align:left;">${count} طلب أخذها (${deliveredCount} مُسلَّم · ${count-deliveredCount} معه) ←</div>
       </div>`;
     }).join('');
   }catch(e){listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
@@ -14307,38 +14313,60 @@ async function showRepStatement(phone,name){
     // Render points section (non-blocking)
     _renderRepPoints(phone,name,orders.length);
     const _collectAmt=o=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return Math.max(0,t-(o.deliveryFee||0));};
-    const totalOwed=orders.reduce((s,o)=>s+_collectAmt(o),0);
+    // NEW MODEL: مطلوب منه = كل الطلبات اللي أخذها (معه الآن + المُسلَّمة)، المرتجع/الملغي مستثنى
+    const deliveredTotal=orders.reduce((s,o)=>s+_collectAmt(o),0);
+    const activeTotal=activeOrders.reduce((s,o)=>s+_collectAmt(o),0);
+    const totalOwed=deliveredTotal+activeTotal;
     const totalPaid=payments.reduce((s,p)=>s+(p.amount||0),0);
     const totalReturnOwed=returnedOrders.reduce((s,o)=>s+_collectAmt(o),0);
     const totalReturnPaid=repRefunds.reduce((s,r)=>s+(r.amount||0),0);
     const balance=totalOwed-totalPaid;
     const returnBalance=totalReturnOwed-totalReturnPaid;
-    const activeTotal=activeOrders.reduce((s,o)=>s+_collectAmt(o),0);
     if(summaryEl){
       const stLabel={delivering:'قيد التوصيل',queued:'قائمة التوصيل',waiting_rep:'انتظار',onhold:'عالق',postponed:'مؤجل'};
-      const activeRows=activeOrders.map(o=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #bfdbfe;">
-          <div>
-            <span style="font-size:0.82rem;font-weight:700;color:#1e3a8a;">#${o.orderNum||o.id.slice(-6).toUpperCase()}</span>
-            <span style="font-size:0.72rem;color:#6b7280;margin-right:6px;">${o.pageName||''}</span>
-            <span style="font-size:0.68rem;background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:6px;">${stLabel[o.status]||o.status}</span>
+      // Group active orders by assignment batch (assignedAt → date+time)
+      const _batchKey=o=>{
+        const ts=o.assignedAt||o.updatedAt||o.createdAt;
+        if(!ts||!ts.toDate) return 'دفعة سابقة';
+        const d=ts.toDate();
+        return d.toLocaleDateString('ar-EG',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+      };
+      const batches={};
+      activeOrders.forEach(o=>{const k=_batchKey(o);if(!batches[k])batches[k]={orders:[],total:0};batches[k].orders.push(o);batches[k].total+=_collectAmt(o);});
+      const batchKeys=Object.keys(batches);
+      const activeHtml=batchKeys.map((k,i)=>{
+        const b=batches[k];
+        const rows=b.orders.map(o=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #dbeafe;">
+            <div>
+              <span style="font-size:0.8rem;font-weight:700;color:#1e3a8a;">#${o.orderNum||o.id.slice(-6).toUpperCase()}</span>
+              <span style="font-size:0.7rem;color:#6b7280;margin-right:5px;">${o.pageName||''}</span>
+              <span style="font-size:0.66rem;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:6px;">${stLabel[o.status]||o.status}</span>
+            </div>
+            <span style="font-size:0.85rem;font-weight:900;color:#1e40af;">${_collectAmt(o).toFixed(2)}</span>
+          </div>`).join('');
+        return `<div style="background:#fff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 11px;margin-bottom:${i<batchKeys.length-1?'8px':'0'};">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:0.72rem;font-weight:800;color:#1e40af;">📅 دفعة ${k}</span>
+            <span style="font-size:0.72rem;font-weight:800;color:#1e40af;">${b.orders.length} طلب — ${b.total.toFixed(2)} د.أ</span>
           </div>
-          <span style="font-size:0.88rem;font-weight:900;color:#1e40af;">${_collectAmt(o).toFixed(2)} د.أ</span>
-        </div>`).join('');
+          ${rows}
+        </div>`;
+      }).join('');
 
       summaryEl.innerHTML=`
         ${activeOrders.length>0?`<div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:14px;padding:13px 15px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <span style="font-size:0.88rem;font-weight:800;color:#1e40af;">📦 معه الآن</span>
+            <span style="font-size:0.88rem;font-weight:800;color:#1e40af;">📦 معه الآن (لم تُسلَّم)</span>
             <span style="background:#3b82f6;color:#fff;padding:4px 12px;border-radius:20px;font-size:0.82rem;font-weight:800;">${activeOrders.length} طلب — ${activeTotal.toFixed(2)} د.أ</span>
           </div>
-          <div style="max-height:150px;overflow-y:auto;">${activeRows}</div>
+          <div style="max-height:220px;overflow-y:auto;">${activeHtml}</div>
         </div>`:''}
 
         <div style="background:${balance>0?'#fee2e2':'#dcfce7'};border:2px solid ${balance>0?'#fca5a5':'#86efac'};border-radius:14px;padding:14px 16px;margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${balance!==0?'10px':'0'};">
             <div>
-              <div style="font-size:0.72rem;color:${balance>0?'#dc2626':balance<0?'#1e40af':'#166534'};margin-bottom:3px;">${balance>0?'الرصيد المطلوب':balance<0?'دفع زائد — له رصيد':'الحساب'}</div>
+              <div style="font-size:0.72rem;color:${balance>0?'#dc2626':balance<0?'#1e40af':'#166534'};margin-bottom:3px;">${balance>0?'الرصيد المطلوب':balance<0?'دفع مقدّم — له رصيد':'الحساب'}</div>
               <div style="font-size:1.5rem;font-weight:900;color:${balance>0?'#dc2626':balance<0?'#1e40af':'#166534'};">${Math.abs(balance).toFixed(2)} <span style="font-size:0.8rem;font-weight:600;">د.أ</span></div>
             </div>
             <div style="font-size:2rem;">${balance>0?'🔴':balance<0?'💙':'✅'}</div>
@@ -14346,14 +14374,21 @@ async function showRepStatement(phone,name){
           ${balance!==0?`<button onclick="settleRepBalance(${balance.toFixed(2)})" style="width:100%;padding:9px;background:${balance>0?'#dc2626':'#1e40af'};color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">${balance>0?`⚡ تسوية — سجّل ${balance.toFixed(2)} د.أ`:`🔄 تصفير — استرداد الزائد ${Math.abs(balance).toFixed(2)} د.أ`}</button>`:''}
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${totalReturnOwed>0?'12px':'0'};">
-          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:11px;text-align:center;">
-            <div style="font-size:0.65rem;color:#9a3412;margin-bottom:3px;">مطلوب منه (إجمالي)</div>
-            <div style="font-weight:900;font-size:1rem;color:#9a3412;">${totalOwed.toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${totalReturnOwed>0?'12px':'0'};">
+          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 6px;text-align:center;">
+            <div style="font-size:0.62rem;color:#9a3412;margin-bottom:3px;">مطلوب منه</div>
+            <div style="font-weight:900;font-size:0.95rem;color:#9a3412;">${totalOwed.toFixed(2)}</div>
+            <div style="font-size:0.58rem;color:#c2622f;">معه ${activeTotal.toFixed(0)} + مُسلَّم ${deliveredTotal.toFixed(0)}</div>
           </div>
-          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:11px;text-align:center;">
-            <div style="font-size:0.65rem;color:#166534;margin-bottom:3px;">مجموع ما دفعه</div>
-            <div style="font-weight:900;font-size:1rem;color:#166534;">${totalPaid.toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></div>
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 6px;text-align:center;">
+            <div style="font-size:0.62rem;color:#166534;margin-bottom:3px;">دفع</div>
+            <div style="font-weight:900;font-size:0.95rem;color:#166534;">${totalPaid.toFixed(2)}</div>
+            <div style="font-size:0.58rem;color:#16a34a;">د.أ</div>
+          </div>
+          <div style="background:${balance>0?'#fee2e2':'#dcfce7'};border:1px solid ${balance>0?'#fca5a5':'#86efac'};border-radius:10px;padding:10px 6px;text-align:center;">
+            <div style="font-size:0.62rem;color:${balance>0?'#dc2626':'#166534'};margin-bottom:3px;">${balance>0?'الرصيد':'مسوّى'}</div>
+            <div style="font-weight:900;font-size:0.95rem;color:${balance>0?'#dc2626':'#166534'};">${Math.abs(balance).toFixed(2)}</div>
+            <div style="font-size:0.58rem;color:#9ca3af;">د.أ</div>
           </div>
         </div>
 
@@ -15874,7 +15909,7 @@ async function qrAssignToRep(repName,repPhone){
     const data=snap.data();
     const fromLabel=_empSt(data?.status).label;
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قائمة توصيل (${repName})`};
-    await docRef.update({status:'queued',deliveryRepName:repName,deliveryRepPhone:repPhone||'',editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await docRef.update({status:'queued',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast(`✅ أُسند لـ ${repName}`);
     closeQRRepAssignModal();
   }catch(e){toast('❌ '+e.message);}
