@@ -6789,6 +6789,7 @@ async function printSelectedOrders(){
   const ids=[..._opSelectedIds];
   const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
   if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
+  orders.sort((a,b)=>{const pa=(a.products?.[0]?.name||a.productName||'').trim();const pb=(b.products?.[0]?.name||b.productName||'').trim();return pa.localeCompare(pb,'ar');});
   await _moveToPreparing(orders);
   const pw=window.open('','_blank','width=700,height=900');
   const rows=orders.map(o=>{
@@ -6825,6 +6826,7 @@ async function printSelectedLabels(){
   const ids=[..._opSelectedIds];
   const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
   if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
+  orders.sort((a,b)=>{const pa=(a.products?.[0]?.name||a.productName||'').trim();const pb=(b.products?.[0]?.name||b.productName||'').trim();return pa.localeCompare(pb,'ar');});
   await _moveToPreparing(orders);
   const pw=window.open('','_blank','width=900,height=800');
   const labels=orders.map(o=>{
