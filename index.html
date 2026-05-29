@@ -2924,7 +2924,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 <div id="empWageBreakdown" style="font-size:0.82rem;"></div>
               </div>
               <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:14px;">
-                <div style="font-size:0.82rem;font-weight:700;color:#166534;margin-bottom:8px;">💵 تسجيل دفعة</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <div style="font-size:0.82rem;font-weight:700;color:#166534;">💵 تسجيل دفعة</div>
+                <span id="empWagePayPageLabel" style="display:none;font-size:0.72rem;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:6px;font-weight:700;"></span>
+              </div>
                 <div style="display:flex;gap:8px;align-items:center;">
                   <input type="number" id="empWagePayAmt" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;padding:9px 11px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;">
                   <input type="text" id="empWagePayNotes" placeholder="ملاحظة (اختياري)" style="flex:2;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;background:#fff;">
@@ -5129,20 +5132,33 @@ async function _renderEmpWageBreakdown(workerId){
     db.collection('emp_wage_payments').where('workerId','==',workerId).get()
   ]);
   const orders=ordersSnap.docs.map(d=>d.data());
-  const paid=paymentsSnap.docs.map(d=>d.data()).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const allPayments=paymentsSnap.docs.map(d=>d.data());
 
-  // Group by page
+  // Group orders by page
   const byPage={};
   orders.forEach(o=>{
     const pid=o.pageId||'unknown';
-    if(!byPage[pid])byPage[pid]={name:o.pageName||pid,count:0,earned:0};
+    if(!byPage[pid])byPage[pid]={name:o.pageName||pid,count:0,earned:0,paid:0};
     byPage[pid].count++;
     byPage[pid].earned+=parseFloat(_ewRates[pid]||0);
   });
 
-  const totalEarned=Object.values(byPage).reduce((s,v)=>s+v.earned,0);
-  const balance=totalEarned-paid;
-  const balColor=balance>0?'#ef4444':balance<0?'#f59e0b':'#22c55e';
+  // Per-page paid = payments that have this pageId
+  // Payments with no pageId (old records) go to global pool distributed proportionally — keep it simple: apply to first unsettled page
+  allPayments.forEach(p=>{
+    const pid=p.pageId||null;
+    if(pid&&byPage[pid]) byPage[pid].paid+=parseFloat(p.amount||0);
+    else{
+      // legacy payment without pageId — add to global "others"
+      if(!byPage['__global__'])byPage['__global__']={name:'دفعات عامة',count:0,earned:0,paid:0,isGlobal:true};
+      byPage['__global__'].paid+=parseFloat(p.amount||0);
+    }
+  });
+
+  const totalEarned=Object.values(byPage).filter(v=>!v.isGlobal).reduce((s,v)=>s+v.earned,0);
+  const totalPaid=Object.values(byPage).reduce((s,v)=>s+v.paid,0);
+  const totalBalance=totalEarned-totalPaid;
+  const balColor=totalBalance>0?'#ef4444':totalBalance<0?'#f59e0b':'#22c55e';
 
   // Summary bar
   document.getElementById('empWageSummaryBar').innerHTML=`
@@ -5151,43 +5167,48 @@ async function _renderEmpWageBreakdown(workerId){
       <div style="font-size:0.7rem;color:#6b7280;">إجمالي المستحق</div>
     </div>
     <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center;">
-      <div style="font-size:1.1rem;font-weight:800;color:#16a34a;">${paid.toFixed(2)}</div>
+      <div style="font-size:1.1rem;font-weight:800;color:#16a34a;">${totalPaid.toFixed(2)}</div>
       <div style="font-size:0.7rem;color:#6b7280;">إجمالي المدفوع</div>
     </div>
     <div style="background:#fef2f2;border-radius:10px;padding:10px;text-align:center;">
-      <div style="font-size:1.1rem;font-weight:800;color:${balColor};">${balance.toFixed(2)}</div>
-      <div style="font-size:0.7rem;color:#6b7280;">الرصيد المتبقي</div>
+      <div style="font-size:1.1rem;font-weight:800;color:${balColor};">${totalBalance.toFixed(2)}</div>
+      <div style="font-size:0.7rem;color:#6b7280;">الرصيد الكلي</div>
     </div>`;
 
-  // Breakdown table
+  // Breakdown table — per page with settle button
   const breakdown=document.getElementById('empWageBreakdown');
-  if(!Object.keys(byPage).length){
+  const pageEntries=Object.entries(byPage).filter(([pid,v])=>!v.isGlobal&&v.count>0);
+  if(!pageEntries.length){
     breakdown.innerHTML='<div style="color:#9ca3af;padding:8px;">لا يوجد طلبات مسلَّمة بعد</div>';
     return;
   }
-  breakdown.innerHTML=`<table style="width:100%;border-collapse:collapse;">
-    <tr style="font-size:0.75rem;color:#9ca3af;border-bottom:1px solid #f3f4f6;">
-      <th style="padding:6px 4px;text-align:right;font-weight:600;">الصفحة</th>
-      <th style="padding:6px 4px;text-align:center;font-weight:600;">الطلبات</th>
-      <th style="padding:6px 4px;text-align:center;font-weight:600;">الأجر/طلب</th>
-      <th style="padding:6px 4px;text-align:left;font-weight:600;">المجموع</th>
-    </tr>
-    ${Object.entries(byPage).map(([pid,v])=>`
-    <tr style="border-bottom:1px solid #f9fafb;font-size:0.82rem;">
-      <td style="padding:7px 4px;color:#1a3a2a;font-weight:600;">${v.name}</td>
-      <td style="padding:7px 4px;text-align:center;color:#374151;">${v.count}</td>
-      <td style="padding:7px 4px;text-align:center;color:#6b7280;">${parseFloat(_ewRates[pid]||0).toFixed(2)}</td>
-      <td style="padding:7px 4px;text-align:left;font-weight:700;color:#1d4ed8;">${v.earned.toFixed(2)} د.أ</td>
-    </tr>`).join('')}
-    <tr style="border-top:2px solid #e5e7eb;font-weight:800;">
-      <td colspan="3" style="padding:8px 4px;color:#374151;">المجموع</td>
-      <td style="padding:8px 4px;text-align:left;color:#1d4ed8;">${totalEarned.toFixed(2)} د.أ</td>
-    </tr>
-  </table>`;
-
-  // pre-fill pay amount with balance
-  const amtEl=document.getElementById('empWagePayAmt');
-  if(amtEl&&balance>0) amtEl.value=balance.toFixed(2);
+  breakdown.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">
+    ${pageEntries.map(([pid,v])=>{
+      const bal=v.earned-v.paid;
+      const bCol=bal>0.001?'#ef4444':bal<-0.001?'#f59e0b':'#22c55e';
+      const bLabel=bal>0.001?`متبقي ${bal.toFixed(2)}`:(bal<-0.001?`زائد ${Math.abs(bal).toFixed(2)}`:'مسوَّى ✅');
+      const settleBtn=bal>0.001?`<button onclick="settleEmpPage('${pid}','${v.name.replace(/'/g,"&#39;")}',${bal.toFixed(2)})" style="padding:5px 10px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;white-space:nowrap;">💵 تسوية</button>`:'';
+      return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.88rem;">${v.name}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-weight:800;font-size:0.82rem;color:${bCol};">${bLabel}</span>
+            ${settleBtn}
+          </div>
+        </div>
+        <div style="font-size:0.75rem;color:#6b7280;display:flex;gap:12px;">
+          <span>📦 ${v.count} طلب</span>
+          <span>× ${parseFloat(_ewRates[pid]||0).toFixed(2)} د.أ</span>
+          <span>= <strong style="color:#1d4ed8;">${v.earned.toFixed(2)} د.أ</strong></span>
+          <span>· مدفوع: <strong style="color:#16a34a;">${v.paid.toFixed(2)}</strong></span>
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="border-top:2px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-weight:800;font-size:0.85rem;">
+      <span style="color:var(--text-dark);">المجموع الكلي</span>
+      <span style="color:${balColor};">${totalBalance.toFixed(2)} د.أ متبقي</span>
+    </div>
+  </div>`;
 }
 
 async function _renderEmpWagePayments(workerId){
@@ -5200,7 +5221,7 @@ async function _renderEmpWagePayments(workerId){
       const p=d.data();
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#f9fafb;border-radius:8px;margin-bottom:5px;">
         <div>
-          <div style="font-weight:700;color:#166534;">${parseFloat(p.amount||0).toFixed(2)} د.أ</div>
+          <div style="font-weight:700;color:#166534;">${parseFloat(p.amount||0).toFixed(2)} د.أ ${p.pageName?'<span style="font-size:0.7rem;background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:5px;margin-right:4px;">'+p.pageName+'</span>':''}</div>
           <div style="font-size:0.7rem;color:#9ca3af;">${p.date||''} ${p.notes?'· '+p.notes:''}</div>
         </div>
         <div style="font-size:0.72rem;color:#9ca3af;">${p.addedBy||''}</div>
@@ -5230,6 +5251,22 @@ async function saveEmpWageRates(){
   }catch(e){toast('❌ '+e.message);}
 }
 
+let _ewPayPageId=null, _ewPayPageName='';
+
+function settleEmpPage(pageId, pageName, balance){
+  _ewPayPageId=pageId;
+  _ewPayPageName=pageName;
+  const amtEl=document.getElementById('empWagePayAmt');
+  const notesEl=document.getElementById('empWagePayNotes');
+  if(amtEl) amtEl.value=parseFloat(balance).toFixed(2);
+  if(notesEl) notesEl.value='تسوية '+pageName;
+  // Show which page is being settled
+  const label=document.getElementById('empWagePayPageLabel');
+  if(label){label.textContent='📄 '+pageName;label.style.display='inline-block';}
+  amtEl?.scrollIntoView({behavior:'smooth',block:'center'});
+  amtEl?.focus();
+}
+
 async function recordEmpWagePayment(){
   if(!_ewCurrentWorker)return;
   const amt=parseFloat(document.getElementById('empWagePayAmt').value)||0;
@@ -5241,13 +5278,17 @@ async function recordEmpWagePayment(){
       workerName:_ewCurrentWorker.name,
       amount:amt,
       notes,
+      ...(_ewPayPageId?{pageId:_ewPayPageId,pageName:_ewPayPageName}:{}),
       date:jordanDateStr(),
       addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    toast('✅ تم تسجيل الدفعة');
+    toast('✅ تم تسجيل الدفعة'+ (_ewPayPageName?' لـ'+_ewPayPageName:''));
     document.getElementById('empWagePayAmt').value='';
     document.getElementById('empWagePayNotes').value='';
+    _ewPayPageId=null; _ewPayPageName='';
+    const label=document.getElementById('empWagePayPageLabel');
+    if(label){label.textContent='';label.style.display='none';}
     await _renderEmpWageBreakdown(_ewCurrentWorker.id);
     await _renderEmpWagePayments(_ewCurrentWorker.id);
     loadEmpWages();
@@ -13105,7 +13146,7 @@ window.closeEmpPanel=closeEmpPanel; window.logoutEmp=logoutEmp;
 window.onEmpImageChange=onEmpImageChange; window.clearEmpImage=clearEmpImage;
 window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
-window.loadEmpWages=loadEmpWages; window.openEmpWageDetail=openEmpWageDetail; window.saveEmpWageRates=saveEmpWageRates; window.recordEmpWagePayment=recordEmpWagePayment; window.closeEmpWageDetail=closeEmpWageDetail;
+window.loadEmpWages=loadEmpWages; window.openEmpWageDetail=openEmpWageDetail; window.saveEmpWageRates=saveEmpWageRates; window.recordEmpWagePayment=recordEmpWagePayment; window.closeEmpWageDetail=closeEmpWageDetail; window.settleEmpPage=settleEmpPage;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
