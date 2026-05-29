@@ -14335,12 +14335,15 @@ async function showRepStatement(phone,name){
           <div style="max-height:150px;overflow-y:auto;">${activeRows}</div>
         </div>`:''}
 
-        <div style="background:${balance>0?'#fee2e2':'#dcfce7'};border:2px solid ${balance>0?'#fca5a5':'#86efac'};border-radius:14px;padding:14px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-size:0.72rem;color:${balance>0?'#dc2626':'#166534'};margin-bottom:3px;">${balance>0?'الرصيد المطلوب':'الحساب'}</div>
-            <div style="font-size:1.5rem;font-weight:900;color:${balance>0?'#dc2626':'#166534'};">${Math.abs(balance).toFixed(2)} <span style="font-size:0.8rem;font-weight:600;">د.أ</span></div>
+        <div style="background:${balance>0?'#fee2e2':'#dcfce7'};border:2px solid ${balance>0?'#fca5a5':'#86efac'};border-radius:14px;padding:14px 16px;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${balance!==0?'10px':'0'};">
+            <div>
+              <div style="font-size:0.72rem;color:${balance>0?'#dc2626':balance<0?'#1e40af':'#166534'};margin-bottom:3px;">${balance>0?'الرصيد المطلوب':balance<0?'دفع زائد — له رصيد':'الحساب'}</div>
+              <div style="font-size:1.5rem;font-weight:900;color:${balance>0?'#dc2626':balance<0?'#1e40af':'#166534'};">${Math.abs(balance).toFixed(2)} <span style="font-size:0.8rem;font-weight:600;">د.أ</span></div>
+            </div>
+            <div style="font-size:2rem;">${balance>0?'🔴':balance<0?'💙':'✅'}</div>
           </div>
-          <div style="font-size:2rem;">${balance>0?'🔴':'✅'}</div>
+          ${balance!==0?`<button onclick="settleRepBalance(${balance.toFixed(2)})" style="width:100%;padding:9px;background:${balance>0?'#dc2626':'#1e40af'};color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">${balance>0?`⚡ تسوية — سجّل ${balance.toFixed(2)} د.أ`:`🔄 تصفير — استرداد الزائد ${Math.abs(balance).toFixed(2)} د.أ`}</button>`:''}
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${totalReturnOwed>0?'12px':'0'};">
@@ -14591,6 +14594,35 @@ async function deleteRepPointsPayment(id){
 }
 // ============================
 
+async function settleRepBalance(balance){
+  if(!_repAcctRep)return;
+  const abs=Math.abs(balance).toFixed(2);
+  if(balance>0){
+    // Rep owes — pre-fill the payment form and scroll to it
+    const amtEl=document.getElementById('repAcctPayAmt');
+    const notesEl=document.getElementById('repAcctPayNotes');
+    if(amtEl){amtEl.value=abs;amtEl.focus();}
+    if(notesEl)notesEl.value='تسوية حساب';
+    amtEl?.scrollIntoView({behavior:'smooth',block:'center'});
+    toast('💡 اضغط "تسجيل" لإتمام التسوية');
+  } else {
+    // Rep overpaid — record a negative adjustment to zero the balance
+    if(!confirm(`استرداد الزائد ${abs} د.أ من حساب ${_repAcctRep.name}؟ سيتم تصفير الحساب.`))return;
+    try{
+      await db.collection('rep_payments').add({
+        repPhone:_repAcctRep.phone, repName:_repAcctRep.name,
+        amount:balance, // negative value reduces totalPaid
+        notes:'تسوية — استرداد دفع زائد',
+        date:jordanDateStr(),
+        addedBy:_currentAdminUser||'أدمن',
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      toast('✅ تم تصفير الحساب');
+      showRepStatement(_repAcctRep.phone,_repAcctRep.name);
+    }catch(e){toast('❌ '+e.message);}
+  }
+}
+
 async function addRepPayment(){
   if(!_repAcctRep){toast('لم يتم تحديد المندوب');return;}
   const amtEl=document.getElementById('repAcctPayAmt');
@@ -14647,7 +14679,7 @@ async function deleteRepRefund(id){
 }
 
 window.loadRepAccounting=loadRepAccounting; window.showRepStatement=showRepStatement;
-window.repAcctBackToList=repAcctBackToList; window.addRepPayment=addRepPayment;
+window.repAcctBackToList=repAcctBackToList; window.addRepPayment=addRepPayment; window.settleRepBalance=settleRepBalance;
 window.deleteRepPayment=deleteRepPayment; window.addRepRefund=addRepRefund;
 window.deleteRepRefund=deleteRepRefund;
 window.savePointValue=savePointValue; window.payRepPoints=payRepPoints;
