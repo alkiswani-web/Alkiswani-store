@@ -3282,6 +3282,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </select>
       </div>
 
+      <!-- Smart paste (AI) -->
+      <div style="background:linear-gradient(135deg,#faf5ff,#eff6ff);border:1.5px solid #c4b5fd;border-radius:11px;padding:11px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.8rem;font-weight:700;color:#6d28d9;">✨ لصق ذكي</div>
+          <div style="font-size:0.68rem;color:#9ca3af;">الصق رسالة الزبون وخليه يعبّي لحالك</div>
+        </div>
+        <textarea id="emp_smart_paste" rows="2" placeholder="مثال: بدي مجسم الكعبة لعمان الصويفية، ابو احمد 0791234567" style="width:100%;padding:9px 11px;border:1.5px solid #ddd6fe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;resize:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'"></textarea>
+        <button id="emp_smart_btn" onclick="runSmartPaste()" style="width:100%;margin-top:7px;padding:9px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✨ تحليل وتعبئة</button>
+      </div>
+
       <!-- Product adder -->
       <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">📦 اختار منتج للطلب</div>
@@ -3323,9 +3333,15 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <input type="text" id="emp_order_num" placeholder="مثال: 1234 أو #ABC..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
       </div>
       <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">رقم الزبون</div>
-        <input type="tel" id="emp_phone" placeholder="07xxxxxxxx" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;direction:ltr;text-align:right;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">اسم الزبون <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
+        <input type="text" id="emp_customer_name" placeholder="اسم الزبون..." autocomplete="off" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
       </div>
+      <div style="margin-bottom:10px;position:relative;">
+        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">رقم الزبون</div>
+        <input type="tel" id="emp_phone" placeholder="07xxxxxxxx" autocomplete="off" oninput="onEmpPhoneInput(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;direction:ltr;text-align:right;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+        <div id="emp_phone_suggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;margin-top:3px;box-shadow:0 6px 20px rgba(0,0,0,0.1);max-height:220px;overflow-y:auto;"></div>
+      </div>
+      <div id="emp_crm_banner" style="display:none;margin-bottom:10px;"></div>
       <!-- Area -->
       <div style="margin-bottom:10px;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المحافظة <span style="color:#ef4444;">*</span></div>
@@ -3853,6 +3869,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script>
 // Force reload if cached version is stale
@@ -3876,6 +3893,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
+let _akFunctions=null;
+try{_akFunctions=firebase.functions();}catch(e){_akFunctions=null;}
 
 // ===== PUSH NOTIFICATIONS (FCM v1 API) =====
 let _fcmMessaging=null,_fcmVapidKey=null,_fcmReady=false;
@@ -5332,6 +5351,146 @@ function updateCartItemWriting(idx,value){
 
 function calcEmpOrderTotal(){return _empOrderCart.reduce((s,i)=>s+(i.price*i.qty),0);}
 
+// ===== SMART PASTE (AI) + CUSTOMER MEMORY =====
+const _EMP_AREAS=['عمان','اربد','الزرقاء','البلقاء','مادبا','الكرك','الطفيلة','معان','العقبة','جرش','عجلون','المفرق','الاغوار','الشونة','الازرق','رصيفة'];
+
+// كشف المحافظة تلقائياً من نص العنوان
+function _empDetectArea(txt){
+  if(!txt) return '';
+  const t=txt.replace(/[أإآ]/g,'ا');
+  for(const a of _EMP_AREAS){
+    const norm=a.replace(/[أإآ]/g,'ا');
+    if(t.includes(norm)) return a;
+  }
+  // مرادفات شائعة
+  const syn={'الرصيفة':'رصيفة','عمّان':'عمان','إربد':'اربد','الزرقا':'الزرقاء'};
+  for(const k in syn){if(t.includes(k.replace(/[أإآ]/g,'ا'))) return syn[k];}
+  return '';
+}
+function _empSetAreaIfEmpty(area){
+  const sel=document.getElementById('emp_area');
+  if(!sel) return;
+  if(area && _EMP_AREAS.includes(area)){sel.value=area;onEmpAreaChange();}
+  else if(!sel.value){const det=_empDetectArea(document.getElementById('emp_address')?.value||'');if(det){sel.value=det;onEmpAreaChange();}}
+}
+
+async function runSmartPaste(){
+  const ta=document.getElementById('emp_smart_paste');
+  const txt=(ta?.value||'').trim();
+  if(!txt){toast('⚠️ الصق رسالة الزبون أولاً');return;}
+  const btn=document.getElementById('emp_smart_btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري التحليل...';}
+  try{
+    if(!_akFunctions){throw new Error('خدمة التحليل غير متاحة');}
+    const names=(_empSharedProducts||[]).map(p=>p.name).filter(Boolean);
+    const call=_akFunctions.httpsCallable('parseOrder');
+    const r=await call({text:txt,products:names,areas:_EMP_AREAS});
+    const d=r.data||{};
+    let filled=[];
+    if(d.name){const el=document.getElementById('emp_customer_name');if(el){el.value=d.name;filled.push('الاسم');}}
+    if(d.phone){const el=document.getElementById('emp_phone');if(el){el.value=d.phone;filled.push('الرقم');onEmpPhoneInput(d.phone);}}
+    if(d.address){const el=document.getElementById('emp_address');if(el){el.value=d.address;filled.push('العنوان');}}
+    _empSetAreaIfEmpty(d.area);
+    if(d.area||document.getElementById('emp_area')?.value) filled.push('المحافظة');
+    if(d.notes){const el=document.getElementById('emp_notes');if(el){el.value=d.notes;filled.push('الملاحظات');}}
+    // طابق المنتج وأضفه للسلة
+    if(d.product){
+      const prod=(_empSharedProducts||[]).find(p=>p.name===d.product)||
+                 (_empSharedProducts||[]).find(p=>(p.name||'').includes(d.product)||d.product.includes(p.name||''));
+      if(prod){
+        const qty=Math.max(1,parseInt(d.qty)||1);
+        if(!_empOrderCart.some(i=>i.id===prod.id)){
+          _empOrderCart.push({id:prod.id,name:prod.name||'',price:parseFloat(prod.sellPrice||0),qty,color:'',writing:''});
+          renderEmpOrderCart();
+          filled.push('المنتج');
+        }
+      }
+    }
+    toast(filled.length?('✅ تم تعبئة: '+filled.join('، ')):'⚠️ ما قدرت أستخرج معلومات واضحة');
+    if(ta) ta.value='';
+  }catch(e){
+    toast('❌ '+(e.message||'فشل التحليل'));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='✨ تحليل وتعبئة';}
+  }
+}
+
+// اقتراح الزباين (autocomplete) + ملف الزبون
+let _empPhoneTimer=null;
+function onEmpPhoneInput(val){
+  const phone=(val||'').replace(/\s+/g,'');
+  clearTimeout(_empPhoneTimer);
+  const box=document.getElementById('emp_phone_suggest');
+  if(phone.length>=10){_empShowCRM(phone);}else{const b=document.getElementById('emp_crm_banner');if(b)b.style.display='none';}
+  if(phone.length<4){if(box)box.style.display='none';return;}
+  _empPhoneTimer=setTimeout(async()=>{
+    try{
+      const snap=await db.collection('customers')
+        .where(firebase.firestore.FieldPath.documentId(),'>=',phone)
+        .where(firebase.firestore.FieldPath.documentId(),'<=',phone+'')
+        .limit(6).get();
+      if(snap.empty){if(box)box.style.display='none';return;}
+      const items=snap.docs.map(d=>({id:d.id,...d.data()}));
+      box.innerHTML=items.map(c=>`<div onclick='applyEmpCustomer(${JSON.stringify({phone:c.id,name:c.name||'',address:c.address||'',area:c.area||''}).replace(/'/g,"&#39;")})' style="padding:9px 11px;border-bottom:1px solid #f3f4f6;cursor:pointer;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'">
+        <div style="font-weight:700;font-size:0.85rem;color:#1a3a2a;">${c.name||'زبون'} <span style="direction:ltr;color:#6b7280;font-weight:600;">${c.id}</span></div>
+        ${c.address?`<div style="font-size:0.72rem;color:#9ca3af;">📍 ${c.address}</div>`:''}
+      </div>`).join('');
+      box.style.display='block';
+    }catch(e){if(box)box.style.display='none';}
+  },280);
+}
+
+function applyEmpCustomer(c){
+  if(c.name){const el=document.getElementById('emp_customer_name');if(el)el.value=c.name;}
+  if(c.phone){const el=document.getElementById('emp_phone');if(el)el.value=c.phone;}
+  if(c.address){const el=document.getElementById('emp_address');if(el)el.value=c.address;}
+  _empSetAreaIfEmpty(c.area);
+  const box=document.getElementById('emp_phone_suggest');if(box)box.style.display='none';
+  if(c.phone)_empShowCRM(c.phone);
+}
+
+async function _empShowCRM(phone){
+  const banner=document.getElementById('emp_crm_banner');
+  if(!banner) return;
+  try{
+    const snap=await db.collection('employee_orders').where('customerPhone','==',phone).get();
+    if(snap.empty){banner.style.display='none';return;}
+    const orders=snap.docs.map(d=>d.data());
+    const total=orders.length;
+    const delivered=orders.filter(o=>o.status==='delivered').length;
+    const bad=orders.filter(o=>o.status==='returned'||o.status==='cancelled').length;
+    let last='';
+    const sorted=orders.slice().sort((a,b)=>{const ta=a.createdAt?.toMillis?.()||0,tb=b.createdAt?.toMillis?.()||0;return tb-ta;});
+    const lo=sorted[0];
+    if(lo){last=(lo.products&&lo.products[0]?.name)||lo.productName||'';}
+    // تقييم
+    let badge,bg,bord;
+    if(bad>=2&&bad>=delivered){badge='🔴 زبون يرفض كثيراً ('+bad+' مرتجع/ملغي)';bg='#fef2f2';bord='#fecaca';}
+    else if(delivered>=3){badge='🟢 زبون ممتاز — '+delivered+' طلب مستلَم';bg='#f0fdf4';bord='#bbf7d0';}
+    else{badge='🔵 زبون مسجّل — '+total+' طلب سابق';bg='#eff6ff';bord='#bfdbfe';}
+    banner.innerHTML=`<div style="background:${bg};border:1.5px solid ${bord};border-radius:9px;padding:9px 11px;font-size:0.78rem;color:#374151;">
+      <div style="font-weight:700;margin-bottom:2px;">${badge}</div>
+      <div style="font-size:0.72rem;color:#6b7280;">📦 الكل: ${total} · ✅ مستلَم: ${delivered}${bad?` · ↩️ راجع/ملغي: ${bad}`:''}${last?` · 🏷 آخر منتج: ${last}`:''}</div>
+    </div>`;
+    banner.style.display='block';
+  }catch(e){banner.style.display='none';}
+}
+
+// حفظ/تحديث بيانات الزبون بعد تسجيل الطلب
+async function _empUpsertCustomer(phone,name,address,area,productName){
+  if(!phone) return;
+  try{
+    await db.collection('customers').doc(phone).set({
+      ...(name?{name}:{}),
+      ...(address?{address}:{}),
+      ...(area?{area}:{}),
+      ...(productName?{lastProduct:productName}:{}),
+      orderCount:firebase.firestore.FieldValue.increment(1),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+  }catch(e){}
+}
+
 function renderEmpOrderCart(){
   const wrap=document.getElementById('empCartItems');
   if(!wrap)return;
@@ -5482,6 +5641,7 @@ async function submitEmpOrder(){
   const pageId=pageSel.value;
   const pageName=pageSel.selectedOptions[0]?.text||'';
   const phone=document.getElementById('emp_phone').value.trim();
+  const customerName=(document.getElementById('emp_customer_name')?.value||'').trim();
   const address=document.getElementById('emp_address').value.trim();
   const notes=document.getElementById('emp_notes').value.trim();
   const orderNumInput=document.getElementById('emp_order_num').value.trim();
@@ -5509,6 +5669,7 @@ async function submitEmpOrder(){
       pageId,pageName,
       products:_empOrderCart.map(i=>({id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{})})),
       customerPhone:phone,
+      ...(customerName?{customerName}:{}),
       address,notes,
       ...(areaInput?{area:areaInput}:{}),
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
@@ -5520,12 +5681,16 @@ async function submitEmpOrder(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
+    _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
     toast(_empOrderUrgent?'🔥 تم تسجيل الطلب المستعجل':'✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=0;_empCurrentImages=[];
     resetEmpUrgentBtn();
     renderEmpOrderCart();
     setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
     document.getElementById('emp_phone').value='';
+    const nameEl=document.getElementById('emp_customer_name');if(nameEl)nameEl.value='';
+    const crmB=document.getElementById('emp_crm_banner');if(crmB)crmB.style.display='none';
+    const pasteEl=document.getElementById('emp_smart_paste');if(pasteEl)pasteEl.value='';
     document.getElementById('emp_address').value='';
     document.getElementById('emp_notes').value='';
     document.getElementById('emp_order_num').value='';
@@ -12689,6 +12854,7 @@ window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEm
 window.selectEmpColor=selectEmpColor;
 window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
 window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory; window.toggleEmpUrgent=toggleEmpUrgent;
+window.runSmartPaste=runSmartPaste; window.onEmpPhoneInput=onEmpPhoneInput; window.applyEmpCustomer=applyEmpCustomer;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
