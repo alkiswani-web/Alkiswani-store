@@ -13167,14 +13167,24 @@ window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpO
   const p=new URLSearchParams(window.location.search);
   const qrOrder=p.get('order');
   if(!qrOrder) return;
-  // Clean the URL immediately so refreshing won't re-open the order
-  try{const clean=window.location.pathname+(window.location.search.replace(/[?&]order=[^&]*/,'').replace(/^&/,'?')||'');window.history.replaceState(null,'',clean);}catch(e){}
+  // Clean the URL so refreshing won't re-open
+  try{window.history.replaceState(null,'',window.location.pathname);}catch(e){}
+  // Guard: if this same order was already opened from QR more than 2 min ago, skip.
+  // This prevents PWA shortcuts saved with ?order= from re-opening on every launch.
+  const LS_KEY='_qrTs_'+qrOrder;
+  const last=parseInt(localStorage.getItem(LS_KEY)||'0');
+  const now=Date.now();
+  if(now-last > 2*60*1000){
+    localStorage.setItem(LS_KEY,String(now));
+  } else {
+    return; // already handled recently, skip
+  }
   let tries=0;
   const tryOpen=()=>{
     const loggedIn=_currentAdminUser||_empCurrentUser;
     if(!loggedIn){
       if(++tries<40) setTimeout(tryOpen,400);
-      return; // not logged in — silently ignore
+      return;
     }
     if(typeof openOpOrderDetail==='function'){
       openOpOrderDetail(qrOrder);
