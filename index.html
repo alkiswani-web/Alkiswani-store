@@ -2291,6 +2291,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رصيد</button>
         <button id="optab-btn-workers" onclick="switchOpTab('workers')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">👥 موظفون</button>
         <button id="optab-btn-empwages" onclick="switchOpTab('empwages')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رواتب</button>
+        <button id="optab-btn-expenses" onclick="switchOpTab('expenses')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🧾 مصاريف</button>
         <button id="optab-btn-emppoints" onclick="switchOpTab('emppoints')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏆 نقاط</button>
         <button id="optab-btn-settings" onclick="switchOpTab('settings')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;white-space:nowrap;">⚙️ إعدادات</button>
         <button id="optab-btn-reps" onclick="switchOpTab('reps')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1px solid var(--border);white-space:nowrap;">🚚 مناديب</button>
@@ -2955,6 +2956,48 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 <div id="empAdjHistory" style="font-size:0.82rem;"></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- EXPENSES sub-tab -->
+        <div id="emp-subtab-expenses" style="display:none;">
+          <div style="max-width:700px;">
+            <div style="font-size:1.05rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;">🧾 المصاريف اليومية</div>
+
+            <!-- Add expense form -->
+            <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:14px;margin-bottom:16px;">
+              <div style="font-size:0.82rem;font-weight:700;color:#9a3412;margin-bottom:10px;">➕ تسجيل مصروف جديد</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="number" id="expAmt" placeholder="المبلغ د.أ" min="0" step="0.01" style="width:110px;padding:9px 11px;border:1.5px solid #fed7aa;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;">
+                <select id="expCategory" style="padding:9px 10px;border:1.5px solid #fed7aa;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;color:#374151;cursor:pointer;">
+                  <option value="">-- الفئة --</option>
+                  <option value="قهوة">☕ قهوة</option>
+                  <option value="مي">💧 مي</option>
+                  <option value="أكل">🍔 أكل</option>
+                  <option value="وقود">⛽ وقود</option>
+                  <option value="كهرباء">🔌 كهرباء</option>
+                  <option value="تغليف">📦 مواد تغليف</option>
+                  <option value="صيانة">🛠️ صيانة</option>
+                  <option value="مواصلات">🚗 مواصلات</option>
+                  <option value="اتصالات">📱 اتصالات</option>
+                  <option value="إيجار">🏠 إيجار</option>
+                  <option value="أخرى">📌 أخرى</option>
+                </select>
+                <input type="text" id="expNotes" placeholder="تفاصيل (اختياري)" style="flex:1;min-width:130px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;background:#fff;">
+                <input type="date" id="expDate" style="padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;color:#374151;">
+                <button onclick="addExpense()" style="padding:9px 16px;background:#ea580c;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
+              </div>
+            </div>
+
+            <!-- Filter + summary -->
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+              <input type="month" id="expMonthFilter" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;color:#374151;">
+              <button onclick="loadExpenses()" style="padding:8px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🔍 عرض</button>
+              <div id="expSummary" style="margin-right:auto;font-size:0.85rem;font-weight:800;color:#9a3412;"></div>
+            </div>
+
+            <!-- Expenses list -->
+            <div id="expensesList" style="display:flex;flex-direction:column;gap:8px;"></div>
           </div>
         </div>
 
@@ -5377,6 +5420,97 @@ async function _renderEmpWageAdjustments(workerId){
 function closeEmpWageDetail(){
   document.getElementById('empWageDetail').style.display='none';
   _ewCurrentWorker=null;
+}
+
+// ===== DAILY EXPENSES =====
+async function loadExpenses(){
+  const list=document.getElementById('expensesList');
+  const summary=document.getElementById('expSummary');
+  if(!list)return;
+  list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ جاري التحميل...</div>';
+
+  // Set default month filter to current month if empty
+  const mf=document.getElementById('expMonthFilter');
+  if(mf&&!mf.value){
+    const n=new Date();
+    mf.value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+  }
+  const monthVal=mf?mf.value:'';
+
+  try{
+    let q=db.collection('operator_expenses').orderBy('createdAt','desc');
+    const snap=await q.get();
+    let docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    // Filter client-side by month
+    if(monthVal){
+      docs=docs.filter(d=>(d.date||'').startsWith(monthVal));
+    }
+
+    if(!docs.length){
+      list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا توجد مصاريف لهذا الشهر</div>';
+      if(summary)summary.textContent='';
+      return;
+    }
+
+    const total=docs.reduce((s,d)=>s+parseFloat(d.amount||0),0);
+    if(summary)summary.textContent=`الإجمالي: ${total.toFixed(2)} د.أ (${docs.length} مصروف)`;
+
+    // Group by category for mini summary
+    const cats={};
+    docs.forEach(d=>{const c=d.category||'أخرى';cats[c]=(cats[c]||0)+parseFloat(d.amount||0);});
+    const catBar=Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,v])=>
+      `<span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:2px 8px;font-size:0.72rem;color:#9a3412;">${c} ${v.toFixed(2)}</span>`
+    ).join('');
+
+    list.innerHTML=`
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${catBar}</div>
+      ${docs.map(d=>`
+        <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:10px;padding:10px 13px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:700;color:#9a3412;font-size:0.9rem;">${parseFloat(d.amount||0).toFixed(2)} د.أ
+              <span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:1px 7px;font-size:0.72rem;margin-right:6px;">${d.category||'أخرى'}</span>
+            </div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-top:2px;">${d.date||''} ${d.notes?'· '+d.notes:''} ${d.addedBy?'· '+d.addedBy:''}</div>
+          </div>
+          <button onclick="deleteExpense('${d.id}')" style="background:none;border:none;cursor:pointer;font-size:1rem;color:#d1d5db;padding:4px 6px;" title="حذف">🗑️</button>
+        </div>`).join('')}`;
+  }catch(e){
+    list.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';
+  }
+}
+
+async function addExpense(){
+  const amt=parseFloat(document.getElementById('expAmt')?.value)||0;
+  if(!amt){toast('⚠️ أدخل المبلغ');return;}
+  const category=(document.getElementById('expCategory')?.value||'أخرى').trim()||'أخرى';
+  const notes=(document.getElementById('expNotes')?.value||'').trim();
+  const dateEl=document.getElementById('expDate');
+  const date=dateEl?.value||jordanDateStr();
+  try{
+    await db.collection('operator_expenses').add({
+      amount:amt,
+      category,
+      notes,
+      date,
+      addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✅ تم تسجيل المصروف');
+    document.getElementById('expAmt').value='';
+    document.getElementById('expNotes').value='';
+    document.getElementById('expCategory').value='';
+    loadExpenses();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteExpense(id){
+  if(!confirm('حذف هذا المصروف؟'))return;
+  try{
+    await db.collection('operator_expenses').doc(id).delete();
+    toast('🗑️ تم الحذف');
+    loadExpenses();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 // ===== ADMIN USERS MANAGEMENT =====
@@ -9209,10 +9343,10 @@ async function sendDailyReport(){
 
 // --- Sub-tab switcher ---
 function switchOpTab(tab){
-  const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','empwages','emppoints','settings'];
+  const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
   allTabs.forEach(t=>{
     const panelId=t==='oporders'?'emp-subtab-operator':
-                  ['daysheet','workers','empwages','emppoints','settings'].includes(t)?'emp-subtab-'+t:
+                  ['daysheet','workers','empwages','expenses','emppoints','settings'].includes(t)?'emp-subtab-'+t:
                   'optab-'+t;
     const el=document.getElementById(panelId);
     const btn=document.getElementById('optab-btn-'+t);
@@ -9234,6 +9368,7 @@ function switchOpTab(tab){
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
   if(tab==='empwages')loadEmpWages();
+  if(tab==='expenses'){const d=document.getElementById('expDate');if(d&&!d.value)d.value=jordanDateStr();loadExpenses();}
   if(tab==='emppoints')loadAdminEmpPoints();
   if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
   if(tab==='reps'){loadPointValueSetting();loadRepAccounting();}
@@ -16047,7 +16182,7 @@ window.calcOpSummary=calcOpSummary;
 window.saveOperatorLedger=saveOperatorLedger;
 window.shareOperatorReport=shareOperatorReport;
 // New operator accounting system
-window.switchOpTab=switchOpTab;
+window.switchOpTab=switchOpTab; window.loadExpenses=loadExpenses; window.addExpense=addExpense; window.deleteExpense=deleteExpense;
 window.onDlvStoreChange=onDlvStoreChange; window.onDlvProdChange=onDlvProdChange;
 window.addDlvItem=addDlvItem; window.removeDlvItem=removeDlvItem; window.changeDlvQty=changeDlvQty; window.clearDlvStore=clearDlvStore;
 window.addPendingOrder=addPendingOrder; window.deliverOrder=deliverOrder; window.deliverAllOrders=deliverAllOrders; window.deletePendingOrder=deletePendingOrder;
