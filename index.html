@@ -5207,43 +5207,56 @@ async function _renderEmpWageBreakdown(workerId){
   ]);
   const orders=ordersSnap.docs.map(d=>d.data());
   const allPayments=paymentsSnap.docs.map(d=>d.data());
-  // Split adjustments: per-page vs global
+
+  // Split adjustments per-page vs global
   const adjByPage={};
-  let globalAdj=0;
   adjSnap.docs.forEach(d=>{
     const a=d.data();
-    const amt=parseFloat(a.amount||0);
-    if(a.pageId){adjByPage[a.pageId]=(adjByPage[a.pageId]||0)+amt;}
-    else{globalAdj+=amt;}
+    if(a.pageId){adjByPage[a.pageId]=(adjByPage[a.pageId]||0)+parseFloat(a.amount||0);}
   });
   const totalAdj=adjSnap.docs.reduce((s,d)=>s+parseFloat(d.data().amount||0),0);
 
-  // Group orders by page
+  // Group orders and payments by page
+  const ordersByPage={};
+  orders.forEach(o=>{const pid=o.pageId||'unknown';(ordersByPage[pid]=ordersByPage[pid]||[]).push(o);});
+  const paysByPage={};
+  allPayments.forEach(p=>{const pid=p.pageId||'__global__';(paysByPage[pid]=paysByPage[pid]||[]).push(p);});
+
+  // Build byPage with settlement-aware calculation
   const byPage={};
-  orders.forEach(o=>{
-    const pid=o.pageId||'unknown';
-    if(!byPage[pid])byPage[pid]={name:o.pageName||pid,count:0,earned:0,paid:0,adj:0};
-    byPage[pid].count++;
-    byPage[pid].earned+=parseFloat(_ewRates[pid]||0);
-  });
-  // Attach per-page adjustments to existing pages (or create entry)
-  Object.entries(adjByPage).forEach(([pid,amt])=>{
-    if(!byPage[pid]){
-      const pg=_ewPages.find(p=>p.id===pid);
-      byPage[pid]={name:pg?pg.name:pid,count:0,earned:0,paid:0,adj:0};
-    }
-    byPage[pid].adj+=amt;
+  const allPids=new Set([...Object.keys(ordersByPage),...Object.keys(adjByPage)]);
+  allPids.forEach(pid=>{
+    const pageOrders=ordersByPage[pid]||[];
+    const pagePayments=paysByPage[pid]||[];
+    // Find last settlement date for this page
+    const lastSettlement=pagePayments
+      .filter(p=>p.isSettlement&&p.settledUpToDate)
+      .sort((a,b)=>b.settledUpToDate.localeCompare(a.settledUpToDate))[0];
+    const lastSettledDate=lastSettlement?.settledUpToDate||null;
+    // Active orders: only those delivered AFTER last settlement
+    const activeOrders=lastSettledDate
+      ?pageOrders.filter(o=>(o.deliveredDate||'')>lastSettledDate)
+      :pageOrders;
+    // Active paid: non-settlement payments after last settlement
+    const activePaid=pagePayments
+      .filter(p=>!p.isSettlement&&(!lastSettledDate||(p.date||'')>lastSettledDate))
+      .reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const pageName=pageOrders[0]?.pageName||_ewPages.find(p=>p.id===pid)?.name||pid;
+    byPage[pid]={
+      name:pageName,
+      count:activeOrders.length,
+      earned:activeOrders.length*parseFloat(_ewRates[pid]||0),
+      paid:activePaid,
+      adj:adjByPage[pid]||0,
+      lastSettledDate
+    };
   });
 
-  // Per-page paid = payments that have this pageId
-  allPayments.forEach(p=>{
-    const pid=p.pageId||null;
-    if(pid&&byPage[pid]) byPage[pid].paid+=parseFloat(p.amount||0);
-    else{
-      if(!byPage['__global__'])byPage['__global__']={name:'دفعات عامة',count:0,earned:0,paid:0,adj:0,isGlobal:true};
-      byPage['__global__'].paid+=parseFloat(p.amount||0);
-    }
-  });
+  // Global payments (no pageId) → __global__
+  if(paysByPage['__global__']){
+    const globalPayments=paysByPage['__global__'];
+    byPage['__global__']={name:'دفعات عامة',count:0,earned:0,paid:globalPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0),adj:0,isGlobal:true};
+  }
 
   const totalEarned=Object.values(byPage).filter(v=>!v.isGlobal).reduce((s,v)=>s+v.earned,0);
   const totalPaid=Object.values(byPage).reduce((s,v)=>s+v.paid,0);
@@ -5288,9 +5301,10 @@ async function _renderEmpWageBreakdown(workerId){
       const bLabel=bal>0.001?`متبقي ${bal.toFixed(2)}`:(bal<-0.001?`زائد ${Math.abs(bal).toFixed(2)}`:'مسوَّى ✅');
       const settleBtn=bal>0.001?`<button onclick="settleEmpPage('${pid}','${v.name.replace(/'/g,"&#39;")}',${bal.toFixed(2)})" style="padding:5px 10px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;white-space:nowrap;">💵 تسوية</button>`:'';
       const adjNote=v.adj?`<span style="color:${v.adj>0?'#d97706':'#dc2626'};">· تعديل: ${v.adj>0?'+':''}${v.adj.toFixed(2)}</span>`:'';
+      const settledNote=v.lastSettledDate?`<span style="font-size:0.68rem;color:#6b7280;font-weight:400;"> · آخر تسوية ${v.lastSettledDate}</span>`:'';
       return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <div style="font-weight:700;color:var(--green-dark);font-size:0.88rem;">${v.name}</div>
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.88rem;">${v.name}${settledNote}</div>
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-weight:800;font-size:0.82rem;color:${bCol};">${bLabel}</span>
             ${settleBtn}
@@ -5379,7 +5393,7 @@ async function recordEmpWagePayment(){
       workerName:_ewCurrentWorker.name,
       amount:amt,
       notes,
-      ...(_ewPayPageId?{pageId:_ewPayPageId,pageName:_ewPayPageName}:{}),
+      ...(_ewPayPageId?{pageId:_ewPayPageId,pageName:_ewPayPageName,isSettlement:true,settledUpToDate:jordanDateStr()}:{}),
       date:jordanDateStr(),
       addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
