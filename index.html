@@ -2946,6 +2946,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                     <option value="add">➕ إضافة للموظف</option>
                     <option value="sub">➖ خصم من الموظف</option>
                   </select>
+                  <select id="empAdjPage" style="padding:9px 10px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;color:#374151;cursor:pointer;">
+                    <option value="">🏪 كل المتاجر</option>
+                  </select>
                   <input type="number" id="empAdjAmt" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;min-width:100px;padding:9px 11px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;">
                   <input type="text" id="empAdjNotes" placeholder="السبب (سلفة، مكافأة، خصم...)" style="flex:2;min-width:140px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;background:#fff;">
                   <button onclick="recordEmpWageAdjustment()" style="padding:9px 14px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
@@ -5184,6 +5187,13 @@ async function openEmpWageDetail(workerId, workerName){
     rateRows.innerHTML='<div style="color:#9ca3af;font-size:0.8rem;">لا توجد صفحات</div>';
   }
 
+  // Populate page selector in adjustment form
+  const adjPageSel=document.getElementById('empAdjPage');
+  if(adjPageSel){
+    adjPageSel.innerHTML='<option value="">🏪 كل المتاجر</option>'+
+      _ewPages.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  }
+
   await _renderEmpWageBreakdown(workerId);
   await _renderEmpWagePayments(workerId);
   await _renderEmpWageAdjustments(workerId);
@@ -5197,25 +5207,40 @@ async function _renderEmpWageBreakdown(workerId){
   ]);
   const orders=ordersSnap.docs.map(d=>d.data());
   const allPayments=paymentsSnap.docs.map(d=>d.data());
+  // Split adjustments: per-page vs global
+  const adjByPage={};
+  let globalAdj=0;
+  adjSnap.docs.forEach(d=>{
+    const a=d.data();
+    const amt=parseFloat(a.amount||0);
+    if(a.pageId){adjByPage[a.pageId]=(adjByPage[a.pageId]||0)+amt;}
+    else{globalAdj+=amt;}
+  });
   const totalAdj=adjSnap.docs.reduce((s,d)=>s+parseFloat(d.data().amount||0),0);
 
   // Group orders by page
   const byPage={};
   orders.forEach(o=>{
     const pid=o.pageId||'unknown';
-    if(!byPage[pid])byPage[pid]={name:o.pageName||pid,count:0,earned:0,paid:0};
+    if(!byPage[pid])byPage[pid]={name:o.pageName||pid,count:0,earned:0,paid:0,adj:0};
     byPage[pid].count++;
     byPage[pid].earned+=parseFloat(_ewRates[pid]||0);
   });
+  // Attach per-page adjustments to existing pages (or create entry)
+  Object.entries(adjByPage).forEach(([pid,amt])=>{
+    if(!byPage[pid]){
+      const pg=_ewPages.find(p=>p.id===pid);
+      byPage[pid]={name:pg?pg.name:pid,count:0,earned:0,paid:0,adj:0};
+    }
+    byPage[pid].adj+=amt;
+  });
 
   // Per-page paid = payments that have this pageId
-  // Payments with no pageId (old records) go to global pool distributed proportionally — keep it simple: apply to first unsettled page
   allPayments.forEach(p=>{
     const pid=p.pageId||null;
     if(pid&&byPage[pid]) byPage[pid].paid+=parseFloat(p.amount||0);
     else{
-      // legacy payment without pageId — add to global "others"
-      if(!byPage['__global__'])byPage['__global__']={name:'دفعات عامة',count:0,earned:0,paid:0,isGlobal:true};
+      if(!byPage['__global__'])byPage['__global__']={name:'دفعات عامة',count:0,earned:0,paid:0,adj:0,isGlobal:true};
       byPage['__global__'].paid+=parseFloat(p.amount||0);
     }
   });
@@ -5251,17 +5276,18 @@ async function _renderEmpWageBreakdown(workerId){
 
   // Breakdown table — per page with settle button
   const breakdown=document.getElementById('empWageBreakdown');
-  const pageEntries=Object.entries(byPage).filter(([pid,v])=>!v.isGlobal&&v.count>0);
+  const pageEntries=Object.entries(byPage).filter(([pid,v])=>!v.isGlobal&&(v.count>0||v.adj!==0));
   if(!pageEntries.length){
     breakdown.innerHTML='<div style="color:#9ca3af;padding:8px;">لا يوجد طلبات مسلَّمة بعد</div>';
     return;
   }
   breakdown.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">
     ${pageEntries.map(([pid,v])=>{
-      const bal=v.earned-v.paid;
+      const bal=v.earned+(v.adj||0)-v.paid;
       const bCol=bal>0.001?'#ef4444':bal<-0.001?'#f59e0b':'#22c55e';
       const bLabel=bal>0.001?`متبقي ${bal.toFixed(2)}`:(bal<-0.001?`زائد ${Math.abs(bal).toFixed(2)}`:'مسوَّى ✅');
       const settleBtn=bal>0.001?`<button onclick="settleEmpPage('${pid}','${v.name.replace(/'/g,"&#39;")}',${bal.toFixed(2)})" style="padding:5px 10px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;white-space:nowrap;">💵 تسوية</button>`:'';
+      const adjNote=v.adj?`<span style="color:${v.adj>0?'#d97706':'#dc2626'};">· تعديل: ${v.adj>0?'+':''}${v.adj.toFixed(2)}</span>`:'';
       return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <div style="font-weight:700;color:var(--green-dark);font-size:0.88rem;">${v.name}</div>
@@ -5270,10 +5296,11 @@ async function _renderEmpWageBreakdown(workerId){
             ${settleBtn}
           </div>
         </div>
-        <div style="font-size:0.75rem;color:#6b7280;display:flex;gap:12px;">
+        <div style="font-size:0.75rem;color:#6b7280;display:flex;gap:12px;flex-wrap:wrap;">
           <span>📦 ${v.count} طلب</span>
           <span>× ${parseFloat(_ewRates[pid]||0).toFixed(2)} د.أ</span>
           <span>= <strong style="color:#1d4ed8;">${v.earned.toFixed(2)} د.أ</strong></span>
+          ${adjNote}
           <span>· مدفوع: <strong style="color:#16a34a;">${v.paid.toFixed(2)}</strong></span>
         </div>
       </div>`;
@@ -5376,19 +5403,23 @@ async function recordEmpWageAdjustment(){
   if(!rawAmt){toast('⚠️ أدخل المبلغ');return;}
   const notes=(document.getElementById('empAdjNotes').value||'').trim();
   const amount=type==='sub'?-rawAmt:rawAmt;
+  const pageId=document.getElementById('empAdjPage')?.value||'';
+  const pageName=pageId?(_ewPages.find(p=>p.id===pageId)?.name||''):'';
   try{
     await db.collection('emp_wage_adjustments').add({
       workerId:_ewCurrentWorker.id,
       workerName:_ewCurrentWorker.name,
       amount,
       notes,
+      ...(pageId?{pageId,pageName}:{}),
       date:jordanDateStr(),
       addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    toast('✅ تم تسجيل التعديل');
+    toast('✅ تم تسجيل التعديل'+(pageName?' — '+pageName:''));
     document.getElementById('empAdjAmt').value='';
     document.getElementById('empAdjNotes').value='';
+    if(document.getElementById('empAdjPage')) document.getElementById('empAdjPage').value='';
     await _renderEmpWageBreakdown(_ewCurrentWorker.id);
     await _renderEmpWageAdjustments(_ewCurrentWorker.id);
     loadEmpWages();
@@ -5408,7 +5439,11 @@ async function _renderEmpWageAdjustments(workerId){
       const isPos=amt>=0;
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;margin-bottom:5px;">
         <div>
-          <div style="font-weight:700;color:${isPos?'#92400e':'#dc2626'};">${isPos?'➕':'➖'} ${Math.abs(amt).toFixed(2)} د.أ${a.notes?' — <span style="font-weight:400;color:#6b7280;">'+a.notes+'</span>':''}</div>
+          <div style="font-weight:700;color:${isPos?'#92400e':'#dc2626'};">
+            ${isPos?'➕':'➖'} ${Math.abs(amt).toFixed(2)} د.أ
+            ${a.pageName?`<span style="background:#f0fdf4;color:#166534;font-size:0.68rem;border-radius:5px;padding:1px 6px;margin-right:4px;font-weight:600;">🏪 ${a.pageName}</span>`:''}
+            ${a.notes?'<span style="font-weight:400;color:#6b7280;font-size:0.82rem;"> — '+a.notes+'</span>':''}
+          </div>
           <div style="font-size:0.7rem;color:#9ca3af;">${a.date||''}</div>
         </div>
         <div style="font-size:0.72rem;color:#9ca3af;">${a.addedBy||''}</div>
