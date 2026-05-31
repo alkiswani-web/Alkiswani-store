@@ -11523,28 +11523,13 @@ function renderOperatorDailyView(){
         byRep[repKey].total+=o.collectAmt;
       });
       const repBlocks=Object.values(byRep).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(rep=>{
-        const repRows=rep.orders.map(o=>{
-          const lbl=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
-          const prods=(o.products||[]).map(p=>`${p.name}×${p.quantity||p.qty||1}`).join('، ')||o.productName||'—';
-          return `<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #e5e7eb;gap:8px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:0.8rem;font-weight:700;color:#1a3a2a;">${lbl}</div>
-              <div style="font-size:0.72rem;color:#6b7280;margin-top:1px;">${o.customerPhone||''}${o.address?` · 📍 ${o.address}`:''}</div>
-              <div style="font-size:0.7rem;color:#9ca3af;">${prods}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-              <div style="font-weight:900;color:#166534;font-size:0.85rem;white-space:nowrap;">${o.collectAmt.toFixed(2)} <span style="font-size:0.62rem;">د.أ</span></div>
-              <button onclick="removeOrderFromStatement('${o.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;" title="إزالة">×</button>
-            </div>
-          </div>`;
-        }).join('');
         const repLabel=rep.name?`🚚 ${rep.name}`:'بدون مندوب';
-        return `<div style="margin-bottom:8px;border:1px solid #e5e7eb;border-radius:9px;overflow:hidden;">
-          <div style="background:#dbeafe;padding:7px 12px;display:flex;justify-content:space-between;align-items:center;">
-            <div style="font-size:0.78rem;font-weight:800;color:#1e40af;">${repLabel} <span style="font-weight:400;color:#3b82f6;">(${rep.orders.length} طلب)</span></div>
-            <div style="font-size:0.82rem;font-weight:900;color:#1e40af;">${rep.total.toFixed(2)} د.أ</div>
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid #f3f4f6;">
+          <div style="font-size:0.82rem;font-weight:700;color:#1e40af;">${repLabel}</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:0.75rem;color:#6b7280;">${rep.orders.length} طلب</span>
+            <span style="font-size:0.88rem;font-weight:900;color:#166534;">${rep.total.toFixed(2)} د.أ</span>
           </div>
-          <div style="padding:2px 12px 6px;">${repRows}</div>
         </div>`;
       }).join('');
       return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;">
@@ -11552,7 +11537,7 @@ function renderOperatorDailyView(){
           <div style="color:#fff;font-weight:800;font-size:0.88rem;">🏪 ${store.name} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${store.orders.length} طلب)</span></div>
           <div style="color:#86efac;font-weight:900;font-size:0.9rem;">${store.total.toFixed(2)} د.أ</div>
         </div>
-        <div style="padding:8px 10px;">${repBlocks}</div>
+        ${repBlocks}
       </div>`;
     }).join('');
     body.innerHTML+=`
