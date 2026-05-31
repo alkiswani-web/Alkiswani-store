@@ -11586,22 +11586,28 @@ function renderOperatorDailyView(){
       const storeBalance=store.eligibleTotal-storeWdTotal;
       const balColor=storeBalance>=0?'#166534':'#dc2626';
       const balBg=storeBalance>=0?'#dcfce7':'#fee2e2';
-      const eligBlocks=Object.values(eligibleReps).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(rep=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #f3f4f6;">
+      const eligBlocks=Object.values(eligibleReps).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(rep=>{
+        const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #f3f4f6;">
           <div style="font-size:0.82rem;font-weight:700;color:#1e40af;">${rep.name?'🚚 '+rep.name:'بدون مندوب'}</div>
-          <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:0.75rem;color:#6b7280;">${rep.orders.length} طلب</span>
             <span style="font-size:0.88rem;font-weight:900;color:#166534;">${rep.total.toFixed(2)} د.أ</span>
+            ${rep.name?`<button onclick="toggleRepBalanceByName('${safeName}')" style="padding:3px 7px;background:#fff3cd;color:#92400e;border:1px solid #fde68a;border-radius:6px;font-size:0.68rem;cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;" title="استبعد من الرصيد">🚫 استبعد</button>`:''}
           </div>
-        </div>`).join('');
+        </div>`;}).join('');
       const exclBlocks=Object.values(excludedReps).length?`
         <div style="background:#fffbeb;border-top:1px dashed #fde68a;padding:6px 14px;">
           <div style="font-size:0.68rem;color:#92400e;margin-bottom:3px;font-weight:700;">🚚 شركات توصيل — لا تدخل بالرصيد</div>
-          ${Object.values(excludedReps).map(rep=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+          ${Object.values(excludedReps).map(rep=>{
+            const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
               <span style="font-size:0.78rem;color:#92400e;">${rep.name}</span>
-              <span style="font-size:0.78rem;color:#92400e;">${rep.orders.length} طلب — ${rep.total.toFixed(2)} د.أ</span>
-            </div>`).join('')}
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:0.78rem;color:#92400e;">${rep.orders.length} طلب — ${rep.total.toFixed(2)} د.أ</span>
+                <button onclick="toggleRepBalanceByName('${safeName}')" style="padding:3px 7px;background:#dcfce7;color:#166534;border:1px solid #86efac;border-radius:6px;font-size:0.68rem;cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;" title="أضفه للرصيد">✅ أضف للرصيد</button>
+              </div>
+            </div>`;}).join('')}
         </div>`:'';
       const wdRows=storeWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #fecaca;gap:6px;">
@@ -14045,6 +14051,16 @@ async function toggleRepExcludeBalance(idx){
   toast(reps[idx].excludeFromBalance?'🚚 سيُستبعد من حساب الرصيد':'💰 سيُضمَّن في حساب الرصيد');
 }
 
+async function toggleRepBalanceByName(name){
+  const reps=await _loadDeliveryReps();
+  const rep=reps.find(r=>r.name===name);
+  if(!rep){toast('⚠️ المندوب غير موجود بالقائمة');return;}
+  rep.excludeFromBalance=!rep.excludeFromBalance;
+  await _saveDeliveryReps(reps);
+  toast(rep.excludeFromBalance?`🚚 "${name}" خارج الرصيد الآن`:`💰 "${name}" ضمن الرصيد الآن`);
+  renderOperatorDailyView();
+}
+
 function sendAndMarkDelivering(waUrl){
   window.open(waUrl,'_blank');
   const isBatch=_deliveryBatchOrders.length>1;
@@ -15826,7 +15842,7 @@ window.sendAndMarkDelivering_withRep=sendAndMarkDelivering_withRep;
 window.confirmBatchOrder=confirmBatchOrder;
 window.toggleRepsPanel=toggleRepsPanel; window.addRepFromPanel=addRepFromPanel;
 window.removeRepFromPanel=removeRepFromPanel; window.renderOpRepsPanelList=renderOpRepsPanelList;
-window.toggleRepExcludeBalance=toggleRepExcludeBalance; window.toggleRepSupervisor=toggleRepSupervisor;
+window.toggleRepExcludeBalance=toggleRepExcludeBalance; window.toggleRepSupervisor=toggleRepSupervisor; window.toggleRepBalanceByName=toggleRepBalanceByName;
 window.openInternalNote=openInternalNote;
 
 // ===== ORDER SEARCH (Feature 2) =====
