@@ -11574,7 +11574,7 @@ function renderOperatorDailyView(){
     const orderStoreNames=new Set(Object.keys(byStore));
 
     // Helper: render one store card (used for grouped + ungrouped)
-    const _storeCard=(store,indent)=>{
+    const _storeCard=(store,indent,inGroup)=>{
       const eligibleReps={};const excludedReps={};
       store.orders.forEach(o=>{
         if(o.excludedFromBalance){
@@ -11627,7 +11627,18 @@ function renderOperatorDailyView(){
           </div>
         </div>`).join('');
       const safeStoreName=store.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:${indent?'8px':'12px'};">
+      // When inside a group: only show eligible sales (no per-store balance/withdrawals)
+      if(inGroup){
+        return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;">
+          <div style="background:#1a3a2a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="color:#fff;font-weight:700;font-size:0.84rem;">🏪 ${store.name} <span style="font-size:0.7rem;font-weight:400;opacity:0.65;">(${store.orders.length} طلب)</span></div>
+            <div style="color:#86efac;font-weight:900;font-size:0.84rem;">${store.eligibleTotal.toFixed(2)} د.أ قابل للسحب</div>
+          </div>
+          ${eligBlocks}
+          ${exclBlocks}
+        </div>`;
+      }
+      return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px;">
         <div style="background:#1a3a2a;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
           <div style="color:#fff;font-weight:800;font-size:0.88rem;">🏪 ${store.name} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${store.orders.length} طلب)</span></div>
           <div style="color:#86efac;font-weight:900;font-size:0.9rem;">${store.total.toFixed(2)} د.أ</div>
@@ -11665,21 +11676,32 @@ function renderOperatorDailyView(){
     // Build group cards
     const groupCards=Object.entries(storeGroups).sort((a,b)=>a[0].localeCompare(b[0],'ar')).map(([groupName,stores])=>{
       const grpEligible=stores.reduce((s,st)=>s+st.eligibleTotal,0);
-      const grpWdTotal=_opWithdrawals.filter(w=>stores.some(st=>st.name===w.storeName)).reduce((s,w)=>s+(w.amount||0),0);
+      // group-level withdrawals: those tagged with groupName OR any per-store withdrawal for stores in this group
+      const grpWds=_opWithdrawals.filter(w=>w.groupName===groupName||stores.some(st=>st.name===w.storeName));
+      const grpWdTotal=grpWds.reduce((s,w)=>s+(w.amount||0),0);
       const grpBalance=grpEligible-grpWdTotal;
       const grpBalColor=grpBalance>=0?'#fff':'#fca5a5';
       const grpTotalOrders=stores.reduce((s,st)=>s+st.orders.length,0);
       const grpTotalAmt=stores.reduce((s,st)=>s+st.total,0);
-      const balIndicator=grpBalance>=0
-        ?`<span style="background:rgba(255,255,255,0.2);color:#fff;padding:2px 10px;border-radius:20px;font-size:0.78rem;font-weight:800;">${grpBalance.toFixed(2)} د.أ</span>`
-        :`<span style="background:#dc2626;color:#fff;padding:2px 10px;border-radius:20px;font-size:0.78rem;font-weight:800;">⚠️ ${grpBalance.toFixed(2)} د.أ</span>`;
+      const safeGrpName=groupName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const grpWdRows=grpWds.map(w=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,0.2);gap:6px;">
+          <div style="flex:1;min-width:0;">
+            ${w.notes?`<span style="font-size:0.72rem;color:rgba(255,255,255,0.75);">${w.notes} — </span>`:''}
+            <span style="font-size:0.7rem;color:rgba(255,255,255,0.55);">${w.date||''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+            <span style="font-weight:700;color:#fca5a5;font-size:0.82rem;">${(w.amount||0).toFixed(2)} د.أ</span>
+            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:rgba(220,38,38,0.4);color:#fff;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
+          </div>
+        </div>`).join('');
       return `<div style="border:2px solid #7c3aed;border-radius:14px;overflow:hidden;margin-bottom:14px;">
         <div style="background:linear-gradient(135deg,#5b21b6,#7c3aed);padding:12px 14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div style="color:#fff;font-weight:800;font-size:0.92rem;">👥 ${groupName} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${stores.length} متاجر — ${grpTotalOrders} طلب)</span></div>
             <div style="color:#e9d5ff;font-weight:900;font-size:0.88rem;">${grpTotalAmt.toFixed(2)} د.أ</div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:${grpWds.length||!isClosed?'10px':'0'};">
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
               <div style="font-size:0.6rem;color:rgba(255,255,255,0.75);margin-bottom:2px;">💰 قابل للسحب</div>
               <div style="font-weight:800;color:#fff;font-size:0.9rem;">${grpEligible.toFixed(2)}</div>
@@ -11693,14 +11715,16 @@ function renderOperatorDailyView(){
               <div style="font-weight:900;color:${grpBalColor};font-size:0.92rem;">${grpBalance.toFixed(2)}</div>
             </div>
           </div>
+          ${grpWdRows?`<div style="margin-bottom:8px;">${grpWdRows}</div>`:''}
+          ${!isClosed?`<button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="width:100%;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.4);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب للمجموعة</button>`:''}
         </div>
         <div style="padding:8px 8px 4px;background:#faf5ff;">
-          ${stores.map(s=>_storeCard(s,true)).join('')}
+          ${stores.map(s=>_storeCard(s,true,true)).join('')}
         </div>
       </div>`;
     }).join('');
 
-    const ungroupedCards=ungroupedStores.map(s=>_storeCard(s,false)).join('');
+    const ungroupedCards=ungroupedStores.map(s=>_storeCard(s,false,false)).join('');
 
     body.innerHTML+=`
       <div style="margin-top:16px;">
@@ -11991,6 +12015,56 @@ async function deleteOperatorWithdrawal(wid){
     _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
     renderOperatorDailyView();
     toast('✅ تم حذف المسحوب');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+function showAddWithdrawalModalForGroup(groupName){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  const today=jordanDateStr();
+  const overlay=document.createElement('div');
+  overlay.id='withdrawal_modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;">
+      <div style="font-weight:800;font-size:1.05rem;color:#5b21b6;margin-bottom:4px;text-align:center;">👥 مسحوب مجتمع</div>
+      <div style="text-align:center;font-size:0.8rem;color:#7c3aed;margin-bottom:16px;">${groupName}</div>
+      <input type="hidden" id="wd_group_name_fixed" value="${groupName}">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
+      <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
+      <input id="wd_date" type="date" value="${today}" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
+      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveGroupWithdrawal()" style="flex:1;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 حفظ</button>
+        <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
+}
+
+async function saveGroupWithdrawal(){
+  const groupName=document.getElementById('wd_group_name_fixed')?.value||'';
+  const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
+  const date=document.getElementById('wd_date')?.value||jordanDateStr();
+  const notes=(document.getElementById('wd_notes')?.value||'').trim();
+  if(!groupName){toast('⚠️ خطأ: لا يوجد مجموعة');return;}
+  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    const wRef=db.collection('operator_withdrawals').doc();
+    await wRef.set({
+      sessionId:_opCurrentSession.id,
+      groupName, storeName:groupName,
+      storeId:'__grp__'+groupName,
+      amount, date, notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('withdrawal_modal')?.remove();
+    toast('✅ تم تسجيل المسحوب للمجموعة');
+    const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
+    _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
+    renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -16637,6 +16711,7 @@ window.closeOperatorDay=closeOperatorDay;
 window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries; window.deleteCurrentSession=deleteCurrentSession;
 window.showAddWithdrawalModal=showAddWithdrawalModal; window.saveOperatorWithdrawal=saveOperatorWithdrawal; window.deleteOperatorWithdrawal=deleteOperatorWithdrawal;
 window.showAddWithdrawalModalForStore=showAddWithdrawalModalForStore; window.saveOperatorWithdrawalFixed=saveOperatorWithdrawalFixed;
+window.showAddWithdrawalModalForGroup=showAddWithdrawalModalForGroup; window.saveGroupWithdrawal=saveGroupWithdrawal;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
