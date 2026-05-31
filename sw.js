@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v26';
+const CACHE = 'alkiswani-v27';
 const ASSETS = [
   '/',
   '/index.html',

@@ -11351,6 +11351,7 @@ async function _loadOpSessionData(){
     const eSnap=await db.collection('operator_expenses').where('date','>=',from).where('date','<=',to).get();
     _opDayExpenses=eSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opDayExpenses=[];}
+  try{ await _loadDeliveryReps(); }catch(e){}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -11549,42 +11550,95 @@ function renderOperatorDailyView(){
     html+='<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;margin-bottom:12px;"><div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#166534;margin-bottom:2px;">💰 إجمالي البيع</div><div style="font-weight:800;color:#166534;font-size:1.1rem;">'+totSell.toFixed(2)+' د.أ</div></div>'+expCell+'<div style="background:'+(isPE?'#dcfce7':'#fee2e2')+'";border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:'+(isPE?'#166534':'#dc2626')+';margin-bottom:2px;">'+(isPE?'✅ صافي الربح':'⚠️ الخسارة')+(totExp>0?' (بعد المصاريف)':'')+'</div><div style="font-weight:900;color:'+(isPE?'#166534':'#dc2626')+';font-size:1.2rem;">'+Math.abs(totProfitAfterExp).toFixed(2)+' د.أ</div></div></div>';
   }
   body.innerHTML=html;
-  // ===== Delivered orders grouped by store =====
+  // ===== Delivered orders + per-store balance =====
   if(_opDayOrders.length){
+    const excludedRepNames=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
     const byStore={};
     _opDayOrders.forEach(o=>{
       const sname=o.pageName||o.storeName||o.source||'الموقع الإلكتروني';
-      const key=sname;
-      if(!byStore[key]){byStore[key]={name:sname,orders:[],total:0};}
+      if(!byStore[sname]){
+        const storeObj=(_opStoresList||[]).find(s=>s.name===sname);
+        byStore[sname]={name:sname,storeId:storeObj?.id||null,orders:[],total:0,eligibleTotal:0};
+      }
       const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
-      byStore[key].orders.push({...o,collectAmt:amt});
-      byStore[key].total+=amt;
+      const isExcl=!!(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName));
+      byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
+      byStore[sname].total+=amt;
+      if(!isExcl) byStore[sname].eligibleTotal+=amt;
     });
+    const orderStoreNames=new Set(Object.keys(byStore));
     const storeBlocks=Object.values(byStore).sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(store=>{
-      // Group orders by rep within each store
-      const byRep={};
+      const eligibleReps={};const excludedReps={};
       store.orders.forEach(o=>{
-        const repKey=o.deliveryRepName||'__norep__';
-        if(!byRep[repKey]){byRep[repKey]={name:o.deliveryRepName||null,orders:[],total:0};}
-        byRep[repKey].orders.push(o);
-        byRep[repKey].total+=o.collectAmt;
+        if(o.excludedFromBalance){
+          const k=o.deliveryRepName;
+          if(!excludedReps[k]){excludedReps[k]={name:k,orders:[],total:0};}
+          excludedReps[k].orders.push(o);excludedReps[k].total+=o.collectAmt;
+        } else {
+          const k=o.deliveryRepName||'__norep__';
+          if(!eligibleReps[k]){eligibleReps[k]={name:o.deliveryRepName||null,orders:[],total:0};}
+          eligibleReps[k].orders.push(o);eligibleReps[k].total+=o.collectAmt;
+        }
       });
-      const repBlocks=Object.values(byRep).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(rep=>{
-        const repLabel=rep.name?`🚚 ${rep.name}`:'بدون مندوب';
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid #f3f4f6;">
-          <div style="font-size:0.82rem;font-weight:700;color:#1e40af;">${repLabel}</div>
-          <div style="display:flex;align-items:center;gap:10px;">
+      const storeWds=_opWithdrawals.filter(w=>w.storeName===store.name);
+      const storeWdTotal=storeWds.reduce((s,w)=>s+(w.amount||0),0);
+      const storeBalance=store.eligibleTotal-storeWdTotal;
+      const balColor=storeBalance>=0?'#166534':'#dc2626';
+      const balBg=storeBalance>=0?'#dcfce7':'#fee2e2';
+      const eligBlocks=Object.values(eligibleReps).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(rep=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #f3f4f6;">
+          <div style="font-size:0.82rem;font-weight:700;color:#1e40af;">${rep.name?'🚚 '+rep.name:'بدون مندوب'}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:0.75rem;color:#6b7280;">${rep.orders.length} طلب</span>
             <span style="font-size:0.88rem;font-weight:900;color:#166534;">${rep.total.toFixed(2)} د.أ</span>
           </div>
-        </div>`;
-      }).join('');
-      return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;">
+        </div>`).join('');
+      const exclBlocks=Object.values(excludedReps).length?`
+        <div style="background:#fffbeb;border-top:1px dashed #fde68a;padding:6px 14px;">
+          <div style="font-size:0.68rem;color:#92400e;margin-bottom:3px;font-weight:700;">🚚 شركات توصيل — لا تدخل بالرصيد</div>
+          ${Object.values(excludedReps).map(rep=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+              <span style="font-size:0.78rem;color:#92400e;">${rep.name}</span>
+              <span style="font-size:0.78rem;color:#92400e;">${rep.orders.length} طلب — ${rep.total.toFixed(2)} د.أ</span>
+            </div>`).join('')}
+        </div>`:'';
+      const wdRows=storeWds.map(w=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #fecaca;gap:6px;">
+          <div style="flex:1;min-width:0;">
+            ${w.notes?`<span style="font-size:0.72rem;color:#6b7280;">${w.notes} — </span>`:''}
+            <span style="font-size:0.7rem;color:#9ca3af;">${w.date||''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+            <span style="font-weight:700;color:#dc2626;font-size:0.82rem;">${(w.amount||0).toFixed(2)} د.أ</span>
+            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
+          </div>
+        </div>`).join('');
+      const safeStoreName=store.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px;">
         <div style="background:#1a3a2a;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
           <div style="color:#fff;font-weight:800;font-size:0.88rem;">🏪 ${store.name} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${store.orders.length} طلب)</span></div>
           <div style="color:#86efac;font-weight:900;font-size:0.9rem;">${store.total.toFixed(2)} د.أ</div>
         </div>
-        ${repBlocks}
+        ${eligBlocks}
+        ${exclBlocks}
+        <div style="padding:10px 14px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:${storeWds.length||!isClosed?'8px':'0'};">
+            <div style="text-align:center;background:#f0fdf4;border-radius:8px;padding:7px 4px;">
+              <div style="font-size:0.62rem;color:#166534;margin-bottom:1px;">💰 قابل للسحب</div>
+              <div style="font-weight:800;color:#166534;font-size:0.88rem;">${store.eligibleTotal.toFixed(2)}</div>
+            </div>
+            <div style="text-align:center;background:#fff5f5;border-radius:8px;padding:7px 4px;">
+              <div style="font-size:0.62rem;color:#dc2626;margin-bottom:1px;">💸 مسحوب</div>
+              <div style="font-weight:800;color:#dc2626;font-size:0.88rem;">${storeWdTotal.toFixed(2)}</div>
+            </div>
+            <div style="text-align:center;background:${balBg};border-radius:8px;padding:7px 4px;">
+              <div style="font-size:0.62rem;color:${balColor};margin-bottom:1px;">📊 الرصيد</div>
+              <div style="font-weight:900;color:${balColor};font-size:0.88rem;">${storeBalance.toFixed(2)}</div>
+            </div>
+          </div>
+          ${storeWds.length?`<div style="margin-bottom:6px;">${wdRows}</div>`:''}
+          ${!isClosed?`<button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="width:100%;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب — ${store.name}</button>`:''}
+        </div>
       </div>`;
     }).join('');
     body.innerHTML+=`
@@ -11595,10 +11649,38 @@ function renderOperatorDailyView(){
         </div>
         ${storeBlocks}
       </div>`;
+    // orphan withdrawals (for stores not in orders)
+    const orphanWds=_opWithdrawals.filter(w=>!orderStoreNames.has(w.storeName));
+    if(orphanWds.length||(!isClosed&&!_opDayOrders.length)){
+      const orphanTotal=orphanWds.reduce((s,w)=>s+(w.amount||0),0);
+      const orphanRows=orphanWds.map(w=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #fecaca;gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${w.storeName||'—'}</div>
+            ${w.notes?`<div style="font-size:0.73rem;color:#9ca3af;">${w.notes}</div>`:''}
+            <div style="font-size:0.7rem;color:#9ca3af;">${w.date||''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span style="font-weight:900;color:#dc2626;font-size:0.88rem;">${(w.amount||0).toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></span>
+            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
+          </div>
+        </div>`).join('');
+      body.innerHTML+=`
+        <div style="margin-top:12px;">
+          <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span>💸 مسحوبات أخرى (${orphanWds.length})</span>
+            ${orphanWds.length?`<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${orphanTotal.toFixed(2)} د.أ</span>`:''}
+          </div>
+          <div style="background:#fff5f5;border:1.5px solid #fecaca;border-radius:12px;overflow:hidden;">
+            <div style="padding:4px 14px 8px;">${orphanRows||'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:14px;">لا توجد</div>'}</div>
+            ${!isClosed?`<div style="padding:8px 14px;border-top:1px solid #fecaca;"><button onclick="showAddWithdrawalModal()" style="width:100%;padding:9px;background:#dc2626;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ إضافة مسحوب</button></div>`:''}
+          </div>
+        </div>`;
+    }
   }
 
-  // ===== Withdrawals section =====
-  if(_opWithdrawals.length||!isClosed){
+  // ===== Withdrawals section (no orders at all) =====
+  if(!_opDayOrders.length&&(_opWithdrawals.length||!isClosed)){
     const totWd=_opWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
     const wRows=_opWithdrawals.map(w=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #fecaca;gap:8px;">
@@ -11848,6 +11930,64 @@ async function deleteOperatorWithdrawal(wid){
     _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
     renderOperatorDailyView();
     toast('✅ تم حذف المسحوب');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+function showAddWithdrawalModalForStore(storeId, storeName){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  const today=jordanDateStr();
+  const overlay=document.createElement('div');
+  overlay.id='withdrawal_modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;">
+      <div style="font-weight:800;font-size:1.05rem;color:#1a3a2a;margin-bottom:18px;text-align:center;">💸 مسحوب — ${storeName}</div>
+      <input type="hidden" id="wd_store_id_fixed" value="${storeId}">
+      <input type="hidden" id="wd_store_name_fixed" value="${storeName}">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
+      <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
+      <input id="wd_date" type="date" value="${today}" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
+      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveOperatorWithdrawalFixed()" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 حفظ</button>
+        <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
+}
+
+async function saveOperatorWithdrawalFixed(){
+  const storeId=document.getElementById('wd_store_id_fixed')?.value||'';
+  const storeName=document.getElementById('wd_store_name_fixed')?.value||'';
+  const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
+  const date=document.getElementById('wd_date')?.value||jordanDateStr();
+  const notes=(document.getElementById('wd_notes')?.value||'').trim();
+  if(!storeName){toast('⚠️ خطأ: لا يوجد متجر');return;}
+  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    const batch=db.batch();
+    const wRef=db.collection('operator_withdrawals').doc();
+    batch.set(wRef,{
+      sessionId:_opCurrentSession.id,
+      storeId,storeName,amount,date,notes,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const balRef=db.collection('operator_store_balance').doc();
+    batch.set(balRef,{
+      type:'withdraw',amount,date,
+      notes:(storeName+(notes?' — '+notes:'')),
+      sourceWithdrawalId:wRef.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    document.getElementById('withdrawal_modal')?.remove();
+    toast('✅ تم تسجيل المسحوب');
+    const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
+    _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
+    renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -13841,18 +13981,21 @@ async function renderOpRepsPanelList(){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:10px 0;">لا يوجد مناديب — أضف من الأسفل</div>';
     return;
   }
-  wrap.innerHTML=reps.map((r,i)=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1.5px solid ${r.role==='supervisor'?'#c4b5fd':'#bae6fd'};border-radius:10px;margin-bottom:6px;">
+  wrap.innerHTML=reps.map((r,i)=>{
+    const borderColor=r.excludeFromBalance?'#fca5a5':r.role==='supervisor'?'#c4b5fd':'#bae6fd';
+    return `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1.5px solid ${borderColor};border-radius:10px;margin-bottom:6px;">
       <div>
-        <div style="font-weight:700;color:#0c4a6e;font-size:0.86rem;">${r.name}${r.role==='supervisor'?' <span style="font-size:0.68rem;background:#ede9fe;color:#7c3aed;padding:2px 6px;border-radius:6px;font-weight:800;">مشرف</span>':''}</div>
+        <div style="font-weight:700;color:#0c4a6e;font-size:0.86rem;">${r.name}${r.role==='supervisor'?' <span style="font-size:0.68rem;background:#ede9fe;color:#7c3aed;padding:2px 6px;border-radius:6px;font-weight:800;">مشرف</span>':''}${r.excludeFromBalance?' <span style="font-size:0.68rem;background:#fee2e2;color:#dc2626;padding:2px 6px;border-radius:6px;font-weight:800;">خارج الرصيد</span>':''}</div>
         <div style="font-size:0.75rem;color:#6b7280;direction:ltr;text-align:right;">${r.phone||'<span style="color:#9ca3af;font-style:italic;font-size:0.7rem;">بدون رقم</span>'}</div>
       </div>
       <div style="display:flex;gap:5px;">
+        <button onclick="toggleRepExcludeBalance(${i})" style="padding:6px 10px;background:${r.excludeFromBalance?'#fee2e2':'#f0fdf4'};color:${r.excludeFromBalance?'#dc2626':'#166534'};border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;" title="${r.excludeFromBalance?'مستبعد من حساب الرصيد':'مضمّن في حساب الرصيد'}">${r.excludeFromBalance?'🚚':'💰'}</button>
         <button onclick="toggleRepSupervisor(${i})" style="padding:6px 10px;background:${r.role==='supervisor'?'#ede9fe':'#f3f4f6'};color:${r.role==='supervisor'?'#7c3aed':'#6b7280'};border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;" title="مشرف مناديب">🗂</button>
         ${r.phone?`<a href="https://wa.me/${r.phone.replace(/[^\d+]/g,'')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:6px 11px;background:#25D366;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;text-decoration:none;">📱</a>`:''}
         <button onclick="removeRepFromPanel(${i})" style="padding:6px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;">🗑</button>
       </div>
-    </div>`).join('');
+    </div>`;}).join('');
 }
 
 async function toggleRepsPanel(btn){
@@ -13891,6 +14034,14 @@ async function toggleRepSupervisor(idx){
   await _saveDeliveryReps(reps);
   renderOpRepsPanelList();
   toast(reps[idx].role==='supervisor'?'✅ صار مشرف مناديب':'تم إلغاء صلاحية المشرف');
+}
+
+async function toggleRepExcludeBalance(idx){
+  const reps=await _loadDeliveryReps();
+  reps[idx].excludeFromBalance=!reps[idx].excludeFromBalance;
+  await _saveDeliveryReps(reps);
+  renderOpRepsPanelList();
+  toast(reps[idx].excludeFromBalance?'🚚 سيُستبعد من حساب الرصيد':'💰 سيُضمَّن في حساب الرصيد');
 }
 
 function sendAndMarkDelivering(waUrl){
@@ -15674,6 +15825,7 @@ window.sendAndMarkDelivering_withRep=sendAndMarkDelivering_withRep;
 window.confirmBatchOrder=confirmBatchOrder;
 window.toggleRepsPanel=toggleRepsPanel; window.addRepFromPanel=addRepFromPanel;
 window.removeRepFromPanel=removeRepFromPanel; window.renderOpRepsPanelList=renderOpRepsPanelList;
+window.toggleRepExcludeBalance=toggleRepExcludeBalance; window.toggleRepSupervisor=toggleRepSupervisor;
 window.openInternalNote=openInternalNote;
 
 // ===== ORDER SEARCH (Feature 2) =====
@@ -16413,6 +16565,7 @@ window.checkOperatorDayStatus=checkOperatorDayStatus;
 window.closeOperatorDay=closeOperatorDay;
 window.loadOpSessionStatus=loadOpSessionStatus; window.openNewSession=openNewSession; window.closeOperatorSession=closeOperatorSession; window.loadSessionArchive=loadSessionArchive; window.fetchRepDeliveries=fetchRepDeliveries; window.deleteCurrentSession=deleteCurrentSession;
 window.showAddWithdrawalModal=showAddWithdrawalModal; window.saveOperatorWithdrawal=saveOperatorWithdrawal; window.deleteOperatorWithdrawal=deleteOperatorWithdrawal;
+window.showAddWithdrawalModalForStore=showAddWithdrawalModalForStore; window.saveOperatorWithdrawalFixed=saveOperatorWithdrawalFixed;
 window.prevOpDay=prevOpDay; window.nextOpDay=nextOpDay; window.goOpToday=goOpToday; window.jumpOpDate=jumpOpDate;
 window.printOperatorDay=printOperatorDay;
 window.whatsappOperatorDay=whatsappOperatorDay;
