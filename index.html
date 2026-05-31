@@ -5784,7 +5784,7 @@ async function _loadEmpPagesIntoPanel(){
   const sel=document.getElementById('emp_page');
   if(!sel)return;
   sel.innerHTML='<option value="">— اختار الصفحة —</option>'+
-    _empPagesCache.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    _empPagesCache.filter(p=>!p.hiddenFromEmployee).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
   // pre-select default page
   if(_empCurrentUser.defaultPage){
     const match=_empPagesCache.find(p=>p.id===_empCurrentUser.defaultPage||p.name===_empCurrentUser.defaultPage);
@@ -6657,9 +6657,10 @@ async function loadEmpPagesAdmin(){
   await _refreshWorkerPageDropdown();
   if(!pages.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;">لا يوجد صفحات بعد</div>';return;}
   wrap.innerHTML=pages.map(pg=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f8fafc;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
-      <span style="font-weight:600;color:#1a3a2a;font-size:0.88rem;">📄 ${pg.name}</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:${pg.hiddenFromEmployee?'#f9fafb':'#f8fafc'};border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;opacity:${pg.hiddenFromEmployee?'0.7':'1'};">
+      <span style="font-weight:600;color:${pg.hiddenFromEmployee?'#9ca3af':'#1a3a2a'};font-size:0.88rem;">📄 ${pg.name}${pg.hiddenFromEmployee?' <span style="font-size:0.68rem;color:#9ca3af;font-weight:400;">(مخفية عن الموظف)</span>':''}</span>
       <div style="display:flex;gap:5px;">
+        <button onclick="toggleEmpPageVisibility('${pg.id}',${!!pg.hiddenFromEmployee})" style="background:${pg.hiddenFromEmployee?'#dcfce7':'#f0f9ff'};color:${pg.hiddenFromEmployee?'#166534':'#0369a1'};border:1px solid ${pg.hiddenFromEmployee?'#86efac':'#bae6fd'};border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;" title="${pg.hiddenFromEmployee?'إظهار للموظف':'إخفاء عن الموظف'}">${pg.hiddenFromEmployee?'👁️ إظهار':'🙈 إخفاء'}</button>
         <button onclick="editEmpPage('${pg.id}','${pg.name.replace(/'/g,"\\'")}')" style="background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;">✏️</button>
         <button onclick="deleteEmpPage('${pg.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;">🗑</button>
       </div>
@@ -6684,6 +6685,19 @@ async function deleteEmpPage(id){
   if(!confirm('حذف هذه الصفحة؟'))return;
   try{await db.collection('employee_pages').doc(id).delete();toast('🗑 تم الحذف');loadEmpPagesAdmin();}
   catch(e){toast('❌ '+e.message);}
+}
+
+async function toggleEmpPageVisibility(id, currentlyHidden){
+  try{
+    if(currentlyHidden){
+      await db.collection('employee_pages').doc(id).update({hiddenFromEmployee:firebase.firestore.FieldValue.delete()});
+      toast('👁️ الصفحة ظاهرة للموظف الآن');
+    } else {
+      await db.collection('employee_pages').doc(id).update({hiddenFromEmployee:true});
+      toast('🙈 الصفحة مخفية عن الموظف');
+    }
+    loadEmpPagesAdmin();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 async function loadEmpProductsAdmin(){
@@ -10071,9 +10085,10 @@ let _opStoresList=[];
 async function loadOpStores(){
   try{
     const snap=await db.collection('operator_stores').orderBy('name').get();
-    _opStoresList=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    _opStoresList=all.filter(s=>!s.archived); // only active for accounting
+    renderOpStoresList(all);
   }catch(e){_opStoresList=[];}
-  renderOpStoresList();
   _fillOpStorePageSel();
 }
 
@@ -10089,19 +10104,22 @@ async function _fillOpStorePageSel(){
   }catch(e){}
 }
 
-function renderOpStoresList(){
+function renderOpStoresList(allStores){
   const wrap=document.getElementById('opstore_list');
   if(!wrap) return;
-  if(!_opStoresList.length){
+  const stores=allStores||_opStoresList;
+  if(!stores.length){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد متاجر — أضف متجراً جديداً</div>';
     return;
   }
-  wrap.innerHTML=_opStoresList.map(s=>`
-    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;">
+  const active=stores.filter(s=>!s.archived);
+  const archived=stores.filter(s=>s.archived);
+  const renderCard=(s)=>`
+    <div style="background:${s.archived?'#f9fafb':'var(--card-bg)'};border:1px solid ${s.archived?'#e5e7eb':'var(--border)'};border-radius:12px;padding:14px;margin-bottom:8px;opacity:${s.archived?'0.7':'1'};">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;color:var(--green-dark);font-size:1rem;">🏪 ${s.name}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">
+          <div style="font-weight:700;color:${s.archived?'#9ca3af':'var(--green-dark)'};font-size:1rem;">${s.archived?'🗂️':'🏪'} ${s.name}${s.archived?' <span style="font-size:0.68rem;color:#9ca3af;font-weight:400;">(مؤرشف)</span>':''}</div>
+          ${!s.archived?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">
             ${s.group
               ?`<div style="display:inline-flex;align-items:center;gap:4px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:20px;padding:2px 8px;">
                   <span style="font-size:0.72rem;color:#6d28d9;font-weight:600;">👥 ${s.group}</span>
@@ -10116,20 +10134,32 @@ function renderOpStoresList(){
                 </div>`
               :`<button onclick="promptLinkStore('${s.id}')" style="background:#f1f5f9;border:1px dashed #94a3b8;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#64748b;cursor:pointer;">+ ربط بصفحة</button>`
             }
-          </div>
+          </div>`:''}
         </div>
-        <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;flex-shrink:0;">✕</button>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          ${s.archived
+            ?`<button onclick="unarchiveOpStore('${s.id}')" style="background:#dcfce7;color:#166534;border:none;border-radius:8px;padding:6px 11px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;">↩️ إلغاء الأرشفة</button>`
+            :`<button onclick="archiveOpStore('${s.id}')" style="background:#fef9c3;color:#854d0e;border:1px solid #fde68a;border-radius:8px;padding:6px 11px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;">🗂️ أرشفة</button>`
+          }
+          <button onclick="deleteOpStore('${s.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
+        </div>
       </div>
-      <div id="link_form_${s.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+      ${!s.archived?`<div id="link_form_${s.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
         <select id="link_page_sel_${s.id}" style="width:100%;padding:8px 10px;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;background:var(--card-bg);color:var(--text-dark);margin-bottom:6px;">
           <option value="">— بدون ربط —</option>
         </select>
         <div style="display:flex;gap:6px;">
-          <button onclick="saveLinkStore('${s.id}')" style="flex:1;padding:8px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">💾 حفظ</button>
+          <button onclick="saveLinkStore('${s.id}')" style="flex:1;padding:8px;background:#166634;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">💾 حفظ</button>
           <button onclick="document.getElementById('link_form_${s.id}').style.display='none'" style="padding:8px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">✕</button>
         </div>
-      </div>
-    </div>`).join('');
+      </div>`:''}
+    </div>`;
+  let html=active.map(renderCard).join('');
+  if(archived.length){
+    html+=`<div style="font-size:0.75rem;color:#9ca3af;margin:14px 0 6px;font-weight:600;">🗂️ المتاجر المؤرشفة (${archived.length})</div>`;
+    html+=archived.map(renderCard).join('');
+  }
+  wrap.innerHTML=html;
 }
 
 async function addOpStore(){
@@ -10164,8 +10194,25 @@ async function setStoreGroup(id,currentGroup){
   }catch(e){toast('❌ '+e.message);}
 }
 
+async function archiveOpStore(id){
+  if(!confirm('أرشفة هذا المتجر؟ سيختفي من الحسابات لكن بياناته تبقى محفوظة.')) return;
+  try{
+    await db.collection('operator_stores').doc(id).update({archived:true});
+    toast('🗂️ تم الأرشفة');
+    loadOpStores();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function unarchiveOpStore(id){
+  try{
+    await db.collection('operator_stores').doc(id).update({archived:firebase.firestore.FieldValue.delete()});
+    toast('✅ تم إلغاء الأرشفة');
+    loadOpStores();
+  }catch(e){toast('❌ '+e.message);}
+}
+
 async function deleteOpStore(id){
-  if(!confirm('حذف هذا المتجر؟')) return;
+  if(!confirm('حذف نهائي؟ هذا الإجراء لا يمكن التراجع عنه.')) return;
   try{
     await db.collection('operator_stores').doc(id).delete();
     toast('✅ تم الحذف');
@@ -13533,7 +13580,7 @@ window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
 window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory; window.toggleEmpUrgent=toggleEmpUrgent;
 window.runSmartPaste=runSmartPaste; window.onEmpPhoneInput=onEmpPhoneInput; window.applyEmpCustomer=applyEmpCustomer;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
-window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage;
+window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage; window.toggleEmpPageVisibility=toggleEmpPageVisibility;
 window.loadEmpProductsAdmin=loadEmpProductsAdmin; window.addEmpProduct=addEmpProduct; window.deleteEmpProduct=deleteEmpProduct; window.editEmpProduct=editEmpProduct;
 window.loadEmpOrders=loadEmpOrders; window.loadOperatorOrders=loadOperatorOrders;
 window.toggleOpSelectMode=toggleOpSelectMode; window.opToggleSelect=opToggleSelect; window.opSelectAll=opSelectAll; window.opClearSelect=opClearSelect; window.printSelectedOrders=printSelectedOrders; window.printSelectedLabels=printSelectedLabels;
@@ -16373,7 +16420,7 @@ window.saveOpProduct=saveOpProduct; window.deleteOpProduct=deleteOpProduct;
 window.editOpProduct=editOpProduct; window.cancelEditProduct=cancelEditProduct;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadOpProducts=loadOpProducts;
-window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore; window.setStoreGroup=setStoreGroup;
+window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore; window.archiveOpStore=archiveOpStore; window.unarchiveOpStore=unarchiveOpStore; window.setStoreGroup=setStoreGroup;
 window.loadOpStores=loadOpStores;
 window.promptLinkStore=promptLinkStore; window.saveLinkStore=saveLinkStore;
 window.openStoreAccount=openStoreAccount; window.backToStoreList=backToStoreList;
