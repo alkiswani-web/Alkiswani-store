@@ -10082,14 +10082,16 @@ async function deleteOpProduct(id){
 
 // --- Operator Stores (المتاجر) ---
 let _opStoresList=[];
+let _opAllStoresList=[]; // includes archived — used for accounting history
 
 async function loadOpStores(){
   try{
     const snap=await db.collection('operator_stores').orderBy('name').get();
     const all=snap.docs.map(d=>({id:d.id,...d.data()}));
-    _opStoresList=all.filter(s=>!s.archived); // only active for accounting
+    _opAllStoresList=all;
+    _opStoresList=all.filter(s=>!s.archived); // only active for new entries
     renderOpStoresList(all);
-  }catch(e){_opStoresList=[];}
+  }catch(e){_opStoresList=[];_opAllStoresList=[];}
   _fillOpStorePageSel();
 }
 
@@ -10750,7 +10752,8 @@ async function openAcctDetail(storeId, storeName){
 }
 
 async function openGroupAcctDetail(groupName){
-  const groupStores=_opStoresList.filter(s=>s.group===groupName);
+  if(!_opAllStoresList.length) await loadOpStores();
+  const groupStores=_opAllStoresList.filter(s=>s.group===groupName);
   if(!groupStores.length){toast('لا توجد متاجر في هذه المجموعة');return;}
   _acctGroupMode=true;
   _acctCurrentGroupName=groupName;
@@ -10797,8 +10800,9 @@ function renderGroupAcctDetail(){
     const paid=_acctCurrentPayments.filter(x=>x.storeId===s.id).reduce((a,p)=>a+(p.amount||0),0);
     const refund=_acctCurrentRefunds.filter(x=>x.storeId===s.id).reduce((a,r)=>a+(r.totalCost||0),0);
     const bal=sold-paid-refund;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed #e5e7eb;font-size:0.82rem;">
-      <span style="font-weight:700;color:var(--text-dark);">🏪 ${s.name}</span>
+    const archivedBadge=s.archived?'<span style="font-size:0.62rem;background:#e5e7eb;color:#6b7280;padding:1px 5px;border-radius:5px;margin-right:4px;">مؤرشف</span>':'';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed #e5e7eb;font-size:0.82rem;${s.archived?'opacity:0.65;':''}">
+      <span style="font-weight:700;color:var(--text-dark);">${s.archived?'🗂️':'🏪'} ${s.name}${archivedBadge}</span>
       <div style="display:flex;gap:10px;font-size:0.77rem;">
         <span style="color:#dc2626;">عليه: <strong>${sold.toFixed(2)}</strong></span>
         <span style="color:#166534;">دفع: <strong>${paid.toFixed(2)}</strong></span>
@@ -11189,14 +11193,14 @@ async function loadAcctStoreList(){
     <input type="number" id="acctThresholdInp" value="${threshold}" min="0" step="10" onchange="saveAcctThreshold(this.value)" style="width:80px;padding:5px 8px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;text-align:center;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
     <span style="font-size:0.8rem;color:#6b7280;">د.أ</span>
   </div>`;
-  // Group stores by their group field
+  // Group stores by their group field — use all stores (incl. archived) for correct balance
   const groups={};
   const ungrouped=[];
-  _opStoresList.forEach(s=>{
+  (_opAllStoresList.length?_opAllStoresList:_opStoresList).forEach(s=>{
     if(s.group){
       if(!groups[s.group])groups[s.group]=[];
       groups[s.group].push(s);
-    }else{ungrouped.push(s);}
+    }else if(!s.archived){ungrouped.push(s);}
   });
 
   function storeCard(s){
