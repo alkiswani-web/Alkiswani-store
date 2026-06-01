@@ -11717,10 +11717,11 @@ function renderOperatorDailyView(){
       const grpTotalOrders=stores.reduce((s,st)=>s+st.orders.length,0);
       const grpTotalAmt=stores.reduce((s,st)=>s+st.total,0);
       const safeGrpName=groupName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      // Group cumulative account balance
-      const grpAcctOwed=stores.reduce((s,st)=>s+(_opAcctOwed[st.storeId]||0),0);
-      const grpAcctPaid=stores.reduce((s,st)=>s+(_opAcctPaid[st.storeId]||0),0)+(_opAcctPaid['__grp__'+groupName]||0);
-      const grpAcctRefund=stores.reduce((s,st)=>s+(_opAcctRefund[st.storeId]||0),0);
+      // Group cumulative account balance — use ALL stores in group (incl. archived) not just session stores
+      const allGrpStores=(_opAllStoresList.length?_opAllStoresList:_opStoresList).filter(s=>s.group===groupName);
+      const grpAcctOwed=allGrpStores.reduce((s,st)=>s+(_opAcctOwed[st.id]||0),0);
+      const grpAcctPaid=allGrpStores.reduce((s,st)=>s+(_opAcctPaid[st.id]||0),0)+(_opAcctPaid['__grp__'+groupName]||0);
+      const grpAcctRefund=allGrpStores.reduce((s,st)=>s+(_opAcctRefund[st.id]||0),0);
       const grpAcctBal=grpAcctOwed-grpAcctPaid-grpAcctRefund;
       const grpAcctLabel=grpAcctBal>0?'ضايل عليهم':grpAcctBal<0?'رصيد لهم':'مسويين';
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
