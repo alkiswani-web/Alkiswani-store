@@ -11260,6 +11260,9 @@ let _opDayOrders=[];
 let _opWithdrawals=[];
 let _opDayExpenses=[];
 let _opDayRecord=null;
+let _opAcctOwed={};   // storeId → total sales owed
+let _opAcctPaid={};   // storeId → total paid
+let _opAcctRefund={}; // storeId → total refunds
 let _opViewDate=null; // currently viewed date (YYYY-MM-DD)
 let _opCurrentSession=null; // current open or viewed session
 function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
@@ -11357,6 +11360,18 @@ async function _loadOpSessionData(){
     _opDayExpenses=eSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opDayExpenses=[];}
   try{ await _loadDeliveryReps(); }catch(e){}
+  // Load cumulative account balances for all stores
+  try{
+    const [sSnap,pSnap,rSnap]=await Promise.all([
+      db.collection('operator_sales').get(),
+      db.collection('operator_store_payments').get(),
+      db.collection('page_refunds').get()
+    ]);
+    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
+    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
+    rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
+  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -11627,15 +11642,34 @@ function renderOperatorDailyView(){
           </div>
         </div>`).join('');
       const safeStoreName=store.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      // When inside a group: only show eligible sales (no per-store balance/withdrawals)
+      // Account balance (cumulative)
+      const acctOwed=_opAcctOwed[store.storeId]||0;
+      const acctPaid=_opAcctPaid[store.storeId]||0;
+      const acctRefund=_opAcctRefund[store.storeId]||0;
+      const acctBal=acctOwed-acctPaid-acctRefund;
+      const acctBalColor=acctBal>0?'#92400e':acctBal<0?'#166534':'#6b7280';
+      const acctBg=acctBal>0?'#fff7ed':acctBal<0?'#f0fdf4':'#f9fafb';
+      const acctLabel=acctBal>0?'📊 ضايل عليه':acctBal<0?'💰 رصيد له':'✅ مسوّى';
+      const acctRow=store.storeId?`
+        <div style="border-top:1px solid #e5e7eb;padding:8px 14px;background:${acctBg};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <div style="font-size:0.72rem;font-weight:700;color:#374151;">🗂 رصيد الحساب الكلي</div>
+          <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
+            <span style="color:#dc2626;">مبيعات: <strong>${acctOwed.toFixed(2)}</strong></span>
+            <span style="color:#166534;">مدفوع: <strong>${acctPaid.toFixed(2)}</strong></span>
+            ${acctRefund>0?`<span style="color:#9d174d;">مرتجع: <strong>${acctRefund.toFixed(2)}</strong></span>`:''}
+            <span style="color:${acctBalColor};font-weight:800;">${acctLabel}: ${Math.abs(acctBal).toFixed(2)} د.أ</span>
+          </div>
+        </div>`:'';
+      // When inside a group: compact view — no per-store session balance/withdrawals
       if(inGroup){
         return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;">
           <div style="background:#1a3a2a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
             <div style="color:#fff;font-weight:700;font-size:0.84rem;">🏪 ${store.name} <span style="font-size:0.7rem;font-weight:400;opacity:0.65;">(${store.orders.length} طلب)</span></div>
-            <div style="color:#86efac;font-weight:900;font-size:0.84rem;">${store.eligibleTotal.toFixed(2)} د.أ قابل للسحب</div>
+            <div style="color:#86efac;font-weight:900;font-size:0.84rem;">${store.eligibleTotal.toFixed(2)} د.أ</div>
           </div>
           ${eligBlocks}
           ${exclBlocks}
+          ${acctRow}
         </div>`;
       }
       return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px;">
@@ -11656,13 +11690,14 @@ function renderOperatorDailyView(){
               <div style="font-weight:800;color:#dc2626;font-size:0.88rem;">${storeWdTotal.toFixed(2)}</div>
             </div>
             <div style="text-align:center;background:${balBg};border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:${balColor};margin-bottom:1px;">📊 الرصيد</div>
+              <div style="font-size:0.62rem;color:${balColor};margin-bottom:1px;">📊 رصيد الكشف</div>
               <div style="font-weight:900;color:${balColor};font-size:0.88rem;">${storeBalance.toFixed(2)}</div>
             </div>
           </div>
           ${storeWds.length?`<div style="margin-bottom:6px;">${wdRows}</div>`:''}
           ${!isClosed?`<button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="width:100%;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب — ${store.name}</button>`:''}
         </div>
+        ${acctRow}
       </div>`;
     };
 
@@ -11684,6 +11719,13 @@ function renderOperatorDailyView(){
       const grpTotalOrders=stores.reduce((s,st)=>s+st.orders.length,0);
       const grpTotalAmt=stores.reduce((s,st)=>s+st.total,0);
       const safeGrpName=groupName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // Group cumulative account balance
+      const grpAcctOwed=stores.reduce((s,st)=>s+(_opAcctOwed[st.storeId]||0),0);
+      const grpAcctPaid=stores.reduce((s,st)=>s+(_opAcctPaid[st.storeId]||0),0)+(_opAcctPaid['__grp__'+groupName]||0);
+      const grpAcctRefund=stores.reduce((s,st)=>s+(_opAcctRefund[st.storeId]||0),0);
+      const grpAcctBal=grpAcctOwed-grpAcctPaid-grpAcctRefund;
+      const grpAcctLabel=grpAcctBal>0?'ضايل عليهم':grpAcctBal<0?'رصيد لهم':'مسويين';
+      const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
       const grpWdRows=grpWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,0.2);gap:6px;">
           <div style="flex:1;min-width:0;">
@@ -11717,6 +11759,15 @@ function renderOperatorDailyView(){
           </div>
           ${grpWdRows?`<div style="margin-bottom:8px;">${grpWdRows}</div>`:''}
           ${!isClosed?`<button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="width:100%;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.4);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب للمجموعة</button>`:''}
+        </div>
+        <div style="padding:8px 12px;background:#f3e8ff;border-top:2px solid #c4b5fd;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;">🗂 رصيد الحساب الكلي للمجموعة</div>
+          <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
+            <span style="color:#dc2626;">مبيعات: <strong>${grpAcctOwed.toFixed(2)}</strong></span>
+            <span style="color:#166534;">مدفوع: <strong>${grpAcctPaid.toFixed(2)}</strong></span>
+            ${grpAcctRefund>0?`<span style="color:#9d174d;">مرتجع: <strong>${grpAcctRefund.toFixed(2)}</strong></span>`:''}
+            <span style="color:${grpAcctBal>0?'#92400e':grpAcctBal<0?'#166534':'#6b7280'};font-weight:800;">${grpAcctLabel}: ${Math.abs(grpAcctBal).toFixed(2)} د.أ</span>
+          </div>
         </div>
         <div style="padding:8px 8px 4px;background:#faf5ff;">
           ${stores.map(s=>_storeCard(s,true,true)).join('')}
