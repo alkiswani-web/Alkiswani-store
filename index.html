@@ -10805,8 +10805,7 @@ function renderGroupAcctDetail(){
       <span style="font-weight:700;color:var(--text-dark);">${s.archived?'🗂️':'🏪'} ${s.name}${archivedBadge}</span>
       <div style="display:flex;gap:10px;font-size:0.77rem;">
         <span style="color:#dc2626;">عليه: <strong>${sold.toFixed(2)}</strong></span>
-        <span style="color:#166534;">دفع: <strong>${paid.toFixed(2)}</strong></span>
-        <span style="color:${bal>0?'#92400e':bal<0?'#166534':'#6b7280'};font-weight:700;">ضايل: ${Math.abs(bal).toFixed(2)}</span>
+        <span style="color:#166534;">دفع (فردي): <strong>${paid.toFixed(2)}</strong></span>
       </div>
     </div>`;
   }).join('');
@@ -11660,7 +11659,7 @@ function renderOperatorDailyView(){
             <span style="color:${acctBalColor};font-weight:800;">${acctLabel}: ${Math.abs(acctBal).toFixed(2)} د.أ</span>
           </div>
         </div>`:'';
-      // When inside a group: compact view — no per-store session balance/withdrawals
+      // When inside a group: compact view — no per-store session balance/withdrawals/account balance
       if(inGroup){
         return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;">
           <div style="background:#1a3a2a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
@@ -11669,7 +11668,6 @@ function renderOperatorDailyView(){
           </div>
           ${eligBlocks}
           ${exclBlocks}
-          ${acctRow}
         </div>`;
       }
       return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px;">
