@@ -15589,15 +15589,22 @@ async function showRepStatement(phone,name){
   const detailEl=document.getElementById('repAcctDetail');
   if(detailEl)detailEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
   try{
-    const [ordersSnap,ordersByNameSnap,paymentsSnap,refundsSnap]=await Promise.all([
+    // Normalize Arabic name: replace أ/إ/آ → ا, ة → ه (handles spelling variants)
+    const _normName=n=>n.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').trim();
+    const nameNorm=_normName(name);
+    const nameQueries=[
       db.collection('employee_orders').where('deliveryRepPhone','==',phone).get(),
       db.collection('employee_orders').where('deliveryRepName','==',name).get(),
+      ...(nameNorm!==name?[db.collection('employee_orders').where('deliveryRepName','==',nameNorm).get()]:[]),
+    ];
+    const [paymentsSnap,refundsSnap,...orderSnaps]=await Promise.all([
       db.collection('rep_payments').where('repPhone','==',phone).get(),
-      db.collection('rep_refunds').where('repPhone','==',phone).get()
+      db.collection('rep_refunds').where('repPhone','==',phone).get(),
+      ...nameQueries
     ]);
-    // Merge by-phone and by-name results (deduplicate by order id)
+    // Merge all order results (deduplicate by id)
     const seenIds=new Set();
-    const allOrders=[...ordersSnap.docs,...ordersByNameSnap.docs]
+    const allOrders=orderSnaps.flatMap(s=>s.docs)
       .filter(d=>{if(seenIds.has(d.id))return false;seenIds.add(d.id);return true;})
       .map(d=>({id:d.id,...d.data()}));
     const activeOrders=allOrders.filter(o=>['delivering','queued','waiting_rep','onhold','postponed'].includes(o.status))
