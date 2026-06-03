@@ -15502,7 +15502,7 @@ async function loadRepAccounting(){
     const owedByPhone={};
     const countByPhone={};
     const deliveredCountByPhone={};
-    ordersSnap.docs.forEach(d=>{const o=d.data();if(o.deliveryRepPhone){owedByPhone[o.deliveryRepPhone]=(owedByPhone[o.deliveryRepPhone]||0)+_ca(o);countByPhone[o.deliveryRepPhone]=(countByPhone[o.deliveryRepPhone]||0)+1;if(o.status==='delivered')deliveredCountByPhone[o.deliveryRepPhone]=(deliveredCountByPhone[o.deliveryRepPhone]||0)+1;}});
+    ordersSnap.docs.forEach(d=>{const o=d.data();let pKey=o.deliveryRepPhone;if(!pKey&&o.deliveryRepName){const mr=reps.find(r=>r.name===o.deliveryRepName);if(mr?.phone)pKey=mr.phone;}if(pKey){owedByPhone[pKey]=(owedByPhone[pKey]||0)+_ca(o);countByPhone[pKey]=(countByPhone[pKey]||0)+1;if(o.status==='delivered')deliveredCountByPhone[pKey]=(deliveredCountByPhone[pKey]||0)+1;}});
     const paidPointsByPhone={};
     pointsSnap.docs.forEach(d=>{const p=d.data();paidPointsByPhone[p.repPhone]=(paidPointsByPhone[p.repPhone]||0)+(p.points||0);});
 
@@ -15582,12 +15582,17 @@ async function showRepStatement(phone,name){
   const detailEl=document.getElementById('repAcctDetail');
   if(detailEl)detailEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
   try{
-    const [ordersSnap,paymentsSnap,refundsSnap]=await Promise.all([
+    const [ordersSnap,ordersByNameSnap,paymentsSnap,refundsSnap]=await Promise.all([
       db.collection('employee_orders').where('deliveryRepPhone','==',phone).get(),
+      db.collection('employee_orders').where('deliveryRepName','==',name).get(),
       db.collection('rep_payments').where('repPhone','==',phone).get(),
       db.collection('rep_refunds').where('repPhone','==',phone).get()
     ]);
-    const allOrders=ordersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    // Merge by-phone and by-name results (deduplicate by order id)
+    const seenIds=new Set();
+    const allOrders=[...ordersSnap.docs,...ordersByNameSnap.docs]
+      .filter(d=>{if(seenIds.has(d.id))return false;seenIds.add(d.id);return true;})
+      .map(d=>({id:d.id,...d.data()}));
     const activeOrders=allOrders.filter(o=>['delivering','queued','waiting_rep','onhold','postponed'].includes(o.status))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const orders=allOrders.filter(o=>o.status==='delivered')
