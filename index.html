@@ -6876,8 +6876,14 @@ function _showOpOrderDetail(o){
       </div>`:o.status==='delivered'?`<div style="display:flex;gap:7px;margin-top:4px;">
         <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')" style="flex:1;padding:11px;background:#f3f4f6;color:#374151;border:1.5px solid #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">↩️ مرتجع</button>
         <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
-      </div>`:''}
-    </div>`;
+      </div>`:`<div style="margin-top:4px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:10px 12px;">
+        <div style="font-size:0.74rem;font-weight:700;color:#166534;margin-bottom:8px;">🔄 إعادة تفعيل الطلب</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','pending')" style="flex:1;padding:9px 6px;background:#fff7ed;color:#b45309;border:1.5px solid #fcd34d;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;min-width:80px;">📋 جديد</button>
+          <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','preparing')" style="flex:1;padding:9px 6px;background:#fff7ed;color:#ea580c;border:1.5px solid #fed7aa;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;min-width:80px;">⚙️ قيد التجهيز</button>
+          <button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:9px 6px;background:#ede9fe;color:#6d28d9;border:1.5px solid #c4b5fd;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;min-width:80px;">🚚 إرسال لمندوب</button>
+        </div>
+      </div>`}
 
   el.style.display='flex';
   document.body.style.overflow='hidden';
