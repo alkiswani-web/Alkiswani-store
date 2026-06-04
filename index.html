@@ -10,8 +10,11 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>الكسواني روزميري | خشبيات وأشجار زينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 :root{
   --green-dark:#1a3a2a;
@@ -3978,7 +3981,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260516-r4';
+  const V='20260604-r1';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -7350,7 +7353,7 @@ function _ordersLoadingSkeleton(){
   return `<style>@keyframes _skelPulse{0%,100%{opacity:1}50%{opacity:.35}}</style>${c.repeat(6)}`;
 }
 function _ordersDateCutoff(){
-  const d=new Date();d.setDate(d.getDate()-60);
+  const d=new Date();d.setDate(d.getDate()-30);
   return firebase.firestore.Timestamp.fromDate(d);
 }
 function loadEmpOrders(){
@@ -16997,6 +17000,15 @@ async function openQRScanner(){
   _qrBarcodeDetector=null;
   if('BarcodeDetector' in window){
     try{_qrBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}
+  }
+  // Lazy-load jsQR only when BarcodeDetector is unavailable
+  if(!_qrBarcodeDetector && typeof jsQR==='undefined'){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    }).catch(()=>{});
   }
   try{
     const c={video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
