@@ -2044,6 +2044,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
     <!-- POINTS TAB -->
     <div class="admin-tab-content" id="tab-points">
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+        <div style="font-size:0.85rem;font-weight:700;color:#92400e;margin-bottom:8px;">🚗 تحديث رسوم التوصيل للطلبات القديمة</div>
+        <div style="font-size:0.78rem;color:#78350f;margin-bottom:10px;">تحديث جميع الطلبات التي لا تحمل رسوم توصيل إلى 2 د.أ ثابت.</div>
+        <button onclick="migrateDeliveryFees()" style="padding:9px 20px;background:#ea580c;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">⚡ تحديث الطلبات القديمة</button>
+      </div>
       <div class="points-settings">
         <h2>🌟 إعدادات نقاط المكافآت</h2>
         <div class="points-toggle">
@@ -3490,16 +3495,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="emp_img_preview"></div>
       </div>
 
-      <!-- Delivery fee -->
+      <!-- Delivery fee: fixed at 2 JD, not editable by employees -->
       <div style="margin-bottom:12px;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">🚗 أجور التوصيل</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="empDeliveryBtns">
-          <button onclick="setEmpDeliveryFee(0,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">بدون</button>
-          <button onclick="setEmpDeliveryFee(2,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">2 د.أ</button>
-          <button onclick="setEmpDeliveryFee(3,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">3 د.أ</button>
-          <button onclick="setEmpDeliveryFee(-1,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">اختياري</button>
-        </div>
-        <input type="number" id="emp_delivery_custom" placeholder="أجور التوصيل (د.أ)" min="0" step="0.5" style="display:none;margin-top:6px;width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
+        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 14px;font-size:0.88rem;font-weight:700;color:#166534;">2 د.أ — ثابت</div>
+        <div id="empDeliveryBtns" style="display:none;"></div>
+        <input type="number" id="emp_delivery_custom" style="display:none;">
       </div>
 
       <!-- Total + Net -->
@@ -3632,11 +3633,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button onclick="addItemToEmpEdit()" style="padding:8px 14px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;">+</button>
         </div>
       </div>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.8rem;color:#374151;font-weight:700;margin-bottom:6px;">🚗 أجور التوصيل</div>
+      <div style="margin-bottom:10px;" id="empEditDeliverySection">
+        <div style="font-size:0.8rem;color:#374151;font-weight:700;margin-bottom:6px;">🚗 أجور التوصيل <span style="font-size:0.7rem;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:6px;">إدارة فقط</span></div>
         <div id="empEditDeliveryBtns" style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button onclick="setEmpEditDelivery(0,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">بدون</button>
-          <button onclick="setEmpEditDelivery(2,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">2 د.أ</button>
+          <button onclick="setEmpEditDelivery(0,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">بدون</button>
+          <button onclick="setEmpEditDelivery(2,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">2 د.أ</button>
           <button onclick="setEmpEditDelivery(3,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">3 د.أ</button>
           <button onclick="setEmpEditDelivery(-1,this)" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">اختياري</button>
         </div>
@@ -5706,7 +5707,7 @@ function toggleEmpUrgent(){
   }
 }
 function resetEmpUrgentBtn(){_empOrderUrgent=false;const b=document.getElementById('empUrgentBtn');if(b){b.style.background='#fff';b.style.color='#374151';b.style.border='1.5px dashed #d1d5db';b.textContent='🔥 طلب مستعجل';b.style.boxShadow='none';}}
-let _empDeliveryFee=0;
+let _empDeliveryFee=2;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
 let _opStmtUnsub=null;
@@ -6270,10 +6271,9 @@ async function submitEmpOrder(){
     });
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
     toast(_empOrderUrgent?'🔥 تم تسجيل الطلب المستعجل':'✅ تم تسجيل الطلب بنجاح');
-    _empOrderCart=[];_empDeliveryFee=0;_empCurrentImages=[];
+    _empOrderCart=[];_empDeliveryFee=2;_empCurrentImages=[];
     resetEmpUrgentBtn();
     renderEmpOrderCart();
-    setEmpDeliveryFee(0,document.querySelector('#empDeliveryBtns button'));
     document.getElementById('emp_phone').value='';
     const nameEl=document.getElementById('emp_customer_name');if(nameEl)nameEl.value='';
     const crmB=document.getElementById('emp_crm_banner');if(crmB)crmB.style.display='none';
@@ -6933,7 +6933,10 @@ function openEmpOrderEdit(orderId){
     if(!snap.exists){toast('❌ الطلب غير موجود');closeEmpOrderEdit();return;}
     const o=snap.data();
     _empEditCart=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]).map(p=>({...p}));
-    _empEditDeliveryFee=o.deliveryFee||0;
+    _empEditDeliveryFee=o.deliveryFee??2;
+    // Show/hide delivery fee section based on admin status
+    const editDlvSec=document.getElementById('empEditDeliverySection');
+    if(editDlvSec)editDlvSec.style.display=_currentAdminUser?'block':'none';
     _empEditImages=o.imageDataUrls?[...o.imageDataUrls]:(o.imageDataUrl?[o.imageDataUrl]:[]);
     document.getElementById('empEdit_phone').value=o.customerPhone||'';
     document.getElementById('empEdit_address').value=o.address||'';
@@ -16797,6 +16800,31 @@ window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadOpProducts=loadOpProducts;
 window.addOpStore=addOpStore; window.deleteOpStore=deleteOpStore; window.archiveOpStore=archiveOpStore; window.unarchiveOpStore=unarchiveOpStore; window.setStoreGroup=setStoreGroup;
 window.loadOpStores=loadOpStores;
+
+async function migrateDeliveryFees(){
+  if(!confirm('سيتم تحديث رسوم التوصيل لـ 2 د.أ على جميع الطلبات. تأكيد؟'))return;
+  toast('⏳ جاري التحديث...');
+  try{
+    const snap=await db.collection('employee_orders').get();
+    const BATCH_SIZE=400;
+    let batch=db.batch();let count=0;
+    for(const doc of snap.docs){
+      const d=doc.data();
+      const newDlv=d.deliveryFee??2;
+      // Only update if deliveryFee is missing or 0 (not a custom admin override)
+      if(!d.deliveryFee&&d.deliveryFee!==2){
+        const prods=d.products||[];
+        const prodsTotal=prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0)||(d.totalPrice||0);
+        batch.update(doc.ref,{deliveryFee:2,netPrice:prodsTotal+2,totalPrice:prodsTotal+2});
+        count++;
+        if(count%BATCH_SIZE===0){await batch.commit();batch=db.batch();}
+      }
+    }
+    if(count%BATCH_SIZE!==0)await batch.commit();
+    toast('✅ تم تحديث '+count+' طلب برسوم توصيل 2 د.أ');
+  }catch(e){toast('❌ '+e.message);}
+}
+window.migrateDeliveryFees=migrateDeliveryFees;
 window.promptLinkStore=promptLinkStore; window.saveLinkStore=saveLinkStore;
 window.openStoreAccount=openStoreAccount; window.backToStoreList=backToStoreList;
 window.addItemToStoreOrder=addItemToStoreOrder; window.removeItemFromStoreOrder=removeItemFromStoreOrder;
