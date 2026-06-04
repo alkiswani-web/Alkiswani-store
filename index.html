@@ -5762,7 +5762,7 @@ async function openEmpPanel(){
     initEmpDeliveryPanel();
   }else{
     _empOrderCart=[];
-    _empDeliveryFee=0;
+    _empDeliveryFee=2;
     await _loadEmpPagesIntoPanel();
     await onEmpPageChange();
     renderEmpOrderCart();
@@ -14730,13 +14730,11 @@ async function onEmpAreaChange(){
     document.querySelectorAll('#empDeliveryBtns button').forEach(b=>{
       b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';
     });
-    if(match.fee===0){
-      const btn=document.querySelector('#empDeliveryBtns button');
-      if(btn){btn.style.background='#1a3a2a';btn.style.color='#fff';btn.style.borderColor='#1a3a2a';}
+    if(false){
+      // area-based delivery fee disabled — fixed at 2 JD
       _empDeliveryFee=0;
-      if(customEl)customEl.style.display='none';
     }else{
-      _empDeliveryFee=match.fee;
+      _empDeliveryFee=2;
       if(customEl){customEl.style.display='block';customEl.value=match.fee;}
     }
     updateEmpNet();
