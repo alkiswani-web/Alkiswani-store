@@ -17256,10 +17256,16 @@ async function qrAssignToRep(repName,repPhone){
     const snap=await docRef.get();
     const data=snap.data();
     const fromLabel=_empSt(data?.status).label;
-    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قائمة توصيل (${repName})`};
-    await docRef.update({status:'queued',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قيد التوصيل (${repName})`};
+    await docRef.update({status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    // Patch local cache immediately
+    const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||''};};
+    _pL(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
+    _pL(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     toast(`✅ أُسند لـ ${repName}`);
     closeQRRepAssignModal();
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+    if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 
