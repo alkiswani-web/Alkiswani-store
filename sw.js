@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v36';
+const CACHE = 'alkiswani-v37';
 const ASSETS = [
   '/',
   '/index.html',
@@ -45,12 +45,29 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if(e.request.url.includes('firebase') || 
+  if(e.request.url.includes('firebase') ||
      e.request.url.includes('googleapis') ||
      e.request.url.includes('firestore') ||
      e.request.url.includes('gstatic')) {
     return;
   }
+  // HTML navigation: serve from cache instantly, update in background (stale-while-revalidate)
+  if(e.request.mode === 'navigate' || e.request.destination === 'document') {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const networkFetch = fetch(e.request).then(res => {
+          if(res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE).then(cache => cache.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => cached);
+        return cached || networkFetch;
+      })
+    );
+    return;
+  }
+  // Other assets: network-first, cache fallback
   e.respondWith(
     fetch(e.request)
       .then(res => {

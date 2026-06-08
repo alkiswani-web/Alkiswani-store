@@ -10,8 +10,11 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>الكسواني روزميري | خشبيات وأشجار زينة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 :root{
   --green-dark:#1a3a2a;
@@ -3978,7 +3981,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260516-r4';
+  const V='20260604-r1';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -7350,7 +7353,7 @@ function _ordersLoadingSkeleton(){
   return `<style>@keyframes _skelPulse{0%,100%{opacity:1}50%{opacity:.35}}</style>${c.repeat(6)}`;
 }
 function _ordersDateCutoff(){
-  const d=new Date();d.setDate(d.getDate()-60);
+  const d=new Date();d.setDate(d.getDate()-30);
   return firebase.firestore.Timestamp.fromDate(d);
 }
 function loadEmpOrders(){
@@ -16998,6 +17001,15 @@ async function openQRScanner(){
   if('BarcodeDetector' in window){
     try{_qrBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}
   }
+  // Lazy-load jsQR only when BarcodeDetector is unavailable
+  if(!_qrBarcodeDetector && typeof jsQR==='undefined'){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    }).catch(()=>{});
+  }
   try{
     const c={video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
     try{_qrScanStream=await navigator.mediaDevices.getUserMedia(c);}
@@ -17244,10 +17256,16 @@ async function qrAssignToRep(repName,repPhone){
     const snap=await docRef.get();
     const data=snap.data();
     const fromLabel=_empSt(data?.status).label;
-    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قائمة توصيل (${repName})`};
-    await docRef.update({status:'queued',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قيد التوصيل (${repName})`};
+    await docRef.update({status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    // Patch local cache immediately
+    const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||''};};
+    _pL(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
+    _pL(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     toast(`✅ أُسند لـ ${repName}`);
     closeQRRepAssignModal();
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+    if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -17477,6 +17495,15 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
       await docRef.update({status:'delivering',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     }catch(e){}
   }
+  // Patch local cache so UI reflects immediately without waiting for snapshot
+  const sentIds=new Set(orders.map(o=>o.id));
+  [typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null,
+   typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null].forEach(arr=>{
+    if(!arr)return;
+    arr.forEach(o=>{if(sentIds.has(o.id))o.status='delivering';});
+  });
+  if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+  if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   toast(`✅ تم إرسال ${orders.length} طلب لـ ${repName}`);
 }
 
