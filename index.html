@@ -17489,6 +17489,15 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
       await docRef.update({status:'delivering',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     }catch(e){}
   }
+  // Patch local cache so UI reflects immediately without waiting for snapshot
+  const sentIds=new Set(orders.map(o=>o.id));
+  [typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null,
+   typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null].forEach(arr=>{
+    if(!arr)return;
+    arr.forEach(o=>{if(sentIds.has(o.id))o.status='delivering';});
+  });
+  if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+  if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   toast(`✅ تم إرسال ${orders.length} طلب لـ ${repName}`);
 }
 
