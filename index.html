@@ -6876,7 +6876,8 @@ function _showOpOrderDetail(o){
       ${!isClosed?`<div style="display:flex;gap:7px;margin-top:4px;">
         ${o.status==='waiting_rep'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🧍 تعيين مندوب</button>`:o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
         <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
-      </div>`:o.status==='delivered'?`<div style="display:flex;gap:7px;margin-top:4px;">
+      </div>`:o.status==='delivered'?`<div style="display:flex;gap:7px;margin-top:4px;flex-wrap:wrap;">
+        ${!o.deliveryRepName?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;min-width:120px;">⚠️ تعيين مندوب</button>`:`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;min-width:120px;">🔄 تغيير مندوب</button>`}
         <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')" style="flex:1;padding:11px;background:#f3f4f6;color:#374151;border:1.5px solid #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">↩️ مرتجع</button>
         <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
       </div>`:`<div style="margin-top:4px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:10px 12px;">
@@ -7689,6 +7690,11 @@ async function updateEmpOrderStatus(id,newStatus){
     const data=snap.data();
     const prevStatus=data.status;
     if(prevStatus===newStatus)return;
+    // Block delivered if no rep assigned
+    if(newStatus==='delivered'&&!data.deliveryRepName){
+      toast('⚠️ يجب تعيين مندوب توصيل أولاً قبل تسليم الطلب');
+      return;
+    }
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(prevStatus).label} ← ${_empSt(newStatus).label}`};
     const editHistory=[...(data.editHistory||[]),editEntry];
     const extraFields={};
@@ -17256,10 +17262,13 @@ async function qrAssignToRep(repName,repPhone){
     const snap=await docRef.get();
     const data=snap.data();
     const fromLabel=_empSt(data?.status).label;
-    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${fromLabel} ← قيد التوصيل (${repName})`};
-    await docRef.update({status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    // If already delivered, keep status — only update rep info
+    const assignStatus=data.status==='delivered'?'delivered':'delivering';
+    const noteLabel=data.status==='delivered'?`تعيين مندوب (${repName})`:`${fromLabel} ← قيد التوصيل (${repName})`;
+    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:noteLabel};
+    await docRef.update({status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     // Patch local cache immediately
-    const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||''};};
+    const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||''};};
     _pL(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
     _pL(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     toast(`✅ أُسند لـ ${repName}`);
