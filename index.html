@@ -2052,6 +2052,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div style="font-size:0.78rem;color:#78350f;margin-bottom:10px;">تحديث جميع الطلبات التي لا تحمل رسوم توصيل إلى 2 د.أ ثابت.</div>
         <button onclick="migrateDeliveryFees()" style="padding:9px 20px;background:#ea580c;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">⚡ تحديث الطلبات القديمة</button>
       </div>
+      <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:12px;">
+        <div style="font-size:0.85rem;font-weight:700;color:#92400e;margin-bottom:8px;">🧹 مسح مندوب من طلبات انتظار مندوب</div>
+        <div style="font-size:0.78rem;color:#78350f;margin-bottom:10px;">يمسح اسم ورقم المندوب من جميع طلبات حالتها "انتظار مندوب".</div>
+        <button onclick="clearRepFromWaitingOrders()" style="padding:9px 20px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🧹 مسح المناديب</button>
+      </div>
       <div class="points-settings">
         <h2>🌟 إعدادات نقاط المكافآت</h2>
         <div class="points-toggle">
@@ -16869,6 +16874,30 @@ async function migrateDeliveryFees(){
   }catch(e){toast('❌ '+e.message);}
 }
 window.migrateDeliveryFees=migrateDeliveryFees;
+
+async function clearRepFromWaitingOrders(){
+  if(!confirm('سيتم مسح اسم ورقم المندوب من جميع طلبات "انتظار مندوب". تأكيد؟'))return;
+  toast('⏳ جاري التحديث...');
+  try{
+    const snap=await db.collection('employee_orders').where('status','==','waiting_rep').get();
+    const BATCH_SIZE=400;let batch=db.batch();let count=0;
+    for(const doc of snap.docs){
+      const d=doc.data();
+      if(d.deliveryRepName||d.deliveryRepPhone||d.assignedAt){
+        batch.update(doc.ref,{
+          deliveryRepName:firebase.firestore.FieldValue.delete(),
+          deliveryRepPhone:firebase.firestore.FieldValue.delete(),
+          assignedAt:firebase.firestore.FieldValue.delete()
+        });
+        count++;
+        if(count%BATCH_SIZE===0){await batch.commit();batch=db.batch();}
+      }
+    }
+    if(count%BATCH_SIZE!==0)await batch.commit();
+    toast('✅ تم تحديث '+count+' طلب');
+  }catch(e){toast('❌ '+e.message);}
+}
+window.clearRepFromWaitingOrders=clearRepFromWaitingOrders;
 window.promptLinkStore=promptLinkStore; window.saveLinkStore=saveLinkStore;
 window.openStoreAccount=openStoreAccount; window.backToStoreList=backToStoreList;
 window.addItemToStoreOrder=addItemToStoreOrder; window.removeItemFromStoreOrder=removeItemFromStoreOrder;
