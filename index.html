@@ -15108,6 +15108,7 @@ window.clearEmpAdvFilter=clearEmpAdvFilter; window.clearOpAdvFilter=clearOpAdvFi
 // ===== REP DELIVERY APP =====
 let _repCurrentUser=null;
 let _repMyOrdersUnsub=null;
+let _repMyOrdersUnsub2=null;
 let _repLocActive=false;
 let _repGeoWatchId=null;
 let _repQRMode=false;
@@ -15159,6 +15160,7 @@ async function repLogin(){
 
 function repLogout(){
   if(_repMyOrdersUnsub){_repMyOrdersUnsub();_repMyOrdersUnsub=null;}
+  if(_repMyOrdersUnsub2){_repMyOrdersUnsub2();_repMyOrdersUnsub2=null;}
   repStopLocation();
   _repCurrentUser=null;
   localStorage.removeItem('_repUser');
@@ -15169,16 +15171,36 @@ function loadRepOrders(){
   const wrap=document.getElementById('repOrdersList');
   if(!wrap||!_repCurrentUser)return;
   if(_repMyOrdersUnsub){_repMyOrdersUnsub();_repMyOrdersUnsub=null;}
+  if(_repMyOrdersUnsub2){_repMyOrdersUnsub2();_repMyOrdersUnsub2=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;background:#fff;border-radius:14px;">⏳ تحميل...</div>';
+  const {phone,name}=_repCurrentUser;
+  const normName=name?name.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').trim():'';
+  let _byPhone=[],_byName=[];
+  function _mergeAndRender(){
+    const seen=new Set();
+    const all=[..._byPhone,..._byName].filter(o=>{
+      if(seen.has(o.id))return false; seen.add(o.id); return true;
+    }).filter(o=>!['delivered','cancelled','returned','refused'].includes(o.status))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    _renderRepOrders(all);
+  }
   _repMyOrdersUnsub=db.collection('employee_orders')
-    .where('deliveryRepPhone','==',_repCurrentUser.phone)
+    .where('deliveryRepPhone','==',phone)
     .limit(80)
     .onSnapshot(snap=>{
-      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .filter(o=>!['delivered','cancelled','returned','refused'].includes(o.status))
-        .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-      _renderRepOrders(orders);
+      _byPhone=snap.docs.map(d=>({id:d.id,...d.data()}));
+      _mergeAndRender();
     },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:12px;text-align:center;">❌ '+e.message+'</div>';});
+  // Also query by name (catches orders with wrong/missing phone)
+  if(name){
+    const nameQ=normName&&normName!==name
+      ?db.collection('employee_orders').where('deliveryRepName','==',normName)
+      :db.collection('employee_orders').where('deliveryRepName','==',name);
+    _repMyOrdersUnsub2=nameQ.limit(80).onSnapshot(snap=>{
+      _byName=snap.docs.map(d=>({id:d.id,...d.data()}));
+      _mergeAndRender();
+    },()=>{});
+  }
 }
 
 function _renderRepOrders(orders){
