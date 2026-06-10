@@ -7703,10 +7703,25 @@ async function updateEmpOrderStatus(id,newStatus){
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus!=='delivered')
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
+    // Clear rep assignment when moving back to waiting_rep
+    const _deleteFields=[];
+    if(newStatus==='waiting_rep'){
+      extraFields.deliveryRepName=firebase.firestore.FieldValue.delete();
+      extraFields.deliveryRepPhone=firebase.firestore.FieldValue.delete();
+      extraFields.assignedAt=firebase.firestore.FieldValue.delete();
+      _deleteFields.push('deliveryRepName','deliveryRepPhone','assignedAt');
+    }
     await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ تم تحديث الحالة');
     // Update local cache immediately (don't wait for snapshot)
-    const _patchLocal=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===id);if(idx>=0)arr[idx]={...arr[idx],status:newStatus,...extraFields};};
+    const _patchLocal=(arr)=>{
+      if(!arr)return;
+      const idx=arr.findIndex(o=>o.id===id);
+      if(idx<0)return;
+      const updated={...arr[idx],status:newStatus,...extraFields};
+      _deleteFields.forEach(k=>delete updated[k]);
+      arr[idx]=updated;
+    };
     _patchLocal(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
     _patchLocal(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
