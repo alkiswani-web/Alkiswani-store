@@ -3040,6 +3040,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- SETTINGS sub-tab (moved from emporders) -->
         <div id="emp-subtab-settings" style="display:none;">
+          <!-- Clear rep from waiting orders -->
+          <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:14px;padding:16px 18px;margin-bottom:16px;">
+            <div style="font-size:0.9rem;font-weight:700;color:#92400e;margin-bottom:6px;">🧹 مسح مندوب من طلبات انتظار مندوب</div>
+            <div style="font-size:0.78rem;color:#78350f;margin-bottom:10px;">يمسح اسم ورقم المندوب من جميع الطلبات التي حالتها "انتظار مندوب" — يُستخدم لتصحيح طلبات غُيّرت حالتها بدون مسح المندوب.</div>
+            <button onclick="clearRepFromWaitingOrders()" style="padding:9px 20px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🧹 مسح المناديب الآن</button>
+          </div>
           <!-- Area Pricing -->
           <div style="background:#fff;border-radius:14px;padding:18px;margin-bottom:16px;border:1.5px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="font-size:0.9rem;font-weight:700;color:#374151;margin-bottom:12px;">🗺 تسعير التوصيل حسب المنطقة</div>
