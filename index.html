@@ -15135,6 +15135,7 @@ window.clearEmpAdvFilter=clearEmpAdvFilter; window.clearOpAdvFilter=clearOpAdvFi
 let _repCurrentUser=null;
 let _repMyOrdersUnsub=null;
 let _repMyOrdersUnsub2=null;
+let _repMyOrdersUnsub3=null;
 let _repLocActive=false;
 let _repGeoWatchId=null;
 let _repQRMode=false;
@@ -15187,6 +15188,7 @@ async function repLogin(){
 function repLogout(){
   if(_repMyOrdersUnsub){_repMyOrdersUnsub();_repMyOrdersUnsub=null;}
   if(_repMyOrdersUnsub2){_repMyOrdersUnsub2();_repMyOrdersUnsub2=null;}
+  if(_repMyOrdersUnsub3){_repMyOrdersUnsub3();_repMyOrdersUnsub3=null;}
   repStopLocation();
   _repCurrentUser=null;
   localStorage.removeItem('_repUser');
@@ -15198,34 +15200,35 @@ function loadRepOrders(){
   if(!wrap||!_repCurrentUser)return;
   if(_repMyOrdersUnsub){_repMyOrdersUnsub();_repMyOrdersUnsub=null;}
   if(_repMyOrdersUnsub2){_repMyOrdersUnsub2();_repMyOrdersUnsub2=null;}
+  if(_repMyOrdersUnsub3){_repMyOrdersUnsub3();_repMyOrdersUnsub3=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:40px;background:#fff;border-radius:14px;">⏳ تحميل...</div>';
   const {phone,name}=_repCurrentUser;
   const normName=name?name.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').trim():'';
-  let _byPhone=[],_byName=[];
+  let _byPhone=[],_byExact=[],_byNorm=[];
   function _mergeAndRender(){
     const seen=new Set();
-    const all=[..._byPhone,..._byName].filter(o=>{
+    const all=[..._byPhone,..._byExact,..._byNorm].filter(o=>{
       if(seen.has(o.id))return false; seen.add(o.id); return true;
     }).filter(o=>!['delivered','cancelled','returned','refused'].includes(o.status))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     _renderRepOrders(all);
   }
+  // Query 1: by phone
   _repMyOrdersUnsub=db.collection('employee_orders')
-    .where('deliveryRepPhone','==',phone)
-    .limit(80)
-    .onSnapshot(snap=>{
-      _byPhone=snap.docs.map(d=>({id:d.id,...d.data()}));
-      _mergeAndRender();
-    },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:12px;text-align:center;">❌ '+e.message+'</div>';});
-  // Also query by name (catches orders with wrong/missing phone)
+    .where('deliveryRepPhone','==',phone).limit(80)
+    .onSnapshot(snap=>{_byPhone=snap.docs.map(d=>({id:d.id,...d.data()}));_mergeAndRender();},
+    e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:12px;text-align:center;">❌ '+e.message+'</div>';});
+  // Query 2: by exact name
   if(name){
-    const nameQ=normName&&normName!==name
-      ?db.collection('employee_orders').where('deliveryRepName','==',normName)
-      :db.collection('employee_orders').where('deliveryRepName','==',name);
-    _repMyOrdersUnsub2=nameQ.limit(80).onSnapshot(snap=>{
-      _byName=snap.docs.map(d=>({id:d.id,...d.data()}));
-      _mergeAndRender();
-    },()=>{});
+    _repMyOrdersUnsub2=db.collection('employee_orders')
+      .where('deliveryRepName','==',name).limit(80)
+      .onSnapshot(snap=>{_byExact=snap.docs.map(d=>({id:d.id,...d.data()}));_mergeAndRender();},()=>{});
+  }
+  // Query 3: by normalized name (أ/إ/آ → ا) — only if different from exact
+  if(name&&normName!==name){
+    _repMyOrdersUnsub3=db.collection('employee_orders')
+      .where('deliveryRepName','==',normName).limit(80)
+      .onSnapshot(snap=>{_byNorm=snap.docs.map(d=>({id:d.id,...d.data()}));_mergeAndRender();},()=>{});
   }
 }
 
