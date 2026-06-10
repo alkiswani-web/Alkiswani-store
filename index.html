@@ -2836,7 +2836,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <input id="opOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setOpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
             <span id="opSearchClear" onclick="clearOpSearch()" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:1rem;">✕</span>
           </div>
-          <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+          <div style="display:flex;justify-content:flex-end;gap:7px;margin-bottom:8px;">
+            <button onclick="openBatchDistributeModal()" style="padding:7px 14px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🚚 وزّع الطلبات</button>
             <button id="opSelectModeBtn" onclick="toggleOpSelectMode()" style="padding:7px 14px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">☑️ تحديد للطباعة</button>
           </div>
           <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
@@ -3540,7 +3541,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
       </div>
 
-      <button id="empUrgentBtn" onclick="toggleEmpUrgent()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all 0.2s;">🔥 طلب مستعجل</button>
+      <button id="empUrgentBtn" onclick="toggleEmpUrgent()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:8px;transition:all 0.2s;">🔥 طلب مستعجل</button>
+      <button id="empReadyBtn" onclick="toggleEmpReady()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all 0.2s;">📦 جاهز للتوصيل</button>
 
       <button onclick="submitEmpOrder()" style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسجيل الطلب</button>
     </div>
@@ -5702,6 +5704,26 @@ let _empPagesCache=[];
 let _empSharedProducts=null;
 let _empOrderCart=[];
 let _empOrderUrgent=false;
+let _empReadyToDeliver=false;
+function toggleEmpReady(){
+  _empReadyToDeliver=!_empReadyToDeliver;
+  const btn=document.getElementById('empReadyBtn');
+  if(!btn)return;
+  if(_empReadyToDeliver){
+    btn.style.background='linear-gradient(135deg,#1a3a2a,#2d5a3d)';
+    btn.style.color='#fff';
+    btn.style.border='1.5px solid #1a3a2a';
+    btn.textContent='📦 جاهز للتوصيل · مفعّل';
+    btn.style.boxShadow='0 0 0 4px rgba(26,58,42,0.15)';
+  }else{
+    btn.style.background='#fff';
+    btn.style.color='#374151';
+    btn.style.border='1.5px dashed #d1d5db';
+    btn.textContent='📦 جاهز للتوصيل';
+    btn.style.boxShadow='none';
+  }
+}
+function _resetEmpReadyBtn(){_empReadyToDeliver=false;const b=document.getElementById('empReadyBtn');if(b){b.style.background='#fff';b.style.color='#374151';b.style.border='1.5px dashed #d1d5db';b.textContent='📦 جاهز للتوصيل';b.style.boxShadow='none';}}
 function toggleEmpUrgent(){
   _empOrderUrgent=!_empOrderUrgent;
   const btn=document.getElementById('empUrgentBtn');
@@ -6276,7 +6298,7 @@ async function submitEmpOrder(){
       ...(areaInput?{area:areaInput}:{}),
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
       ...(_empCurrentImages.length?{imageDataUrls:_empCurrentImages,imageDataUrl:_empCurrentImages[0]}:{}),
-      status:'pending',
+      status:_empReadyToDeliver?'prepared':'pending',
       ...(_empOrderUrgent?{urgent:true}:{}),
       totalPrice,deliveryFee,netPrice,
       date:jordanDateStr(),
@@ -6286,7 +6308,7 @@ async function submitEmpOrder(){
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
     toast(_empOrderUrgent?'🔥 تم تسجيل الطلب المستعجل':'✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=2;_empCurrentImages=[];
-    resetEmpUrgentBtn();
+    resetEmpUrgentBtn();_resetEmpReadyBtn();
     renderEmpOrderCart();
     document.getElementById('emp_phone').value='';
     const nameEl=document.getElementById('emp_customer_name');if(nameEl)nameEl.value='';
@@ -7215,7 +7237,16 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
       ${Object.entries(EMP_STATUSES).map(([k,v])=>`<option value="${k}"${o.status===k?' selected':''}>${v.label}</option>`).join('')}
     </select>`;
   }else{
-    if(nextSt&&!isHold)statusBtns+=`<button onclick="updateEmpOrderStatus('${o.id}','${nextSt}')" style="padding:5px 11px;background:${EMP_STATUSES[nextSt].color};color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">← ${EMP_STATUSES[nextSt].label}</button>`;
+    if(nextSt&&!isHold){
+      // For prepared→delivering, open rep picker directly instead of direct status change
+      if(nextSt==='delivering'){
+        statusBtns+=`<button onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')" style="padding:5px 11px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">🚚 اختر مندوب</button>`;
+      }else{
+        statusBtns+=`<button onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','${nextSt}')" style="padding:5px 11px;background:${EMP_STATUSES[nextSt].color};color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">← ${EMP_STATUSES[nextSt].label}</button>`;
+        // ⚡ quick-skip to rep assignment for pending/preparing
+        statusBtns+=`<button onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')" title="إرسال مباشر للمندوب" style="padding:5px 9px;background:#fef9c3;color:#854d0e;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;font-weight:700;">⚡</button>`;
+      }
+    }
     if(isHold)statusBtns+=`<button onclick="updateEmpOrderStatus('${o.id}','pending')" style="padding:5px 11px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">▶ استئناف</button>`;
     if(!isClosed&&!isHold)statusBtns+=`<button onclick="openEmpHoldModal('${o.id}')" style="padding:5px 9px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">⏸</button>`;
     if(!isClosed)statusBtns+=`<button onclick="openEmpCancelModal('${o.id}')" style="padding:5px 9px;background:#fee2e2;color:#dc2626;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;font-weight:700;">🚫</button>`;
@@ -16099,6 +16130,128 @@ window.closeQRRepAssignModal=closeQRRepAssignModal;
 window.qrAssignToRep=qrAssignToRep; window.qrAssignManualSend=qrAssignManualSend;
 window._showRepPickerInModal=_showRepPickerInModal; window._openQRRepAssignForWaiting=_openQRRepAssignForWaiting;
 window.sendQueuedRepOrders=sendQueuedRepOrders; window.markOrderDelivered=markOrderDelivered;
+window.openBatchDistributeModal=openBatchDistributeModal;
+window.toggleEmpReady=toggleEmpReady;
+
+// ===== BATCH DISTRIBUTE MODAL =====
+let _batchDistSelected=new Set();
+
+function openBatchDistributeModal(){
+  const orders=(_opOrdersAllData||[]).filter(o=>o.status==='prepared');
+  if(!orders.length){toast('⚠️ لا توجد طلبات جاهزة للتوصيل');return;}
+  let modal=document.getElementById('batchDistModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='batchDistModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+    document.body.appendChild(modal);
+  }
+  _batchDistSelected=new Set(orders.map(o=>o.id));
+  _renderBatchDistModal(orders);
+  modal.style.display='flex';
+}
+
+function _renderBatchDistModal(orders){
+  const modal=document.getElementById('batchDistModal');
+  if(!modal)return;
+  const total=orders.filter(o=>_batchDistSelected.has(o.id)).reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
+  modal.innerHTML=`
+  <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:16px 18px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-weight:800;font-size:1rem;color:#1a3a2a;">🚚 توزيع الطلبات الجاهزة</div>
+        <div style="font-size:0.76rem;color:#6b7280;margin-top:2px;">${_batchDistSelected.size} طلب محدد · ${total.toFixed(2)} د.أ</div>
+      </div>
+      <button onclick="document.getElementById('batchDistModal').style.display='none'" style="background:#f3f4f6;border:none;border-radius:50%;width:32px;height:32px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:10px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:0.78rem;font-weight:700;color:#374151;">الطلبات الجاهزة</span>
+        <div style="display:flex;gap:6px;">
+          <button onclick="_batchDistToggleAll(true)" style="padding:4px 10px;background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">تحديد الكل</button>
+          <button onclick="_batchDistToggleAll(false)" style="padding:4px 10px;background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;">إلغاء الكل</button>
+        </div>
+      </div>
+      ${orders.map(o=>{
+        const checked=_batchDistSelected.has(o.id);
+        const net=(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2);
+        const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-5).toUpperCase();
+        const prods=(o.products||[]).map(p=>p.name+(p.qty>1?` ×${p.qty}`:'')).join('، ')||'—';
+        return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1.5px solid ${checked?'#1a3a2a':'#e5e7eb'};background:${checked?'#f0fdf4':'#fff'};margin-bottom:6px;cursor:pointer;" onclick="event.preventDefault();_batchDistToggle('${o.id}')">
+          <input type="checkbox" ${checked?'checked':''} style="width:18px;height:18px;accent-color:#1a3a2a;cursor:pointer;flex-shrink:0;" onclick="event.stopPropagation();_batchDistToggle('${o.id}')">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;color:#1a3a2a;font-size:0.82rem;">${label} · ${o.pageName||''}</div>
+            <div style="font-size:0.72rem;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prods}</div>
+          </div>
+          <span style="font-weight:800;color:#166534;font-size:0.85rem;flex-shrink:0;">${net} د.أ</span>
+        </label>`;
+      }).join('')}
+    </div>
+    <div style="padding:12px 14px;border-top:1px solid #e5e7eb;" id="batchDistRepSection">
+      <div style="font-size:0.78rem;font-weight:700;color:#374151;margin-bottom:8px;">اختر المندوب:</div>
+      <div id="batchDistRepList" style="display:flex;flex-wrap:wrap;gap:7px;"><div style="color:#9ca3af;font-size:0.8rem;">⏳ تحميل...</div></div>
+    </div>
+  </div>`;
+  _loadBatchDistReps();
+}
+
+function _batchDistToggle(id){
+  if(_batchDistSelected.has(id))_batchDistSelected.delete(id);
+  else _batchDistSelected.add(id);
+  const orders=(_opOrdersAllData||[]).filter(o=>o.status==='prepared');
+  _renderBatchDistModal(orders);
+}
+function _batchDistToggleAll(v){
+  const orders=(_opOrdersAllData||[]).filter(o=>o.status==='prepared');
+  _batchDistSelected=v?new Set(orders.map(o=>o.id)):new Set();
+  _renderBatchDistModal(orders);
+}
+window._batchDistToggle=_batchDistToggle;
+window._batchDistToggleAll=_batchDistToggleAll;
+
+async function _loadBatchDistReps(){
+  const repListEl=document.getElementById('batchDistRepList');
+  if(!repListEl)return;
+  try{
+    const snap=await db.collection('operator_config').doc('delivery_reps').get();
+    const reps=(snap.exists?snap.data()?.reps:[])||[];
+    if(!reps.length){repListEl.innerHTML='<div style="color:#9ca3af;font-size:0.8rem;">لا يوجد مناديب مضافين</div>';return;}
+    repListEl.innerHTML=reps.map(r=>`
+      <button onclick="_batchDistAssign('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')
+      " style="padding:9px 16px;background:#f5f3ff;color:#5b21b6;border:1.5px solid #ddd6fe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🚚 ${r.name}</button>
+    `).join('');
+  }catch(e){repListEl.innerHTML='<div style="color:#dc2626;font-size:0.78rem;">❌ '+e.message+'</div>';}
+}
+
+async function _batchDistAssign(repName,repPhone){
+  const ids=[..._batchDistSelected];
+  if(!ids.length){toast('⚠️ لم تحدد أي طلب');return;}
+  const count=ids.length;
+  document.getElementById('batchDistModal').style.display='none';
+  toast(`⏳ جاري تعيين ${count} طلب لـ ${repName}...`);
+  let done=0;
+  for(const id of ids){
+    try{
+      const docRef=db.collection('employee_orders').doc(id);
+      const snap=await docRef.get();
+      const data=snap.data();
+      if(!data||['delivered','cancelled','returned','refused'].includes(data.status))continue;
+      const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← قيد التوصيل (${repName})`};
+      await docRef.update({status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      done++;
+    }catch(e){}
+  }
+  // Patch local cache
+  const assigned=new Set(ids);
+  [typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null,
+   typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null].forEach(arr=>{
+    if(!arr)return;
+    arr.forEach(o=>{if(assigned.has(o.id)){o.status='delivering';o.deliveryRepName=repName;o.deliveryRepPhone=repPhone||'';}});
+  });
+  if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+  toast(`✅ تم تعيين ${done} طلب لـ ${repName}`);
+}
+window._batchDistAssign=_batchDistAssign;
 
 window.openDeliveryModal=openDeliveryModal; window.closeDeliveryModal=closeDeliveryModal;
 window.addDeliveryRep=addDeliveryRep; window.removeDeliveryRep=removeDeliveryRep;
