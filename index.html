@@ -16182,6 +16182,10 @@ function _renderBatchDistModal(orders){
           <div style="flex:1;min-width:0;">
             <div style="font-weight:700;color:#1a3a2a;font-size:0.82rem;">${label} · ${o.pageName||''}</div>
             <div style="font-size:0.72rem;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prods}</div>
+            ${(o.address||o.customerPhone)?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;">
+              ${o.address?`<span style="font-size:0.7rem;color:#374151;">📍 ${o.address}</span>`:''}
+              ${o.customerPhone?`<span style="font-size:0.7rem;color:#374151;direction:ltr;">📞 ${o.customerPhone}</span>`:''}
+            </div>`:''}
           </div>
           <span style="font-weight:800;color:#166534;font-size:0.85rem;flex-shrink:0;">${net} د.أ</span>
         </label>`;
