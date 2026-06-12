@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نماذج الديزاين v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Tajawal', sans-serif; background: #eef0f4; }
+  .page { max-width: 430px; margin: 0 auto; }
+  .divider-label { display:flex; align-items:center; gap:10px; padding: 26px 16px 14px; }
+  .divider-label .line { flex:1; height:1px; background:#d6dae2; }
+  .divider-label .pill { padding:5px 16px; border-radius:20px; font-size:0.74rem; font-weight:800; color:#fff; }
+
+  /* ============ DESIGN A: SOFT PASTEL / CALM ============ */
+  .dA-wrap { background: linear-gradient(180deg,#f6f8fb 0%,#eef2f7 100%); padding: 16px 14px 30px; }
+  .dA-card {
+    background: #fff;
+    border-radius: 22px;
+    margin-bottom: 14px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(100,116,139,0.08);
+    border: none;
+  }
+  .dA-head { padding: 14px 16px 10px; display:flex; justify-content:space-between; align-items:flex-start; }
+  .dA-status-tag { display:inline-flex; align-items:center; gap:5px; font-size:0.7rem; font-weight:800; padding:5px 12px; border-radius:30px; }
+  .dA-price-bubble { text-align:center; border-radius:16px; padding:8px 14px; }
+  .dA-price-bubble .amount { font-size:1.05rem; font-weight:900; line-height:1; }
+  .dA-price-bubble .cur { font-size:0.62rem; font-weight:600; opacity:0.7; }
+  .dA-body { padding: 0 16px 12px; }
+  .dA-customer-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .dA-avatar { width:38px; height:38px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:800; flex-shrink:0; }
+  .dA-meta { font-size:0.7rem; color:#8a94a6; line-height:1.6; }
+  .dA-prods { background:#f7f9fc; border-radius:13px; padding:9px 12px; font-size:0.74rem; color:#5b6577; margin-bottom:12px; }
+  .dA-foot { display:flex; gap:8px; padding: 0 16px 16px; }
+  .dA-cta { flex:1; padding:11px; border:none; border-radius:14px; font-family:'Tajawal',sans-serif; font-size:0.82rem; font-weight:800; cursor:pointer; }
+  .dA-ghost { width:42px; height:42px; border-radius:13px; border:none; background:#f1f4f9; font-size:0.95rem; cursor:pointer; }
+
+  /* ============ DESIGN B: DARK ELEGANT ============ */
+  .dB-wrap { background: #11151c; padding: 18px 14px 34px; }
+  .dB-card {
+    background: linear-gradient(145deg,#1a202b,#161b24);
+    border-radius: 20px;
+    margin-bottom: 13px;
+    padding: 16px;
+    border: 1px solid #232b38;
+  }
+  .dB-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .dB-glow-badge { font-size:0.68rem; font-weight:800; padding:5px 12px; border-radius:30px; }
+  .dB-num { color:#8b95a7; font-size:0.74rem; font-weight:700; }
+  .dB-name { color:#eef1f6; font-size:0.92rem; font-weight:800; margin-bottom:3px; }
+  .dB-detail { color:#717c90; font-size:0.71rem; line-height:1.7; }
+  .dB-price-row { display:flex; align-items:flex-end; justify-content:space-between; margin:12px 0; }
+  .dB-price { color:#4ade80; font-size:1.35rem; font-weight:900; line-height:1; }
+  .dB-price small { font-size:0.65rem; color:#717c90; font-weight:600; }
+  .dB-actions { display:flex; gap:8px; }
+  .dB-cta { flex:1; padding:11px; border:none; border-radius:12px; font-family:'Tajawal',sans-serif; font-size:0.8rem; font-weight:800; cursor:pointer; }
+  .dB-icon { width:40px; height:40px; border-radius:11px; border:1px solid #2a3342; background:#1d2430; font-size:0.9rem; cursor:pointer; color:#aab4c5; }
+
+  /* ============ DESIGN C: WARM CREAM / BOUTIQUE ============ */
+  .dC-wrap { background: #faf6f0; padding: 18px 14px 34px; }
+  .dC-card {
+    background: #fffdf9;
+    border-radius: 18px;
+    margin-bottom: 13px;
+    border: 1.5px solid #efe7da;
+    overflow: hidden;
+  }
+  .dC-ribbon { padding: 9px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .dC-ribbon .st { font-size:0.74rem; font-weight:800; }
+  .dC-ribbon .num { font-size:0.7rem; font-weight:700; opacity:0.75; }
+  .dC-body { padding: 13px 16px 14px; }
+  .dC-grid { display:grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items:start; }
+  .dC-name { font-size:0.9rem; font-weight:800; color:#3d3428; }
+  .dC-line { font-size:0.72rem; color:#9b8f7d; line-height:1.7; }
+  .dC-price { font-size:1.2rem; font-weight:900; color:#8a6d3b; text-align:left; }
+  .dC-price small { font-size:0.6rem; color:#bba887; }
+  .dC-foot { display:flex; gap:8px; margin-top:12px; }
+  .dC-cta { flex:1; padding:10px; border:none; border-radius:12px; font-family:'Tajawal',sans-serif; font-size:0.8rem; font-weight:800; cursor:pointer; }
+  .dC-mini { padding:10px 13px; border-radius:12px; border:1.5px solid #efe7da; background:#fff; font-size:0.85rem; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============================================================= -->
+  <div class="divider-label"><div class="line"></div><div class="pill" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">نموذج A — باستيل هادي ☁️</div><div class="line"></div></div>
+
+  <div class="dA-wrap">
+
+    <!-- header chips -->
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;">
+      <div style="background:#fff;box-shadow:0 3px 10px rgba(100,116,139,0.07);border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#b45309;display:flex;gap:6px;align-items:center;flex-shrink:0;"><span style="width:8px;height:8px;border-radius:50%;background:#fbbf24;"></span>تجهيز 6</div>
+      <div style="background:#fff;box-shadow:0 3px 10px rgba(100,116,139,0.07);border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#047857;display:flex;gap:6px;align-items:center;flex-shrink:0;"><span style="width:8px;height:8px;border-radius:50%;background:#34d399;"></span>جاهز 3</div>
+      <div style="background:#fff;box-shadow:0 3px 10px rgba(100,116,139,0.07);border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#6d28d9;display:flex;gap:6px;align-items:center;flex-shrink:0;"><span style="width:8px;height:8px;border-radius:50%;background:#a78bfa;"></span>توصيل 4</div>
+    </div>
+
+    <!-- card 1: preparing -->
+    <div class="dA-card">
+      <div style="height:4px;background:linear-gradient(90deg,#fcd34d,#fbbf24,#f59e0b);"></div>
+      <div class="dA-head">
+        <span class="dA-status-tag" style="background:#fff7e0;color:#b45309;">⏳ قيد التجهيز</span>
+        <div class="dA-price-bubble" style="background:#f0fdf6;">
+          <div class="amount" style="color:#047857;">17.00</div>
+          <div class="cur" style="color:#047857;">دينار</div>
+        </div>
+      </div>
+      <div class="dA-body">
+        <div class="dA-customer-row">
+          <div class="dA-avatar" style="background:#ede9fe;color:#6d28d9;">أم</div>
+          <div>
+            <div style="font-size:0.86rem;font-weight:800;color:#2d3548;">أم محمود <span style="font-size:0.66rem;color:#aab2c2;font-weight:600;">#CVJ9Z</span></div>
+            <div class="dA-meta">📞 0788898721 &nbsp;·&nbsp; 📍 عمان · الكرسي</div>
+          </div>
+        </div>
+        <div class="dA-prods">🕯️ مبخرة 80 سم — ذهبي × 1 &nbsp;·&nbsp; ✍️ "اللهم احفظ اهل هذا البيت"</div>
+      </div>
+      <div class="dA-foot">
+        <button class="dA-cta" style="background:linear-gradient(135deg,#34d399,#10b981);color:#fff;box-shadow:0 5px 14px rgba(16,185,129,0.3);">✓ تم التجهيز</button>
+        <button class="dA-ghost">⚡</button>
+        <button class="dA-ghost">🖨️</button>
+        <button class="dA-ghost">⋯</button>
+      </div>
+    </div>
+
+    <!-- card 2: prepared -->
+    <div class="dA-card">
+      <div style="height:4px;background:linear-gradient(90deg,#6ee7b7,#34d399,#10b981);"></div>
+      <div class="dA-head">
+        <span class="dA-status-tag" style="background:#e8fbf2;color:#047857;">✓ جاهز للتوصيل</span>
+        <div class="dA-price-bubble" style="background:#f0fdf6;">
+          <div class="amount" style="color:#047857;">45.00</div>
+          <div class="cur" style="color:#047857;">دينار</div>
+        </div>
+      </div>
+      <div class="dA-body">
+        <div class="dA-customer-row">
+          <div class="dA-avatar" style="background:#fce7f3;color:#be185d;">أم</div>
+          <div>
+            <div style="font-size:0.86rem;font-weight:800;color:#2d3548;">أم محمود <span style="font-size:0.66rem;color:#aab2c2;font-weight:600;">#WOM10</span></div>
+            <div class="dA-meta">📞 0799943075 &nbsp;·&nbsp; 📍 الطفيلة · جنوب القطراني</div>
+          </div>
+        </div>
+        <div class="dA-prods">💎 مبخرة كريستال 80 × 3</div>
+      </div>
+      <div class="dA-foot">
+        <button class="dA-cta" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;box-shadow:0 5px 14px rgba(124,58,237,0.3);">🚚 اختر مندوب</button>
+        <button class="dA-ghost">🖨️</button>
+        <button class="dA-ghost">⋯</button>
+      </div>
+    </div>
+
+    <!-- card 3: delivering -->
+    <div class="dA-card">
+      <div style="height:4px;background:linear-gradient(90deg,#c4b5fd,#a78bfa,#8b5cf6);"></div>
+      <div class="dA-head">
+        <span class="dA-status-tag" style="background:#f3efff;color:#6d28d9;">🚚 مع أبو جسار</span>
+        <div class="dA-price-bubble" style="background:#f0fdf6;">
+          <div class="amount" style="color:#047857;">50.00</div>
+          <div class="cur" style="color:#047857;">دينار</div>
+        </div>
+      </div>
+      <div class="dA-body">
+        <div class="dA-customer-row">
+          <div class="dA-avatar" style="background:#dbeafe;color:#1d4ed8;">س</div>
+          <div>
+            <div style="font-size:0.86rem;font-weight:800;color:#2d3548;">سارة أبو علي <span style="font-size:0.66rem;color:#aab2c2;font-weight:600;">#CC4WR</span></div>
+            <div class="dA-meta">📞 0795773506 &nbsp;·&nbsp; 📍 عمان · الكرسي</div>
+          </div>
+        </div>
+        <div class="dA-prods">🕯️ سادة 80 سم × 2</div>
+      </div>
+      <div class="dA-foot">
+        <button class="dA-cta" style="background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#fff;box-shadow:0 5px 14px rgba(14,165,233,0.3);">✓ تم التوصيل</button>
+        <button class="dA-ghost">🔄</button>
+        <button class="dA-ghost">⋯</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <div class="divider-label"><div class="line"></div><div class="pill" style="background:linear-gradient(135deg,#1e293b,#0f172a);">نموذج B — داكن أنيق 🌙</div><div class="line"></div></div>
+
+  <div class="dB-wrap">
+    <!-- chips -->
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:14px;">
+      <div style="background:#1d2430;border:1px solid #2a3342;border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#fbbf24;flex-shrink:0;">⏳ تجهيز 6</div>
+      <div style="background:#1d2430;border:1px solid #2a3342;border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#4ade80;flex-shrink:0;">✓ جاهز 3</div>
+      <div style="background:#1d2430;border:1px solid #2a3342;border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#a78bfa;flex-shrink:0;">🚚 توصيل 4</div>
+    </div>
+
+    <!-- card 1 -->
+    <div class="dB-card">
+      <div class="dB-top">
+        <span class="dB-glow-badge" style="background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);">⏳ قيد التجهيز</span>
+        <span class="dB-num">#CVJ9Z · الكسواني</span>
+      </div>
+      <div class="dB-name">أم محمود</div>
+      <div class="dB-detail">📞 0788898721 · 📍 عمان، الكرسي<br>🕯️ مبخرة 80 سم ذهبي × 1 · ✍️ اللهم احفظ اهل هذا البيت</div>
+      <div class="dB-price-row">
+        <div class="dB-price">17.00 <small>د.أ</small></div>
+      </div>
+      <div class="dB-actions">
+        <button class="dB-cta" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;">✓ تم التجهيز</button>
+        <button class="dB-icon">⚡</button>
+        <button class="dB-icon">🖨️</button>
+        <button class="dB-icon">⋯</button>
+      </div>
+    </div>
+
+    <!-- card 2 -->
+    <div class="dB-card">
+      <div class="dB-top">
+        <span class="dB-glow-badge" style="background:rgba(74,222,128,0.12);color:#4ade80;border:1px solid rgba(74,222,128,0.25);">✓ جاهز للتوصيل</span>
+        <span class="dB-num">#WOM10 · مدينة الخشب</span>
+      </div>
+      <div class="dB-name">أم محمود</div>
+      <div class="dB-detail">📞 0799943075 · 📍 الطفيلة، جنوب القطراني<br>💎 مبخرة كريستال 80 × 3</div>
+      <div class="dB-price-row">
+        <div class="dB-price">45.00 <small>د.أ</small></div>
+      </div>
+      <div class="dB-actions">
+        <button class="dB-cta" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;">🚚 اختر مندوب</button>
+        <button class="dB-icon">🖨️</button>
+        <button class="dB-icon">⋯</button>
+      </div>
+    </div>
+
+    <!-- card 3 -->
+    <div class="dB-card" style="border-color:rgba(167,139,250,0.3);">
+      <div class="dB-top">
+        <span class="dB-glow-badge" style="background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.25);">🚚 مع أبو جسار</span>
+        <span class="dB-num">#CC4WR · مدينة الخشب</span>
+      </div>
+      <div class="dB-name">سارة أبو علي</div>
+      <div class="dB-detail">📞 0795773506 · 📍 عمان، الكرسي<br>🕯️ سادة 80 سم × 2</div>
+      <div class="dB-price-row">
+        <div class="dB-price">50.00 <small>د.أ</small></div>
+      </div>
+      <div class="dB-actions">
+        <button class="dB-cta" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;">✓ تم التوصيل</button>
+        <button class="dB-icon">🔄</button>
+        <button class="dB-icon">⋯</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <div class="divider-label"><div class="line"></div><div class="pill" style="background:linear-gradient(135deg,#b08d57,#8a6d3b);">نموذج C — كريمي دافئ ✨</div><div class="line"></div></div>
+
+  <div class="dC-wrap">
+    <!-- chips -->
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:14px;">
+      <div style="background:#fff;border:1.5px solid #efe7da;border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#b45309;flex-shrink:0;">⏳ تجهيز 6</div>
+      <div style="background:#fff;border:1.5px solid #efe7da;border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#3f6212;flex-shrink:0;">✓ جاهز 3</div>
+      <div style="background:#fff;border:1.5px solid #efe7da;border-radius:30px;padding:7px 14px;font-size:0.73rem;font-weight:800;color:#7e22ce;flex-shrink:0;">🚚 توصيل 4</div>
+    </div>
+
+    <!-- card 1 -->
+    <div class="dC-card">
+      <div class="dC-ribbon" style="background:linear-gradient(90deg,#fff8e6,#fffdf5);border-bottom:1.5px solid #f5ecd9;">
+        <span class="st" style="color:#b45309;">⏳ قيد التجهيز</span>
+        <span class="num" style="color:#b8a98e;">#CVJ9Z · الكسواني</span>
+      </div>
+      <div class="dC-body">
+        <div class="dC-grid">
+          <div>
+            <div class="dC-name">أم محمود</div>
+            <div class="dC-line">📞 0788898721<br>📍 عمان · الكرسي<br>🕯️ مبخرة 80 سم ذهبي ×1 · ✍️ اللهم احفظ اهل هذا البيت</div>
+          </div>
+          <div class="dC-price">17.00<br><small>دينار</small></div>
+        </div>
+        <div class="dC-foot">
+          <button class="dC-cta" style="background:#3d3428;color:#f5ead5;">✓ تم التجهيز</button>
+          <button class="dC-mini">⚡</button>
+          <button class="dC-mini">🖨️</button>
+          <button class="dC-mini">⋯</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- card 2 -->
+    <div class="dC-card">
+      <div class="dC-ribbon" style="background:linear-gradient(90deg,#f3f9e8,#fbfdf5);border-bottom:1.5px solid #e8f0d8;">
+        <span class="st" style="color:#3f6212;">✓ جاهز للتوصيل</span>
+        <span class="num" style="color:#a9b88e;">#WOM10 · مدينة الخشب</span>
+      </div>
+      <div class="dC-body">
+        <div class="dC-grid">
+          <div>
+            <div class="dC-name">أم محمود</div>
+            <div class="dC-line">📞 0799943075<br>📍 الطفيلة · جنوب القطراني<br>💎 مبخرة كريستال 80 ×3</div>
+          </div>
+          <div class="dC-price">45.00<br><small>دينار</small></div>
+        </div>
+        <div class="dC-foot">
+          <button class="dC-cta" style="background:#7e22ce;color:#fff;">🚚 اختر مندوب</button>
+          <button class="dC-mini">🖨️</button>
+          <button class="dC-mini">⋯</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- card 3 -->
+    <div class="dC-card">
+      <div class="dC-ribbon" style="background:linear-gradient(90deg,#f6f0fc,#fcfaff);border-bottom:1.5px solid #ece0f5;">
+        <span class="st" style="color:#7e22ce;">🚚 قيد التوصيل · أبو جسار</span>
+        <span class="num" style="color:#bfa9d6;">#CC4WR</span>
+      </div>
+      <div class="dC-body">
+        <div class="dC-grid">
+          <div>
+            <div class="dC-name">سارة أبو علي</div>
+            <div class="dC-line">📞 0795773506<br>📍 عمان · الكرسي<br>🕯️ سادة 80 سم ×2</div>
+          </div>
+          <div class="dC-price">50.00<br><small>دينار</small></div>
+        </div>
+        <div class="dC-foot">
+          <button class="dC-cta" style="background:#166534;color:#fff;">✓ تم التوصيل</button>
+          <button class="dC-mini">🔄</button>
+          <button class="dC-mini">⋯</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:30px;"></div>
+  </div>
+
+</div>
+</body>
+</html>
