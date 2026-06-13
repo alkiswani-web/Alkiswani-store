@@ -4032,7 +4032,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260613-r3';
+  const V='20260613-r4';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -6957,7 +6957,6 @@ function _showOpOrderDetail(o){
       </div>`
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${_dBtn(o.deliveryRepName?'🔄 تغيير مندوب':'تعيين مندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'primary')}
-        ${_dBtn('↩️ مرتجع',`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')`)}
         ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :`<div style="display:flex;gap:8px;flex-wrap:wrap;">
