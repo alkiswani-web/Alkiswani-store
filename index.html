@@ -4032,7 +4032,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260613-r4';
+  const V='20260613-r5';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -7857,8 +7857,7 @@ async function updateEmpOrderStatus(id,newStatus){
     sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
     if(newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
-      unsyncOrderFromAccounting(id);
-      addPageRefundEntry(id,data,newStatus);
+      _handleDeliveredCancel(id,data,newStatus);
     }
     if(!['cancelled','returned','refused','delivered'].includes(newStatus)){
       removePageRefundEntry(id);
@@ -7929,6 +7928,31 @@ async function unsyncOrderFromAccounting(orderId){
     await batch.commit();
     toast('🗑 تم حذف السجلات من كشف الحساب');
   }catch(e){console.error('unsyncOrderFromAccounting error:',e);}
+}
+
+// Smart cancel handler: if delivery was in current session → remove from sales (reversal).
+// If delivery was in a different/closed session → keep old record, add refund to current period.
+async function _handleDeliveredCancel(orderId, orderData, reason){
+  try{
+    const snap=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
+    if(snap.empty){
+      // No sale record found — just add refund entry to track the loss
+      await addPageRefundEntry(orderId,orderData,reason);
+      return;
+    }
+    const saleSessionId=snap.docs[0].data().sessionId||null;
+    const currentSessionId=_opCurrentSession?.id||null;
+    if(saleSessionId&&currentSessionId&&saleSessionId===currentSessionId){
+      // Same session: reverse the delivery — delete the sales records, no refund entry needed
+      const batch=db.batch();
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      toast('↩️ تم إلغاء التسجيل من الكشف الحالي');
+    }else{
+      // Different/old session: keep old record intact, add refund entry for today (current period)
+      await addPageRefundEntry(orderId,orderData,reason);
+    }
+  }catch(e){console.error('_handleDeliveredCancel error:',e);}
 }
 
 async function addPageRefundEntry(orderId, orderData, reason){
@@ -14981,7 +15005,7 @@ async function confirmEmpCancel(){
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     toast('✅ تم إلغاء الطلب');
-    if(data.status==='delivered'){unsyncOrderFromAccounting(id);addPageRefundEntry(id,data,'cancelled');}
+    if(data.status==='delivered'){_handleDeliveredCancel(id,data,'cancelled');}
     if(!['cancelled','returned','refused','delivered'].includes(data.status)){removePageRefundEntry(id);}
   }catch(e){toast('❌ '+e.message);}
 }
