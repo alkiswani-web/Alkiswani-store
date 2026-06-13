@@ -601,6 +601,9 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .order-stab span{background:#f4f4f5 !important;color:#52525b !important;border:1px solid #e4e4e7;transition:all 0.25s;}
 .order-stab.active span{background:#111 !important;color:#fff !important;border-color:#111;}
 /* ===== LUXURY MINIMAL ORDER CARDS (v5) ===== */
+.lux-tool{padding:7px 13px;background:#fff;color:#555;border:1px solid #ebebeb;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:700;transition:all .2s cubic-bezier(.2,.8,.2,1);box-shadow:0 1px 2px rgba(0,0,0,0.03);}
+@media(hover:hover){.lux-tool:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(0,0,0,0.07);border-color:#d8d8d8;color:#111;}}
+.lux-tool:active{transform:scale(0.96);}
 .lux-card{background:#fff;border:1px solid #ebebeb;border-radius:16px;margin-bottom:11px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.03);transition:all .3s cubic-bezier(.2,.8,.2,1);animation:luxCardIn .45s cubic-bezier(.2,.8,.2,1) backwards;}
 .lux-card:nth-child(2){animation-delay:.04s;}.lux-card:nth-child(3){animation-delay:.08s;}.lux-card:nth-child(4){animation-delay:.12s;}.lux-card:nth-child(5){animation-delay:.16s;}.lux-card:nth-child(6){animation-delay:.2s;}
 @keyframes luxCardIn{from{opacity:0;transform:translateY(14px) scale(0.985);}}
@@ -2832,16 +2835,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       <!-- OPERATOR (oporders) sub-tab -->
       <div id="emp-subtab-operator" style="display:block;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-            <div style="font-size:0.95rem;font-weight:700;color:#374151;">🔧 شاشة المشغل</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button id="opKanbanBtn" onclick="toggleOpKanban(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🎯 كانبان</button>
-              <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🗺 تجميع بالمنطقة</button>
-              <button onclick="toggleOpAdvFilter(this)" id="opAdvFilterBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🔍 فلتر متقدم</button>
-              <button onclick="toggleRepsPanel(this)" id="opRepsPanelBtn" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">🧍 المناديب</button>
-              <button onclick="openRepMap()" style="padding:6px 12px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📍 خريطة</button>
-              <button onclick="openQRScanner()" style="padding:6px 12px;background:#0ea5e9;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📷 مسح QR</button>
-              <button onclick="openTVMode()" style="padding:6px 12px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">📺 TV</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:0.95rem;font-weight:800;color:#111;">شاشة المشغل</div>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;">
+              <button id="opKanbanBtn" onclick="toggleOpKanban(this)" class="lux-tool">🎯 كانبان</button>
+              <button id="opGroupAreaBtn" onclick="toggleOpGroupArea(this)" class="lux-tool">🗺 تجميع بالمنطقة</button>
+              <button onclick="toggleOpAdvFilter(this)" id="opAdvFilterBtn" class="lux-tool">🔍 فلتر متقدم</button>
+              <button onclick="toggleRepsPanel(this)" id="opRepsPanelBtn" class="lux-tool">🧍 المناديب</button>
+              <button onclick="openRepMap()" class="lux-tool">📍 خريطة</button>
+              <button onclick="openQRScanner()" class="lux-tool">📷 مسح QR</button>
+              <button onclick="openTVMode()" class="lux-tool">📺 TV</button>
             </div>
           </div>
           <!-- Reps Panel -->
@@ -2868,12 +2871,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button onclick="clearOpAdvFilter()" style="padding:6px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">✕ مسح الفلتر</button>
           </div>
           <div style="position:relative;margin-bottom:12px;">
-            <input id="opOrderSearch" type="text" placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب..." oninput="setOpSearch(this.value)" style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='var(--green-dark)'" onblur="this.style.borderColor='#e5e7eb'">
-            <span id="opSearchClear" onclick="clearOpSearch()" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:1rem;">✕</span>
+            <input id="opOrderSearch" type="text" placeholder="⌕ بحث بالاسم أو الهاتف أو رقم الطلب" oninput="setOpSearch(this.value)" style="width:100%;padding:11px 38px 11px 14px;border:1px solid #ebebeb;border-radius:13px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fafafa;transition:all .25s;" onfocus="this.style.borderColor='#111';this.style.background='#fff';this.style.boxShadow='0 4px 18px rgba(0,0,0,0.06)'" onblur="this.style.borderColor='#ebebeb';this.style.background='#fafafa';this.style.boxShadow='none'">
+            <span id="opSearchClear" onclick="clearOpSearch()" style="display:none;position:absolute;left:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:#999;font-size:1rem;">✕</span>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:7px;margin-bottom:8px;">
-            <button onclick="openBatchDistributeModal()" style="padding:7px 14px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🚚 وزّع الطلبات</button>
-            <button id="opSelectModeBtn" onclick="toggleOpSelectMode()" style="padding:7px 14px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">☑️ تحديد للطباعة</button>
+            <button onclick="openBatchDistributeModal()" style="padding:8px 16px;background:#111;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18);">🚚 وزّع الطلبات</button>
+            <button id="opSelectModeBtn" onclick="toggleOpSelectMode()" style="padding:8px 16px;background:#fff;color:#555;border:1px solid #ebebeb;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">☑ تحديد للطباعة</button>
           </div>
           <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <button class="order-stab active" onclick="setOpOrderFilter('all',this)">الكل <span id="ooc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -2893,7 +2896,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <div id="opOrdersWrap"></div>
           <!-- Bulk select bar -->
-          <div id="opBulkBar" style="display:none;position:sticky;bottom:12px;z-index:200;background:#1a3a2a;border-radius:14px;padding:10px 14px;margin-top:8px;display:none;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.25);">
+          <div id="opBulkBar" style="display:none;position:sticky;bottom:12px;z-index:200;background:#111;border-radius:15px;padding:10px 14px;margin-top:8px;display:none;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,0.25);">
             <div style="display:flex;align-items:center;gap:8px;">
               <button onclick="opSelectAll()" style="padding:7px 14px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">تحديد الكل</button>
               <button onclick="opClearSelect()" style="padding:7px 14px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">إلغاء</button>
@@ -7634,7 +7637,7 @@ function toggleOpSelectMode(){
   if(!_opSelectMode){_opSelectedIds.clear();}
   const btn=document.getElementById('opSelectModeBtn');
   const bar=document.getElementById('opBulkBar');
-  if(btn){btn.style.background=_opSelectMode?'#1a3a2a':'#f3f4f6';btn.style.color=_opSelectMode?'#fff':'#374151';btn.textContent=_opSelectMode?'✕ إلغاء التحديد':'☑️ تحديد للطباعة';}
+  if(btn){btn.style.background=_opSelectMode?'#111':'#fff';btn.style.color=_opSelectMode?'#fff':'#555';btn.style.borderColor=_opSelectMode?'#111':'#ebebeb';btn.textContent=_opSelectMode?'✕ إلغاء التحديد':'☑ تحديد للطباعة';}
   if(bar){bar.style.display=_opSelectMode?'flex':'none';}
   _renderOpOrdersView();
 }
@@ -14435,9 +14438,9 @@ let _empGroupByArea=false,_opGroupByArea=false;
 let _empKanbanBoardView=false,_opKanbanBoardView=false;
 
 function _styleToggleBtn(btn,active){
-  btn.style.background=active?'#d1fae5':'#f3f4f6';
-  btn.style.color=active?'#166534':'#374151';
-  btn.style.borderColor=active?'#86efac':'#e5e7eb';
+  btn.style.background=active?'#111':'#fff';
+  btn.style.color=active?'#fff':'#555';
+  btn.style.borderColor=active?'#111':'#ebebeb';
 }
 
 function toggleEmpGroupArea(btn){
