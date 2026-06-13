@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الكسواني — Luxury Minimal</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #111111;
+    --ink-2: #555555;
+    --ink-3: #999999;
+    --line: #ebebeb;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --accent: #16a34a;
+    --accent-soft: #f0fdf4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Tajawal', sans-serif; background: var(--bg); color: var(--ink); }
+  .page { max-width: 430px; margin: 0 auto; min-height: 100vh; }
+
+  /* ════════ HEADER — مع عمق وحركة ════════ */
+  .top {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-bottom: 1px solid var(--line);
+    padding: 20px 20px 0;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .brand { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.5px; position: relative; display: inline-block; }
+  .brand::after {
+    content: '';
+    position: absolute; bottom: 2px; right: 0;
+    width: 100%; height: 7px;
+    background: var(--accent);
+    opacity: 0.18; border-radius: 4px;
+    transform-origin: right;
+    animation: brandLine 1s cubic-bezier(.2,.8,.2,1) .3s backwards;
+  }
+  @keyframes brandLine { from { transform: scaleX(0); } }
+  .brand small { display: block; font-size: 0.64rem; font-weight: 500; color: var(--ink-3); letter-spacing: 2px; margin-top: 2px; }
+  .top-icons { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 13px;
+    border: 1px solid var(--line); background: var(--card);
+    font-size: 0.95rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .icon-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); border-color: #d8d8d8; }
+  .icon-btn:active { transform: translateY(0) scale(0.95); }
+
+  .search {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 13px; padding: 11px 15px; margin-bottom: 16px;
+    transition: all .25s;
+  }
+  .search:focus-within {
+    background: var(--card); border-color: var(--ink);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+  }
+  .search input { border: none; background: transparent; outline: none; font-family: 'Tajawal'; font-size: 0.86rem; flex: 1; color: var(--ink); }
+  .search input::placeholder { color: var(--ink-3); }
+
+  /* tabs بمؤشر متحرك */
+  .tabs { display: flex; gap: 24px; overflow-x: auto; scrollbar-width: none; position: relative; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    padding: 0 2px 13px; font-size: 0.86rem; font-weight: 700; color: var(--ink-3);
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 7px;
+    position: relative; transition: color .25s;
+  }
+  .tab::after {
+    content: '';
+    position: absolute; bottom: 0; right: 0; left: 0;
+    height: 2.5px; border-radius: 3px 3px 0 0;
+    background: var(--ink);
+    transform: scaleX(0); transform-origin: center;
+    transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .tab.on { color: var(--ink); }
+  .tab.on::after { transform: scaleX(1); }
+  .tab .n {
+    font-size: 0.66rem; font-weight: 800; min-width: 20px; height: 20px; padding: 0 6px;
+    border-radius: 10px; background: var(--bg); border: 1px solid var(--line); color: var(--ink-2);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .25s;
+  }
+  .tab.on .n { background: var(--ink); border-color: var(--ink); color: #fff; transform: scale(1.08); }
+
+  /* ════════ LIST — البطاقات بحركة دخول ════════ */
+  .list { padding: 18px 16px 100px; }
+  .day-label {
+    font-size: 0.7rem; font-weight: 800; color: var(--ink-3);
+    margin: 6px 2px 12px; letter-spacing: 1.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .day-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    transition: all .3s cubic-bezier(.2,.8,.2,1);
+    animation: cardIn .5s cubic-bezier(.2,.8,.2,1) backwards;
+  }
+  .card:nth-child(2) { animation-delay: .05s; }
+  .card:nth-child(3) { animation-delay: .1s; }
+  .card:nth-child(4) { animation-delay: .15s; }
+  .card:nth-child(5) { animation-delay: .2s; }
+  .card:nth-child(6) { animation-delay: .25s; }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.08);
+    border-color: #ddd;
+  }
+
+  .card-main { padding: 16px 18px 13px; }
+  .row1 { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
+  .who { font-size: 0.98rem; font-weight: 800; }
+  .who .num { font-size: 0.66rem; font-weight: 600; color: var(--ink-3); margin-right: 7px; letter-spacing: 0.8px; }
+  .amount { font-size: 1.15rem; font-weight: 900; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .amount small { font-size: 0.6rem; font-weight: 500; color: var(--ink-3); margin-right: 2px; }
+
+  .meta { font-size: 0.75rem; color: var(--ink-2); line-height: 1.9; }
+  .meta b { color: var(--ink); font-weight: 700; }
+  .meta .sep { color: #d8d8d8; margin: 0 6px; }
+  .copy-phone {
+    cursor: pointer; border-bottom: 1px dashed #ccc; transition: all .2s;
+  }
+  .copy-phone:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+  .note {
+    margin-top: 9px; font-size: 0.73rem; color: var(--ink-2);
+    background: var(--bg); border-radius: 10px; padding: 8px 12px;
+    border-right: 3px solid var(--ink);
+  }
+
+  /* footer مع أزرار حية */
+  .card-foot { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+  .stage {
+    flex: 1; display: flex; align-items: center; gap: 9px;
+    padding: 12px 18px; font-size: 0.74rem; font-weight: 700; color: var(--ink-2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex-shrink: 0; }
+  .dot.live {
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.35); }
+    50% { box-shadow: 0 0 0 6px rgba(22,163,74,0); }
+  }
+
+  .steps { display: flex; align-items: center; gap: 4px; margin-right: auto; }
+  .step { width: 17px; height: 3.5px; border-radius: 3px; background: var(--line); transition: background .3s; }
+  .step.done { background: var(--ink); }
+  .step.now {
+    background: var(--accent);
+    position: relative; overflow: hidden;
+  }
+  .step.now::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+    animation: shimmer 1.8s infinite;
+  }
+  @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+  .more-btn {
+    border: none; border-right: 1px solid var(--line); background: transparent;
+    padding: 12px 15px; cursor: pointer; color: var(--ink-3); font-size: 1rem;
+    transition: all .2s;
+  }
+  .more-btn:hover { background: var(--bg); color: var(--ink); }
+
+  .next-btn {
+    border: none; border-right: 1px solid var(--line); cursor: pointer;
+    padding: 12px 20px; font-family: 'Tajawal'; font-size: 0.79rem; font-weight: 800;
+    display: flex; align-items: center; gap: 7px;
+    position: relative; overflow: hidden;
+    transition: all .25s cubic-bezier(.2,.8,.2,1);
+  }
+  .next-btn .arr { display: inline-block; transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+  .next-btn:hover .arr { transform: translateX(-4px); }
+  .next-btn:active { transform: scale(0.96); }
+  .next-btn.primary { background: var(--ink); color: #fff; }
+  .next-btn.primary::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.12) 50%, transparent 60%);
+    transform: translateX(100%);
+    transition: transform .6s;
+  }
+  .next-btn.primary:hover::after { transform: translateX(-100%); }
+  .next-btn.go { background: var(--accent); color: #fff; }
+  .next-btn.plain { background: var(--bg); color: var(--ink-2); }
+
+  /* ════════ FAB ════════ */
+  .fab-bar {
+    position: fixed; bottom: 0; right: 50%; transform: translateX(50%);
+    width: 100%; max-width: 430px;
+    padding: 14px 16px 20px;
+    background: linear-gradient(180deg, transparent, var(--bg) 45%);
+    display: flex; gap: 10px; z-index: 40;
+  }
+  .fab {
+    flex: 1; padding: 15px; border: none; border-radius: 15px;
+    font-family: 'Tajawal'; font-size: 0.9rem; font-weight: 800; cursor: pointer;
+    transition: all .25s cubic-bezier(.2,.8,.2,1);
+  }
+  .fab:hover { transform: translateY(-3px); }
+  .fab:active { transform: translateY(0) scale(0.97); }
+  .fab.dark { background: var(--ink); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.22); }
+  .fab.dark:hover { box-shadow: 0 14px 32px rgba(0,0,0,0.3); }
+  .fab.light { background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+
+  /* toast demo */
+  .toast {
+    position: fixed; top: 18px; right: 50%; transform: translateX(50%) translateY(-80px);
+    background: var(--ink); color: #fff;
+    padding: 12px 22px; border-radius: 30px;
+    font-size: 0.8rem; font-weight: 700;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    transition: transform .45s cubic-bezier(.2,.8,.2,1);
+    z-index: 100;
+  }
+  .toast.show { transform: translateX(50%) translateY(0); }
+  .toast .check { color: #4ade80; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="toast" id="toast"><span class="check">✓</span> تم التجهيز — انتقل لمرحلة التوصيل</div>
+
+  <!-- HEADER -->
+  <div class="top">
+    <div class="top-row">
+      <div class="brand">الكسواني<small>ROSEMARY · لوحة الطلبات</small></div>
+      <div class="top-icons">
+        <button class="icon-btn">🖨</button>
+        <button class="icon-btn">⚙</button>
+        <button class="icon-btn">⏻</button>
+      </div>
+    </div>
+    <div class="search">
+      <span style="color:var(--ink-3);font-size:0.95rem;">⌕</span>
+      <input placeholder="بحث بالاسم أو الهاتف أو رقم الطلب">
+    </div>
+    <div class="tabs" id="tabs">
+      <div class="tab on" onclick="switchTab(this)">الكل <span class="n">15</span></div>
+      <div class="tab" onclick="switchTab(this)">تجهيز <span class="n">6</span></div>
+      <div class="tab" onclick="switchTab(this)">جاهز <span class="n">3</span></div>
+      <div class="tab" onclick="switchTab(this)">توصيل <span class="n">4</span></div>
+      <div class="tab" onclick="switchTab(this)">انتظار <span class="n">2</span></div>
+    </div>
+  </div>
+
+  <!-- LIST -->
+  <div class="list">
+    <div class="day-label">اليوم · الجمعة ١٢ يونيو</div>
+
+    <!-- CARD 1 -->
+    <div class="card">
+      <div class="card-main">
+        <div class="row1">
+          <div class="who">أم محمود <span class="num">#CVJ9Z</span></div>
+          <div class="amount">17.00 <small>د.أ</small></div>
+        </div>
+        <div class="meta">
+          <span class="copy-phone" title="اضغط للنسخ">0788898721</span> <span class="sep">·</span> عمان، الكرسي
+          <br><b>مبخرة 80 سم — ذهبي</b> × 1
+        </div>
+        <div class="note">✎ اللهم احفظ اهل هذا البيت ومن زاره</div>
+      </div>
+      <div class="card-foot">
+        <div class="stage">
+          <span class="dot live"></span> قيد التجهيز
+          <span class="steps">
+            <span class="step done"></span><span class="step now"></span><span class="step"></span><span class="step"></span>
+          </span>
+        </div>
+        <button class="more-btn">⋯</button>
+        <button class="next-btn primary" onclick="demoToast()">تم التجهيز <span class="arr">←</span></button>
+      </div>
+    </div>
+
+    <!-- CARD 2 -->
+    <div class="card">
+      <div class="card-main">
+        <div class="row1">
+          <div class="who">أم محمود <span class="num">#WOM10</span></div>
+          <div class="amount">45.00 <small>د.أ</small></div>
+        </div>
+        <div class="meta">
+          <span class="copy-phone">0799943075</span> <span class="sep">·</span> الطفيلة، جنوب القطراني
+          <br><b>مبخرة كريستال 80</b> × 3
+        </div>
+      </div>
+      <div class="card-foot">
+        <div class="stage">
+          <span class="dot live"></span> جاهز للتوصيل
+          <span class="steps">
+            <span class="step done"></span><span class="step done"></span><span class="step now"></span><span class="step"></span>
+          </span>
+        </div>
+        <button class="more-btn">⋯</button>
+        <button class="next-btn go">اختر مندوب <span class="arr">←</span></button>
+      </div>
+    </div>
+
+    <!-- CARD 3 -->
+    <div class="card">
+      <div class="card-main">
+        <div class="row1">
+          <div class="who">سارة أبو علي <span class="num">#CC4WR</span></div>
+          <div class="amount">50.00 <small>د.أ</small></div>
+        </div>
+        <div class="meta">
+          <span class="copy-phone">0795773506</span> <span class="sep">·</span> عمان، الكرسي
+          <br><b>سادة 80 سم</b> × 2 <span class="sep">·</span> المندوب: <b>أبو جسار</b>
+        </div>
+      </div>
+      <div class="card-foot">
+        <div class="stage">
+          <span class="dot live"></span> قيد التوصيل
+          <span class="steps">
+            <span class="step done"></span><span class="step done"></span><span class="step done"></span><span class="step now"></span>
+          </span>
+        </div>
+        <button class="more-btn">⋯</button>
+        <button class="next-btn primary" onclick="demoToast()">تم التوصيل <span class="arr">←</span></button>
+      </div>
+    </div>
+
+    <!-- CARD 4 waiting -->
+    <div class="card" style="border-style:dashed;">
+      <div class="card-main">
+        <div class="row1">
+          <div class="who">أبو رامي <span class="num">#LQ77A</span></div>
+          <div class="amount">28.00 <small>د.أ</small></div>
+        </div>
+        <div class="meta">
+          <span class="copy-phone">0791000222</span> <span class="sep">·</span> الزرقاء، المدينة الجديدة
+          <br><b>مبخرة سادة 60</b> × 1
+        </div>
+      </div>
+      <div class="card-foot">
+        <div class="stage">
+          <span class="dot"></span> بانتظار مندوب
+        </div>
+        <button class="more-btn">⋯</button>
+        <button class="next-btn plain">تعيين مندوب <span class="arr">←</span></button>
+      </div>
+    </div>
+
+    <div class="day-label" style="margin-top:22px;">أمس · الخميس ١١ يونيو</div>
+
+    <!-- CARD 5 -->
+    <div class="card">
+      <div class="card-main">
+        <div class="row1">
+          <div class="who">أم خالد <span class="num">#BK9T2</span></div>
+          <div class="amount">32.00 <small>د.أ</small></div>
+        </div>
+        <div class="meta">
+          <span class="copy-phone">0797112345</span> <span class="sep">·</span> عمان، شارع الجامعة
+          <br><b>مبخرة 80 رخامي</b> × 1
+        </div>
+      </div>
+      <div class="card-foot">
+        <div class="stage">
+          <span class="dot live"></span> قيد التجهيز
+          <span class="steps">
+            <span class="step done"></span><span class="step now"></span><span class="step"></span><span class="step"></span>
+          </span>
+        </div>
+        <button class="more-btn">⋯</button>
+        <button class="next-btn primary" onclick="demoToast()">تم التجهيز <span class="arr">←</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- bottom actions -->
+  <div class="fab-bar">
+    <button class="fab dark">🚚 وزّع الطلبات</button>
+    <button class="fab light">＋ طلب جديد</button>
+  </div>
+
+</div>
+<script>
+function switchTab(el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+}
+function demoToast(){
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>

@@ -596,8 +596,43 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 @media(max-width:700px){.admin-tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}.admin-tab-btn{flex-shrink:0;}}
 .admin-tab-btn.active{color:var(--green-dark);font-weight:700;border-bottom-color:var(--green-dark);}
 .admin-tab-content{display:none;} .admin-tab-content.active{display:block;}
-.order-stab{flex-shrink:0;padding:10px 14px;border:none;background:none;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;color:#9ca3af;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.2s;white-space:nowrap;}
-.order-stab.active{color:var(--green-dark);border-bottom-color:var(--green-dark);font-weight:700;}
+.order-stab{flex-shrink:0;padding:10px 14px;border:none;background:none;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;color:#9ca3af;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:all 0.25s;white-space:nowrap;font-weight:700;}
+.order-stab.active{color:#111;border-bottom-color:#111;font-weight:800;}
+.order-stab span{background:#f4f4f5 !important;color:#52525b !important;border:1px solid #e4e4e7;transition:all 0.25s;}
+.order-stab.active span{background:#111 !important;color:#fff !important;border-color:#111;}
+/* ===== LUXURY MINIMAL ORDER CARDS (v5) ===== */
+.lux-card{background:#fff;border:1px solid #ebebeb;border-radius:16px;margin-bottom:11px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.03);transition:all .3s cubic-bezier(.2,.8,.2,1);animation:luxCardIn .45s cubic-bezier(.2,.8,.2,1) backwards;}
+.lux-card:nth-child(2){animation-delay:.04s;}.lux-card:nth-child(3){animation-delay:.08s;}.lux-card:nth-child(4){animation-delay:.12s;}.lux-card:nth-child(5){animation-delay:.16s;}.lux-card:nth-child(6){animation-delay:.2s;}
+@keyframes luxCardIn{from{opacity:0;transform:translateY(14px) scale(0.985);}}
+@media(hover:hover){.lux-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,0.08);border-color:#ddd;}}
+.lux-foot{display:flex;align-items:stretch;border-top:1px solid #ebebeb;}
+.lux-stage{flex:1;display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:0.73rem;font-weight:700;color:#555;min-width:0;}
+.lux-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.lux-dot.live{animation:luxPulse 2s ease-in-out infinite;}
+@keyframes luxPulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.3);}50%{box-shadow:0 0 0 6px rgba(22,163,74,0);}}
+.lux-steps{display:flex;align-items:center;gap:4px;margin-right:auto;flex-shrink:0;}
+.lux-step{width:15px;height:3.5px;border-radius:3px;background:#ebebeb;}
+.lux-step.done{background:#111;}
+.lux-step.now{background:#16a34a;position:relative;overflow:hidden;}
+.lux-step.now::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.7),transparent);animation:luxShimmer 1.8s infinite;}
+@keyframes luxShimmer{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
+.lux-more{border:none;border-right:1px solid #ebebeb;background:transparent;padding:11px 14px;cursor:pointer;color:#999;font-size:1rem;font-family:'Tajawal',sans-serif;transition:all .2s;}
+.lux-more:active,.lux-more:hover{background:#fafafa;color:#111;}
+.lux-next{border:none;border-right:1px solid #ebebeb;cursor:pointer;padding:11px 16px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;display:flex;align-items:center;gap:6px;position:relative;overflow:hidden;transition:all .25s cubic-bezier(.2,.8,.2,1);white-space:nowrap;}
+.lux-next .arr{display:inline-block;transition:transform .25s cubic-bezier(.2,.8,.2,1);}
+@media(hover:hover){.lux-next:hover .arr{transform:translateX(-4px);}}
+.lux-next:active{transform:scale(0.96);}
+.lux-next.primary{background:#111;color:#fff;}
+.lux-next.go{background:#16a34a;color:#fff;}
+.lux-next.plain{background:#fafafa;color:#555;}
+.lux-note{margin-top:7px;font-size:0.72rem;color:#555;background:#fafafa;border-radius:9px;padding:7px 11px;border-right:3px solid #111;}
+.lux-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center;animation:luxFadeIn .2s;}
+@keyframes luxFadeIn{from{opacity:0;}}
+.lux-menu-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:430px;padding:10px 14px 24px;animation:luxSheetUp .3s cubic-bezier(.2,.8,.2,1);}
+@keyframes luxSheetUp{from{transform:translateY(60px);opacity:0;}}
+.lux-menu-item{display:flex;align-items:center;gap:12px;width:100%;padding:13px 12px;border:none;background:transparent;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;color:#222;cursor:pointer;text-align:right;transition:background .15s;}
+.lux-menu-item:active,.lux-menu-item:hover{background:#f6f6f6;}
+.lux-menu-item.danger{color:#dc2626;}
 .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:22px;}
 .stat-box{background:#fff;border-radius:12px;padding:16px;text-align:center;border:1px solid rgba(0,0,0,0.06);}
 .stat-box .num{font-size:1.8rem;font-weight:700;color:var(--green-dark);}
@@ -3994,7 +4029,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260604-r1';
+  const V='20260613-r1';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -7231,29 +7266,32 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     return pd?(pd.imageDataUrl||(pd.images&&pd.images[0])||pd.img||''):'';
   })();
 
-  let statusBtns='';
-  if(!isOperator){
-    statusBtns=`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" style="padding:5px 8px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;outline:none;background:#fff;">
-      ${Object.entries(EMP_STATUSES).map(([k,v])=>`<option value="${k}"${o.status===k?' selected':''}>${v.label}</option>`).join('')}
-    </select>`;
-  }else{
-    if(nextSt&&!isHold){
-      // For prepared→delivering, open rep picker directly instead of direct status change
-      if(nextSt==='delivering'){
-        statusBtns+=`<button onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')" style="padding:5px 11px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">🚚 اختر مندوب</button>`;
-      }else{
-        statusBtns+=`<button onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','${nextSt}')" style="padding:5px 11px;background:${EMP_STATUSES[nextSt].color};color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">← ${EMP_STATUSES[nextSt].label}</button>`;
-        // ⚡ quick-skip to rep assignment for pending/preparing
-        statusBtns+=`<button onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')" title="إرسال مباشر للمندوب" style="padding:5px 9px;background:#fef9c3;color:#854d0e;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;font-weight:700;">⚡</button>`;
-      }
-    }
-    if(isHold)statusBtns+=`<button onclick="updateEmpOrderStatus('${o.id}','pending')" style="padding:5px 11px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">▶ استئناف</button>`;
-    if(!isClosed&&!isHold)statusBtns+=`<button onclick="openEmpHoldModal('${o.id}')" style="padding:5px 9px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">⏸</button>`;
-    if(!isClosed)statusBtns+=`<button onclick="openEmpCancelModal('${o.id}')" style="padding:5px 9px;background:#fee2e2;color:#dc2626;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;font-weight:700;">🚫</button>`;
+  // Main next-action button (one primary action per card)
+  let nextBtn='';
+  if(isHold){
+    nextBtn=`<button class="lux-next plain" onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','pending')">▶ استئناف</button>`;
+  }else if(o.status==='waiting_rep'){
+    nextBtn=`<button class="lux-next go" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">تعيين مندوب <span class="arr">←</span></button>`;
+  }else if(nextSt==='delivering'){
+    nextBtn=`<button class="lux-next go" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">اختر مندوب <span class="arr">←</span></button>`;
+  }else if(nextSt){
+    nextBtn=`<button class="lux-next primary" onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','${nextSt}')">${EMP_STATUSES[nextSt].label} <span class="arr">←</span></button>`;
   }
+  // ⚡ quick-skip to rep for early stages (operator only)
+  const quickBtn=(isOperator&&!isHold&&(o.status==='pending'||o.status==='preparing'))
+    ?`<button class="lux-more" title="إرسال مباشر للمندوب" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">⚡</button>`:'';
 
-  const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
-  const waBtn=o.status==='prepared'?`<button onclick="openDeliveryModal('${o.id}')" style="padding:5px 9px;background:#25D366;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">📱</button>`:'';
+  // Worker view: status select instead of single button
+  const workerSelect=!isOperator
+    ?`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" onclick="event.stopPropagation();" style="padding:6px 9px;border:1px solid #ebebeb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;outline:none;background:#fafafa;color:#222;margin:6px 8px 6px 0;">
+      ${Object.entries(EMP_STATUSES).map(([k,v])=>`<option value="${k}"${o.status===k?' selected':''}>${v.label}</option>`).join('')}
+    </select>`:'';
+
+  // Journey progress steps: pending→preparing→prepared→delivering→delivered
+  const _stageIdx={pending:0,preparing:1,prepared:2,waiting_rep:2,queued:3,delivering:3,delivered:4}[o.status];
+  const steps=_stageIdx!==undefined
+    ?`<span class="lux-steps">${[0,1,2,3].map(i=>`<span class="lux-step ${i<_stageIdx?'done':i===_stageIdx?'now':''}"></span>`).join('')}</span>`:'';
+  const dotLive=!isClosed&&!isHold&&o.status!=='waiting_rep';
 
   const imgPanel=firstProdImg
     ?`<div style="flex-shrink:0;width:78px;align-self:stretch;overflow:hidden;border-left:1px solid #f3f4f6;position:relative;">
@@ -7263,47 +7301,88 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     :'';
 
   const _selectChecked=_opSelectMode&&isOperator&&_opSelectedIds.has(o.id);
-  return `<div id="opcard_${o.id}" data-order-id="${o.id}" style="background:${o.urgent?'#fef2f2':'#fff'};border-radius:11px;margin-bottom:7px;border:1px solid ${o.urgent?'#fca5a5':'#e5e7eb'};border-right:4px solid ${o.urgent?'#dc2626':st.color};box-shadow:${o.urgent?'0 2px 10px rgba(220,38,38,0.15)':'0 1px 4px rgba(0,0,0,0.05)'};overflow:hidden;${_selectChecked?'outline:2.5px solid #1a3a2a;':''}">${_opSelectMode&&isOperator?`<div onclick="opToggleSelect('${o.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;cursor:pointer;"><input id="opchk_${o.id}" type="checkbox" ${_selectChecked?'checked':''} onclick="event.stopPropagation();opToggleSelect('${o.id}')" style="width:18px;height:18px;cursor:pointer;accent-color:#1a3a2a;"><span style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${label}</span><span style="font-size:0.75rem;color:#6b7280;">${(o.pageName||o.storeName||'')}</span></div>`:''}
-    ${o.urgent?`<div style="background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;padding:4px 12px;font-size:0.72rem;font-weight:800;display:flex;align-items:center;gap:6px;animation:urgentPulse 1.4s infinite;">🔥 طلب مستعجل</div>`:''}
+  return `<div id="opcard_${o.id}" data-order-id="${o.id}" class="lux-card" style="${o.urgent?'border-color:#fca5a5;':''}${_selectChecked?'outline:2.5px solid #111;':''}">${_opSelectMode&&isOperator?`<div onclick="opToggleSelect('${o.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fafafa;border-bottom:1px solid #ebebeb;cursor:pointer;"><input id="opchk_${o.id}" type="checkbox" ${_selectChecked?'checked':''} onclick="event.stopPropagation();opToggleSelect('${o.id}')" style="width:18px;height:18px;cursor:pointer;accent-color:#111;"><span style="font-size:0.82rem;font-weight:800;color:#111;">${label}</span><span style="font-size:0.75rem;color:#999;">${(o.pageName||o.storeName||'')}</span></div>`:''}
+    ${o.urgent?`<div style="background:#dc2626;color:#fff;padding:4px 14px;font-size:0.7rem;font-weight:800;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;animation:urgentPulse 1.4s infinite;">🔥 طلب مستعجل</div>`:''}
     <div onclick="${_opSelectMode&&isOperator?`opToggleSelect('${o.id}')`:`openOpOrderDetail('${o.id}')`}" style="display:flex;cursor:pointer;direction:ltr;min-height:80px;">
       ${imgPanel}
-      <div style="flex:1;min-width:0;padding:10px 12px 8px;direction:rtl;">
-        <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;">
-          <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:2px 9px;font-size:0.72rem;font-weight:800;white-space:nowrap;">${st.label}</span>
-          <span style="font-weight:800;color:#1a3a2a;font-size:0.83rem;">${label}</span>
-          <span style="font-size:0.78rem;color:#374151;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.pageName||''}</span>
-          <span style="font-weight:900;color:#166534;font-size:0.88rem;flex-shrink:0;white-space:nowrap;">${net.toFixed(2)} <span style="font-size:0.7rem;color:#9ca3af;">د.أ</span></span>
+      <div style="flex:1;min-width:0;padding:13px 15px 11px;direction:rtl;">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:7px;">
+          <span style="font-weight:800;color:#111;font-size:0.92rem;white-space:nowrap;">${o.workerName||o.pageName||'—'}</span>
+          <span style="font-size:0.65rem;font-weight:600;color:#999;letter-spacing:0.6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}${o.pageName?' · '+o.pageName:''}</span>
+          <span style="font-weight:900;color:#111;font-size:1.02rem;flex-shrink:0;white-space:nowrap;letter-spacing:-0.3px;font-variant-numeric:tabular-nums;">${net.toFixed(2)} <span style="font-size:0.6rem;font-weight:500;color:#999;">د.أ</span></span>
         </div>
-        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap;">
-          <span style="font-size:0.75rem;color:#4b5563;">👤 ${o.workerName||'—'}</span>
-          <span style="font-size:0.75rem;color:#6b7280;">· 📞 ${phone||'—'}</span>
-          ${o.area?`<span style="font-size:0.73rem;color:#6b7280;background:#f3f4f6;border-radius:6px;padding:1px 6px;">📍 ${o.area}</span>`:''}
+        <div style="font-size:0.74rem;color:#555;line-height:1.85;">
+          ${phone||'—'}${o.area?` <span style="color:#d8d8d8;">·</span> ${o.area}`:''}
           ${_repeatBadge(phone,customerHist,'sm')}
-          ${o.needsReview?`<span style="background:#fef3c7;color:#854d0e;border-radius:6px;padding:1px 6px;font-size:0.69rem;font-weight:700;">✏️ معدَّل</span>`:''}
+          ${o.needsReview?`<span style="background:#fafafa;border:1px solid #ebebeb;color:#854d0e;border-radius:6px;padding:1px 7px;font-size:0.68rem;font-weight:700;">✏️ معدَّل</span>`:''}
+          <br>${prods.map(p=>`<b style="color:#111;">${p.name}</b>${p.color?` · <span style="color:#0369a1;">${p.color}</span>`:''}${p.writing?` · <span style="color:#7c3aed;">✍️${p.writing}</span>`:''} ×${p.qty||1}`).join(' <span style="color:#d8d8d8;">·</span> ')}
         </div>
-        <div style="font-size:0.74rem;color:#374151;display:flex;flex-wrap:wrap;gap:4px;margin-bottom:${o.address||o.deliveryRepName||o.holdReason||o.cancelReason?'4px':'0'};">
-          ${prods.map(p=>`<span style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:1px 6px;">${p.name}${p.color?` · <span style="color:#0369a1;">${p.color}</span>`:''}${p.writing?` · <span style="color:#7c3aed;">✍️${p.writing}</span>`:''} ×${p.qty||1} · <b>${(p.price*(p.qty||1)).toFixed(2)}</b></span>`).join('')}
-        </div>
-        ${o.address?`<div style="font-size:0.72rem;color:#9ca3af;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>`:''}
-        ${o.deliveryRepName?`<div style="font-size:0.72rem;color:#1e40af;">🚚 ${o.deliveryRepName}</div>`:''}
-        ${o.holdReason?`<span style="font-size:0.71rem;color:#92400e;background:#fef3c7;border-radius:5px;padding:1px 7px;display:inline-block;">⏸ ${o.holdReason}</span>`:''}
-        ${o.cancelReason?`<span style="font-size:0.71rem;color:#991b1b;background:#fee2e2;border-radius:5px;padding:1px 7px;display:inline-block;">🚫 ${o.cancelReason}</span>`:''}
+        ${o.address?`<div style="font-size:0.71rem;color:#999;margin-top:2px;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>`:''}
+        ${o.deliveryRepName?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">المندوب: <b style="color:#111;">${o.deliveryRepName}</b></div>`:''}
+        ${o.holdReason?`<div class="lux-note" style="border-right-color:#d97706;">⏸ ${o.holdReason}</div>`:''}
+        ${o.cancelReason?`<div class="lux-note" style="border-right-color:#dc2626;">🚫 ${o.cancelReason}</div>`:''}
+        ${isOperator&&o.internalNote?`<div class="lux-note">🔒 ${o.internalNote}</div>`:''}
       </div>
     </div>
-    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:6px 10px;background:#fafafa;border-top:1px solid #f3f4f6;">
-      ${statusBtns}
-      ${waBtn}
-      <button onclick="openEmpOrderEdit('${o.id}')" style="padding:5px 9px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">✏️</button>
-      <button onclick="printEmpOrder('${o.id}',false)" style="padding:5px 9px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🖨</button>
-      <button onclick="printOrderQR('${o.id}')" title="ليبل QR" style="padding:5px 9px;background:#fdf4ff;color:#7e22ce;border:1.5px solid #e9d5ff;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🏷️</button>
-      ${imgs.length?`<button onclick="printEmpOrder('${o.id}',true)" style="padding:5px 9px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🖨📷</button>`:''}
-      ${isOperator?`<button onclick="copyOrderTrackingLink('${o.id}')" style="padding:5px 9px;background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🔗</button>`:''}
-      ${isOperator&&o.internalNote?`<span style="font-size:0.71rem;color:#92400e;background:#fefce8;border-radius:6px;padding:2px 7px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔒 ${o.internalNote}</span><button onclick="openInternalNote('${o.id}','${(o.internalNote||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:5px 7px;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.71rem;cursor:pointer;">✏️</button>`
-        :isOperator?`<button onclick="openInternalNote('${o.id}','')" style="padding:5px 9px;background:#fefce8;color:#92400e;border:1px dashed #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.71rem;cursor:pointer;">🔒</button>`:''}
-      <button onclick="deleteEmpOrder('${o.id}')" style="padding:5px 9px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">🗑</button>
+    <div class="lux-foot">
+      <div class="lux-stage">
+        <span class="lux-dot ${dotLive?'live':''}" style="background:${dotLive?'#16a34a':'#bbb'};"></span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${st.label}</span>
+        ${steps}
+      </div>
+      ${workerSelect}
+      ${quickBtn}
+      <button class="lux-more" onclick="event.stopPropagation();openOpCardMenu('${o.id}',${isOperator})">⋯</button>
+      ${nextBtn}
     </div>
   </div>`;
 }
+
+// Action sheet with secondary order actions (⋯)
+function openOpCardMenu(id,isOperator){
+  const o=(_opOrdersAllData||[]).find(x=>x.id===id)||(_empOrdersAllData||[]).find(x=>x.id===id);
+  if(!o)return;
+  const isClosed=['cancelled','returned','refused','delivered'].includes(o.status);
+  const isHold=o.status==='onhold';
+  const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+  const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
+  const noteEsc=(o.internalNote||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const items=[
+    `<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpOrderEdit('${o.id}')">✏️ تعديل الطلب</button>`,
+    `<button class="lux-menu-item" onclick="closeOpCardMenu();printEmpOrder('${o.id}',false)">🖨 طباعة</button>`,
+    imgs.length?`<button class="lux-menu-item" onclick="closeOpCardMenu();printEmpOrder('${o.id}',true)">🖨📷 طباعة مع الصور</button>`:'',
+    `<button class="lux-menu-item" onclick="closeOpCardMenu();printOrderQR('${o.id}')">🏷️ ليبل QR</button>`,
+    o.status==='prepared'?`<button class="lux-menu-item" onclick="closeOpCardMenu();openDeliveryModal('${o.id}')">📱 إرسال واتساب</button>`:'',
+    isOperator?`<button class="lux-menu-item" onclick="closeOpCardMenu();copyOrderTrackingLink('${o.id}')">🔗 رابط التتبع</button>`:'',
+    isOperator?`<button class="lux-menu-item" onclick="closeOpCardMenu();openInternalNote('${o.id}','${noteEsc}')">🔒 ${o.internalNote?'تعديل الملاحظة الداخلية':'ملاحظة داخلية'}</button>`:'',
+    (!isClosed&&!isHold&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpHoldModal('${o.id}')">⏸ تعليق الطلب</button>`:'',
+    (!isClosed&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();openEmpCancelModal('${o.id}')">🚫 إلغاء الطلب</button>`:'',
+    `<button class="lux-menu-item danger" onclick="closeOpCardMenu();deleteEmpOrder('${o.id}')">🗑 حذف نهائي</button>`
+  ].filter(Boolean).join('');
+  let modal=document.getElementById('opCardMenuModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='opCardMenuModal';
+    document.body.appendChild(modal);
+  }
+  modal.className='lux-menu-overlay';
+  modal.style.display='flex';
+  modal.onclick=e=>{if(e.target===modal)closeOpCardMenu();};
+  modal.innerHTML=`<div class="lux-menu-sheet">
+    <div style="width:40px;height:4px;background:#e4e4e7;border-radius:3px;margin:2px auto 12px;"></div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 12px 10px;border-bottom:1px solid #f3f4f6;margin-bottom:6px;">
+      <span style="font-weight:800;font-size:0.95rem;color:#111;">${o.workerName||o.pageName||''} <span style="font-size:0.68rem;color:#999;font-weight:600;">${label}</span></span>
+      <span style="font-weight:900;font-size:0.95rem;color:#111;">${(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></span>
+    </div>
+    ${items}
+  </div>`;
+}
+function closeOpCardMenu(){
+  const m=document.getElementById('opCardMenuModal');
+  if(m)m.style.display='none';
+}
+window.openOpCardMenu=openOpCardMenu;
+window.closeOpCardMenu=closeOpCardMenu;
 
 function _renderKanban(orders, isOperator, filterStatus, customerHist){
   const STATUS_ORDER=['pending','preparing','prepared','waiting_rep','queued','delivering','delivered','onhold','cancelled','returned','refused'];
@@ -16182,6 +16261,10 @@ function _renderBatchDistModal(orders){
           <div style="flex:1;min-width:0;">
             <div style="font-weight:700;color:#1a3a2a;font-size:0.82rem;">${label} · ${o.pageName||''}</div>
             <div style="font-size:0.72rem;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prods}</div>
+            ${(o.address||o.customerPhone)?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;">
+              ${o.address?`<span style="font-size:0.7rem;color:#374151;">📍 ${o.address}</span>`:''}
+              ${o.customerPhone?`<span style="font-size:0.7rem;color:#374151;direction:ltr;">📞 ${o.customerPhone}</span>`:''}
+            </div>`:''}
           </div>
           <span style="font-weight:800;color:#166534;font-size:0.85rem;flex-shrink:0;">${net} د.أ</span>
         </label>`;
