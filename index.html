@@ -4032,7 +4032,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260613-r2';
+  const V='20260613-r3';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -6877,87 +6877,94 @@ function _showOpOrderDetail(o){
     el=document.createElement('div');
     el.id='opOrderDetailSheet';
     el.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
-    el.innerHTML='<div onclick="closeOpOrderDetail()" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);"></div><div id="opOrderDetailBody" style="position:relative;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;background:#f5f6f5;border-radius:20px 20px 0 0;padding:0 0 24px;font-family:\'Tajawal\',sans-serif;"></div>';
+    el.innerHTML='<div onclick="closeOpOrderDetail()" style="position:absolute;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);"></div><div id="opOrderDetailBody" style="position:relative;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;background:#fafafa;border-radius:20px 20px 0 0;padding:0 0 28px;font-family:\'Tajawal\',sans-serif;animation:luxSheetUp .35s cubic-bezier(.2,.8,.2,1);"></div>';
     document.body.appendChild(el);
   }
 
+  // Determine primary action for detail panel
+  const _dBtn=(label,fn,style='primary')=>{
+    const s=style==='primary'?'background:#111;color:#fff;border:none;'
+             :style==='green'?'background:#16a34a;color:#fff;border:none;'
+             :style==='danger'?'background:#fff;color:#dc2626;border:1px solid #fecaca;'
+             :'background:#fafafa;color:#555;border:1px solid #ebebeb;';
+    return `<button onclick="${fn}" style="flex:1;padding:12px 8px;${s}border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;min-width:80px;">${label}</button>`;
+  };
+  const _dIconBtn=(label,fn)=>`<button onclick="${fn}" style="padding:12px 14px;background:#fafafa;color:#555;border:1px solid #ebebeb;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;cursor:pointer;">${label}</button>`;
+
   const body=document.getElementById('opOrderDetailBody');
   body.innerHTML=`
-    <div style="background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:16px 18px 14px;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:space-between;">
-      <button onclick="closeOpOrderDetail()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+    <div style="background:#111;padding:16px 18px 14px;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:space-between;animation:luxSheetUp .3s cubic-bezier(.2,.8,.2,1);">
+      <button onclick="closeOpOrderDetail()" style="background:rgba(255,255,255,0.1);border:none;color:rgba(255,255,255,0.7);width:34px;height:34px;border-radius:50%;font-size:1rem;cursor:pointer;transition:all .2s;">✕</button>
       <div style="text-align:center;">
-        <div style="color:#c9a84c;font-weight:800;font-size:0.95rem;">${label}</div>
-        <div style="color:rgba(255,255,255,0.7);font-size:0.72rem;margin-top:2px;">${o.pageName||''}</div>
+        <div style="color:#fff;font-weight:900;font-size:1rem;letter-spacing:-0.3px;">${label}</div>
+        <div style="color:rgba(255,255,255,0.45);font-size:0.68rem;margin-top:2px;letter-spacing:0.5px;">${o.pageName||''}</div>
       </div>
-      <span style="background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:3px 11px;font-size:0.75rem;font-weight:800;">${st.label}</span>
+      <span style="background:rgba(255,255,255,0.1);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.72rem;font-weight:800;border:1px solid rgba(255,255,255,0.15);">${st.label}</span>
     </div>
-    ${o.urgent?`<div style="background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;padding:10px 16px;font-weight:800;text-align:center;font-size:0.95rem;">🔥 طلب مستعجل</div>`:''}
-    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
-      <!-- Customer -->
-      <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">
-        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:8px;">👤 معلومات الزبون</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.82rem;">
-          <div><span style="color:#9ca3af;">الاسم</span><div style="font-weight:600;color:#111;">${o.customerName||'—'}</div></div>
-          <div><span style="color:#9ca3af;">الهاتف</span><div style="font-weight:700;color:#1d4ed8;direction:ltr;">${o.customerPhone||'—'}</div></div>
-          <div style="grid-column:1/-1;"><span style="color:#9ca3af;">العنوان</span><div style="font-weight:600;color:#111;">${o.address||'—'}${o.area?' ('+o.area+')':''}</div></div>
-          ${o.notes?`<div style="grid-column:1/-1;"><span style="color:#9ca3af;">ملاحظات</span><div style="font-weight:600;color:#374151;">${o.notes}</div></div>`:''}
+    ${o.urgent?`<div style="background:#dc2626;color:#fff;padding:9px 16px;font-weight:800;text-align:center;font-size:0.88rem;letter-spacing:0.5px;">🔥 طلب مستعجل</div>`:''}
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:#fafafa;">
+      <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
+        <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">معلومات الزبون</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
+          <div><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">الاسم</div><div style="font-weight:700;color:#111;">${o.customerName||'—'}</div></div>
+          <div><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">الهاتف</div><div style="font-weight:700;color:#111;direction:ltr;">${o.customerPhone||'—'}</div></div>
+          <div style="grid-column:1/-1;"><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">العنوان</div><div style="font-weight:700;color:#111;">${o.address||'—'}${o.area?' · '+o.area:''}</div></div>
+          ${o.notes?`<div style="grid-column:1/-1;"><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">ملاحظات</div><div style="font-weight:600;color:#555;">${o.notes}</div></div>`:''}
         </div>
       </div>
-      <!-- Products -->
-      <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">
-        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:8px;">📦 المنتجات</div>
-        ${prods.map(p=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px dashed #f0f0f0;gap:8px;">
+      <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
+        <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">المنتجات</div>
+        ${prods.map(p=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f5f5f5;gap:8px;">
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:0.85rem;color:#1a3a2a;">${p.name}</div>
-            ${p.color?`<div style="font-size:0.75rem;color:#0369a1;">🎨 ${p.color}</div>`:''}
-            ${p.writing?`<div style="font-size:0.75rem;color:#7c3aed;background:#f5f3ff;border-radius:6px;padding:2px 7px;margin-top:3px;display:inline-block;">✍️ ${p.writing}</div>`:''}
+            <div style="font-weight:800;font-size:0.88rem;color:#111;">${p.name}</div>
+            ${p.color?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">اللون: ${p.color}</div>`:''}
+            ${p.writing?`<div style="font-size:0.72rem;color:#555;background:#fafafa;border-right:2.5px solid #111;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;">✎ ${p.writing}</div>`:''}
           </div>
           <div style="text-align:left;flex-shrink:0;">
-            <div style="font-size:0.75rem;color:#6b7280;">${p.qty||1} × ${p.price.toFixed(2)}</div>
-            <div style="font-weight:800;color:#166534;">${(p.price*(p.qty||1)).toFixed(2)} د.أ</div>
+            <div style="font-size:0.72rem;color:#999;">${p.qty||1} × ${p.price.toFixed(2)}</div>
+            <div style="font-weight:900;color:#111;font-size:0.9rem;">${(p.price*(p.qty||1)).toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></div>
           </div>
         </div>`).join('')}
-        <div style="margin-top:8px;padding-top:8px;border-top:2px solid #1a3a2a;display:flex;justify-content:space-between;align-items:center;">
-          ${dlv>0?`<div style="font-size:0.78rem;"><span style="color:#9ca3af;">إجمالي منتجات: ${total.toFixed(2)} + توصيل: ${dlv.toFixed(2)}</span></div>`:'<div></div>'}
-          <div style="font-weight:900;font-size:1rem;color:#166534;">${net.toFixed(2)} د.أ</div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1.5px solid #111;display:flex;justify-content:space-between;align-items:center;">
+          ${dlv>0?`<div style="font-size:0.74rem;color:#999;">منتجات: ${total.toFixed(2)} + توصيل: ${dlv.toFixed(2)}</div>`:'<div></div>'}
+          <div style="font-weight:900;font-size:1.1rem;color:#111;letter-spacing:-0.3px;">${net.toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></div>
         </div>
       </div>
-      ${!['delivered','cancelled','returned','refused'].includes(o.status)?`<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #bfdbfe;">
-        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:8px;">🚚 المندوب</div>
-        ${o.deliveryRepName?`<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;">
-          <span style="font-weight:700;color:#1e40af;">${o.deliveryRepName}</span>
-          ${o.deliveryRepPhone?`<a href="tel:${o.deliveryRepPhone}" style="font-weight:700;color:#0369a1;direction:ltr;text-decoration:none;">${o.deliveryRepPhone}</a>`:''}
-        </div>`:`<div style="font-size:0.82rem;color:#9ca3af;">لم يُعيَّن مندوب بعد</div>`}
+      ${!['delivered','cancelled','returned','refused'].includes(o.status)?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
+        <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:8px;letter-spacing:1px;">المندوب</div>
+        ${o.deliveryRepName
+          ?`<div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-weight:800;color:#111;font-size:0.88rem;">${o.deliveryRepName}</span>${o.deliveryRepPhone?`<a href="tel:${o.deliveryRepPhone}" style="font-weight:700;color:#555;direction:ltr;text-decoration:none;font-size:0.82rem;">${o.deliveryRepPhone}</a>`:''}</div>`
+          :`<div style="font-size:0.82rem;color:#bbb;">لم يُعيَّن مندوب بعد</div>`}
       </div>`:''}
-      ${o.cancelReason?`<div style="background:#fef2f2;border-radius:12px;padding:14px;border:1px solid #fecaca;">
-        <div style="font-size:0.78rem;font-weight:700;color:#6b7280;margin-bottom:6px;">🚫 سبب الإلغاء</div>
-        <div style="font-size:0.85rem;font-weight:700;color:#dc2626;">${o.cancelReason}</div>
-      </div>`:''}
-      ${o.workerName?`<div style="background:#f9fafb;border-radius:12px;padding:10px 14px;border:1px solid #e5e7eb;font-size:0.8rem;color:#374151;">👤 الموظف: <strong>${o.workerName}</strong></div>`:''}
-      ${o.editHistory&&o.editHistory.length?`<div style="background:#fffbeb;border-radius:12px;padding:10px 14px;border:1px solid #fde68a;font-size:0.75rem;color:#92400e;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' ← ')}</div>`:''}
-      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:zoom-in;">`).join('')}</div>`:''}
-      <!-- Actions -->
-      <div style="display:flex;gap:7px;flex-wrap:wrap;">
-        ${isOperator&&nextSt&&!isClosed?`<button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','${nextSt}')" style="flex:1;padding:11px;background:${EMP_STATUSES[nextSt].color};color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;min-width:120px;">← ${EMP_STATUSES[nextSt].label}</button>`:''}
-        <button onclick="closeOpOrderDetail();openEmpOrderEdit('${o.id}')" style="flex:1;padding:11px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;min-width:80px;">✏️ تعديل</button>
-        <button onclick="printEmpOrder('${o.id}',false)" style="padding:11px 14px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">🖨</button>
-        <button onclick="printOrderQR('${o.id}')" title="طباعة ليبل QR" style="padding:11px 14px;background:#fdf4ff;color:#7e22ce;border:1.5px solid #e9d5ff;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">🏷️</button>
-        ${isOperator?`<button onclick="closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')" style="padding:11px 14px;background:#f0fdf4;color:#166534;border:1.5px solid #86efac;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">📱</button>`:''}
+      ${o.cancelReason?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #fecaca;border-right:3px solid #dc2626;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">سبب الإلغاء</div><div style="font-size:0.85rem;font-weight:700;color:#dc2626;">${o.cancelReason}</div></div>`:''}
+      ${o.holdReason?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">سبب التعليق</div><div style="font-size:0.85rem;font-weight:700;color:#555;">${o.holdReason}</div></div>`:''}
+      ${o.internalNote?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">ملاحظة داخلية</div><div style="font-size:0.85rem;color:#555;">${o.internalNote}</div></div>`:''}
+      ${o.workerName?`<div style="font-size:0.78rem;color:#999;padding:2px 2px;">الموظف: <b style="color:#555;">${o.workerName}</b></div>`:''}
+      ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.71rem;color:#bbb;padding:0 2px;line-height:1.7;">${o.editHistory.map(e=>`<span>${e.note} <span style="color:#ddd;">(${e.by})</span></span>`).join(' ← ')}</div>`:''}
+      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">
+        ${isOperator&&nextSt&&!isClosed&&nextSt!=='delivering'?_dBtn(`${EMP_STATUSES[nextSt].label} ←`,`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','${nextSt}')`,'primary'):''}
+        ${isOperator&&nextSt==='delivering'&&!isClosed?_dBtn('اختر مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${o.status==='waiting_rep'?_dBtn('تعيين مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${_dIconBtn('✏️',`closeOpOrderDetail();openEmpOrderEdit('${o.id}')`)}
+        ${_dIconBtn('🖨',`printEmpOrder('${o.id}',false)`)}
+        ${_dIconBtn('🏷️',`printOrderQR('${o.id}')`)}
+        ${isOperator?_dIconBtn('📱',`closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')`):''}
       </div>
-      ${!isClosed?`<div style="display:flex;gap:7px;margin-top:4px;">
-        ${o.status==='waiting_rep'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🧍 تعيين مندوب</button>`:o.status!=='delivering'&&o.status!=='queued'?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚚 قيد التوصيل</button>`:''}
-        <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
-      </div>`:o.status==='delivered'?`<div style="display:flex;gap:7px;margin-top:4px;flex-wrap:wrap;">
-        ${!o.deliveryRepName?`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;min-width:120px;">⚠️ تعيين مندوب</button>`:`<button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:11px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;min-width:120px;">🔄 تغيير مندوب</button>`}
-        <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')" style="flex:1;padding:11px;background:#f3f4f6;color:#374151;border:1.5px solid #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">↩️ مرتجع</button>
-        <button onclick="_cancelOpOrderFromDetail('${o.id}')" style="flex:1;padding:11px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>
-      </div>`:`<div style="margin-top:4px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:10px 12px;">
-        <div style="font-size:0.74rem;font-weight:700;color:#166534;margin-bottom:8px;">🔄 إعادة تفعيل الطلب</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','pending')" style="flex:1;padding:9px 6px;background:#fff7ed;color:#b45309;border:1.5px solid #fcd34d;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;min-width:80px;">📋 جديد</button>
-          <button onclick="closeOpOrderDetail();updateEmpOrderStatus('${o.id}','preparing')" style="flex:1;padding:9px 6px;background:#fff7ed;color:#ea580c;border:1.5px solid #fed7aa;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;min-width:80px;">⚙️ قيد التجهيز</button>
-          <button onclick="closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')" style="flex:1;padding:9px 6px;background:#ede9fe;color:#6d28d9;border:1.5px solid #c4b5fd;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;min-width:80px;">🚚 إرسال لمندوب</button>
-        </div>
+      ${!isClosed?`<div style="display:flex;gap:8px;">
+        ${o.status!=='waiting_rep'&&o.status!=='delivering'&&o.status!=='queued'?_dBtn('إرسال لمندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
+      </div>`
+      :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${_dBtn(o.deliveryRepName?'🔄 تغيير مندوب':'تعيين مندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'primary')}
+        ${_dBtn('↩️ مرتجع',`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')`)}
+        ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
+      </div>`
+      :`<div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="font-size:0.72rem;color:#999;font-weight:700;width:100%;padding-bottom:4px;">إعادة تفعيل:</div>
+        ${_dBtn('جديد',`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','pending')`)}
+        ${_dBtn('قيد التجهيز',`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','preparing')`)}
+        ${_dBtn('إرسال لمندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green')}
       </div>`}
     </div>`;
 
