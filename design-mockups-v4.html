@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الكسواني — ملوكي</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c9a35c;
+    --gold-light: #e8cf9e;
+    --gold-dark: #a07f3c;
+    --emerald: #0d2818;
+    --emerald-2: #143524;
+    --ivory: #faf7f1;
+    --card: #ffffff;
+    --ink: #1c1a16;
+    --ink-2: #6b6largeur455c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Tajawal', sans-serif; background: #f4f0e8; color: #1c1a16; }
+  .page { max-width: 430px; margin: 0 auto; min-height: 100vh; }
+
+  /* ============ ROYAL HEADER ============ */
+  .crown-header {
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -20%, #1d4a30 0%, transparent 60%),
+      linear-gradient(170deg, #0d2818 0%, #0a1f12 100%);
+    padding: 22px 20px 0;
+    border-bottom: 2px solid var(--gold);
+    position: relative;
+    overflow: hidden;
+  }
+  .crown-header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(201,163,92,0.07) 1px, transparent 0);
+    background-size: 22px 22px;
+    pointer-events: none;
+  }
+  .h-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; position: relative; }
+  .royal-brand { display: flex; align-items: center; gap: 12px; }
+  .seal {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 1.5px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+    background: radial-gradient(circle at 35% 30%, rgba(201,163,92,0.25), transparent 70%);
+    box-shadow: 0 0 0 4px rgba(201,163,92,0.1);
+  }
+  .royal-brand .name { font-family: 'Amiri', serif; font-size: 1.45rem; font-weight: 700; color: var(--gold-light); line-height: 1.1; }
+  .royal-brand .sub { font-size: 0.62rem; font-weight: 500; color: rgba(232,207,158,0.55); letter-spacing: 3px; }
+  .h-icons { display: flex; gap: 8px; }
+  .h-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    border: 1px solid rgba(201,163,92,0.35); background: rgba(201,163,92,0.08);
+    color: var(--gold-light); font-size: 0.9rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .h-search {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(201,163,92,0.25);
+    border-radius: 12px; padding: 11px 14px; margin-bottom: 16px;
+    position: relative;
+  }
+  .h-search input { border: none; background: transparent; outline: none; font-family: 'Tajawal'; font-size: 0.84rem; flex: 1; color: #f3ead8; }
+  .h-search input::placeholder { color: rgba(232,207,158,0.4); }
+
+  /* gold underline tabs */
+  .r-tabs { display: flex; gap: 24px; overflow-x: auto; scrollbar-width: none; position: relative; }
+  .r-tabs::-webkit-scrollbar { display: none; }
+  .r-tab {
+    padding: 0 2px 13px; font-size: 0.84rem; font-weight: 700;
+    color: rgba(232,207,158,0.45);
+    border-bottom: 2.5px solid transparent; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .r-tab.on { color: var(--gold-light); border-bottom-color: var(--gold); }
+  .r-tab .n {
+    font-size: 0.64rem; font-weight: 800; min-width: 19px; height: 19px; padding: 0 5px;
+    border-radius: 10px; border: 1px solid rgba(201,163,92,0.3); color: rgba(232,207,158,0.6);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .r-tab.on .n { background: var(--gold); border-color: var(--gold); color: #0d2818; }
+
+  /* ============ LIST ============ */
+  .list { padding: 18px 16px 100px; }
+  .day-sep { display: flex; align-items: center; gap: 12px; margin: 6px 2px 12px; }
+  .day-sep .l { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #d9cfb8); }
+  .day-sep .r { flex: 1; height: 1px; background: linear-gradient(90deg, #d9cfb8, transparent); }
+  .day-sep span { font-size: 0.7rem; font-weight: 700; color: #a3946f; letter-spacing: 1px; }
+
+  .r-card {
+    background: var(--card);
+    border: 1px solid #e8e0cd;
+    border-radius: 16px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(160,127,60,0.06);
+    position: relative;
+  }
+  /* gold corner accent */
+  .r-card::after {
+    content: '';
+    position: absolute; top: 0; right: 0;
+    width: 52px; height: 52px;
+    background: linear-gradient(225deg, rgba(201,163,92,0.14), transparent 65%);
+    border-radius: 0 16px 0 0;
+    pointer-events: none;
+  }
+
+  .rc-main { padding: 15px 17px 12px; }
+  .rc-row1 { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .rc-who { font-size: 0.96rem; font-weight: 800; color: var(--ink); }
+  .rc-who .num { font-size: 0.66rem; font-weight: 600; color: #b3a684; margin-right: 7px; letter-spacing: 0.5px; }
+  .rc-amount { font-family: 'Amiri', serif; font-size: 1.25rem; font-weight: 700; color: var(--gold-dark); line-height: 1; }
+  .rc-amount small { font-family: 'Tajawal'; font-size: 0.6rem; font-weight: 600; color: #b3a684; }
+
+  .rc-meta { font-size: 0.74rem; color: #847a61; line-height: 1.85; }
+  .rc-meta b { color: #4d4636; font-weight: 700; }
+  .rc-meta .sep { color: #ddd3ba; margin: 0 5px; }
+
+  .rc-note {
+    margin-top: 9px; font-size: 0.73rem; color: #6d6249;
+    background: linear-gradient(90deg, #faf6ec, #fdfbf5);
+    border-radius: 9px; padding: 8px 11px;
+    border-right: 2.5px solid var(--gold);
+  }
+
+  .rc-foot { display: flex; align-items: stretch; border-top: 1px solid #f0e9d8; }
+  .rc-stage {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    padding: 12px 17px; font-size: 0.74rem; font-weight: 700; color: #847a61;
+  }
+  .rc-dot { width: 7px; height: 7px; border-radius: 50%; background: #c8bb97; }
+  .rc-dot.live { background: var(--gold); box-shadow: 0 0 0 3px rgba(201,163,92,0.18); }
+
+  .rc-steps { display: flex; align-items: center; gap: 4px; margin-right: auto; }
+  .rc-step { width: 15px; height: 3px; border-radius: 3px; background: #eee5d0; }
+  .rc-step.done { background: #0d2818; }
+  .rc-step.now { background: var(--gold); }
+
+  .rc-more {
+    border: none; border-right: 1px solid #f0e9d8; background: transparent;
+    padding: 12px 14px; cursor: pointer; color: #b3a684; font-size: 0.95rem;
+  }
+  .rc-next {
+    border: none; border-right: 1px solid #f0e9d8; cursor: pointer;
+    padding: 12px 18px; font-family: 'Tajawal'; font-size: 0.78rem; font-weight: 800;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .rc-next.emerald { background: linear-gradient(135deg, #143524, #0d2818); color: #e8cf9e; }
+  .rc-next.gold { background: linear-gradient(135deg, #d4af6a, #b8924a); color: #0d2818; }
+  .rc-next.plain { background: #faf7f0; color: #6d6249; }
+
+  /* ============ BOTTOM BAR ============ */
+  .r-fab-bar {
+    position: fixed; bottom: 0; right: 50%; transform: translateX(50%);
+    width: 100%; max-width: 430px;
+    padding: 12px 16px 18px;
+    background: linear-gradient(180deg, transparent, #f4f0e8 45%);
+    display: flex; gap: 10px;
+  }
+  .r-fab {
+    flex: 1; padding: 15px; border: none; border-radius: 14px;
+    font-family: 'Tajawal'; font-size: 0.88rem; font-weight: 800; cursor: pointer;
+  }
+  .r-fab.emerald {
+    background: linear-gradient(135deg, #143524, #0d2818);
+    color: #e8cf9e;
+    border: 1px solid rgba(201,163,92,0.4);
+    box-shadow: 0 6px 18px rgba(13,40,24,0.3);
+  }
+  .r-fab.gold {
+    background: linear-gradient(135deg, #d4af6a, #b8924a);
+    color: #0d2818;
+    box-shadow: 0 6px 18px rgba(184,146,74,0.35);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ROYAL HEADER -->
+  <div class="crown-header">
+    <div class="h-top">
+      <div class="royal-brand">
+        <div class="seal">👑</div>
+        <div>
+          <div class="name">الكسواني</div>
+          <div class="sub">ROSEMARY · لوحة الطلبات</div>
+        </div>
+      </div>
+      <div class="h-icons">
+        <button class="h-icon">🖨</button>
+        <button class="h-icon">⚙</button>
+        <button class="h-icon">⏻</button>
+      </div>
+    </div>
+    <div class="h-search">
+      <span style="color:rgba(232,207,158,0.5);font-size:0.9rem;">⌕</span>
+      <input placeholder="بحث بالاسم أو الهاتف أو رقم الطلب">
+    </div>
+    <div class="r-tabs">
+      <div class="r-tab on">الكل <span class="n">15</span></div>
+      <div class="r-tab">تجهيز <span class="n">6</span></div>
+      <div class="r-tab">جاهز <span class="n">3</span></div>
+      <div class="r-tab">توصيل <span class="n">4</span></div>
+      <div class="r-tab">انتظار <span class="n">2</span></div>
+    </div>
+  </div>
+
+  <!-- LIST -->
+  <div class="list">
+    <div class="day-sep"><div class="l"></div><span>اليوم · الجمعة ١٢ يونيو</span><div class="r"></div></div>
+
+    <!-- CARD 1 -->
+    <div class="r-card">
+      <div class="rc-main">
+        <div class="rc-row1">
+          <div class="rc-who">أم محمود <span class="num">#CVJ9Z</span></div>
+          <div class="rc-amount">17.00 <small>د.أ</small></div>
+        </div>
+        <div class="rc-meta">
+          0788898721 <span class="sep">·</span> عمان، الكرسي
+          <br><b>مبخرة 80 سم — ذهبي</b> × 1
+        </div>
+        <div class="rc-note">✦ اللهم احفظ اهل هذا البيت ومن زاره</div>
+      </div>
+      <div class="rc-foot">
+        <div class="rc-stage">
+          <span class="rc-dot live"></span> قيد التجهيز
+          <span class="rc-steps">
+            <span class="rc-step done"></span><span class="rc-step now"></span><span class="rc-step"></span><span class="rc-step"></span>
+          </span>
+        </div>
+        <button class="rc-more">⋯</button>
+        <button class="rc-next emerald">تم التجهيز ←</button>
+      </div>
+    </div>
+
+    <!-- CARD 2 -->
+    <div class="r-card">
+      <div class="rc-main">
+        <div class="rc-row1">
+          <div class="rc-who">أم محمود <span class="num">#WOM10</span></div>
+          <div class="rc-amount">45.00 <small>د.أ</small></div>
+        </div>
+        <div class="rc-meta">
+          0799943075 <span class="sep">·</span> الطفيلة، جنوب القطراني
+          <br><b>مبخرة كريستال 80</b> × 3
+        </div>
+      </div>
+      <div class="rc-foot">
+        <div class="rc-stage">
+          <span class="rc-dot live"></span> جاهز للتوصيل
+          <span class="rc-steps">
+            <span class="rc-step done"></span><span class="rc-step done"></span><span class="rc-step now"></span><span class="rc-step"></span>
+          </span>
+        </div>
+        <button class="rc-more">⋯</button>
+        <button class="rc-next gold">اختر مندوب ←</button>
+      </div>
+    </div>
+
+    <!-- CARD 3 -->
+    <div class="r-card">
+      <div class="rc-main">
+        <div class="rc-row1">
+          <div class="rc-who">سارة أبو علي <span class="num">#CC4WR</span></div>
+          <div class="rc-amount">50.00 <small>د.أ</small></div>
+        </div>
+        <div class="rc-meta">
+          0795773506 <span class="sep">·</span> عمان، الكرسي
+          <br><b>سادة 80 سم</b> × 2 <span class="sep">·</span> المندوب: <b>أبو جسار</b>
+        </div>
+      </div>
+      <div class="rc-foot">
+        <div class="rc-stage">
+          <span class="rc-dot live"></span> قيد التوصيل
+          <span class="rc-steps">
+            <span class="rc-step done"></span><span class="rc-step done"></span><span class="rc-step done"></span><span class="rc-step now"></span>
+          </span>
+        </div>
+        <button class="rc-more">⋯</button>
+        <button class="rc-next emerald">تم التوصيل ←</button>
+      </div>
+    </div>
+
+    <!-- CARD 4 waiting -->
+    <div class="r-card" style="border-style:dashed;border-color:#d9cfb0;">
+      <div class="rc-main">
+        <div class="rc-row1">
+          <div class="rc-who">أبو رامي <span class="num">#LQ77A</span></div>
+          <div class="rc-amount">28.00 <small>د.أ</small></div>
+        </div>
+        <div class="rc-meta">
+          0791000222 <span class="sep">·</span> الزرقاء، المدينة الجديدة
+          <br><b>مبخرة سادة 60</b> × 1
+        </div>
+      </div>
+      <div class="rc-foot">
+        <div class="rc-stage">
+          <span class="rc-dot"></span> بانتظار مندوب
+        </div>
+        <button class="rc-more">⋯</button>
+        <button class="rc-next plain">تعيين مندوب ←</button>
+      </div>
+    </div>
+
+    <div class="day-sep" style="margin-top:20px;"><div class="l"></div><span>أمس · الخميس ١١ يونيو</span><div class="r"></div></div>
+
+    <!-- CARD 5 -->
+    <div class="r-card">
+      <div class="rc-main">
+        <div class="rc-row1">
+          <div class="rc-who">أم خالد <span class="num">#BK9T2</span></div>
+          <div class="rc-amount">32.00 <small>د.أ</small></div>
+        </div>
+        <div class="rc-meta">
+          0797112345 <span class="sep">·</span> عمان، شارع الجامعة
+          <br><b>مبخرة 80 رخامي</b> × 1
+        </div>
+      </div>
+      <div class="rc-foot">
+        <div class="rc-stage">
+          <span class="rc-dot live"></span> قيد التجهيز
+          <span class="rc-steps">
+            <span class="rc-step done"></span><span class="rc-step now"></span><span class="rc-step"></span><span class="rc-step"></span>
+          </span>
+        </div>
+        <button class="rc-more">⋯</button>
+        <button class="rc-next emerald">تم التجهيز ←</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="r-fab-bar">
+    <button class="r-fab emerald">🚚 وزّع الطلبات</button>
+    <button class="r-fab gold">＋ طلب جديد</button>
+  </div>
+
+</div>
+</body>
+</html>
