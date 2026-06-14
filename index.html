@@ -2960,59 +2960,44 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- EMPWAGES sub-tab -->
         <div id="emp-subtab-empwages" style="display:none;">
-          <div style="max-width:700px;">
-            <div style="font-size:1.05rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;">💰 رواتب الموظفين</div>
-            <div id="empWagesList" style="display:flex;flex-direction:column;gap:10px;"></div>
-            <div id="empWageDetail" style="display:none;margin-top:18px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:14px;padding:16px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-                <div id="empWageDetailTitle" style="font-weight:800;font-size:1rem;color:var(--green-dark);"></div>
-                <button onclick="closeEmpWageDetail()" style="background:var(--bg);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.82rem;color:var(--text-mid);">✕ إغلاق</button>
-              </div>
-              <div id="empWageSummaryBar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;"></div>
-              <div style="background:var(--bg);border-radius:10px;padding:12px;margin-bottom:14px;">
-                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:10px;">⚙️ تحديد الأجر لكل صفحة (د.أ / طلب مُسلَّم)</div>
-                <div id="empWageRateRows" style="display:flex;flex-direction:column;gap:7px;"></div>
-                <button onclick="saveEmpWageRates()" style="margin-top:10px;width:100%;padding:9px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💾 حفظ الأسعار</button>
-              </div>
-              <div style="margin-bottom:14px;">
-                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📊 تفصيل المستحقات</div>
-                <div id="empWageBreakdown" style="font-size:0.82rem;"></div>
-              </div>
-              <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:14px;">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <div style="font-size:0.82rem;font-weight:700;color:#166534;">💵 تسجيل دفعة</div>
-                <span id="empWagePayPageLabel" style="display:none;font-size:0.72rem;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:6px;font-weight:700;"></span>
-              </div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <input type="number" id="empWagePayAmt" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;padding:9px 11px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;">
-                  <input type="text" id="empWagePayNotes" placeholder="ملاحظة (اختياري)" style="flex:2;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;background:#fff;">
-                  <button onclick="recordEmpWagePayment()" style="padding:9px 14px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
-                </div>
-              </div>
-              <div>
-                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📋 سجل الدفعات</div>
-                <div id="empWagePayHistory" style="font-size:0.82rem;"></div>
-              </div>
-              <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:10px;padding:12px;margin-top:14px;margin-bottom:14px;">
-                <div style="font-size:0.82rem;font-weight:700;color:#92400e;margin-bottom:8px;">✏️ تعديل يدوي (سلفة / مكافأة / خصم)</div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                  <select id="empAdjType" style="padding:9px 10px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;color:#374151;cursor:pointer;">
-                    <option value="add">➕ إضافة للموظف</option>
-                    <option value="sub">➖ خصم من الموظف</option>
-                  </select>
-                  <select id="empAdjPage" style="padding:9px 10px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;color:#374151;cursor:pointer;">
-                    <option value="">🏪 كل المتاجر</option>
-                  </select>
-                  <input type="number" id="empAdjAmt" placeholder="المبلغ د.أ" min="0" step="0.5" style="flex:1;min-width:100px;padding:9px 11px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;background:#fff;">
-                  <input type="text" id="empAdjNotes" placeholder="السبب (سلفة، مكافأة، خصم...)" style="flex:2;min-width:140px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box;background:#fff;">
-                  <button onclick="recordEmpWageAdjustment()" style="padding:9px 14px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
-                </div>
-              </div>
-              <div>
-                <div style="font-size:0.82rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📝 سجل التعديلات اليدوية</div>
-                <div id="empAdjHistory" style="font-size:0.82rem;"></div>
+          <!-- Screen 1: Store grid -->
+          <div id="ewScreen1">
+            <div style="font-size:1.05rem;font-weight:800;color:var(--green-dark);margin-bottom:16px;">💰 رواتب الموظفين</div>
+            <div id="ewStoreGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
+          </div>
+          <!-- Screen 2: Store employees -->
+          <div id="ewScreen2" style="display:none;">
+            <button onclick="ewBack()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:14px;">← رجوع للمتاجر</button>
+            <div id="ewScreen2Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;"></div>
+            <div id="ewEmpList" style="display:flex;flex-direction:column;gap:10px;"></div>
+          </div>
+          <!-- Screen 3: Employee detail -->
+          <div id="ewScreen3" style="display:none;">
+            <button onclick="ewBackToStore()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:14px;">← <span id="ewBackStoreLabel"></span></button>
+            <div id="ewScreen3Title" style="font-size:0.95rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;"></div>
+            <div id="ewEmpSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
+            <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:13px;margin-bottom:12px;">
+              <div style="font-size:0.78rem;font-weight:700;color:var(--text-dark);margin-bottom:9px;">⚙️ الراتب لكل طلب مُسلَّم (د.أ / طلب)</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="number" id="ewRateInput" min="0" step="0.25" placeholder="0.00"
+                  style="width:100px;padding:9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:center;outline:none;background:#fff;"
+                  onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor=''">
+                <span style="font-size:0.78rem;color:#9ca3af;">د.أ / طلب</span>
+                <button onclick="ewSaveRate()" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
               </div>
             </div>
+            <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:13px;margin-bottom:12px;">
+              <div style="font-size:0.78rem;font-weight:700;color:#166534;margin-bottom:9px;">💵 تسجيل دفعة</div>
+              <div style="display:flex;gap:8px;">
+                <input type="number" id="ewPayAmt" placeholder="المبلغ د.أ" min="0" step="0.5"
+                  style="flex:1;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+                <input type="text" id="ewPayNotes" placeholder="ملاحظة (اختياري)"
+                  style="flex:2;padding:9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
+                <button onclick="ewRecordPayment()" style="padding:9px 14px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
+              </div>
+            </div>
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📋 سجل الدفعات</div>
+            <div id="ewPayHistory"></div>
           </div>
         </div>
 
@@ -4048,7 +4033,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r7';
+  const V='20260614-r8';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5178,370 +5163,210 @@ function switchAdminTab(tab){
 }
 
 // ===== EMPLOYEE WAGES =====
-let _ewCurrentWorker=null; // {id, name, username}
-let _ewRates={};           // {pageId: rate}
-let _ewPages=[];           // [{id,name}]
+let _ewStore=null;   // {id,name,pageId}
+let _ewWorker=null;  // {id,name}
+let _ewStores=[];
+let _ewRate=0;
+
+function _ewShow(n){['ewScreen1','ewScreen2','ewScreen3'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.style.display=i+1===n?'block':'none';});}
 
 async function loadEmpWages(){
-  const wrap=document.getElementById('empWagesList');
-  if(!wrap)return;
-  wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳ جاري التحميل...</div>';
+  _ewShow(1);
+  const grid=document.getElementById('ewStoreGrid');
+  if(!grid)return;
+  grid.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;grid-column:1/-1;padding:10px;">⏳ جاري التحميل...</div>';
   try{
-    const [workersSnap,ordersSnap,paymentsSnap,adjSnap]=await Promise.all([
-      db.collection('employee_workers').get(),
+    const [storesSnap,ordersSnap,paymentsSnap,ratesSnap]=await Promise.all([
+      db.collection('operator_stores').orderBy('name').get(),
       db.collection('employee_orders').where('status','==','delivered').get(),
       db.collection('emp_wage_payments').get(),
-      db.collection('emp_wage_adjustments').get()
+      db.collection('emp_wage_rates').get()
     ]);
-    const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    _ewStores=storesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>!s.archived);
     const orders=ordersSnap.docs.map(d=>d.data());
-    const payments=paymentsSnap.docs.map(d=>d.data());
-    const adjustments=adjSnap.docs.map(d=>d.data());
-    // load rates
-    const ratesSnap=await db.collection('emp_wage_rates').get();
+    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
     const ratesMap={};
     ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
 
-    if(!workers.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد موظفين</div>';return;}
+    if(!_ewStores.length){grid.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;grid-column:1/-1;padding:10px;">لا يوجد متاجر</div>';return;}
 
-    const cards=workers.map(w=>{
-      const rates=ratesMap[w.id]||{};
-      // earned = sum over delivered orders for this worker: rate[pageId] × count
-      const workerOrders=orders.filter(o=>o.workerId===w.id);
-      let earned=0;
-      workerOrders.forEach(o=>{const r=parseFloat(rates[o.pageId]||0);earned+=r;});
-      const paid=payments.filter(p=>p.workerId===w.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
-      const totalAdj=adjustments.filter(a=>a.workerId===w.id).reduce((s,a)=>s+parseFloat(a.amount||0),0);
-      const balance=earned+totalAdj-paid;
-      const balColor=balance>0?'#ef4444':balance<0?'#f59e0b':'#22c55e';
-      const balLabel=balance>0?`متبقي ${balance.toFixed(2)} د.أ`:balance<0?`دُفع زائد ${Math.abs(balance).toFixed(2)} د.أ`:'الحساب صفر ✅';
-      return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:13px 15px;cursor:pointer;" onclick="openEmpWageDetail('${w.id}','${(w.name||w.username).replace(/'/g,'&#39;')}')">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-weight:700;color:#1a3a2a;font-size:0.92rem;">👤 ${w.name||w.username}</div>
-            <div style="font-size:0.72rem;color:#9ca3af;margin-top:2px;">${workerOrders.length} طلب مُسلَّم · مُستحق ${earned.toFixed(2)} · مدفوع ${paid.toFixed(2)}</div>
-          </div>
-          <div style="font-weight:800;font-size:0.9rem;color:${balColor};text-align:left;">${balLabel}</div>
-        </div>
-      </div>`;
-    });
-    wrap.innerHTML=cards.join('');
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
-}
-
-async function openEmpWageDetail(workerId, workerName){
-  _ewCurrentWorker={id:workerId,name:workerName};
-  document.getElementById('empWageDetailTitle').textContent='📋 حساب: '+workerName;
-  document.getElementById('empWageDetail').style.display='block';
-  document.getElementById('empWageDetail').scrollIntoView({behavior:'smooth',block:'start'});
-
-  // Load pages
-  _ewPages=await _loadEmpPagesForAdmin();
-
-  // Load rates for this worker
-  try{
-    const rDoc=await db.collection('emp_wage_rates').doc(workerId).get();
-    _ewRates=rDoc.exists?(rDoc.data().rates||{}):{};
-  }catch(e){_ewRates={};}
-
-  // Render rate rows
-  const rateRows=document.getElementById('empWageRateRows');
-  if(_ewPages.length){
-    rateRows.innerHTML=_ewPages.map(p=>`
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div style="flex:1;font-size:0.82rem;color:#374151;font-weight:600;">${p.name}</div>
-        <input type="number" min="0" step="0.25" data-page-id="${p.id}" value="${parseFloat(_ewRates[p.id]||0).toFixed(2)}"
-          style="width:90px;padding:7px 9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;text-align:center;"
-          onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        <span style="font-size:0.72rem;color:#9ca3af;">د.أ/طلب</span>
-      </div>`).join('');
-  } else {
-    rateRows.innerHTML='<div style="color:#9ca3af;font-size:0.8rem;">لا توجد صفحات</div>';
-  }
-
-  // Populate page selector in adjustment form
-  const adjPageSel=document.getElementById('empAdjPage');
-  if(adjPageSel){
-    adjPageSel.innerHTML='<option value="">🏪 كل المتاجر</option>'+
-      _ewPages.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-  }
-
-  await _renderEmpWageBreakdown(workerId);
-  await _renderEmpWagePayments(workerId);
-  await _renderEmpWageAdjustments(workerId);
-}
-
-async function _renderEmpWageBreakdown(workerId){
-  const [ordersSnap,paymentsSnap,adjSnap]=await Promise.all([
-    db.collection('employee_orders').where('workerId','==',workerId).where('status','==','delivered').get(),
-    db.collection('emp_wage_payments').where('workerId','==',workerId).get(),
-    db.collection('emp_wage_adjustments').where('workerId','==',workerId).get()
-  ]);
-  const orders=ordersSnap.docs.map(d=>d.data());
-  const allPayments=paymentsSnap.docs.map(d=>d.data());
-
-  // Split adjustments per-page vs global
-  const adjByPage={};
-  adjSnap.docs.forEach(d=>{
-    const a=d.data();
-    if(a.pageId){adjByPage[a.pageId]=(adjByPage[a.pageId]||0)+parseFloat(a.amount||0);}
-  });
-  const totalAdj=adjSnap.docs.reduce((s,d)=>s+parseFloat(d.data().amount||0),0);
-
-  // Group orders and payments by page
-  const ordersByPage={};
-  orders.forEach(o=>{const pid=o.pageId||'unknown';(ordersByPage[pid]=ordersByPage[pid]||[]).push(o);});
-  const paysByPage={};
-  allPayments.forEach(p=>{const pid=p.pageId||'__global__';(paysByPage[pid]=paysByPage[pid]||[]).push(p);});
-
-  // Build byPage with settlement-aware calculation
-  const byPage={};
-  const allPids=new Set([...Object.keys(ordersByPage),...Object.keys(adjByPage)]);
-  allPids.forEach(pid=>{
-    const pageOrders=ordersByPage[pid]||[];
-    const pagePayments=paysByPage[pid]||[];
-    // Find last settlement date for this page
-    const lastSettlement=pagePayments
-      .filter(p=>p.isSettlement&&p.settledUpToDate)
-      .sort((a,b)=>b.settledUpToDate.localeCompare(a.settledUpToDate))[0];
-    const lastSettledDate=lastSettlement?.settledUpToDate||null;
-    // Active orders: only those delivered AFTER last settlement
-    const activeOrders=lastSettledDate
-      ?pageOrders.filter(o=>(o.deliveredDate||'')>lastSettledDate)
-      :pageOrders;
-    // Active paid: non-settlement payments after last settlement
-    const activePaid=pagePayments
-      .filter(p=>!p.isSettlement&&(!lastSettledDate||(p.date||'')>lastSettledDate))
-      .reduce((s,p)=>s+parseFloat(p.amount||0),0);
-    const pageName=pageOrders[0]?.pageName||_ewPages.find(p=>p.id===pid)?.name||pid;
-    byPage[pid]={
-      name:pageName,
-      count:activeOrders.length,
-      earned:activeOrders.length*parseFloat(_ewRates[pid]||0),
-      paid:activePaid,
-      adj:adjByPage[pid]||0,
-      lastSettledDate
-    };
-  });
-
-  // Global payments (no pageId) → __global__
-  if(paysByPage['__global__']){
-    const globalPayments=paysByPage['__global__'];
-    byPage['__global__']={name:'دفعات عامة',count:0,earned:0,paid:globalPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0),adj:0,isGlobal:true};
-  }
-
-  const totalEarned=Object.values(byPage).filter(v=>!v.isGlobal).reduce((s,v)=>s+v.earned,0);
-  const totalPaid=Object.values(byPage).reduce((s,v)=>s+v.paid,0);
-  const totalBalance=totalEarned+totalAdj-totalPaid;
-  const balColor=totalBalance>0?'#ef4444':totalBalance<0?'#f59e0b':'#22c55e';
-  const adjColor=totalAdj>=0?'#d97706':'#dc2626';
-  const adjLabel=totalAdj>=0?`+${totalAdj.toFixed(2)}`:`${totalAdj.toFixed(2)}`;
-
-  // Summary bar (4 cols when adjustments exist, 3 otherwise)
-  const adjCell=totalAdj!==0?`
-    <div style="background:#fefce8;border-radius:10px;padding:10px;text-align:center;">
-      <div style="font-size:1.1rem;font-weight:800;color:${adjColor};">${adjLabel}</div>
-      <div style="font-size:0.7rem;color:#6b7280;">تعديلات يدوية</div>
-    </div>`:'';
-  document.getElementById('empWageSummaryBar').style.gridTemplateColumns=totalAdj!==0?'repeat(4,1fr)':'repeat(3,1fr)';
-  document.getElementById('empWageSummaryBar').innerHTML=`
-    <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;">
-      <div style="font-size:1.1rem;font-weight:800;color:#1d4ed8;">${totalEarned.toFixed(2)}</div>
-      <div style="font-size:0.7rem;color:#6b7280;">إجمالي المستحق</div>
-    </div>
-    ${adjCell}
-    <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center;">
-      <div style="font-size:1.1rem;font-weight:800;color:#16a34a;">${totalPaid.toFixed(2)}</div>
-      <div style="font-size:0.7rem;color:#6b7280;">إجمالي المدفوع</div>
-    </div>
-    <div style="background:#fef2f2;border-radius:10px;padding:10px;text-align:center;">
-      <div style="font-size:1.1rem;font-weight:800;color:${balColor};">${totalBalance.toFixed(2)}</div>
-      <div style="font-size:0.7rem;color:#6b7280;">الرصيد الكلي</div>
-    </div>`;
-
-  // Breakdown table — per page with settle button
-  const breakdown=document.getElementById('empWageBreakdown');
-  const pageEntries=Object.entries(byPage).filter(([pid,v])=>!v.isGlobal&&(v.count>0||v.adj!==0));
-  if(!pageEntries.length){
-    breakdown.innerHTML='<div style="color:#9ca3af;padding:8px;">لا يوجد طلبات مسلَّمة بعد</div>';
-    return;
-  }
-  breakdown.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">
-    ${pageEntries.map(([pid,v])=>{
-      const bal=v.earned+(v.adj||0)-v.paid;
-      const bCol=bal>0.001?'#ef4444':bal<-0.001?'#f59e0b':'#22c55e';
-      const bLabel=bal>0.001?`متبقي ${bal.toFixed(2)}`:(bal<-0.001?`زائد ${Math.abs(bal).toFixed(2)}`:'مسوَّى ✅');
-      const settleBtn=bal>0.001?`<button onclick="settleEmpPage('${pid}','${v.name.replace(/'/g,"&#39;")}',${bal.toFixed(2)})" style="padding:5px 10px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;white-space:nowrap;">💵 تسوية</button>`:'';
-      const adjNote=v.adj?`<span style="color:${v.adj>0?'#d97706':'#dc2626'};">· تعديل: ${v.adj>0?'+':''}${v.adj.toFixed(2)}</span>`:'';
-      const settledNote=v.lastSettledDate?`<span style="font-size:0.68rem;color:#6b7280;font-weight:400;"> · آخر تسوية ${v.lastSettledDate}</span>`:'';
-      return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <div style="font-weight:700;color:var(--green-dark);font-size:0.88rem;">${v.name}${settledNote}</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-weight:800;font-size:0.82rem;color:${bCol};">${bLabel}</span>
-            ${settleBtn}
-          </div>
-        </div>
-        <div style="font-size:0.75rem;color:#6b7280;display:flex;gap:12px;flex-wrap:wrap;">
-          <span>📦 ${v.count} طلب</span>
-          <span>× ${parseFloat(_ewRates[pid]||0).toFixed(2)} د.أ</span>
-          <span>= <strong style="color:#1d4ed8;">${v.earned.toFixed(2)} د.أ</strong></span>
-          ${adjNote}
-          <span>· مدفوع: <strong style="color:#16a34a;">${v.paid.toFixed(2)}</strong></span>
-        </div>
-      </div>`;
-    }).join('')}
-    <div style="border-top:2px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-weight:800;font-size:0.85rem;">
-      <span style="color:var(--text-dark);">المجموع الكلي</span>
-      <span style="color:${balColor};">${totalBalance.toFixed(2)} د.أ متبقي</span>
-    </div>
-  </div>`;
-}
-
-async function _renderEmpWagePayments(workerId){
-  const wrap=document.getElementById('empWagePayHistory');
-  try{
-    const snap=await db.collection('emp_wage_payments').where('workerId','==',workerId).get();
-    snap.docs.sort((a,b)=>(b.data().createdAt?.toMillis?.()??0)-(a.data().createdAt?.toMillis?.()??0));
-    if(snap.empty){wrap.innerHTML='<div style="color:#9ca3af;padding:6px;">لا توجد دفعات مسجّلة</div>';return;}
-    wrap.innerHTML=snap.docs.map(d=>{
-      const p=d.data();
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#f9fafb;border-radius:8px;margin-bottom:5px;">
-        <div>
-          <div style="font-weight:700;color:#166534;">${parseFloat(p.amount||0).toFixed(2)} د.أ ${p.pageName?'<span style="font-size:0.7rem;background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:5px;margin-right:4px;">'+p.pageName+'</span>':''}</div>
-          <div style="font-size:0.7rem;color:#9ca3af;">${p.date||''} ${p.notes?'· '+p.notes:''}</div>
-        </div>
-        <div style="font-size:0.72rem;color:#9ca3af;">${p.addedBy||''}</div>
+    grid.innerHTML=_ewStores.map(store=>{
+      const storeOrders=orders.filter(o=>o.pageId===store.pageId);
+      const workerIds=[...new Set(storeOrders.map(o=>o.workerId).filter(Boolean))];
+      let totalBal=0;
+      workerIds.forEach(wid=>{
+        const rate=parseFloat(ratesMap[wid]?.[store.id]||ratesMap[wid]?.[store.pageId]||0);
+        const earned=storeOrders.filter(o=>o.workerId===wid).length*rate;
+        const paid=payments.filter(p=>p.workerId===wid&&(p.storeId===store.id||p.pageId===store.pageId)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+        totalBal+=earned-paid;
+      });
+      const balColor=totalBal>0.01?'#ef4444':totalBal<-0.01?'#f59e0b':'#22c55e';
+      const balLabel=totalBal>0.01?`متبقي ${totalBal.toFixed(2)} د.أ`:totalBal<-0.01?`زائد ${Math.abs(totalBal).toFixed(2)} د.أ`:'مسوَّى ✅';
+      return `<div onclick="ewOpenStore('${store.id}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+        <div style="font-size:2rem;margin-bottom:6px;">🏪</div>
+        <div style="font-weight:800;color:#111;font-size:0.9rem;margin-bottom:4px;">${store.name}</div>
+        <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:8px;">${workerIds.length} موظف · ${storeOrders.length} طلب</div>
+        <div style="font-weight:800;font-size:0.82rem;color:${balColor};">${balLabel}</div>
       </div>`;
     }).join('');
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.8rem;">❌ '+e.message+'</div>';}
+  }catch(e){grid.innerHTML='<div style="color:#dc2626;font-size:0.82rem;grid-column:1/-1;padding:10px;">❌ '+e.message+'</div>';}
 }
 
-async function saveEmpWageRates(){
-  if(!_ewCurrentWorker)return;
-  const inputs=document.querySelectorAll('#empWageRateRows input[data-page-id]');
-  const rates={};
-  inputs.forEach(inp=>{
-    const v=parseFloat(inp.value)||0;
-    if(v>0) rates[inp.dataset.pageId]=v;
-  });
+async function ewOpenStore(storeId){
+  _ewStore=_ewStores.find(s=>s.id===storeId)||null;
+  if(!_ewStore)return;
+  _ewShow(2);
+  document.getElementById('ewScreen2Title').innerHTML=`🏪 ${_ewStore.name}`;
+  document.getElementById('ewBackStoreLabel').textContent=_ewStore.name;
+  const list=document.getElementById('ewEmpList');
+  list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
   try{
-    await db.collection('emp_wage_rates').doc(_ewCurrentWorker.id).set({
-      workerId:_ewCurrentWorker.id,
-      workerName:_ewCurrentWorker.name,
-      rates,
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    },{merge:true});
-    _ewRates=rates;
-    toast('✅ تم حفظ الأسعار');
-    await _renderEmpWageBreakdown(_ewCurrentWorker.id);
+    const [workersSnap,ordersSnap,paymentsSnap,ratesSnap]=await Promise.all([
+      db.collection('employee_workers').get(),
+      db.collection('employee_orders').where('pageId','==',_ewStore.pageId||'').get(),
+      db.collection('emp_wage_payments').where('storeId','==',storeId).get(),
+      db.collection('emp_wage_rates').get()
+    ]);
+    const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const orders=ordersSnap.docs.map(d=>d.data()).filter(o=>o.status==='delivered');
+    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const ratesMap={};
+    ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
+    const workerIds=[...new Set(orders.map(o=>o.workerId).filter(Boolean))];
+    if(!workerIds.length){list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد موظفين لهذا المتجر</div>';return;}
+    list.innerHTML=workerIds.map(wid=>{
+      const w=workers.find(x=>x.id===wid)||{id:wid,name:wid};
+      const rate=parseFloat(ratesMap[wid]?.[storeId]||0);
+      const count=orders.filter(o=>o.workerId===wid).length;
+      const earned=count*rate;
+      const paid=payments.filter(p=>p.workerId===wid).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      const bal=earned-paid;
+      const balColor=bal>0.01?'#ef4444':bal<-0.01?'#f59e0b':'#22c55e';
+      const balLabel=bal>0.01?`متبقي ${bal.toFixed(2)} د.أ`:bal<-0.01?`زائد ${Math.abs(bal).toFixed(2)} د.أ`:'الحساب صفر ✅';
+      const name=w.name||w.username||wid;
+      return `<div onclick="ewOpenEmployee('${wid}','${name.replace(/'/g,'&#39;')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:14px 16px;cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:800;color:#111;font-size:0.9rem;">👤 ${name}</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-top:3px;">${count} طلب × ${rate.toFixed(2)} د.أ = ${earned.toFixed(2)} · مدفوع ${paid.toFixed(2)}</div>
+          </div>
+          <div style="font-weight:800;color:${balColor};font-size:0.85rem;">${balLabel}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){list.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
+}
+
+async function ewOpenEmployee(workerId,workerName){
+  if(!_ewStore)return;
+  _ewWorker={id:workerId,name:workerName};
+  _ewShow(3);
+  document.getElementById('ewScreen3Title').textContent=`👤 ${workerName} · 🏪 ${_ewStore.name}`;
+  await _ewRefreshEmployee();
+}
+
+async function _ewRefreshEmployee(){
+  if(!_ewWorker||!_ewStore)return;
+  try{
+    const [ordersSnap,paymentsSnap,rateDoc]=await Promise.all([
+      db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
+      db.collection('emp_wage_payments').where('workerId','==',_ewWorker.id).where('storeId','==',_ewStore.id).get(),
+      db.collection('emp_wage_rates').doc(_ewWorker.id).get()
+    ]);
+    const rates=(rateDoc.exists?rateDoc.data().rates:{})||{};
+    _ewRate=parseFloat(rates[_ewStore.id]||0);
+    const rateInput=document.getElementById('ewRateInput');
+    if(rateInput)rateInput.value=_ewRate.toFixed(2);
+    const count=ordersSnap.docs.filter(d=>d.data().status==='delivered').length;
+    const earned=count*_ewRate;
+    const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const paid=paymentsArr.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const bal=earned-paid;
+    const balColor=bal>0.01?'#ef4444':bal<-0.01?'#f59e0b':'#22c55e';
+    document.getElementById('ewEmpSummary').innerHTML=`
+      <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:1.1rem;font-weight:800;color:#1d4ed8;">${earned.toFixed(2)}</div>
+        <div style="font-size:0.68rem;color:#6b7280;">مُستحق</div>
+        <div style="font-size:0.63rem;color:#93c5fd;">${count} طلب × ${_ewRate.toFixed(2)}</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:1.1rem;font-weight:800;color:#16a34a;">${paid.toFixed(2)}</div>
+        <div style="font-size:0.68rem;color:#6b7280;">مدفوع</div>
+      </div>
+      <div style="background:#fef2f2;border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:1.1rem;font-weight:800;color:${balColor};">${Math.abs(bal).toFixed(2)}</div>
+        <div style="font-size:0.68rem;color:#6b7280;">${bal>0.01?'متبقي':bal<-0.01?'زائد':'صفر ✅'}</div>
+      </div>`;
+    const hist=document.getElementById('ewPayHistory');
+    if(!paymentsArr.length){hist.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;">لا توجد دفعات</div>';return;}
+    paymentsArr.sort((a,b)=>(b.createdAt?.toMillis?.()??0)-(a.createdAt?.toMillis?.()??0));
+    hist.innerHTML=paymentsArr.map(p=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#f9fafb;border:1px solid #f3f4f6;border-radius:10px;margin-bottom:6px;">
+        <div>
+          <div style="font-weight:800;color:#166534;font-size:0.88rem;">${parseFloat(p.amount||0).toFixed(2)} د.أ</div>
+          <div style="font-size:0.7rem;color:#9ca3af;">${p.date||''} ${p.notes?'· '+p.notes:''} · ${p.addedBy||''}</div>
+        </div>
+        <button onclick="ewDeletePayment('${p.id}')" style="background:#fee2e2;border:none;border-radius:7px;color:#dc2626;padding:5px 10px;cursor:pointer;font-size:0.85rem;">🗑</button>
+      </div>`).join('');
   }catch(e){toast('❌ '+e.message);}
 }
 
-let _ewPayPageId=null, _ewPayPageName='';
-
-function settleEmpPage(pageId, pageName, balance){
-  _ewPayPageId=pageId;
-  _ewPayPageName=pageName;
-  const amtEl=document.getElementById('empWagePayAmt');
-  const notesEl=document.getElementById('empWagePayNotes');
-  if(amtEl) amtEl.value=parseFloat(balance).toFixed(2);
-  if(notesEl) notesEl.value='تسوية '+pageName;
-  // Show which page is being settled
-  const label=document.getElementById('empWagePayPageLabel');
-  if(label){label.textContent='📄 '+pageName;label.style.display='inline-block';}
-  amtEl?.scrollIntoView({behavior:'smooth',block:'center'});
-  amtEl?.focus();
+async function ewSaveRate(){
+  if(!_ewWorker||!_ewStore)return;
+  const rate=parseFloat(document.getElementById('ewRateInput').value)||0;
+  try{
+    const rateDoc=await db.collection('emp_wage_rates').doc(_ewWorker.id).get();
+    const existing=(rateDoc.exists?rateDoc.data().rates:{})||{};
+    existing[_ewStore.id]=rate;
+    await db.collection('emp_wage_rates').doc(_ewWorker.id).set({
+      workerId:_ewWorker.id,workerName:_ewWorker.name,rates:existing,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    _ewRate=rate;
+    toast('✅ تم حفظ الراتب');
+    await _ewRefreshEmployee();
+  }catch(e){toast('❌ '+e.message);}
 }
 
-async function recordEmpWagePayment(){
-  if(!_ewCurrentWorker)return;
-  const amt=parseFloat(document.getElementById('empWagePayAmt').value)||0;
+async function ewRecordPayment(){
+  if(!_ewWorker||!_ewStore)return;
+  const amt=parseFloat(document.getElementById('ewPayAmt').value)||0;
   if(!amt){toast('⚠️ أدخل المبلغ');return;}
-  const notes=(document.getElementById('empWagePayNotes').value||'').trim();
+  const notes=(document.getElementById('ewPayNotes').value||'').trim();
   try{
     await db.collection('emp_wage_payments').add({
-      workerId:_ewCurrentWorker.id,
-      workerName:_ewCurrentWorker.name,
-      amount:amt,
-      notes,
-      ...(_ewPayPageId?{pageId:_ewPayPageId,pageName:_ewPayPageName,isSettlement:true,settledUpToDate:jordanDateStr()}:{}),
-      date:jordanDateStr(),
-      addedBy:_currentAdminUser||'أدمن',
+      workerId:_ewWorker.id,workerName:_ewWorker.name,
+      storeId:_ewStore.id,storeName:_ewStore.name,
+      amount:amt,notes,
+      date:jordanDateStr(),addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    toast('✅ تم تسجيل الدفعة'+ (_ewPayPageName?' لـ'+_ewPayPageName:''));
-    document.getElementById('empWagePayAmt').value='';
-    document.getElementById('empWagePayNotes').value='';
-    _ewPayPageId=null; _ewPayPageName='';
-    const label=document.getElementById('empWagePayPageLabel');
-    if(label){label.textContent='';label.style.display='none';}
-    await _renderEmpWageBreakdown(_ewCurrentWorker.id);
-    await _renderEmpWagePayments(_ewCurrentWorker.id);
-    loadEmpWages();
+    toast('✅ تم تسجيل الدفعة');
+    document.getElementById('ewPayAmt').value='';
+    document.getElementById('ewPayNotes').value='';
+    await _ewRefreshEmployee();
   }catch(e){toast('❌ '+e.message);}
 }
 
-async function recordEmpWageAdjustment(){
-  if(!_ewCurrentWorker)return;
-  const type=document.getElementById('empAdjType').value;
-  const rawAmt=parseFloat(document.getElementById('empAdjAmt').value)||0;
-  if(!rawAmt){toast('⚠️ أدخل المبلغ');return;}
-  const notes=(document.getElementById('empAdjNotes').value||'').trim();
-  const amount=type==='sub'?-rawAmt:rawAmt;
-  const pageId=document.getElementById('empAdjPage')?.value||'';
-  const pageName=pageId?(_ewPages.find(p=>p.id===pageId)?.name||''):'';
+async function ewDeletePayment(docId){
+  if(!confirm('حذف هذه الدفعة؟'))return;
   try{
-    await db.collection('emp_wage_adjustments').add({
-      workerId:_ewCurrentWorker.id,
-      workerName:_ewCurrentWorker.name,
-      amount,
-      notes,
-      ...(pageId?{pageId,pageName}:{}),
-      date:jordanDateStr(),
-      addedBy:_currentAdminUser||'أدمن',
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    toast('✅ تم تسجيل التعديل'+(pageName?' — '+pageName:''));
-    document.getElementById('empAdjAmt').value='';
-    document.getElementById('empAdjNotes').value='';
-    if(document.getElementById('empAdjPage')) document.getElementById('empAdjPage').value='';
-    await _renderEmpWageBreakdown(_ewCurrentWorker.id);
-    await _renderEmpWageAdjustments(_ewCurrentWorker.id);
-    loadEmpWages();
+    await db.collection('emp_wage_payments').doc(docId).delete();
+    toast('🗑 تم حذف الدفعة');
+    await _ewRefreshEmployee();
   }catch(e){toast('❌ '+e.message);}
 }
 
-async function _renderEmpWageAdjustments(workerId){
-  const wrap=document.getElementById('empAdjHistory');
-  if(!wrap)return;
-  try{
-    const snap=await db.collection('emp_wage_adjustments').where('workerId','==',workerId).get();
-    snap.docs.sort((a,b)=>(b.data().createdAt?.toMillis?.()??0)-(a.data().createdAt?.toMillis?.()??0));
-    if(snap.empty){wrap.innerHTML='<div style="color:#9ca3af;padding:6px;">لا توجد تعديلات مسجّلة</div>';return;}
-    wrap.innerHTML=snap.docs.map(d=>{
-      const a=d.data();
-      const amt=parseFloat(a.amount||0);
-      const isPos=amt>=0;
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;margin-bottom:5px;">
-        <div>
-          <div style="font-weight:700;color:${isPos?'#92400e':'#dc2626'};">
-            ${isPos?'➕':'➖'} ${Math.abs(amt).toFixed(2)} د.أ
-            ${a.pageName?`<span style="background:#f0fdf4;color:#166534;font-size:0.68rem;border-radius:5px;padding:1px 6px;margin-right:4px;font-weight:600;">🏪 ${a.pageName}</span>`:''}
-            ${a.notes?'<span style="font-weight:400;color:#6b7280;font-size:0.82rem;"> — '+a.notes+'</span>':''}
-          </div>
-          <div style="font-size:0.7rem;color:#9ca3af;">${a.date||''}</div>
-        </div>
-        <div style="font-size:0.72rem;color:#9ca3af;">${a.addedBy||''}</div>
-      </div>`;
-    }).join('');
-  }catch(e){wrap.innerHTML='<div style="color:#dc2626;font-size:0.8rem;">❌ '+e.message+'</div>';}
-}
+function ewBack(){_ewStore=null;_ewWorker=null;_ewShow(1);loadEmpWages();}
+function ewBackToStore(){_ewWorker=null;if(_ewStore){_ewShow(2);ewOpenStore(_ewStore.id);}}
 
-function closeEmpWageDetail(){
-  document.getElementById('empWageDetail').style.display='none';
-  _ewCurrentWorker=null;
-}
+// stubs kept for compatibility
+function openEmpWageDetail(){}
+function saveEmpWageRates(){}
+function recordEmpWagePayment(){}
+function closeEmpWageDetail(){}
+function settleEmpPage(){}
+function recordEmpWageAdjustment(){}
 
 // ===== DAILY EXPENSES =====
 async function loadExpenses(){
@@ -14172,7 +13997,7 @@ window.closeEmpPanel=closeEmpPanel; window.logoutEmp=logoutEmp;
 window.onEmpImageChange=onEmpImageChange; window.clearEmpImage=clearEmpImage;
 window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
-window.loadEmpWages=loadEmpWages; window.openEmpWageDetail=openEmpWageDetail; window.saveEmpWageRates=saveEmpWageRates; window.recordEmpWagePayment=recordEmpWagePayment; window.closeEmpWageDetail=closeEmpWageDetail; window.settleEmpPage=settleEmpPage; window.recordEmpWageAdjustment=recordEmpWageAdjustment;
+window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
