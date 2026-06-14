@@ -4048,7 +4048,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r3';
+  const V='20260614-r4';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -17547,64 +17547,62 @@ function _qrOnDetected(raw){
 function _showQRViewerResult(o){
   const wrap=document.getElementById('qrViewerResult');
   if(!wrap)return;
-  const ST=EMP_STATUSES||{};
-  const st=ST[o.status]||{label:o.status,color:'#6b7280',bg:'#f9fafb',border:'#e5e7eb'};
-  const prods=(o.products||[]).map(p=>{
-    const extras=[];
-    if(p.color)extras.push(`<span style="background:#eff6ff;color:#1d4ed8;border-radius:6px;padding:2px 8px;font-size:0.72rem;font-weight:700;">🎨 ${p.color}</span>`);
-    if(p.writing)extras.push(`<span style="background:#f5f3ff;color:#7c3aed;border-radius:6px;padding:2px 8px;font-size:0.72rem;font-weight:700;">✍️ ${p.writing}</span>`);
-    return `<div style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${extras.length?'6px':'0'};">
-        <span style="font-size:0.9rem;font-weight:800;color:#111;">${p.name||''}</span>
-        <span style="background:#111;color:#fff;border-radius:8px;padding:2px 10px;font-size:0.78rem;font-weight:800;">×${p.qty||1}</span>
+  const st=_empSt(o.status);
+  const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
+  const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
+  const dlv=o.deliveryFee||0;
+  const net=o.netPrice!=null?o.netPrice:total+dlv;
+  const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
+  const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+
+  const prodsHtml=prods.map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f5f5f5;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:800;font-size:0.88rem;color:#111;">${p.name}</div>
+        ${p.color?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">اللون: ${p.color}</div>`:''}
+        ${p.writing?`<div style="font-size:0.72rem;color:#555;background:#fafafa;border-right:2.5px solid #111;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;">✎ ${p.writing}</div>`:''}
       </div>
-      ${extras.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;">${extras.join('')}</div>`:''}
-    </div>`;
-  }).join('');
-  const note=o.notes?`<div style="background:#fafafa;border-right:3px solid #111;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#374151;margin-top:10px;line-height:1.6;">📝 ${o.notes}</div>`:'';
-  const internalNote=o.internalNote?`<div style="background:#fefce8;border-right:3px solid #ca8a04;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#92400e;margin-top:8px;">🔒 ${o.internalNote}</div>`:'';
-  const repInfo=o.deliveryRepName?`<div style="font-size:0.82rem;color:#374151;margin-bottom:6px;">🚚 المندوب: <strong>${o.deliveryRepName}</strong></div>`:'';
-  const pageInfo=o.pageName?`<div style="font-size:0.78rem;color:#9ca3af;margin-bottom:8px;">📄 ${o.pageName}</div>`:'';
+      <div style="text-align:left;flex-shrink:0;">
+        <div style="font-size:0.72rem;color:#999;">${p.qty||1} × ${(p.price||0).toFixed(2)}</div>
+        <div style="font-weight:900;color:#111;font-size:0.9rem;">${((p.price||0)*(p.qty||1)).toFixed(2)} <span style="font-size:0.6rem;color:#999;">د.أ</span></div>
+      </div>
+    </div>`).join('');
+
   wrap.style.display='block';
   wrap.innerHTML=`
-    <div style="background:#111;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <div style="color:#fff;font-weight:800;font-size:1rem;">${o.workerName||''}</div>
-        ${pageInfo.replace('margin-bottom:8px','margin-bottom:0;margin-top:2px').replace('color:#9ca3af','color:rgba(255,255,255,0.5)')}
+    <div style="background:#111;padding:16px 18px 14px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;">
+      <div style="text-align:center;flex:1;">
+        <div style="color:#fff;font-weight:900;font-size:1rem;">${label}</div>
+        <div style="color:rgba(255,255,255,0.45);font-size:0.68rem;margin-top:2px;">${o.pageName||''}</div>
       </div>
-      <div style="color:rgba(255,255,255,0.6);font-size:0.78rem;">#${o.orderNum||o.id?.slice(-6).toUpperCase()||''}</div>
+      <span style="background:rgba(255,255,255,0.1);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.72rem;font-weight:800;border:1px solid rgba(255,255,255,0.15);">${st.label}</span>
     </div>
-    <div style="padding:14px 16px;">
-      <div style="margin-bottom:12px;">
-        <div style="display:inline-block;background:${st.bg};color:${st.color};border:1.5px solid ${st.border||st.color};border-radius:20px;padding:5px 14px;font-size:0.82rem;font-weight:800;">${st.label}</div>
+    ${o.urgent?`<div style="background:#dc2626;color:#fff;padding:9px 16px;font-weight:800;text-align:center;font-size:0.88rem;">🔥 طلب مستعجل</div>`:''}
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:#fafafa;">
+      <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
+        <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">معلومات الزبون</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
+          <div><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">الاسم</div><div style="font-weight:700;color:#111;">${o.customerName||o.workerName||'—'}</div></div>
+          <div><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">الهاتف</div><div style="font-weight:700;color:#111;direction:ltr;">${o.customerPhone||'—'}</div></div>
+          <div style="grid-column:1/-1;"><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">العنوان</div><div style="font-weight:700;color:#111;">${o.address||'—'}${o.area?' · '+o.area:''}</div></div>
+          ${o.notes?`<div style="grid-column:1/-1;"><div style="color:#999;font-size:0.68rem;font-weight:700;margin-bottom:2px;">ملاحظات</div><div style="font-weight:600;color:#555;">${o.notes}</div></div>`:''}
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-        ${o.customerPhone?`<div style="background:#f0fdf4;border-radius:8px;padding:8px 10px;">
-          <div style="font-size:0.62rem;color:#166534;margin-bottom:2px;">📞 الهاتف</div>
-          <div style="font-size:0.84rem;font-weight:700;color:#111;direction:ltr;">${o.customerPhone}</div>
-        </div>`:''}
-        ${o.address?`<div style="background:#f0f9ff;border-radius:8px;padding:8px 10px;">
-          <div style="font-size:0.62rem;color:#0369a1;margin-bottom:2px;">📍 العنوان</div>
-          <div style="font-size:0.82rem;font-weight:700;color:#111;">${o.address}</div>
-        </div>`:''}
-        ${o.deliveryRepName?`<div style="background:#faf5ff;border-radius:8px;padding:8px 10px;grid-column:1/-1;">
-          <div style="font-size:0.62rem;color:#7c3aed;margin-bottom:2px;">🚚 المندوب</div>
-          <div style="font-size:0.82rem;font-weight:700;color:#111;">${o.deliveryRepName}</div>
-        </div>`:''}
+      <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
+        <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">المنتجات</div>
+        ${prodsHtml}
+        <div style="margin-top:10px;padding-top:10px;border-top:1.5px solid #111;display:flex;justify-content:space-between;align-items:center;">
+          ${dlv>0?`<div style="font-size:0.74rem;color:#999;">منتجات: ${total.toFixed(2)} + توصيل: ${dlv.toFixed(2)}</div>`:'<div></div>'}
+          <div style="font-weight:900;font-size:1.1rem;color:#111;">${net.toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></div>
+        </div>
       </div>
-      <div style="border-top:1.5px solid #ebebeb;padding-top:10px;">
-        <div style="font-size:0.7rem;font-weight:700;color:#9ca3af;letter-spacing:1px;margin-bottom:6px;">المنتجات</div>
-        ${prods||'<div style="color:#9ca3af;font-size:0.8rem;padding:8px 0;">لا يوجد منتجات</div>'}
-      </div>
-      ${note}
-      ${internalNote}
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:2px solid #111;">
-        <span style="font-size:0.78rem;color:#9ca3af;font-weight:600;">المبلغ الكلي</span>
-        <span style="font-size:1.15rem;font-weight:900;color:#111;">${(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2)} <span style="font-size:0.65rem;font-weight:500;color:#9ca3af;">د.أ</span></span>
-      </div>
-    </div>
-    <div style="padding:10px 16px;background:#fafafa;border-top:1px solid #ebebeb;text-align:center;">
-      <button onclick="openQRScanner()" style="width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">📷 مسح طلب آخر</button>
+      ${o.deliveryRepName?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
+        <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:8px;letter-spacing:1px;">المندوب</div>
+        <div style="font-weight:800;color:#111;font-size:0.88rem;">${o.deliveryRepName}${o.deliveryRepPhone?` — <span style="color:#555;direction:ltr;display:inline-block;">${o.deliveryRepPhone}</span>`:''}</div>
+      </div>`:''}
+      ${o.internalNote?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">ملاحظة داخلية</div><div style="font-size:0.85rem;color:#555;">${o.internalNote}</div></div>`:''}
+      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
+      <button onclick="openQRScanner()" style="width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-top:4px;">📷 مسح طلب آخر</button>
     </div>`;
 }
 
