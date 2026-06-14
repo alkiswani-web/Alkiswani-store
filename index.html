@@ -4048,7 +4048,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r2';
+  const V='20260614-r3';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -17548,28 +17548,63 @@ function _showQRViewerResult(o){
   const wrap=document.getElementById('qrViewerResult');
   if(!wrap)return;
   const ST=EMP_STATUSES||{};
-  const st=ST[o.status]||{label:o.status,color:'#6b7280',bg:'#f9fafb'};
-  const prods=(o.products||[]).map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:0.82rem;"><span style="color:#374151;font-weight:600;">${p.name||''}</span><span style="color:#111;font-weight:700;">×${p.qty||1}</span></div>`).join('');
-  const note=o.notes?`<div style="background:#f9fafb;border-right:3px solid #111;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#555;margin-top:10px;">${o.notes}</div>`:'';
+  const st=ST[o.status]||{label:o.status,color:'#6b7280',bg:'#f9fafb',border:'#e5e7eb'};
+  const prods=(o.products||[]).map(p=>{
+    const extras=[];
+    if(p.color)extras.push(`<span style="background:#eff6ff;color:#1d4ed8;border-radius:6px;padding:2px 8px;font-size:0.72rem;font-weight:700;">🎨 ${p.color}</span>`);
+    if(p.writing)extras.push(`<span style="background:#f5f3ff;color:#7c3aed;border-radius:6px;padding:2px 8px;font-size:0.72rem;font-weight:700;">✍️ ${p.writing}</span>`);
+    return `<div style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${extras.length?'6px':'0'};">
+        <span style="font-size:0.9rem;font-weight:800;color:#111;">${p.name||''}</span>
+        <span style="background:#111;color:#fff;border-radius:8px;padding:2px 10px;font-size:0.78rem;font-weight:800;">×${p.qty||1}</span>
+      </div>
+      ${extras.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;">${extras.join('')}</div>`:''}
+    </div>`;
+  }).join('');
+  const note=o.notes?`<div style="background:#fafafa;border-right:3px solid #111;border-radius:8px;padding:10px 12px;font-size:0.82rem;color:#374151;margin-top:10px;line-height:1.6;">📝 ${o.notes}</div>`:'';
+  const internalNote=o.internalNote?`<div style="background:#fefce8;border-right:3px solid #ca8a04;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#92400e;margin-top:8px;">🔒 ${o.internalNote}</div>`:'';
+  const repInfo=o.deliveryRepName?`<div style="font-size:0.82rem;color:#374151;margin-bottom:6px;">🚚 المندوب: <strong>${o.deliveryRepName}</strong></div>`:'';
+  const pageInfo=o.pageName?`<div style="font-size:0.78rem;color:#9ca3af;margin-bottom:8px;">📄 ${o.pageName}</div>`:'';
   wrap.style.display='block';
   wrap.innerHTML=`
     <div style="background:#111;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="color:#fff;font-weight:800;font-size:0.95rem;">${o.workerName||''}</div>
-      <div style="color:#fff;font-size:0.72rem;opacity:0.7;">#${o.orderNum||o.id?.slice(-6).toUpperCase()||''}</div>
+      <div>
+        <div style="color:#fff;font-weight:800;font-size:1rem;">${o.workerName||''}</div>
+        ${pageInfo.replace('margin-bottom:8px','margin-bottom:0;margin-top:2px').replace('color:#9ca3af','color:rgba(255,255,255,0.5)')}
+      </div>
+      <div style="color:rgba(255,255,255,0.6);font-size:0.78rem;">#${o.orderNum||o.id?.slice(-6).toUpperCase()||''}</div>
     </div>
     <div style="padding:14px 16px;">
-      <div style="display:inline-block;background:${st.bg};color:${st.color};border:1px solid ${st.border||st.color};border-radius:20px;padding:3px 12px;font-size:0.76rem;font-weight:700;margin-bottom:12px;">${st.label}</div>
-      ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:6px;">📞 <span style="direction:ltr;display:inline-block;">${o.customerPhone}</span></div>`:''}
-      ${o.address?`<div style="font-size:0.82rem;color:#374151;margin-bottom:10px;">📍 ${o.address}</div>`:''}
-      <div style="border-top:1px solid #f3f4f6;padding-top:10px;">${prods||'<div style="color:#9ca3af;font-size:0.8rem;">لا يوجد منتجات</div>'}</div>
+      <div style="margin-bottom:12px;">
+        <div style="display:inline-block;background:${st.bg};color:${st.color};border:1.5px solid ${st.border||st.color};border-radius:20px;padding:5px 14px;font-size:0.82rem;font-weight:800;">${st.label}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        ${o.customerPhone?`<div style="background:#f0fdf4;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:0.62rem;color:#166534;margin-bottom:2px;">📞 الهاتف</div>
+          <div style="font-size:0.84rem;font-weight:700;color:#111;direction:ltr;">${o.customerPhone}</div>
+        </div>`:''}
+        ${o.address?`<div style="background:#f0f9ff;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:0.62rem;color:#0369a1;margin-bottom:2px;">📍 العنوان</div>
+          <div style="font-size:0.82rem;font-weight:700;color:#111;">${o.address}</div>
+        </div>`:''}
+        ${o.deliveryRepName?`<div style="background:#faf5ff;border-radius:8px;padding:8px 10px;grid-column:1/-1;">
+          <div style="font-size:0.62rem;color:#7c3aed;margin-bottom:2px;">🚚 المندوب</div>
+          <div style="font-size:0.82rem;font-weight:700;color:#111;">${o.deliveryRepName}</div>
+        </div>`:''}
+      </div>
+      <div style="border-top:1.5px solid #ebebeb;padding-top:10px;">
+        <div style="font-size:0.7rem;font-weight:700;color:#9ca3af;letter-spacing:1px;margin-bottom:6px;">المنتجات</div>
+        ${prods||'<div style="color:#9ca3af;font-size:0.8rem;padding:8px 0;">لا يوجد منتجات</div>'}
+      </div>
       ${note}
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1.5px solid #111;">
-        <span style="font-size:0.78rem;color:#9ca3af;">المبلغ الكلي</span>
-        <span style="font-size:1.05rem;font-weight:900;color:#111;">${(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2)} <span style="font-size:0.65rem;font-weight:500;color:#9ca3af;">د.أ</span></span>
+      ${internalNote}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:2px solid #111;">
+        <span style="font-size:0.78rem;color:#9ca3af;font-weight:600;">المبلغ الكلي</span>
+        <span style="font-size:1.15rem;font-weight:900;color:#111;">${(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2)} <span style="font-size:0.65rem;font-weight:500;color:#9ca3af;">د.أ</span></span>
       </div>
     </div>
     <div style="padding:10px 16px;background:#fafafa;border-top:1px solid #ebebeb;text-align:center;">
-      <button onclick="openQRScanner()" style="padding:10px 28px;background:#fff;color:#111;border:1.5px solid #ebebeb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:700;cursor:pointer;">📷 مسح طلب آخر</button>
+      <button onclick="openQRScanner()" style="width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">📷 مسح طلب آخر</button>
     </div>`;
 }
 
