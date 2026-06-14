@@ -4048,7 +4048,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r6';
+  const V='20260614-r7';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -17602,6 +17602,7 @@ function _showQRViewerResult(o){
       </div>`:''}
       ${o.internalNote?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">ملاحظة داخلية</div><div style="font-size:0.85rem;color:#555;">${o.internalNote}</div></div>`:''}
       ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
+      ${['pending','preparing'].includes(o.status)?`<button onclick="updateEmpOrderStatus('${o.id}','prepared').then(()=>{document.getElementById('qrViewerResult').style.display='none';openQRScanner();})" style="width:100%;padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-top:4px;">✅ تم التجهيز</button>`:''}
       <button onclick="openQRScanner()" style="width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-top:4px;">📷 مسح طلب آخر</button>
     </div>`;
 }
