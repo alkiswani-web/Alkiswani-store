@@ -2929,6 +2929,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_viewAll" style="accent-color:var(--green-dark);"> عرض كل الطلبات</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_print" checked style="accent-color:var(--green-dark);"> طباعة الفاتورة</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isDelivery" style="accent-color:#c9a84c;"> 🚀 موظف تسليم (مبيعات مباشرة)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isQRViewer" style="accent-color:#0ea5e9;"> 📷 موظف مسح QR (مشاهدة فقط)</label>
             </div>
             <button onclick="addEmpWorker()" style="padding:10px 22px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">+ إضافة</button>
           </div>
@@ -3662,6 +3663,21 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <div id="empDlvTodayList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد تسليمات اليوم</div></div>
     </div><!-- end empDeliverySection -->
 
+    <!-- QR VIEWER SECTION (read-only, isQRViewer role) -->
+    <div id="empQRViewerSection" style="display:none;padding:16px;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:2rem;margin-bottom:6px;">📷</div>
+        <div style="font-size:1rem;font-weight:800;color:#111;">ماسح الطلبات</div>
+        <div style="font-size:0.78rem;color:#9ca3af;margin-top:3px;">امسح QR الطلب لعرض تفاصيله</div>
+      </div>
+      <button onclick="openQRScanner()" style="width:100%;padding:22px;background:#111;color:#fff;border:none;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:1.1rem;font-weight:800;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,0.22);">
+        <span style="font-size:1.4rem;">📷</span> مسح QR Code
+      </button>
+      <div id="qrViewerResult" style="display:none;background:#fff;border:1px solid #ebebeb;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <!-- populated by _showQRViewerResult() -->
+      </div>
+    </div><!-- end empQRViewerSection -->
+
   </div>
 </div>
 
@@ -4032,7 +4048,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r1';
+  const V='20260614-r2';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5827,12 +5843,16 @@ async function openEmpPanel(){
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
   const isDelivery=_empCurrentUser.permissions?.isDelivery||false;
+  const isQRViewer=_empCurrentUser.permissions?.isQRViewer||false;
   const hdr=document.querySelector('#empPanel .admin-tab-content, #empPanel > div:first-child div:nth-child(2)');
   const titleEl=document.querySelector('#empPanel [style*="c9a84c"]');
-  if(titleEl)titleEl.textContent=isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
-  document.getElementById('empNormalOrderSection').style.display=isDelivery?'none':'block';
+  if(titleEl)titleEl.textContent=isQRViewer?'📷 ماسح الطلبات':isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
+  document.getElementById('empNormalOrderSection').style.display=(!isDelivery&&!isQRViewer)?'block':'none';
   document.getElementById('empDeliverySection').style.display=isDelivery?'block':'none';
-  if(isDelivery){
+  document.getElementById('empQRViewerSection').style.display=isQRViewer?'block':'none';
+  if(isQRViewer){
+    // QR viewer: nothing to init, just show the scan button
+  }else if(isDelivery){
     initEmpDeliveryPanel();
   }else{
     _empOrderCart=[];
@@ -6657,6 +6677,7 @@ async function loadEmpWorkers(){
       if(perms.canEditOrders!==false)tags.push('✏️ تعديل');
       if(perms.isOperator)tags.push('🔧 مشغل');
       if(perms.isDelivery)tags.push('🚀 تسليم');
+      if(perms.isQRViewer)tags.push('📷 QR فقط');
       if(perms.canViewAll)tags.push('👁 عرض الكل');
       if(perms.canPrint!==false)tags.push('🖨 طباعة');
       return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
@@ -6690,6 +6711,7 @@ async function addEmpWorker(){
     canViewAll:document.getElementById('perm_viewAll')?.checked||false,
     canPrint:document.getElementById('perm_print')?.checked!==false,
     isDelivery:document.getElementById('perm_isDelivery')?.checked||false,
+    isQRViewer:document.getElementById('perm_isQRViewer')?.checked||false,
   };
   try{
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
@@ -17522,6 +17544,35 @@ function _qrOnDetected(raw){
   },150);
 }
 
+function _showQRViewerResult(o){
+  const wrap=document.getElementById('qrViewerResult');
+  if(!wrap)return;
+  const ST=EMP_STATUSES||{};
+  const st=ST[o.status]||{label:o.status,color:'#6b7280',bg:'#f9fafb'};
+  const prods=(o.products||[]).map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:0.82rem;"><span style="color:#374151;font-weight:600;">${p.name||''}</span><span style="color:#111;font-weight:700;">×${p.qty||1}</span></div>`).join('');
+  const note=o.notes?`<div style="background:#f9fafb;border-right:3px solid #111;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#555;margin-top:10px;">${o.notes}</div>`:'';
+  wrap.style.display='block';
+  wrap.innerHTML=`
+    <div style="background:#111;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="color:#fff;font-weight:800;font-size:0.95rem;">${o.workerName||''}</div>
+      <div style="color:#fff;font-size:0.72rem;opacity:0.7;">#${o.orderNum||o.id?.slice(-6).toUpperCase()||''}</div>
+    </div>
+    <div style="padding:14px 16px;">
+      <div style="display:inline-block;background:${st.bg};color:${st.color};border:1px solid ${st.border||st.color};border-radius:20px;padding:3px 12px;font-size:0.76rem;font-weight:700;margin-bottom:12px;">${st.label}</div>
+      ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:6px;">📞 <span style="direction:ltr;display:inline-block;">${o.customerPhone}</span></div>`:''}
+      ${o.address?`<div style="font-size:0.82rem;color:#374151;margin-bottom:10px;">📍 ${o.address}</div>`:''}
+      <div style="border-top:1px solid #f3f4f6;padding-top:10px;">${prods||'<div style="color:#9ca3af;font-size:0.8rem;">لا يوجد منتجات</div>'}</div>
+      ${note}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1.5px solid #111;">
+        <span style="font-size:0.78rem;color:#9ca3af;">المبلغ الكلي</span>
+        <span style="font-size:1.05rem;font-weight:900;color:#111;">${(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2)} <span style="font-size:0.65rem;font-weight:500;color:#9ca3af;">د.أ</span></span>
+      </div>
+    </div>
+    <div style="padding:10px 16px;background:#fafafa;border-top:1px solid #ebebeb;text-align:center;">
+      <button onclick="openQRScanner()" style="padding:10px 28px;background:#fff;color:#111;border:1.5px solid #ebebeb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:700;cursor:pointer;">📷 مسح طلب آخر</button>
+    </div>`;
+}
+
 async function _handleQRResult(raw){
   let orderId=raw.trim();
   // Extract ?order= param if full URL was scanned
@@ -17546,6 +17597,13 @@ async function _handleQRResult(raw){
       _repQRMode=false;
       const o=await _findOrder(orderId);
       if(o)_showRepOrderDetail(o);
+      else toast('❌ الطلب غير موجود: '+orderId.slice(0,12));
+      return;
+    }
+    // QR viewer employee: show read-only result card
+    if(_empCurrentUser?.permissions?.isQRViewer){
+      const o=await _findOrder(orderId);
+      if(o)_showQRViewerResult(o);
       else toast('❌ الطلب غير موجود: '+orderId.slice(0,12));
       return;
     }
