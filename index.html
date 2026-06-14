@@ -4048,7 +4048,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r5';
+  const V='20260614-r6';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -6452,7 +6452,6 @@ function loadEmpTodayOrders(){
             ${o.editHistory?.length?`<div style="font-size:0.7rem;color:#f97316;margin-bottom:6px;">✏️ تم التعديل ${o.editHistory.length} مرة</div>`:''}
             <!-- Action buttons -->
             ${['pending','preparing'].includes(o.status)?`<div style="margin-bottom:8px;"><button onclick="updateEmpOrderStatus('${o.id}','prepared')" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">✅ تم التجهيز</button></div>`:''}
-            ${o.status==='prepared'?`<div style="margin-bottom:8px;"><button onclick="openDeliveryModal('${o.id}')" style="width:100%;padding:9px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">📱 إرسال لمندوب التوصيل</button></div>`:''}
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${canEdit?`<button onclick="openEmpOrderEdit('${o.id}')" style="flex:1;padding:7px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>`:''}
               ${canCancel?`<button onclick="cancelEmpOrder('${o.id}')" style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>`:''}
