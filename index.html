@@ -4032,7 +4032,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260613-r5';
+  const V='20260614-r1';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -6957,6 +6957,7 @@ function _showOpOrderDetail(o){
       </div>`
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${_dBtn(o.deliveryRepName?'🔄 تغيير مندوب':'تعيين مندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'primary')}
+        ${_dBtn('↩️ إرجاع الطلب',`_returnOpOrderFromDetail('${o.id}')`,'plain')}
         ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :`<div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -6989,6 +6990,31 @@ async function _cancelOpOrderFromDetail(id){
     const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('cancelled').label}`};
     await docRef.update({status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('🚫 تم إلغاء الطلب');
+    // no accounting effect for simple cancel
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function _returnOpOrderFromDetail(id){
+  if(!confirm('↩️ إلغاء مع إرجاع الطلب\n\nسيتم إلغاء الطلب وإرجاع تكلفة الإنتاج للمتجر في الكشف الحالي.\nهل أنت متأكد؟'))return;
+  closeOpOrderDetail();
+  closeOpCardMenu();
+  try{
+    const docRef=db.collection('employee_orders').doc(id);
+    const snap=await docRef.get();
+    if(!snap.exists){toast('❌ الطلب غير موجود');return;}
+    const data=snap.data();
+    if(data.status!=='delivered'){toast('⚠️ الطلب غير مُسلَّم');return;}
+    const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
+    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt('delivered').label} ← ${_empSt('returned').label} (إرجاع)`};
+    await docRef.update({
+      status:'returned',
+      editHistory:[...(data.editHistory||[]),editEntry],
+      needsReview:firebase.firestore.FieldValue.delete(),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('↩️ تم الإرجاع — سيُضاف قيد للمتجر في الكشف الحالي');
+    await _handleDeliveredCancel(id,data,'returned');
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -7366,6 +7392,8 @@ function openOpCardMenu(id,isOperator){
     isOperator?`<button class="lux-menu-item" onclick="closeOpCardMenu();openInternalNote('${o.id}','${noteEsc}')">🔒 ${o.internalNote?'تعديل الملاحظة الداخلية':'ملاحظة داخلية'}</button>`:'',
     (!isClosed&&!isHold&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpHoldModal('${o.id}')">⏸ تعليق الطلب</button>`:'',
     (!isClosed&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();openEmpCancelModal('${o.id}')">🚫 إلغاء الطلب</button>`:'',
+    (o.status==='delivered'&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();_returnOpOrderFromDetail('${o.id}')">↩️ إلغاء مع إرجاع الطلب</button>`:'',
+    (o.status==='delivered'&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();_cancelOpOrderFromDetail('${o.id}')">🚫 إلغاء بدون إرجاع</button>`:'',
     `<button class="lux-menu-item danger" onclick="closeOpCardMenu();deleteEmpOrder('${o.id}')">🗑 حذف نهائي</button>`
   ].filter(Boolean).join('');
   let modal=document.getElementById('opCardMenuModal');
@@ -7856,7 +7884,8 @@ async function updateEmpOrderStatus(id,newStatus){
     _patchLocal(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
     if(newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
+    // Only 'returned' and 'refused' trigger accounting refund — 'cancelled' is a no-op
+    if(['returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
       _handleDeliveredCancel(id,data,newStatus);
     }
     if(!['cancelled','returned','refused','delivered'].includes(newStatus)){
@@ -7979,9 +8008,12 @@ async function addPageRefundEntry(orderId, orderData, reason){
       storeName:store?store.name:'',
       orderId,
       orderNum:orderData.orderNum||orderData.id||'',
+      customerName:orderData.workerName||orderData.customerName||'',
+      customerPhone:orderData.customerPhone||'',
       items,
       totalCost,
       date:jordanDateStr(),
+      sessionId:_opCurrentSession?.id||null,
       reason,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -11450,6 +11482,7 @@ async function loadAcctStoreList(){
 
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
+let _opSessionRefunds=[]; // page_refunds within the current session's date range
 let _opDayOrders=[];
 let _opWithdrawals=[];
 let _opDayExpenses=[];
@@ -11556,16 +11589,19 @@ async function _loadOpSessionData(){
   try{ await _loadDeliveryReps(); }catch(e){}
   // Load cumulative account balances for all stores
   try{
-    const [sSnap,pSnap,rSnap]=await Promise.all([
+    const [sSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
       db.collection('operator_sales').get(),
       db.collection('operator_store_payments').get(),
-      db.collection('page_refunds').get()
+      db.collection('page_refunds').get(),
+      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
     pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
-  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};}
+    // Session-specific refunds: those within the session date range (for display in store cards)
+    _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opSessionRefunds=[];}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -11836,6 +11872,28 @@ function renderOperatorDailyView(){
           </div>
         </div>`).join('');
       const safeStoreName=store.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // Session refunds for this store
+      const storeRefunds=(_opSessionRefunds||[]).filter(r=>r.storeId===store.storeId);
+      const storeRefundTotal=storeRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
+      const refundBlock=storeRefunds.length?`
+        <div style="border-top:1.5px dashed #fecaca;margin:0;">
+          <div style="padding:8px 14px 4px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:0.75rem;font-weight:800;color:#9d174d;">↩️ مرتجعات هذا الكشف (${storeRefunds.length} طلب)</div>
+            <div style="font-size:0.82rem;font-weight:900;color:#9d174d;">${storeRefundTotal.toFixed(2)} د.أ</div>
+          </div>
+          ${storeRefunds.map(r=>{
+            const orderLabel=r.orderNum?`#${r.orderNum}`:'';
+            const itemsSummary=(r.items||[]).map(i=>`${i.name}${i.qty>1?' ×'+i.qty:''}`).join('، ');
+            return `<div style="padding:5px 14px 5px;border-top:1px solid #fee2e2;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <div style="min-width:0;">
+                <div style="font-size:0.75rem;font-weight:700;color:#7f1d1d;">${r.customerName||''} <span style="color:#9d174d;font-weight:600;">${orderLabel}</span></div>
+                <div style="font-size:0.68rem;color:#b91c1c;margin-top:1px;">${itemsSummary}</div>
+              </div>
+              <div style="font-size:0.75rem;font-weight:800;color:#9d174d;flex-shrink:0;">${(r.totalCost||0).toFixed(2)}</div>
+            </div>`;
+          }).join('')}
+          <div style="height:6px;"></div>
+        </div>`:'';
       // Account balance (cumulative)
       const acctOwed=_opAcctOwed[store.storeId]||0;
       const acctPaid=_opAcctPaid[store.storeId]||0;
@@ -11890,6 +11948,7 @@ function renderOperatorDailyView(){
           ${storeWds.length?`<div style="margin-bottom:6px;">${wdRows}</div>`:''}
           ${!isClosed?`<button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="width:100%;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب — ${store.name}</button>`:''}
         </div>
+        ${refundBlock}
         ${acctRow}
       </div>`;
     };
@@ -14149,7 +14208,7 @@ window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvIt
 window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
 window.submitEmpDelivery=submitEmpDelivery;
-window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail; window._openRepPickerFromDetail=_openRepPickerFromDetail;
+window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail; window._returnOpOrderFromDetail=_returnOpOrderFromDetail; window._openRepPickerFromDetail=_openRepPickerFromDetail;
 
 // ===== DELIVERY REPS =====
 let _deliveryModalOrder=null;
@@ -15005,7 +15064,7 @@ async function confirmEmpCancel(){
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     toast('✅ تم إلغاء الطلب');
-    if(data.status==='delivered'){_handleDeliveredCancel(id,data,'cancelled');}
+    // simple cancel: no accounting effect — use 'إلغاء مع إرجاع' for refund flow
     if(!['cancelled','returned','refused','delivered'].includes(data.status)){removePageRefundEntry(id);}
   }catch(e){toast('❌ '+e.message);}
 }
