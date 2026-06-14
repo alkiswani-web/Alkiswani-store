@@ -2929,6 +2929,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_viewAll" style="accent-color:var(--green-dark);"> عرض كل الطلبات</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_print" checked style="accent-color:var(--green-dark);"> طباعة الفاتورة</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isDelivery" style="accent-color:#c9a84c;"> 🚀 موظف تسليم (مبيعات مباشرة)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isQRViewer" style="accent-color:#0ea5e9;"> 📷 موظف مسح QR (مشاهدة فقط)</label>
             </div>
             <button onclick="addEmpWorker()" style="padding:10px 22px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">+ إضافة</button>
           </div>
@@ -3662,6 +3663,21 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <div id="empDlvTodayList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد تسليمات اليوم</div></div>
     </div><!-- end empDeliverySection -->
 
+    <!-- QR VIEWER SECTION (read-only, isQRViewer role) -->
+    <div id="empQRViewerSection" style="display:none;padding:16px;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:2rem;margin-bottom:6px;">📷</div>
+        <div style="font-size:1rem;font-weight:800;color:#111;">ماسح الطلبات</div>
+        <div style="font-size:0.78rem;color:#9ca3af;margin-top:3px;">امسح QR الطلب لعرض تفاصيله</div>
+      </div>
+      <button onclick="openQRScanner()" style="width:100%;padding:22px;background:#111;color:#fff;border:none;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:1.1rem;font-weight:800;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,0.22);">
+        <span style="font-size:1.4rem;">📷</span> مسح QR Code
+      </button>
+      <div id="qrViewerResult" style="display:none;background:#fff;border:1px solid #ebebeb;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <!-- populated by _showQRViewerResult() -->
+      </div>
+    </div><!-- end empQRViewerSection -->
+
   </div>
 </div>
 
@@ -4032,7 +4048,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260613-r3';
+  const V='20260614-r2';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5827,12 +5843,16 @@ async function openEmpPanel(){
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
   const isDelivery=_empCurrentUser.permissions?.isDelivery||false;
+  const isQRViewer=_empCurrentUser.permissions?.isQRViewer||false;
   const hdr=document.querySelector('#empPanel .admin-tab-content, #empPanel > div:first-child div:nth-child(2)');
   const titleEl=document.querySelector('#empPanel [style*="c9a84c"]');
-  if(titleEl)titleEl.textContent=isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
-  document.getElementById('empNormalOrderSection').style.display=isDelivery?'none':'block';
+  if(titleEl)titleEl.textContent=isQRViewer?'📷 ماسح الطلبات':isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
+  document.getElementById('empNormalOrderSection').style.display=(!isDelivery&&!isQRViewer)?'block':'none';
   document.getElementById('empDeliverySection').style.display=isDelivery?'block':'none';
-  if(isDelivery){
+  document.getElementById('empQRViewerSection').style.display=isQRViewer?'block':'none';
+  if(isQRViewer){
+    // QR viewer: nothing to init, just show the scan button
+  }else if(isDelivery){
     initEmpDeliveryPanel();
   }else{
     _empOrderCart=[];
@@ -6657,6 +6677,7 @@ async function loadEmpWorkers(){
       if(perms.canEditOrders!==false)tags.push('✏️ تعديل');
       if(perms.isOperator)tags.push('🔧 مشغل');
       if(perms.isDelivery)tags.push('🚀 تسليم');
+      if(perms.isQRViewer)tags.push('📷 QR فقط');
       if(perms.canViewAll)tags.push('👁 عرض الكل');
       if(perms.canPrint!==false)tags.push('🖨 طباعة');
       return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
@@ -6690,6 +6711,7 @@ async function addEmpWorker(){
     canViewAll:document.getElementById('perm_viewAll')?.checked||false,
     canPrint:document.getElementById('perm_print')?.checked!==false,
     isDelivery:document.getElementById('perm_isDelivery')?.checked||false,
+    isQRViewer:document.getElementById('perm_isQRViewer')?.checked||false,
   };
   try{
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
@@ -6957,7 +6979,7 @@ function _showOpOrderDetail(o){
       </div>`
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${_dBtn(o.deliveryRepName?'🔄 تغيير مندوب':'تعيين مندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'primary')}
-        ${_dBtn('↩️ مرتجع',`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','returned')`)}
+        ${_dBtn('↩️ إرجاع الطلب',`_returnOpOrderFromDetail('${o.id}')`,'plain')}
         ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :`<div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -6990,6 +7012,31 @@ async function _cancelOpOrderFromDetail(id){
     const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('cancelled').label}`};
     await docRef.update({status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('🚫 تم إلغاء الطلب');
+    // no accounting effect for simple cancel
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function _returnOpOrderFromDetail(id){
+  if(!confirm('↩️ إلغاء مع إرجاع الطلب\n\nسيتم إلغاء الطلب وإرجاع تكلفة الإنتاج للمتجر في الكشف الحالي.\nهل أنت متأكد؟'))return;
+  closeOpOrderDetail();
+  closeOpCardMenu();
+  try{
+    const docRef=db.collection('employee_orders').doc(id);
+    const snap=await docRef.get();
+    if(!snap.exists){toast('❌ الطلب غير موجود');return;}
+    const data=snap.data();
+    if(data.status!=='delivered'){toast('⚠️ الطلب غير مُسلَّم');return;}
+    const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
+    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt('delivered').label} ← ${_empSt('returned').label} (إرجاع)`};
+    await docRef.update({
+      status:'returned',
+      editHistory:[...(data.editHistory||[]),editEntry],
+      needsReview:firebase.firestore.FieldValue.delete(),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('↩️ تم الإرجاع — سيُضاف قيد للمتجر في الكشف الحالي');
+    await _handleDeliveredCancel(id,data,'returned');
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -7367,6 +7414,8 @@ function openOpCardMenu(id,isOperator){
     isOperator?`<button class="lux-menu-item" onclick="closeOpCardMenu();openInternalNote('${o.id}','${noteEsc}')">🔒 ${o.internalNote?'تعديل الملاحظة الداخلية':'ملاحظة داخلية'}</button>`:'',
     (!isClosed&&!isHold&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpHoldModal('${o.id}')">⏸ تعليق الطلب</button>`:'',
     (!isClosed&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();openEmpCancelModal('${o.id}')">🚫 إلغاء الطلب</button>`:'',
+    (o.status==='delivered'&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();_returnOpOrderFromDetail('${o.id}')">↩️ إلغاء مع إرجاع الطلب</button>`:'',
+    (o.status==='delivered'&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();_cancelOpOrderFromDetail('${o.id}')">🚫 إلغاء بدون إرجاع</button>`:'',
     `<button class="lux-menu-item danger" onclick="closeOpCardMenu();deleteEmpOrder('${o.id}')">🗑 حذف نهائي</button>`
   ].filter(Boolean).join('');
   let modal=document.getElementById('opCardMenuModal');
@@ -7857,9 +7906,9 @@ async function updateEmpOrderStatus(id,newStatus){
     _patchLocal(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
     if(newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
-      unsyncOrderFromAccounting(id);
-      addPageRefundEntry(id,data,newStatus);
+    // Only 'returned' and 'refused' trigger accounting refund — 'cancelled' is a no-op
+    if(['returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
+      _handleDeliveredCancel(id,data,newStatus);
     }
     if(!['cancelled','returned','refused','delivered'].includes(newStatus)){
       removePageRefundEntry(id);
@@ -7932,6 +7981,31 @@ async function unsyncOrderFromAccounting(orderId){
   }catch(e){console.error('unsyncOrderFromAccounting error:',e);}
 }
 
+// Smart cancel handler: if delivery was in current session → remove from sales (reversal).
+// If delivery was in a different/closed session → keep old record, add refund to current period.
+async function _handleDeliveredCancel(orderId, orderData, reason){
+  try{
+    const snap=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
+    if(snap.empty){
+      // No sale record found — just add refund entry to track the loss
+      await addPageRefundEntry(orderId,orderData,reason);
+      return;
+    }
+    const saleSessionId=snap.docs[0].data().sessionId||null;
+    const currentSessionId=_opCurrentSession?.id||null;
+    if(saleSessionId&&currentSessionId&&saleSessionId===currentSessionId){
+      // Same session: reverse the delivery — delete the sales records, no refund entry needed
+      const batch=db.batch();
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      toast('↩️ تم إلغاء التسجيل من الكشف الحالي');
+    }else{
+      // Different/old session: keep old record intact, add refund entry for today (current period)
+      await addPageRefundEntry(orderId,orderData,reason);
+    }
+  }catch(e){console.error('_handleDeliveredCancel error:',e);}
+}
+
 async function addPageRefundEntry(orderId, orderData, reason){
   try{
     if(!_opProductsList.length) await loadOpProducts();
@@ -7956,9 +8030,12 @@ async function addPageRefundEntry(orderId, orderData, reason){
       storeName:store?store.name:'',
       orderId,
       orderNum:orderData.orderNum||orderData.id||'',
+      customerName:orderData.workerName||orderData.customerName||'',
+      customerPhone:orderData.customerPhone||'',
       items,
       totalCost,
       date:jordanDateStr(),
+      sessionId:_opCurrentSession?.id||null,
       reason,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -11427,6 +11504,7 @@ async function loadAcctStoreList(){
 
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
+let _opSessionRefunds=[]; // page_refunds within the current session's date range
 let _opDayOrders=[];
 let _opWithdrawals=[];
 let _opDayExpenses=[];
@@ -11533,16 +11611,19 @@ async function _loadOpSessionData(){
   try{ await _loadDeliveryReps(); }catch(e){}
   // Load cumulative account balances for all stores
   try{
-    const [sSnap,pSnap,rSnap]=await Promise.all([
+    const [sSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
       db.collection('operator_sales').get(),
       db.collection('operator_store_payments').get(),
-      db.collection('page_refunds').get()
+      db.collection('page_refunds').get(),
+      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
     pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
-  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};}
+    // Session-specific refunds: those within the session date range (for display in store cards)
+    _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opSessionRefunds=[];}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -11813,6 +11894,28 @@ function renderOperatorDailyView(){
           </div>
         </div>`).join('');
       const safeStoreName=store.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // Session refunds for this store
+      const storeRefunds=(_opSessionRefunds||[]).filter(r=>r.storeId===store.storeId);
+      const storeRefundTotal=storeRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
+      const refundBlock=storeRefunds.length?`
+        <div style="border-top:1.5px dashed #fecaca;margin:0;">
+          <div style="padding:8px 14px 4px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:0.75rem;font-weight:800;color:#9d174d;">↩️ مرتجعات هذا الكشف (${storeRefunds.length} طلب)</div>
+            <div style="font-size:0.82rem;font-weight:900;color:#9d174d;">${storeRefundTotal.toFixed(2)} د.أ</div>
+          </div>
+          ${storeRefunds.map(r=>{
+            const orderLabel=r.orderNum?`#${r.orderNum}`:'';
+            const itemsSummary=(r.items||[]).map(i=>`${i.name}${i.qty>1?' ×'+i.qty:''}`).join('، ');
+            return `<div style="padding:5px 14px 5px;border-top:1px solid #fee2e2;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <div style="min-width:0;">
+                <div style="font-size:0.75rem;font-weight:700;color:#7f1d1d;">${r.customerName||''} <span style="color:#9d174d;font-weight:600;">${orderLabel}</span></div>
+                <div style="font-size:0.68rem;color:#b91c1c;margin-top:1px;">${itemsSummary}</div>
+              </div>
+              <div style="font-size:0.75rem;font-weight:800;color:#9d174d;flex-shrink:0;">${(r.totalCost||0).toFixed(2)}</div>
+            </div>`;
+          }).join('')}
+          <div style="height:6px;"></div>
+        </div>`:'';
       // Account balance (cumulative)
       const acctOwed=_opAcctOwed[store.storeId]||0;
       const acctPaid=_opAcctPaid[store.storeId]||0;
@@ -11867,6 +11970,7 @@ function renderOperatorDailyView(){
           ${storeWds.length?`<div style="margin-bottom:6px;">${wdRows}</div>`:''}
           ${!isClosed?`<button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="width:100%;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب — ${store.name}</button>`:''}
         </div>
+        ${refundBlock}
         ${acctRow}
       </div>`;
     };
@@ -14126,7 +14230,7 @@ window.onEmpDlvStoreChange=onEmpDlvStoreChange; window.addEmpDlvItem=addEmpDlvIt
 window.removeEmpDlvItem=removeEmpDlvItem; window.changeEmpDlvQty=changeEmpDlvQty;
 window.onEmpDlvImageChange=onEmpDlvImageChange; window.clearEmpDlvImage=clearEmpDlvImage;
 window.submitEmpDelivery=submitEmpDelivery;
-window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail; window._openRepPickerFromDetail=_openRepPickerFromDetail;
+window.cancelEmpOrder=cancelEmpOrder; window.openEmpOrderEdit=openEmpOrderEdit; window.closeEmpOrderEdit=closeEmpOrderEdit; window.saveEmpOrderEdit=saveEmpOrderEdit; window.openOpOrderDetail=openOpOrderDetail; window.closeOpOrderDetail=closeOpOrderDetail; window._cancelOpOrderFromDetail=_cancelOpOrderFromDetail; window._returnOpOrderFromDetail=_returnOpOrderFromDetail; window._openRepPickerFromDetail=_openRepPickerFromDetail;
 
 // ===== DELIVERY REPS =====
 let _deliveryModalOrder=null;
@@ -14982,7 +15086,7 @@ async function confirmEmpCancel(){
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     toast('✅ تم إلغاء الطلب');
-    if(data.status==='delivered'){unsyncOrderFromAccounting(id);addPageRefundEntry(id,data,'cancelled');}
+    // simple cancel: no accounting effect — use 'إلغاء مع إرجاع' for refund flow
     if(!['cancelled','returned','refused','delivered'].includes(data.status)){removePageRefundEntry(id);}
   }catch(e){toast('❌ '+e.message);}
 }
@@ -17440,6 +17544,35 @@ function _qrOnDetected(raw){
   },150);
 }
 
+function _showQRViewerResult(o){
+  const wrap=document.getElementById('qrViewerResult');
+  if(!wrap)return;
+  const ST=EMP_STATUSES||{};
+  const st=ST[o.status]||{label:o.status,color:'#6b7280',bg:'#f9fafb'};
+  const prods=(o.products||[]).map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:0.82rem;"><span style="color:#374151;font-weight:600;">${p.name||''}</span><span style="color:#111;font-weight:700;">×${p.qty||1}</span></div>`).join('');
+  const note=o.notes?`<div style="background:#f9fafb;border-right:3px solid #111;border-radius:8px;padding:8px 12px;font-size:0.78rem;color:#555;margin-top:10px;">${o.notes}</div>`:'';
+  wrap.style.display='block';
+  wrap.innerHTML=`
+    <div style="background:#111;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="color:#fff;font-weight:800;font-size:0.95rem;">${o.workerName||''}</div>
+      <div style="color:#fff;font-size:0.72rem;opacity:0.7;">#${o.orderNum||o.id?.slice(-6).toUpperCase()||''}</div>
+    </div>
+    <div style="padding:14px 16px;">
+      <div style="display:inline-block;background:${st.bg};color:${st.color};border:1px solid ${st.border||st.color};border-radius:20px;padding:3px 12px;font-size:0.76rem;font-weight:700;margin-bottom:12px;">${st.label}</div>
+      ${o.customerPhone?`<div style="font-size:0.82rem;color:#374151;margin-bottom:6px;">📞 <span style="direction:ltr;display:inline-block;">${o.customerPhone}</span></div>`:''}
+      ${o.address?`<div style="font-size:0.82rem;color:#374151;margin-bottom:10px;">📍 ${o.address}</div>`:''}
+      <div style="border-top:1px solid #f3f4f6;padding-top:10px;">${prods||'<div style="color:#9ca3af;font-size:0.8rem;">لا يوجد منتجات</div>'}</div>
+      ${note}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1.5px solid #111;">
+        <span style="font-size:0.78rem;color:#9ca3af;">المبلغ الكلي</span>
+        <span style="font-size:1.05rem;font-weight:900;color:#111;">${(o.netPrice!=null?o.netPrice:(o.totalPrice||0)).toFixed(2)} <span style="font-size:0.65rem;font-weight:500;color:#9ca3af;">د.أ</span></span>
+      </div>
+    </div>
+    <div style="padding:10px 16px;background:#fafafa;border-top:1px solid #ebebeb;text-align:center;">
+      <button onclick="openQRScanner()" style="padding:10px 28px;background:#fff;color:#111;border:1.5px solid #ebebeb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:700;cursor:pointer;">📷 مسح طلب آخر</button>
+    </div>`;
+}
+
 async function _handleQRResult(raw){
   let orderId=raw.trim();
   // Extract ?order= param if full URL was scanned
@@ -17464,6 +17597,13 @@ async function _handleQRResult(raw){
       _repQRMode=false;
       const o=await _findOrder(orderId);
       if(o)_showRepOrderDetail(o);
+      else toast('❌ الطلب غير موجود: '+orderId.slice(0,12));
+      return;
+    }
+    // QR viewer employee: show read-only result card
+    if(_empCurrentUser?.permissions?.isQRViewer){
+      const o=await _findOrder(orderId);
+      if(o)_showQRViewerResult(o);
       else toast('❌ الطلب غير موجود: '+orderId.slice(0,12));
       return;
     }
