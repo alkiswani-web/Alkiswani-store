@@ -4129,7 +4129,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260616-r9';
+  const V='20260616-r10';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5682,7 +5682,8 @@ async function searchGalleryCustomer(){
   const area=document.getElementById('galCustomerArea');
   area.innerHTML='<div style="text-align:center;color:rgba(255,255,255,0.4);padding:30px;">⏳ بحث...</div>';
   try{
-    const snap=await db.collection('customer_galleries').doc(phone).get();
+    try{await firebase.firestore().enableNetwork();}catch(e){}
+    const snap=await db.collection('customer_galleries').doc(phone).get({source:'server'});
     if(snap.exists){
       _galCurrentPhone=phone;
       _galCurrentData={id:snap.id,...snap.data()};
@@ -5700,6 +5701,7 @@ async function createGalleryCustomer(phone){
   const name=document.getElementById('galNewName')?.value.trim()||'';
   const token=_genGalleryToken();
   const data={phone,name,token,createdAt:new Date().toISOString(),photos:[]};
+  try{await firebase.firestore().enableNetwork();}catch(e){}
   await db.collection('customer_galleries').doc(phone).set(data);
   _galCurrentPhone=phone;
   _galCurrentData=data;
