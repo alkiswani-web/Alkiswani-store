@@ -4129,7 +4129,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260616-r4';
+  const V='20260616-r5';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5661,7 +5661,11 @@ function _genGalleryToken(){
   const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   return Array.from({length:16},()=>c[Math.floor(Math.random()*c.length)]).join('');
 }
-function openGalleryMgmt(){
+async function openGalleryMgmt(){
+  // Ensure Firebase Auth token for Storage writes
+  try{
+    if(!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+  }catch(e){}
   document.getElementById('galleryMgmtModal').style.display='block';
   document.body.style.overflow='hidden';
   document.getElementById('galPhoneInput').value='';
@@ -5776,9 +5780,9 @@ async function uploadGalleryPhotos(input){
       newItems.push({url,storagePath:path,type:isVideo?'video':'image',createdAt:new Date().toISOString()});
       done++;
       if(prog) prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع ('+done+'/'+files.length+')...</div>';
-    }catch(e){console.error('Upload error',e);}
+    }catch(e){console.error('Upload error',e);if(prog)prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل الرفع: '+e.message+'</div>';}
   }
-  if(!newItems.length){if(prog)prog.style.display='none';return;}
+  if(!newItems.length){if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل رفع الملفات — تأكد من الاتصال</div>';}return;}
   const updatedPhotos=[...(_galCurrentData.photos||[]),...newItems];
   await db.collection('customer_galleries').doc(_galCurrentPhone).update({photos:updatedPhotos,photoCount:updatedPhotos.length});
   _galCurrentData.photos=updatedPhotos;
