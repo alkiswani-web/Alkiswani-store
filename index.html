@@ -4129,7 +4129,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260616-r6';
+  const V='20260616-r7';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5767,7 +5767,7 @@ async function uploadGalleryPhotos(input){
     return;
   }
   if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع (0/'+files.length+')...</div>';}
-  let done=0;
+  let done=0,lastErr=null;
   const newItems=[];
   for(const file of files){
     try{
@@ -5787,9 +5787,17 @@ async function uploadGalleryPhotos(input){
       newItems.push({url,storagePath:path,type:isVideo?'video':'image',createdAt:new Date().toISOString()});
       done++;
       if(prog) prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع ('+done+'/'+files.length+')...</div>';
-    }catch(e){console.error('Upload error',e);if(prog)prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل الرفع: '+(e.code||'')+' '+e.message+'</div>';break;}
+    }catch(e){
+      console.error('Upload error',e);
+      lastErr=e;
+      if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ خطأ: '+(e.code||e.name||'unknown')+' — '+e.message+'</div>';}
+      break;
+    }
   }
-  if(!newItems.length){if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل رفع الملفات — تأكد من الاتصال</div>';}return;}
+  if(!newItems.length){
+    if(!lastErr&&prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل رفع الملفات — تأكد من الاتصال</div>';}
+    return;
+  }
   const updatedPhotos=[...(_galCurrentData.photos||[]),...newItems];
   await db.collection('customer_galleries').doc(_galCurrentPhone).update({photos:updatedPhotos,photoCount:updatedPhotos.length});
   _galCurrentData.photos=updatedPhotos;
