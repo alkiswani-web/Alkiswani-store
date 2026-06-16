@@ -4047,7 +4047,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r9';
+  const V='20260614-r10';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5385,7 +5385,7 @@ function recordEmpWageAdjustment(){}
 // ===== FRAME GALLERY =====
 function _getFrameOrders(){
   return (_opOrdersAllData||[]).filter(o=>
-    o.isFrameOrder===true
+    (o.isFrameOrder===true||(o.products||[]).some(p=>(p.name||'').includes('برواز')))
     &&(o.imageDataUrl||(o.imageDataUrls&&o.imageDataUrls.length))
     &&o.photoTaken!==true
     &&!['cancelled','returned','refused'].includes(o.status)
