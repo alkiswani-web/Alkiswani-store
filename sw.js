@@ -20,10 +20,8 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v63';
+const CACHE = 'alkiswani-v64';
 const ASSETS = [
-  '/',
-  '/index.html',
   'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap'
 ];
 
@@ -38,8 +36,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.matchAll({type:'window',includeUncontrolled:true}))
-     .then(clients => clients.forEach(c => c.navigate(c.url)))
+    )
   );
   self.clients.claim();
 });
@@ -51,19 +48,16 @@ self.addEventListener('fetch', e => {
      e.request.url.includes('gstatic')) {
     return;
   }
-  // HTML navigation: serve from cache instantly, update in background (stale-while-revalidate)
+  // HTML: always network-first so updates load immediately
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
     e.respondWith(
-      caches.match(e.request).then(cached => {
-        const networkFetch = fetch(e.request).then(res => {
-          if(res && res.status === 200) {
-            const clone = res.clone();
-            caches.open(CACHE).then(cache => cache.put(e.request, clone));
-          }
-          return res;
-        }).catch(() => cached);
-        return cached || networkFetch;
-      })
+      fetch(e.request).then(res => {
+        if(res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }
