@@ -4059,7 +4059,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r12';
+  const V='20260614-r13';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5524,7 +5524,6 @@ async function openFrameGallery(){
     // Direct Firestore query to get fresh image data
     const snap=await db.collection('employee_orders')
       .where('isFrameOrder','==',true)
-      .orderBy('createdAt','desc')
       .get();
     const fromFirestore=snap.docs.map(d=>({id:d.id,...d.data()}))
       .filter(o=>_hasRealImage(o)&&o.photoTaken!==true&&!['cancelled','returned','refused'].includes(o.status));
