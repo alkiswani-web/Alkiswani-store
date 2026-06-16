@@ -2896,14 +2896,26 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setOpOrderFilter('edited',this)">✏️ معدّل <span id="ooc-edited" style="background:#854d0e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
           </div>
           <!-- Frame Gallery Modal -->
-          <div id="frameGalleryModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);overflow-y:auto;">
+          <div id="frameGalleryModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.9);overflow-y:auto;">
             <div style="max-width:480px;margin:0 auto;padding:16px;min-height:100vh;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-top:8px;">
+              <!-- header -->
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-top:8px;">
                 <div>
                   <div style="color:#fff;font-weight:900;font-size:1.05rem;">📁 مجلد البراويز</div>
                   <div id="frameGallerySubtitle" style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin-top:2px;"></div>
                 </div>
-                <button onclick="closeFrameGallery()" style="background:rgba(255,255,255,0.12);border:none;border-radius:10px;color:#fff;padding:8px 14px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕ إغلاق</button>
+                <div style="display:flex;gap:8px;">
+                  <button onclick="toggleFrameSelectMode()" id="frameSelectBtn" style="background:rgba(255,255,255,0.12);border:none;border-radius:10px;color:#fff;padding:8px 14px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">☑️ تحديد</button>
+                  <button onclick="closeFrameGallery()" style="background:rgba(255,255,255,0.12);border:none;border-radius:10px;color:#fff;padding:8px 14px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
+                </div>
+              </div>
+              <!-- select toolbar (sticky) -->
+              <div id="frameSelectBar" style="display:none;position:sticky;top:8px;z-index:10;background:#7c3aed;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between;">
+                <span id="frameSelectedCount" style="color:#fff;font-weight:800;font-size:0.88rem;">0 محدد</span>
+                <div style="display:flex;gap:8px;">
+                  <button onclick="frameSelectAll()" style="background:rgba(255,255,255,0.2);border:none;border-radius:8px;color:#fff;padding:7px 12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">الكل</button>
+                  <button onclick="markSelectedFramesTaken()" style="background:#fff;border:none;border-radius:8px;color:#7c3aed;padding:7px 14px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:900;cursor:pointer;">✅ أخذت الصور</button>
+                </div>
               </div>
               <div id="frameGalleryGrid" style="display:flex;flex-direction:column;gap:14px;"></div>
             </div>
@@ -4047,7 +4059,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r10';
+  const V='20260614-r11';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5383,10 +5395,18 @@ function settleEmpPage(){}
 function recordEmpWageAdjustment(){}
 
 // ===== FRAME GALLERY =====
+let _frameSelectMode=false;
+let _frameSelected=new Set();
+
+function _hasRealImage(o){
+  if(o.imageDataUrls&&Array.isArray(o.imageDataUrls))
+    return o.imageDataUrls.some(u=>u&&typeof u==='string'&&u.length>50);
+  return !!(o.imageDataUrl&&typeof o.imageDataUrl==='string'&&o.imageDataUrl.length>50);
+}
 function _getFrameOrders(){
   return (_opOrdersAllData||[]).filter(o=>
     (o.isFrameOrder===true||(o.products||[]).some(p=>(p.name||'').includes('برواز')))
-    &&(o.imageDataUrl||(o.imageDataUrls&&o.imageDataUrls.length))
+    &&_hasRealImage(o)
     &&o.photoTaken!==true
     &&!['cancelled','returned','refused'].includes(o.status)
   );
@@ -5401,36 +5421,107 @@ function _renderFrameGallery(){
   if(!grid)return;
   const frames=_getFrameOrders().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   if(sub) sub.textContent=frames.length+' طلب بانتظار الصورة';
+  // sync selected set — remove any ids no longer in frames
+  const frameIds=new Set(frames.map(o=>o.id));
+  _frameSelected.forEach(id=>{if(!frameIds.has(id))_frameSelected.delete(id);});
+  _updateFrameSelectBar();
   if(!frames.length){
     grid.innerHTML='<div style="text-align:center;color:rgba(255,255,255,0.45);padding:60px 0;font-size:0.9rem;">✅ لا توجد صور منتظرة</div>';
     return;
   }
   grid.innerHTML=frames.map(o=>{
-    const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
-    const imgHtml=imgs.map(src=>`<img src="${src}" onclick="this.classList.toggle('expanded')" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:zoom-in;transition:max-height 0.3s;" loading="lazy">`).join('');
+    const imgs=(o.imageDataUrls&&o.imageDataUrls.filter(u=>u&&u.length>50).length)
+      ?o.imageDataUrls.filter(u=>u&&u.length>50)
+      :(o.imageDataUrl?[o.imageDataUrl]:[]);
     const prods=(o.products||[]).map(p=>p.name+(p.qty>1?` ×${p.qty}`:'')).join('، ')||'—';
     const dt=o.createdAt?(new Date(o.createdAt)).toLocaleString('ar-EG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-    return `<div style="background:#1a1a2e;border:1px solid rgba(124,58,237,0.35);border-radius:14px;overflow:hidden;">
-      <div style="padding:12px 14px 10px;">${imgHtml}</div>
-      <div style="padding:10px 14px 14px;">
-        <div style="color:#fff;font-weight:800;font-size:0.92rem;margin-bottom:3px;">${o.customerName||'—'}</div>
-        <div style="color:rgba(255,255,255,0.55);font-size:0.78rem;margin-bottom:3px;">${prods}</div>
-        ${o.customerPhone?`<div style="color:rgba(255,255,255,0.45);font-size:0.75rem;margin-bottom:3px;">📞 ${o.customerPhone}</div>`:''}
-        ${dt?`<div style="color:rgba(255,255,255,0.35);font-size:0.72rem;margin-bottom:10px;">${dt}</div>`:''}
-        <button onclick="markFramePhotoTaken('${o.id}')" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">✅ أخذت الصورة</button>
+    const isSel=_frameSelected.has(o.id);
+    const borderCol=isSel?'#7c3aed':'rgba(124,58,237,0.3)';
+    const bgCol=isSel?'#1e1040':'#0f0f1a';
+    const imgHtml=imgs.map((src,i)=>`
+      <div style="position:relative;margin-bottom:${i<imgs.length-1?'6px':'0'};">
+        <img src="${src}" onclick="${_frameSelectMode?`_toggleFrameSelect('${o.id}')`:`this.style.maxHeight=this.style.maxHeight==='none'?'220px':'none'`}" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:${_frameSelectMode?'pointer':'zoom-in'};" loading="lazy">
+        ${i===0?`<div style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.72);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;padding:3px 9px;border-radius:8px;backdrop-filter:blur(4px);">${prods}</div>`:''}
+        ${i===0&&isSel?`<div style="position:absolute;inset:0;border-radius:10px;background:rgba(124,58,237,0.25);display:flex;align-items:center;justify-content:center;"><div style="background:#7c3aed;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">✓</div></div>`:''}
+      </div>`).join('');
+    const actionBtn=_frameSelectMode
+      ?`<button onclick="_toggleFrameSelect('${o.id}')" style="width:100%;padding:10px;background:${isSel?'#7c3aed':'rgba(255,255,255,0.1)'};color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;">${isSel?'✓ محدد':'☐ تحديد'}</button>`
+      :`<button onclick="markFramePhotoTaken('${o.id}')" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">✅ أخذت الصورة</button>`;
+    return `<div id="fgc-${o.id}" style="background:${bgCol};border:2px solid ${borderCol};border-radius:14px;overflow:hidden;transition:border-color 0.2s,background 0.2s;">
+      <div style="padding:12px 14px 8px;">${imgHtml}</div>
+      <div style="padding:6px 14px 14px;">
+        <div style="color:#fff;font-weight:800;font-size:0.92rem;margin-bottom:2px;">${o.customerName||'—'}</div>
+        ${o.customerPhone?`<div style="color:rgba(255,255,255,0.45);font-size:0.75rem;margin-bottom:2px;">📞 ${o.customerPhone}</div>`:''}
+        ${dt?`<div style="color:rgba(255,255,255,0.3);font-size:0.72rem;margin-bottom:10px;">${dt}</div>`:'<div style="margin-bottom:10px;"></div>'}
+        ${actionBtn}
       </div>
     </div>`;
   }).join('');
 }
+function _updateFrameSelectBar(){
+  const bar=document.getElementById('frameSelectBar');
+  const cnt=document.getElementById('frameSelectedCount');
+  if(!bar)return;
+  if(_frameSelectMode){
+    bar.style.display='flex';
+    if(cnt) cnt.textContent=_frameSelected.size+' محدد';
+  } else {
+    bar.style.display='none';
+  }
+}
+function toggleFrameSelectMode(){
+  _frameSelectMode=!_frameSelectMode;
+  _frameSelected.clear();
+  const btn=document.getElementById('frameSelectBtn');
+  if(btn) btn.style.background=_frameSelectMode?'#7c3aed':'rgba(255,255,255,0.12)';
+  _renderFrameGallery();
+}
+function _toggleFrameSelect(id){
+  if(_frameSelected.has(id)) _frameSelected.delete(id);
+  else _frameSelected.add(id);
+  _updateFrameSelectBar();
+  // re-render just this card's style without full redraw
+  const frames=_getFrameOrders();
+  const o=frames.find(x=>x.id===id);
+  if(!o) return;
+  _renderFrameGallery();
+}
+function frameSelectAll(){
+  _getFrameOrders().forEach(o=>_frameSelected.add(o.id));
+  _renderFrameGallery();
+}
+async function markSelectedFramesTaken(){
+  const ids=[..._frameSelected];
+  if(!ids.length)return;
+  try{
+    await Promise.all(ids.map(id=>db.collection('employee_orders').doc(id).update({photoTaken:true})));
+    ids.forEach(id=>{
+      const idx=(_opOrdersAllData||[]).findIndex(o=>o.id===id);
+      if(idx!==-1) _opOrdersAllData[idx].photoTaken=true;
+    });
+    _frameSelected.clear();
+    _frameSelectMode=false;
+    const btn=document.getElementById('frameSelectBtn');
+    if(btn) btn.style.background='rgba(255,255,255,0.12)';
+    _updateFrameGalleryCount();
+    _renderFrameGallery();
+  }catch(e){alert('حدث خطأ: '+e.message);}
+}
 function openFrameGallery(){
   const m=document.getElementById('frameGalleryModal');
   if(m){m.style.display='block';document.body.style.overflow='hidden';}
+  _frameSelectMode=false;
+  _frameSelected.clear();
+  const btn=document.getElementById('frameSelectBtn');
+  if(btn) btn.style.background='rgba(255,255,255,0.12)';
   _renderFrameGallery();
 }
 function closeFrameGallery(){
   const m=document.getElementById('frameGalleryModal');
   if(m) m.style.display='none';
   document.body.style.overflow='';
+  _frameSelectMode=false;
+  _frameSelected.clear();
 }
 async function markFramePhotoTaken(orderId){
   try{
@@ -14075,6 +14166,7 @@ window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.openFrameGallery=openFrameGallery; window.closeFrameGallery=closeFrameGallery; window.markFramePhotoTaken=markFramePhotoTaken;
+window.toggleFrameSelectMode=toggleFrameSelectMode; window._toggleFrameSelect=_toggleFrameSelect; window.frameSelectAll=frameSelectAll; window.markSelectedFramesTaken=markSelectedFramesTaken;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
