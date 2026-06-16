@@ -4059,7 +4059,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r13';
+  const V='20260614-r14';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5420,7 +5420,10 @@ function _renderFrameGallery(){
   const grid=document.getElementById('frameGalleryGrid');
   const sub=document.getElementById('frameGallerySubtitle');
   if(!grid)return;
-  const frames=(_frameOrdersCache.length?_frameOrdersCache:_getFrameOrders()).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const frames=(_frameOrdersCache.length?_frameOrdersCache:_getFrameOrders()).sort((a,b)=>{
+    const t=o=>(o.createdAt?.toMillis?.())||(o.createdAt?.seconds||0)*1000||0;
+    return t(b)-t(a);
+  });
   if(sub) sub.textContent=frames.length+' طلب بانتظار الصورة';
   // sync selected set — remove any ids no longer in frames
   const frameIds=new Set(frames.map(o=>o.id));
