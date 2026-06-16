@@ -3602,6 +3602,15 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <div id="empOrdersList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div></div>
     </div><!-- end empNormalOrderSection -->
 
+    <!-- Customer Gallery Button -->
+    <div id="empGallerySection" style="margin-bottom:18px;">
+      <button onclick="openGalleryMgmt()" style="width:100%;padding:16px;background:linear-gradient(135deg,#1a1a2e,#2d1b4e);color:#c9a84c;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 14px rgba(0,0,0,0.12);">
+        <span style="font-size:1.3rem;">📸</span>
+        <span>معارض الزبائن</span>
+        <span style="font-size:0.75rem;font-weight:400;color:rgba(201,168,76,0.6);">رفع صور وتوليد QR</span>
+      </button>
+    </div>
+
     <!-- Points Card -->
     <div style="background:#fff;border:1.5px solid #fbbf24;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
       <div style="font-size:0.95rem;font-weight:800;color:#92400e;margin-bottom:12px;">🏆 نقاطي</div>
@@ -4119,7 +4128,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260616-r1';
+  const V='20260616-r2';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
