@@ -4129,7 +4129,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260616-r5';
+  const V='20260616-r6';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5759,6 +5759,13 @@ async function uploadGalleryPhotos(input){
   if(!files.length)return;
   input.value='';
   const prog=document.getElementById('galUploadProgress');
+  // Ensure auth before every upload attempt
+  try{
+    if(!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+  }catch(authErr){
+    if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل تسجيل الدخول: '+authErr.message+'<br><small>تأكد من تفعيل Anonymous Auth في Firebase</small></div>';}
+    return;
+  }
   if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع (0/'+files.length+')...</div>';}
   let done=0;
   const newItems=[];
@@ -5780,7 +5787,7 @@ async function uploadGalleryPhotos(input){
       newItems.push({url,storagePath:path,type:isVideo?'video':'image',createdAt:new Date().toISOString()});
       done++;
       if(prog) prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع ('+done+'/'+files.length+')...</div>';
-    }catch(e){console.error('Upload error',e);if(prog)prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل الرفع: '+e.message+'</div>';}
+    }catch(e){console.error('Upload error',e);if(prog)prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل الرفع: '+(e.code||'')+' '+e.message+'</div>';break;}
   }
   if(!newItems.length){if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل رفع الملفات — تأكد من الاتصال</div>';}return;}
   const updatedPhotos=[...(_galCurrentData.photos||[]),...newItems];
