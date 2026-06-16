@@ -2875,6 +2875,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <span id="opSearchClear" onclick="clearOpSearch()" style="display:none;position:absolute;left:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:#999;font-size:1rem;">✕</span>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:7px;margin-bottom:8px;">
+            <button onclick="openFrameGallery()" id="frameGalleryBtn" style="padding:8px 14px;background:#7c3aed;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:5px;">📁 البراويز <span id="frameGalleryCount" style="background:rgba(255,255,255,0.25);border-radius:8px;padding:1px 7px;font-size:0.72rem;">0</span></button>
             <button onclick="openBatchDistributeModal()" style="padding:8px 16px;background:#111;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18);">🚚 وزّع الطلبات</button>
             <button id="opSelectModeBtn" onclick="toggleOpSelectMode()" style="padding:8px 16px;background:#fff;color:#555;border:1px solid #ebebeb;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">☑ تحديد للطباعة</button>
           </div>
@@ -2893,6 +2894,19 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button class="order-stab" onclick="setOpOrderFilter('returned',this)">مرتجع <span id="ooc-returned" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('refused',this)">رفض <span id="ooc-refused" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('edited',this)">✏️ معدّل <span id="ooc-edited" style="background:#854d0e;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
+          </div>
+          <!-- Frame Gallery Modal -->
+          <div id="frameGalleryModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);overflow-y:auto;">
+            <div style="max-width:480px;margin:0 auto;padding:16px;min-height:100vh;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-top:8px;">
+                <div>
+                  <div style="color:#fff;font-weight:900;font-size:1.05rem;">📁 مجلد البراويز</div>
+                  <div id="frameGallerySubtitle" style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin-top:2px;"></div>
+                </div>
+                <button onclick="closeFrameGallery()" style="background:rgba(255,255,255,0.12);border:none;border-radius:10px;color:#fff;padding:8px 14px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕ إغلاق</button>
+              </div>
+              <div id="frameGalleryGrid" style="display:flex;flex-direction:column;gap:14px;"></div>
+            </div>
           </div>
           <div id="opOrdersWrap"></div>
           <!-- Bulk select bar -->
@@ -4033,7 +4047,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r8';
+  const V='20260614-r9';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5368,6 +5382,66 @@ function closeEmpWageDetail(){}
 function settleEmpPage(){}
 function recordEmpWageAdjustment(){}
 
+// ===== FRAME GALLERY =====
+function _getFrameOrders(){
+  return (_opOrdersAllData||[]).filter(o=>
+    o.isFrameOrder===true
+    &&(o.imageDataUrl||(o.imageDataUrls&&o.imageDataUrls.length))
+    &&o.photoTaken!==true
+    &&!['cancelled','returned','refused'].includes(o.status)
+  );
+}
+function _updateFrameGalleryCount(){
+  const el=document.getElementById('frameGalleryCount');
+  if(el) el.textContent=_getFrameOrders().length;
+}
+function _renderFrameGallery(){
+  const grid=document.getElementById('frameGalleryGrid');
+  const sub=document.getElementById('frameGallerySubtitle');
+  if(!grid)return;
+  const frames=_getFrameOrders().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  if(sub) sub.textContent=frames.length+' طلب بانتظار الصورة';
+  if(!frames.length){
+    grid.innerHTML='<div style="text-align:center;color:rgba(255,255,255,0.45);padding:60px 0;font-size:0.9rem;">✅ لا توجد صور منتظرة</div>';
+    return;
+  }
+  grid.innerHTML=frames.map(o=>{
+    const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+    const imgHtml=imgs.map(src=>`<img src="${src}" onclick="this.classList.toggle('expanded')" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:zoom-in;transition:max-height 0.3s;" loading="lazy">`).join('');
+    const prods=(o.products||[]).map(p=>p.name+(p.qty>1?` ×${p.qty}`:'')).join('، ')||'—';
+    const dt=o.createdAt?(new Date(o.createdAt)).toLocaleString('ar-EG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    return `<div style="background:#1a1a2e;border:1px solid rgba(124,58,237,0.35);border-radius:14px;overflow:hidden;">
+      <div style="padding:12px 14px 10px;">${imgHtml}</div>
+      <div style="padding:10px 14px 14px;">
+        <div style="color:#fff;font-weight:800;font-size:0.92rem;margin-bottom:3px;">${o.customerName||'—'}</div>
+        <div style="color:rgba(255,255,255,0.55);font-size:0.78rem;margin-bottom:3px;">${prods}</div>
+        ${o.customerPhone?`<div style="color:rgba(255,255,255,0.45);font-size:0.75rem;margin-bottom:3px;">📞 ${o.customerPhone}</div>`:''}
+        ${dt?`<div style="color:rgba(255,255,255,0.35);font-size:0.72rem;margin-bottom:10px;">${dt}</div>`:''}
+        <button onclick="markFramePhotoTaken('${o.id}')" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">✅ أخذت الصورة</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openFrameGallery(){
+  const m=document.getElementById('frameGalleryModal');
+  if(m){m.style.display='block';document.body.style.overflow='hidden';}
+  _renderFrameGallery();
+}
+function closeFrameGallery(){
+  const m=document.getElementById('frameGalleryModal');
+  if(m) m.style.display='none';
+  document.body.style.overflow='';
+}
+async function markFramePhotoTaken(orderId){
+  try{
+    await db.collection('employee_orders').doc(orderId).update({photoTaken:true});
+    const idx=(_opOrdersAllData||[]).findIndex(o=>o.id===orderId);
+    if(idx!==-1) _opOrdersAllData[idx].photoTaken=true;
+    _updateFrameGalleryCount();
+    _renderFrameGallery();
+  }catch(e){alert('حدث خطأ: '+e.message);}
+}
+
 // ===== DAILY EXPENSES =====
 async function loadExpenses(){
   const list=document.getElementById('expensesList');
@@ -6181,6 +6255,7 @@ async function submitEmpOrder(){
       ...(areaInput?{area:areaInput}:{}),
       ...(orderNumInput?{orderNum:orderNumInput}:{}),
       ...(_empCurrentImages.length?{imageDataUrls:_empCurrentImages,imageDataUrl:_empCurrentImages[0]}:{}),
+      ...(_empCurrentImages.length&&_empOrderCart.some(i=>(i.name||'').includes('برواز'))?{isFrameOrder:true}:{}),
       status:_empReadyToDeliver?'prepared':'pending',
       ...(_empOrderUrgent?{urgent:true}:{}),
       totalPrice,deliveryFee,netPrice,
@@ -7449,6 +7524,7 @@ function loadOperatorOrders(){
       }
       newData.forEach(o=>_seenOpOrderIds.add(o.id));
       _opOrdersAllData=newData;
+      _updateFrameGalleryCount();
       _renderOpOrdersView();
       if(_tvModeActive)_renderTVMode();
     },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
@@ -13998,6 +14074,7 @@ window.onEmpImageChange=onEmpImageChange; window.clearEmpImage=clearEmpImage;
 window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
+window.openFrameGallery=openFrameGallery; window.closeFrameGallery=closeFrameGallery; window.markFramePhotoTaken=markFramePhotoTaken;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
