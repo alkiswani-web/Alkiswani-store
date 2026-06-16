@@ -4059,7 +4059,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r11';
+  const V='20260614-r12';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5397,11 +5397,12 @@ function recordEmpWageAdjustment(){}
 // ===== FRAME GALLERY =====
 let _frameSelectMode=false;
 let _frameSelected=new Set();
+let _frameOrdersCache=[];
 
 function _hasRealImage(o){
-  if(o.imageDataUrls&&Array.isArray(o.imageDataUrls))
-    return o.imageDataUrls.some(u=>u&&typeof u==='string'&&u.length>50);
-  return !!(o.imageDataUrl&&typeof o.imageDataUrl==='string'&&o.imageDataUrl.length>50);
+  const urls=Array.isArray(o.imageDataUrls)?o.imageDataUrls:[];
+  if(urls.length) return urls.some(u=>u&&typeof u==='string'&&u.length>100);
+  return !!(o.imageDataUrl&&typeof o.imageDataUrl==='string'&&o.imageDataUrl.length>100);
 }
 function _getFrameOrders(){
   return (_opOrdersAllData||[]).filter(o=>
@@ -5419,7 +5420,7 @@ function _renderFrameGallery(){
   const grid=document.getElementById('frameGalleryGrid');
   const sub=document.getElementById('frameGallerySubtitle');
   if(!grid)return;
-  const frames=_getFrameOrders().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const frames=(_frameOrdersCache.length?_frameOrdersCache:_getFrameOrders()).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   if(sub) sub.textContent=frames.length+' طلب بانتظار الصورة';
   // sync selected set — remove any ids no longer in frames
   const frameIds=new Set(frames.map(o=>o.id));
@@ -5440,7 +5441,7 @@ function _renderFrameGallery(){
     const bgCol=isSel?'#1e1040':'#0f0f1a';
     const imgHtml=imgs.map((src,i)=>`
       <div style="position:relative;margin-bottom:${i<imgs.length-1?'6px':'0'};">
-        <img src="${src}" onclick="${_frameSelectMode?`_toggleFrameSelect('${o.id}')`:`this.style.maxHeight=this.style.maxHeight==='none'?'220px':'none'`}" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:${_frameSelectMode?'pointer':'zoom-in'};" loading="lazy">
+        <img src="${src}" onclick="${_frameSelectMode?`_toggleFrameSelect('${o.id}')`:`this.style.maxHeight=this.style.maxHeight==='none'?'220px':'none'`}" onerror="this.style.background='#2d1b4e';this.style.minHeight='80px';this.alt='⚠️ لم تُحمَّل الصورة';" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:${_frameSelectMode?'pointer':'zoom-in'};" loading="lazy">
         ${i===0?`<div style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.72);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;padding:3px 9px;border-radius:8px;backdrop-filter:blur(4px);">${prods}</div>`:''}
         ${i===0&&isSel?`<div style="position:absolute;inset:0;border-radius:10px;background:rgba(124,58,237,0.25);display:flex;align-items:center;justify-content:center;"><div style="background:#7c3aed;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">✓</div></div>`:''}
       </div>`).join('');
@@ -5499,6 +5500,7 @@ async function markSelectedFramesTaken(){
       const idx=(_opOrdersAllData||[]).findIndex(o=>o.id===id);
       if(idx!==-1) _opOrdersAllData[idx].photoTaken=true;
     });
+    _frameOrdersCache=_frameOrdersCache.filter(o=>!ids.includes(o.id));
     _frameSelected.clear();
     _frameSelectMode=false;
     const btn=document.getElementById('frameSelectBtn');
@@ -5507,14 +5509,40 @@ async function markSelectedFramesTaken(){
     _renderFrameGallery();
   }catch(e){alert('حدث خطأ: '+e.message);}
 }
-function openFrameGallery(){
+async function openFrameGallery(){
   const m=document.getElementById('frameGalleryModal');
   if(m){m.style.display='block';document.body.style.overflow='hidden';}
   _frameSelectMode=false;
   _frameSelected.clear();
   const btn=document.getElementById('frameSelectBtn');
   if(btn) btn.style.background='rgba(255,255,255,0.12)';
-  _renderFrameGallery();
+  // show loading
+  const grid=document.getElementById('frameGalleryGrid');
+  const sub=document.getElementById('frameGallerySubtitle');
+  if(grid) grid.innerHTML='<div style="text-align:center;color:rgba(255,255,255,0.45);padding:60px 0;font-size:0.9rem;">⏳ جاري التحميل...</div>';
+  try{
+    // Direct Firestore query to get fresh image data
+    const snap=await db.collection('employee_orders')
+      .where('isFrameOrder','==',true)
+      .orderBy('createdAt','desc')
+      .get();
+    const fromFirestore=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(o=>_hasRealImage(o)&&o.photoTaken!==true&&!['cancelled','returned','refused'].includes(o.status));
+    // also include برواز by product name from memory (orders that predate the flag)
+    const firestoreIds=new Set(fromFirestore.map(o=>o.id));
+    const fromMemory=(_opOrdersAllData||[]).filter(o=>
+      !firestoreIds.has(o.id)
+      &&(o.products||[]).some(p=>(p.name||'').includes('برواز'))
+      &&_hasRealImage(o)
+      &&o.photoTaken!==true
+      &&!['cancelled','returned','refused'].includes(o.status)
+    );
+    _frameOrdersCache=[...fromFirestore,...fromMemory];
+    if(sub) sub.textContent=_frameOrdersCache.length+' طلب بانتظار الصورة';
+    _renderFrameGallery();
+  }catch(e){
+    if(grid) grid.innerHTML='<div style="color:#f87171;font-size:0.85rem;padding:20px;text-align:center;">❌ '+e.message+'</div>';
+  }
 }
 function closeFrameGallery(){
   const m=document.getElementById('frameGalleryModal');
@@ -5528,6 +5556,7 @@ async function markFramePhotoTaken(orderId){
     await db.collection('employee_orders').doc(orderId).update({photoTaken:true});
     const idx=(_opOrdersAllData||[]).findIndex(o=>o.id===orderId);
     if(idx!==-1) _opOrdersAllData[idx].photoTaken=true;
+    _frameOrdersCache=_frameOrdersCache.filter(o=>o.id!==orderId);
     _updateFrameGalleryCount();
     _renderFrameGallery();
   }catch(e){alert('حدث خطأ: '+e.message);}
