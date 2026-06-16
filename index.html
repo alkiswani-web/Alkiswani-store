@@ -4059,7 +4059,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260614-r14';
+  const V='20260614-r15';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5494,10 +5494,27 @@ function frameSelectAll(){
   _getFrameOrders().forEach(o=>_frameSelected.add(o.id));
   _renderFrameGallery();
 }
+function _downloadOrderImages(o){
+  const imgs=Array.isArray(o.imageDataUrls)?o.imageDataUrls.filter(u=>u&&u.length>100):(o.imageDataUrl?[o.imageDataUrl]:[]);
+  const name=(o.customerName||'برواز').replace(/\s+/g,'_');
+  const prod=((o.products||[])[0]?.name||'').replace(/\s+/g,'_');
+  imgs.forEach((src,i)=>{
+    const a=document.createElement('a');
+    a.href=src;
+    a.download=`${name}_${prod}${imgs.length>1?'_'+(i+1):''}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+}
 async function markSelectedFramesTaken(){
   const ids=[..._frameSelected];
   if(!ids.length)return;
   try{
+    ids.forEach(id=>{
+      const o=_frameOrdersCache.find(x=>x.id===id);
+      if(o) _downloadOrderImages(o);
+    });
     await Promise.all(ids.map(id=>db.collection('employee_orders').doc(id).update({photoTaken:true})));
     ids.forEach(id=>{
       const idx=(_opOrdersAllData||[]).findIndex(o=>o.id===id);
@@ -5555,6 +5572,8 @@ function closeFrameGallery(){
 }
 async function markFramePhotoTaken(orderId){
   try{
+    const o=_frameOrdersCache.find(x=>x.id===orderId);
+    if(o) _downloadOrderImages(o);
     await db.collection('employee_orders').doc(orderId).update({photoTaken:true});
     const idx=(_opOrdersAllData||[]).findIndex(o=>o.id===orderId);
     if(idx!==-1) _opOrdersAllData[idx].photoTaken=true;
@@ -14197,7 +14216,7 @@ window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.openFrameGallery=openFrameGallery; window.closeFrameGallery=closeFrameGallery; window.markFramePhotoTaken=markFramePhotoTaken;
-window.toggleFrameSelectMode=toggleFrameSelectMode; window._toggleFrameSelect=_toggleFrameSelect; window.frameSelectAll=frameSelectAll; window.markSelectedFramesTaken=markSelectedFramesTaken;
+window.toggleFrameSelectMode=toggleFrameSelectMode; window._toggleFrameSelect=_toggleFrameSelect; window.frameSelectAll=frameSelectAll; window.markSelectedFramesTaken=markSelectedFramesTaken; window._downloadOrderImages=_downloadOrderImages;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
 window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
