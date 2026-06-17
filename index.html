@@ -14650,19 +14650,22 @@ function _ensureNet(){
 
 async function _getOrCreateAttToken(){
   if(_attToken) return _attToken;
+  // try up to 2 times (server then cache fallback)
+  for(const src of [{source:'server'},{}]){
+    try{
+      await _ensureNet();
+      const snap=await db.collection('config').doc('attendance_qr').get(src);
+      if(snap.exists&&snap.data().token){_attToken=snap.data().token;return _attToken;}
+    }catch(e){console.warn('AttToken fetch',src,e);}
+  }
+  // create new token if none exists
   try{
-    await _ensureNet();
-    const snap=await db.collection('config').doc('attendance_qr').get({source:'server'});
-    if(snap.exists&&snap.data().token){
-      _attToken=snap.data().token;
-    } else {
-      const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      const tok='ATT-'+Array.from({length:12},()=>c[Math.floor(Math.random()*c.length)]).join('');
-      await db.collection('config').doc('attendance_qr').set({token:tok,createdAt:new Date().toISOString()});
-      _attToken=tok;
-    }
+    const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const tok='ATT-'+Array.from({length:12},()=>c[Math.floor(Math.random()*c.length)]).join('');
+    await db.collection('config').doc('attendance_qr').set({token:tok,createdAt:new Date().toISOString()});
+    _attToken=tok;
     return _attToken;
-  }catch(e){console.error('AttToken',e);return null;}
+  }catch(e){console.error('AttToken create',e);return null;}
 }
 
 function openAttendanceScan(){
@@ -14674,8 +14677,12 @@ function openAttendanceScan(){
 async function _handleAttendanceScan(raw){
   _qrScanCallback=null;
   const token=await _getOrCreateAttToken();
-  if(!token||raw.trim()!==token){
-    _showAttResult('error','كود خاطئ — استخدم QR الدوام الصحيح');
+  if(!token){
+    _showAttResult('error','تعذّر الاتصال — تأكد من الإنترنت وأعد المسح');
+    return;
+  }
+  if(raw.trim()!==token.trim()){
+    _showAttResult('error','كود خاطئ — امسح QR الدوام الموجود بالمشغل');
     return;
   }
   const emp=_empCurrentUser;
