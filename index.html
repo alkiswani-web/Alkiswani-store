@@ -4173,7 +4173,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260617-r3';
+  const V='20260617-r4';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5328,9 +5328,14 @@ async function loadEmpWages(){
     const ratesMap={};
     ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
 
-    if(!_ewStores.length){grid.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;grid-column:1/-1;padding:10px;">لا يوجد متاجر</div>';return;}
+    const mashghalCard=`<div onclick="ewOpenMashghal()" style="background:#f0fdf4;border:2px solid #16a34a;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 2px 8px rgba(22,163,74,0.10);grid-column:1/-1;">
+      <div style="font-size:2rem;margin-bottom:6px;">🏭</div>
+      <div style="font-weight:900;color:#166534;font-size:1rem;margin-bottom:4px;">المشغل</div>
+      <div style="font-size:0.72rem;color:#16a34a;">موظفو الدوام · حساب بالساعة</div>
+    </div>`;
+    if(!_ewStores.length){grid.innerHTML=mashghalCard;return;}
 
-    grid.innerHTML=_ewStores.map(store=>{
+    grid.innerHTML=mashghalCard+_ewStores.map(store=>{
       const storeOrders=orders.filter(o=>o.pageId===store.pageId);
       const workerIds=[...new Set(storeOrders.map(o=>o.workerId).filter(Boolean))];
       let totalBal=0;
@@ -5350,6 +5355,41 @@ async function loadEmpWages(){
       </div>`;
     }).join('');
   }catch(e){grid.innerHTML='<div style="color:#dc2626;font-size:0.82rem;grid-column:1/-1;padding:10px;">❌ '+e.message+'</div>';}
+}
+
+async function ewOpenMashghal(){
+  _ewStore={id:'__mashghal__',name:'المشغل',pageId:'__mashghal__'};
+  _ewShow(2);
+  document.getElementById('ewScreen2Title').innerHTML='🏭 المشغل';
+  document.getElementById('ewBackStoreLabel').textContent='المشغل';
+  const list=document.getElementById('ewEmpList');
+  list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
+  try{
+    const [workersSnap,paymentsSnap,ratesSnap]=await Promise.all([
+      db.collection('employee_workers').get(),
+      db.collection('emp_wage_payments').where('storeId','==','__mashghal__').get(),
+      db.collection('emp_wage_rates').get()
+    ]);
+    const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const ratesData={};
+    ratesSnap.docs.forEach(d=>{ratesData[d.id]=d.data();});
+    if(!workers.length){list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد موظفين — أضف موظفين من تبويب الموظفين</div>';return;}
+    list.innerHTML=workers.map(w=>{
+      const hourlyRate=parseFloat(ratesData[w.id]?.hourlyRate||0);
+      const paid=payments.filter(p=>p.workerId===w.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      const name=w.name||w.username||w.id;
+      return `<div onclick="ewOpenEmployee('${w.id}','${name.replace(/'/g,'&#39;')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:14px 16px;cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:800;color:#111;font-size:0.9rem;">👤 ${name}</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-top:3px;">${hourlyRate?hourlyRate.toFixed(2)+' د.أ/ساعة':'لم يُحدد أجر/ساعة'} · مدفوع ${paid.toFixed(2)} د.أ</div>
+          </div>
+          <span style="color:#9ca3af;font-size:1rem;">←</span>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){list.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
 }
 
 async function ewOpenStore(storeId){
@@ -5510,7 +5550,7 @@ async function ewDeletePayment(docId){
 }
 
 function ewBack(){_ewStore=null;_ewWorker=null;_ewShow(1);loadEmpWages();}
-function ewBackToStore(){_ewWorker=null;if(_ewStore){_ewShow(2);ewOpenStore(_ewStore.id);}}
+function ewBackToStore(){_ewWorker=null;if(_ewStore){_ewShow(2);if(_ewStore.id==='__mashghal__')ewOpenMashghal();else ewOpenStore(_ewStore.id);}}
 
 // stubs kept for compatibility
 function openEmpWageDetail(){}
@@ -14769,7 +14809,7 @@ async function _loadAttendanceData(date){
   }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
 }
 
-window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
+window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenMashghal=ewOpenMashghal; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.openAttendanceScan=openAttendanceScan; window.openAttendanceModal=openAttendanceModal; window.closeAttendanceModal=closeAttendanceModal; window._loadAttendanceData=_loadAttendanceData; window._printAttQR=_printAttQR;
 window.ewSaveHourlyRate=ewSaveHourlyRate;
 window.openFrameGallery=openFrameGallery; window.closeFrameGallery=closeFrameGallery; window.markFramePhotoTaken=markFramePhotoTaken;
