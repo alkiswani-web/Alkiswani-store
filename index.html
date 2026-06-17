@@ -5778,7 +5778,7 @@ async function searchGalleryCustomer(){
   const area=document.getElementById('galCustomerArea');
   area.innerHTML='<div style="text-align:center;color:rgba(255,255,255,0.4);padding:30px;">⏳ بحث...</div>';
   try{
-    try{await firebase.firestore().enableNetwork();}catch(e){}
+    await _ensureNet();
     const snap=await db.collection('customer_galleries').doc(phone).get({source:'server'});
     if(snap.exists){
       _galCurrentPhone=phone;
@@ -5797,7 +5797,7 @@ async function createGalleryCustomer(phone){
   const name=document.getElementById('galNewName')?.value.trim()||'';
   const token=_genGalleryToken();
   const data={phone,name,token,createdAt:new Date().toISOString(),photos:[]};
-  try{await firebase.firestore().enableNetwork();}catch(e){}
+  await _ensureNet();
   await db.collection('customer_galleries').doc(phone).set(data);
   _galCurrentPhone=phone;
   _galCurrentData=data;
@@ -14325,7 +14325,7 @@ async function init(){
   const _gToken=new URLSearchParams(window.location.search).get('g');
   if(_gToken){_initPublicSlideshow(_gToken);return;}
   // Ensure Firestore is online before loading any data
-  try{await firebase.firestore().enableNetwork();}catch(e){}
+  await _ensureNet();
   try{ initDarkMode(); }catch(e){}
   try{ checkReferral(); }catch(e){}
   try{ updateWishBadge(); }catch(e){}
@@ -14641,11 +14641,17 @@ window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window
 // ============================
 let _attToken=null;
 let _qrScanCallback=null;
+let _netEnablePromise=null;
+function _ensureNet(){
+  if(!_netEnablePromise)
+    _netEnablePromise=firebase.firestore().enableNetwork().catch(()=>{}).finally(()=>{setTimeout(()=>{_netEnablePromise=null;},8000);});
+  return _netEnablePromise;
+}
 
 async function _getOrCreateAttToken(){
   if(_attToken) return _attToken;
   try{
-    try{await firebase.firestore().enableNetwork();}catch(e){}
+    await _ensureNet();
     const snap=await db.collection('config').doc('attendance_qr').get({source:'server'});
     if(snap.exists&&snap.data().token){
       _attToken=snap.data().token;
@@ -14677,7 +14683,7 @@ async function _handleAttendanceScan(raw){
   const date=now.toLocaleDateString('en-CA');
   const docId=(emp.id||emp.username)+'_'+date;
   try{
-    try{await firebase.firestore().enableNetwork();}catch(e){}
+    await _ensureNet();
     const snap=await db.collection('attendance').doc(docId).get({source:'server'});
     if(!snap.exists||!snap.data().checkIn){
       await db.collection('attendance').doc(docId).set({
@@ -14773,7 +14779,7 @@ async function _loadAttendanceData(date){
   container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">⏳ تحميل...</div>';
   if(totalEl)totalEl.innerHTML='';
   try{
-    try{await firebase.firestore().enableNetwork();}catch(e){}
+    await _ensureNet();
     const snap=await db.collection('attendance').where('date','==',date).get({source:'server'});
     if(snap.empty){container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">لا يوجد سجلات لهذا اليوم</div>';return;}
     const records=snap.docs.map(d=>d.data()).sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
