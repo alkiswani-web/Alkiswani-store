@@ -11514,14 +11514,15 @@ async function openAcctDetail(storeId, storeName){
     _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_acctCurrentSales=[];}
   try{
-    const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).orderBy('date','desc').get();
-    _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){
-    try{
-      const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).get();
-      _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-    }catch(e2){_acctCurrentPayments=[];}
-  }
+    const [paySnap,wdSnap]=await Promise.all([
+      db.collection('operator_store_payments').where('storeId','==',storeId).get(),
+      db.collection('operator_withdrawals').where('storeId','==',storeId).get()
+    ]);
+    const directPays=paySnap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'}));
+    const countedWdIds=new Set(directPays.filter(p=>p.sourceWithdrawalId).map(p=>p.sourceWithdrawalId));
+    const wdPays=wdSnap.docs.filter(d=>!countedWdIds.has(d.id)).map(d=>({id:d.id,...d.data(),_col:'operator_withdrawals'}));
+    _acctCurrentPayments=[...directPays,...wdPays].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }catch(e){_acctCurrentPayments=[];}
   try{
     const snap=await db.collection('page_refunds').where('storeId','==',storeId).get();
     _acctCurrentRefunds=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -11828,8 +11829,20 @@ async function addStorePayment(){
 
 async function deleteStorePayment(id){
   if(!confirm('حذف هذه الدفعة؟'))return;
+  const entry=_acctCurrentPayments.find(p=>p.id===id);
+  const col=entry?._col||'operator_store_payments';
   try{
-    await db.collection('operator_store_payments').doc(id).delete();
+    const batch=db.batch();
+    batch.delete(db.collection(col).doc(id));
+    if(col==='operator_withdrawals'){
+      const balSnap=await db.collection('operator_store_balance').where('sourceWithdrawalId','==',id).limit(1).get();
+      if(!balSnap.empty) batch.delete(balSnap.docs[0].ref);
+    } else if(entry?.sourceWithdrawalId){
+      batch.delete(db.collection('operator_withdrawals').doc(entry.sourceWithdrawalId));
+      const balSnap=await db.collection('operator_store_balance').where('sourceWithdrawalId','==',entry.sourceWithdrawalId).limit(1).get();
+      if(!balSnap.empty) batch.delete(balSnap.docs[0].ref);
+    }
+    await batch.commit();
     _acctCurrentPayments=_acctCurrentPayments.filter(p=>p.id!==id);
     toast('🗑 تم الحذف');
     if(_acctGroupMode) renderGroupAcctDetail(); else renderAcctDetail();
@@ -12166,15 +12179,18 @@ async function _loadOpSessionData(){
   try{ await _loadDeliveryReps(); }catch(e){}
   // Load cumulative account balances for all stores
   try{
-    const [sSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
+    const [sSnap,pSnap,rSnap,rSessionSnap,wAllSnap]=await Promise.all([
       db.collection('operator_sales').get(),
       db.collection('operator_store_payments').get(),
       db.collection('page_refunds').get(),
-      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
+      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get(),
+      db.collection('operator_withdrawals').get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
-    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
+    const _countedWdIds=new Set();
+    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}if(p.sourceWithdrawalId)_countedWdIds.add(p.sourceWithdrawalId);});
+    wAllSnap.docs.forEach(d=>{if(_countedWdIds.has(d.id))return;const w=d.data();if(w.storeId&&w.amount>0)_opAcctPaid[w.storeId]=(_opAcctPaid[w.storeId]||0)+(w.amount||0);});
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
     // Session-specific refunds: those within the session date range (for display in store cards)
     _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
@@ -12935,7 +12951,16 @@ async function saveOperatorWithdrawal(){
       sourceWithdrawalId:wRef.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    const pmtRef2=db.collection('operator_store_payments').doc();
+    batch.set(pmtRef2,{
+      storeId,storeName,amount,date,
+      notes:(notes||''),
+      sourceWithdrawalId:wRef.id,
+      sessionId:_opCurrentSession.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
     await batch.commit();
+    _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
     toast('✅ تم تسجيل المسحوب في الكشف ورصيد المحل');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
@@ -12947,12 +12972,17 @@ async function saveOperatorWithdrawal(){
 async function deleteOperatorWithdrawal(wid){
   if(!confirm('حذف هذا المسحوب؟')) return;
   try{
-    // Delete from operator_store_balance too (linked by sourceWithdrawalId)
-    const balSnap=await db.collection('operator_store_balance').where('sourceWithdrawalId','==',wid).limit(1).get();
+    const [balSnap,pmtSnap]=await Promise.all([
+      db.collection('operator_store_balance').where('sourceWithdrawalId','==',wid).limit(1).get(),
+      db.collection('operator_store_payments').where('sourceWithdrawalId','==',wid).limit(1).get()
+    ]);
     const batch=db.batch();
     batch.delete(db.collection('operator_withdrawals').doc(wid));
     if(!balSnap.empty) batch.delete(balSnap.docs[0].ref);
+    if(!pmtSnap.empty) batch.delete(pmtSnap.docs[0].ref);
     await batch.commit();
+    const wd=_opWithdrawals.find(w=>w.id===wid);
+    if(wd?.storeId) _opAcctPaid[wd.storeId]=Math.max(0,(_opAcctPaid[wd.storeId]||0)-(wd.amount||0));
     _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
     renderOperatorDailyView();
     toast('✅ تم حذف المسحوب');
@@ -12993,14 +13023,26 @@ async function saveGroupWithdrawal(){
   if(!groupName){toast('⚠️ خطأ: لا يوجد مجموعة');return;}
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
+    const grpStoreId='__grp__'+groupName;
+    const batch=db.batch();
     const wRef=db.collection('operator_withdrawals').doc();
-    await wRef.set({
+    batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       groupName, storeName:groupName,
-      storeId:'__grp__'+groupName,
+      storeId:grpStoreId,
       amount, date, notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    const pmtRef=db.collection('operator_store_payments').doc();
+    batch.set(pmtRef,{
+      storeId:grpStoreId,storeName:groupName,amount,date,
+      notes:(notes||''),
+      sourceWithdrawalId:wRef.id,
+      sessionId:_opCurrentSession.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    _opAcctPaid[grpStoreId]=(_opAcctPaid[grpStoreId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
     toast('✅ تم تسجيل المسحوب للمجموعة');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
@@ -13058,7 +13100,16 @@ async function saveOperatorWithdrawalFixed(){
       sourceWithdrawalId:wRef.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    const pmtRef=db.collection('operator_store_payments').doc();
+    batch.set(pmtRef,{
+      storeId,storeName,amount,date,
+      notes:(notes||''),
+      sourceWithdrawalId:wRef.id,
+      sessionId:_opCurrentSession.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
     await batch.commit();
+    _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
     toast('✅ تم تسجيل المسحوب');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
