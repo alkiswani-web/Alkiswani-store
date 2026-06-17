@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v65';
+const CACHE = 'alkiswani-v70';
 const ASSETS = [
   'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap'
 ];
@@ -36,8 +36,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.matchAll({type:'window',includeUncontrolled:true}))
-     .then(clients => clients.forEach(c => c.navigate(c.url)))
+    )
   );
   self.clients.claim();
 });
