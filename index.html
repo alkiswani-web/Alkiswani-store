@@ -3001,41 +3001,53 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <!-- Screen 3: Employee detail -->
           <div id="ewScreen3" style="display:none;">
-            <button onclick="ewBackToStore()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:14px;">← <span id="ewBackStoreLabel"></span></button>
-            <div id="ewScreen3Title" style="font-size:0.95rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;"></div>
+            <button onclick="ewBackToStore()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:10px;">← <span id="ewBackStoreLabel"></span></button>
+            <div id="ewScreen3Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:12px;"></div>
+
+            <!-- Summary -->
             <div id="ewEmpSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
-            <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:13px;margin-bottom:12px;">
-              <div style="font-size:0.78rem;font-weight:700;color:var(--text-dark);margin-bottom:9px;">⚙️ الراتب لكل طلب مُسلَّم (د.أ / طلب)</div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="number" id="ewRateInput" min="0" step="0.25" placeholder="0.00"
-                  style="width:100px;padding:9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:center;outline:none;background:#fff;"
-                  onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor=''">
-                <span style="font-size:0.78rem;color:#9ca3af;">د.أ / طلب</span>
-                <button onclick="ewSaveRate()" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+
+            <!-- Settings row: hourly rate + per-order rate -->
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:160px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:11px;">
+                <div style="font-size:0.72rem;font-weight:700;color:#92400e;margin-bottom:7px;">⏱ أجر الساعة</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="number" id="ewHourlyRateInput" min="0" step="0.25" placeholder="0.00"
+                    style="width:80px;padding:7px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
+                  <span style="font-size:0.7rem;color:#a16207;">د.أ/س</span>
+                  <button onclick="ewSaveHourlyRate()" style="padding:7px 11px;background:#d97706;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
+                </div>
+              </div>
+              <div id="ewOrderRateSection" style="flex:1;min-width:160px;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:11px;">
+                <div style="font-size:0.72rem;font-weight:700;color:var(--text-dark);margin-bottom:7px;">⚙️ أجر الطلب</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="number" id="ewRateInput" min="0" step="0.25" placeholder="0.00"
+                    style="width:80px;padding:7px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
+                  <span style="font-size:0.7rem;color:#9ca3af;">د.أ/طلب</span>
+                  <button onclick="ewSaveRate()" style="padding:7px 11px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
+                </div>
               </div>
             </div>
-            <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:13px;margin-bottom:12px;">
-              <div style="font-size:0.78rem;font-weight:700;color:#92400e;margin-bottom:9px;">⏱ أجر الدوام (د.أ / ساعة)</div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="number" id="ewHourlyRateInput" min="0" step="0.25" placeholder="0.00"
-                  style="width:100px;padding:9px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:center;outline:none;background:#fff;"
-                  onfocus="this.style.borderColor='#d97706'" onblur="this.style.borderColor=''">
-                <span style="font-size:0.78rem;color:#9ca3af;">د.أ / ساعة</span>
-                <button onclick="ewSaveHourlyRate()" style="padding:9px 16px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
-              </div>
-            </div>
-            <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:13px;margin-bottom:12px;">
-              <div style="font-size:0.78rem;font-weight:700;color:#166534;margin-bottom:9px;">💵 تسجيل دفعة</div>
-              <div style="display:flex;gap:8px;">
+
+            <!-- Add payment -->
+            <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:11px;margin-bottom:14px;">
+              <div style="font-size:0.75rem;font-weight:700;color:#166534;margin-bottom:8px;">💵 تسجيل دفعة</div>
+              <div style="display:flex;gap:7px;flex-wrap:wrap;">
                 <input type="number" id="ewPayAmt" placeholder="المبلغ د.أ" min="0" step="0.5"
-                  style="flex:1;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+                  style="width:110px;padding:8px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
                 <input type="text" id="ewPayNotes" placeholder="ملاحظة (اختياري)"
-                  style="flex:2;padding:9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
-                <button onclick="ewRecordPayment()" style="padding:9px 14px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسجيل</button>
+                  style="flex:1;min-width:100px;padding:8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
+                <button onclick="ewRecordPayment()" style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✅ تسجيل</button>
               </div>
             </div>
-            <div style="font-size:0.8rem;font-weight:700;color:var(--text-dark);margin-bottom:8px;">📋 سجل الدفعات</div>
-            <div id="ewPayHistory"></div>
+
+            <!-- Unified account statement -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="font-size:0.85rem;font-weight:800;color:var(--text-dark);">📋 كشف الحساب</div>
+              <input type="month" id="ewMonthPicker" onchange="_ewMonth=this.value;_ewRefreshEmployee()"
+                style="padding:5px 9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;background:#fff;cursor:pointer;">
+            </div>
+            <div id="ewKashf" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;"></div>
           </div>
         </div>
 
@@ -5303,10 +5315,11 @@ function switchAdminTab(tab){
 }
 
 // ===== EMPLOYEE WAGES =====
-let _ewStore=null;   // {id,name,pageId}
-let _ewWorker=null;  // {id,name}
+let _ewStore=null;
+let _ewWorker=null;
 let _ewStores=[];
 let _ewRate=0;
+let _ewMonth='';
 
 function _ewShow(n){['ewScreen1','ewScreen2','ewScreen3'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.style.display=i+1===n?'block':'none';});}
 
@@ -5441,56 +5454,132 @@ async function ewOpenEmployee(workerId,workerName){
   if(!_ewStore)return;
   _ewWorker={id:workerId,name:workerName};
   _ewShow(3);
-  document.getElementById('ewScreen3Title').textContent=`👤 ${workerName} · 🏪 ${_ewStore.name}`;
+  const isMashghal=_ewStore.id==='__mashghal__';
+  document.getElementById('ewScreen3Title').textContent=`👤 ${workerName}`;
+  const orderSec=document.getElementById('ewOrderRateSection');
+  if(orderSec)orderSec.style.display=isMashghal?'none':'';
+  // set month picker to current month if not set
+  const picker=document.getElementById('ewMonthPicker');
+  if(picker&&!_ewMonth){
+    const n=new Date();
+    _ewMonth=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+  }
+  if(picker&&_ewMonth)picker.value=_ewMonth;
   await _ewRefreshEmployee();
 }
 
 async function _ewRefreshEmployee(){
   if(!_ewWorker||!_ewStore)return;
+  const isMashghal=_ewStore.id==='__mashghal__';
+  const month=_ewMonth||(()=>{const n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');})();
+  const [yr,mo]=month.split('-');
+  const lastDay=new Date(+yr,+mo,0).getDate();
+  const dateFrom=`${month}-01`,dateTo=`${month}-${String(lastDay).padStart(2,'0')}`;
   try{
-    const [ordersSnap,paymentsSnap,rateDoc]=await Promise.all([
-      db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
+    const [ordersSnap,paymentsSnap,rateDoc,attSnap]=await Promise.all([
+      isMashghal
+        ? Promise.resolve({docs:[]})
+        : db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
       db.collection('emp_wage_payments').where('workerId','==',_ewWorker.id).where('storeId','==',_ewStore.id).get(),
-      db.collection('emp_wage_rates').doc(_ewWorker.id).get()
+      db.collection('emp_wage_rates').doc(_ewWorker.id).get(),
+      db.collection('attendance').where('employeeId','==',_ewWorker.id).where('date','>=',dateFrom).where('date','<=',dateTo).get()
     ]);
+
     const rates=(rateDoc.exists?rateDoc.data().rates:{})||{};
-    _ewRate=parseFloat(rates[_ewStore.id]||0);
+    _ewRate=isMashghal?0:parseFloat(rates[_ewStore.id]||0);
     const rateInput=document.getElementById('ewRateInput');
     if(rateInput)rateInput.value=_ewRate.toFixed(2);
     const hourlyRate=parseFloat(rateDoc.exists?rateDoc.data().hourlyRate||0:0);
     const hrInput=document.getElementById('ewHourlyRateInput');
     if(hrInput)hrInput.value=hourlyRate?hourlyRate.toFixed(2):'';
-    const count=ordersSnap.docs.filter(d=>d.data().status==='delivered').length;
-    const earned=count*_ewRate;
+
+    // Attendance entries
+    const attDocs=attSnap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    let totalAttSecs=0;
+    attDocs.forEach(r=>{totalAttSecs+=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);});
+    const attEarned=hourlyRate?Math.round(_secsToDecimalHrs(totalAttSecs)*hourlyRate*100)/100:0;
+
+    // Order entries
+    const deliveredOrders=ordersSnap.docs.filter(d=>d.data().status==='delivered');
+    const orderCount=deliveredOrders.length;
+    const orderEarned=orderCount*_ewRate;
+
+    const totalEarned=attEarned+orderEarned;
     const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
     const paid=paymentsArr.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-    const bal=earned-paid;
+    const bal=totalEarned-paid;
     const balColor=bal>0.01?'#ef4444':bal<-0.01?'#f59e0b':'#22c55e';
+
+    // Summary
     document.getElementById('ewEmpSummary').innerHTML=`
       <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;">
-        <div style="font-size:1.1rem;font-weight:800;color:#1d4ed8;">${earned.toFixed(2)}</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#1d4ed8;">${totalEarned.toFixed(2)}</div>
         <div style="font-size:0.68rem;color:#6b7280;">مُستحق</div>
-        <div style="font-size:0.63rem;color:#93c5fd;">${count} طلب × ${_ewRate.toFixed(2)}</div>
+        <div style="font-size:0.62rem;color:#93c5fd;">${attEarned>0?`${attEarned.toFixed(2)} دوام`:''}${orderEarned>0?(attEarned>0?' + ':'')+orderEarned.toFixed(2)+' طلب':''}</div>
       </div>
       <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center;">
-        <div style="font-size:1.1rem;font-weight:800;color:#16a34a;">${paid.toFixed(2)}</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#16a34a;">${paid.toFixed(2)}</div>
         <div style="font-size:0.68rem;color:#6b7280;">مدفوع</div>
       </div>
       <div style="background:#fef2f2;border-radius:10px;padding:10px;text-align:center;">
-        <div style="font-size:1.1rem;font-weight:800;color:${balColor};">${Math.abs(bal).toFixed(2)}</div>
+        <div style="font-size:1.15rem;font-weight:900;color:${balColor};">${Math.abs(bal).toFixed(2)}</div>
         <div style="font-size:0.68rem;color:#6b7280;">${bal>0.01?'متبقي':bal<-0.01?'زائد':'صفر ✅'}</div>
       </div>`;
-    const hist=document.getElementById('ewPayHistory');
-    if(!paymentsArr.length){hist.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;">لا توجد دفعات</div>';return;}
-    paymentsArr.sort((a,b)=>(b.createdAt?.toMillis?.()??0)-(a.createdAt?.toMillis?.()??0));
-    hist.innerHTML=paymentsArr.map(p=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#f9fafb;border:1px solid #f3f4f6;border-radius:10px;margin-bottom:6px;">
-        <div>
-          <div style="font-weight:800;color:#166534;font-size:0.88rem;">${parseFloat(p.amount||0).toFixed(2)} د.أ</div>
-          <div style="font-size:0.7rem;color:#9ca3af;">${p.date||''} ${p.notes?'· '+p.notes:''} · ${p.addedBy||''}</div>
-        </div>
-        <button onclick="ewDeletePayment('${p.id}')" style="background:#fee2e2;border:none;border-radius:7px;color:#dc2626;padding:5px 10px;cursor:pointer;font-size:0.85rem;">🗑</button>
-      </div>`).join('');
+
+    // Build unified كشف الحساب
+    const entries=[];
+    // attendance days
+    attDocs.forEach(r=>{
+      const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);
+      const dayEarned=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
+      const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'';
+      const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
+      entries.push({type:'att',date:r.date,secs,dayEarned,inT,outT});
+    });
+    // payments
+    paymentsArr.forEach(p=>{entries.push({type:'pay',date:p.date||'',amount:parseFloat(p.amount||0),notes:p.notes||'',id:p.id,addedBy:p.addedBy||''});});
+    // sort newest first
+    entries.sort((a,b)=>b.date.localeCompare(a.date));
+
+    const kashf=document.getElementById('ewKashf');
+    if(!kashf)return;
+    if(!entries.length){
+      kashf.innerHTML='<div style="padding:16px;text-align:center;color:#9ca3af;font-size:0.82rem;">لا يوجد سجلات لهذا الشهر</div>';
+      return;
+    }
+    // header
+    let html=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;background:#f9fafb;padding:7px 12px;border-bottom:1px solid #e5e7eb;">
+      <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;">التاريخ</span>
+      <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;">التفاصيل</span>
+      <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;text-align:left;">المبلغ</span>
+    </div>`;
+    entries.forEach((e,i)=>{
+      const border=i<entries.length-1?'border-bottom:1px solid #f3f4f6;':'';
+      if(e.type==='att'){
+        const hasOut=e.outT&&e.outT!=='—';
+        html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;${border}">
+          <span style="font-size:0.78rem;color:#374151;font-weight:700;">${e.date.slice(5)}</span>
+          <div style="font-size:0.78rem;color:#374151;">
+            <span style="color:#166534;">⏱ ${_fmtDuration(e.secs)}</span>
+            <span style="color:#9ca3af;font-size:0.7rem;margin-right:6px;">${e.inT}${hasOut?' ← '+e.outT:' (جاري)'}</span>
+          </div>
+          <span style="font-size:0.82rem;font-weight:900;color:#166534;text-align:left;">${e.dayEarned>0?'+'+e.dayEarned.toFixed(2):'—'}</span>
+        </div>`;
+      } else {
+        html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;background:#fafffe;${border}">
+          <span style="font-size:0.78rem;color:#374151;font-weight:700;">${e.date.slice(5)||'—'}</span>
+          <div style="font-size:0.78rem;color:#374151;">
+            💵 دفعة${e.notes?' · '+e.notes:''}
+            <span style="font-size:0.68rem;color:#9ca3af;display:block;">${e.addedBy}</span>
+          </div>
+          <div style="text-align:left;">
+            <span style="font-size:0.82rem;font-weight:900;color:#dc2626;">-${e.amount.toFixed(2)}</span>
+            <button onclick="ewDeletePayment('${e.id}')" style="display:block;margin-top:3px;background:#fee2e2;border:none;border-radius:6px;color:#dc2626;padding:2px 7px;cursor:pointer;font-size:0.72rem;">🗑</button>
+          </div>
+        </div>`;
+      }
+    });
+    kashf.innerHTML=html;
   }catch(e){toast('❌ '+e.message);}
 }
 
