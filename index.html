@@ -3014,6 +3014,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 <button onclick="ewSaveRate()" style="padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
               </div>
             </div>
+            <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:13px;margin-bottom:12px;">
+              <div style="font-size:0.78rem;font-weight:700;color:#92400e;margin-bottom:9px;">⏱ أجر الدوام (د.أ / ساعة)</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="number" id="ewHourlyRateInput" min="0" step="0.25" placeholder="0.00"
+                  style="width:100px;padding:9px;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:center;outline:none;background:#fff;"
+                  onfocus="this.style.borderColor='#d97706'" onblur="this.style.borderColor=''">
+                <span style="font-size:0.78rem;color:#9ca3af;">د.أ / ساعة</span>
+                <button onclick="ewSaveHourlyRate()" style="padding:9px 16px;background:#d97706;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+              </div>
+            </div>
             <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:13px;margin-bottom:12px;">
               <div style="font-size:0.78rem;font-weight:700;color:#166534;margin-bottom:9px;">💵 تسجيل دفعة</div>
               <div style="display:flex;gap:8px;">
@@ -4163,7 +4173,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260617-r1';
+  const V='20260617-r2';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -5407,6 +5417,9 @@ async function _ewRefreshEmployee(){
     _ewRate=parseFloat(rates[_ewStore.id]||0);
     const rateInput=document.getElementById('ewRateInput');
     if(rateInput)rateInput.value=_ewRate.toFixed(2);
+    const hourlyRate=parseFloat(rateDoc.exists?rateDoc.data().hourlyRate||0:0);
+    const hrInput=document.getElementById('ewHourlyRateInput');
+    if(hrInput)hrInput.value=hourlyRate?hourlyRate.toFixed(2):'';
     const count=ordersSnap.docs.filter(d=>d.data().status==='delivered').length;
     const earned=count*_ewRate;
     const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
@@ -5455,6 +5468,15 @@ async function ewSaveRate(){
     _ewRate=rate;
     toast('✅ تم حفظ الراتب');
     await _ewRefreshEmployee();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function ewSaveHourlyRate(){
+  if(!_ewWorker)return;
+  const rate=parseFloat(document.getElementById('ewHourlyRateInput').value)||0;
+  try{
+    await db.collection('emp_wage_rates').doc(_ewWorker.id).set({hourlyRate:rate,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    toast('✅ تم حفظ أجر الساعة');
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -14623,22 +14645,31 @@ async function _handleAttendanceScan(raw){
       });
       _showAttResult('in',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}));
     } else if(!snap.data().checkOut){
-      const hrs=Math.round((now-new Date(snap.data().checkIn))/36000)/100;
-      await db.collection('attendance').doc(docId).update({checkOut:now.toISOString(),hoursWorked:hrs});
-      _showAttResult('out',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),hrs);
+      const secs=Math.floor((now-new Date(snap.data().checkIn))/1000);
+      await db.collection('attendance').doc(docId).update({checkOut:now.toISOString(),secondsWorked:secs});
+      _showAttResult('out',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),secs);
     } else {
-      _showAttResult('done',snap.data().hoursWorked);
+      _showAttResult('done',snap.data().secondsWorked||0);
     }
   }catch(e){_showAttResult('error',e.message);}
 }
+
+function _fmtDuration(secs){
+  if(!secs&&secs!==0)return'—';
+  const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60),s=secs%60;
+  if(h>0)return`${h}س ${m}د`;
+  if(m>0)return`${m}د ${s}ث`;
+  return`${s}ث`;
+}
+function _secsToDecimalHrs(secs){return Math.round(secs/36)/100;}
 
 function _showAttResult(type,...args){
   const ex=document.getElementById('attResultOverlay');
   if(ex)ex.remove();
   let icon,title,sub='',color;
   if(type==='in'){icon='✅';title='تم تسجيل الدخول';sub=`<div style="font-size:1.6rem;font-weight:900;color:#fff;margin:6px 0;">${args[0]}</div>`;color='#4ade80';}
-  else if(type==='out'){icon='✅';title='تم تسجيل الخروج';sub=`<div style="font-size:1.6rem;font-weight:900;color:#fff;margin:6px 0;">${args[0]}</div><div style="color:rgba(255,255,255,0.6);font-size:0.9rem;">المجموع: ${args[1]} ساعة</div>`;color='#60a5fa';}
-  else if(type==='done'){icon='ℹ️';title='دوام اليوم مكتمل';sub=`<div style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-top:6px;">المجموع: ${args[0]} ساعة</div>`;color='#fbbf24';}
+  else if(type==='out'){icon='✅';title='تم تسجيل الخروج';sub=`<div style="font-size:1.6rem;font-weight:900;color:#fff;margin:6px 0;">${args[0]}</div><div style="color:rgba(255,255,255,0.6);font-size:0.9rem;">المجموع: ${_fmtDuration(args[1])}</div>`;color='#60a5fa';}
+  else if(type==='done'){icon='ℹ️';title='دوام اليوم مكتمل';sub=`<div style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-top:6px;">المجموع: ${_fmtDuration(args[0])}</div>`;color='#fbbf24';}
   else{icon='❌';title=args[0];color='#f87171';}
   const ov=document.createElement('div');
   ov.id='attResultOverlay';
@@ -14693,35 +14724,52 @@ async function _loadAttendanceData(date){
     const snap=await db.collection('attendance').where('date','==',date).get({source:'server'});
     if(snap.empty){container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">لا يوجد سجلات لهذا اليوم</div>';return;}
     const records=snap.docs.map(d=>d.data()).sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
-    let totalHrs=0;
-    let html=`<table style="width:100%;border-collapse:collapse;font-size:0.82rem;direction:rtl;">
+    // Fetch hourly rates for all employees
+    const empIds=[...new Set(records.map(r=>r.employeeId))];
+    const rateMap={};
+    await Promise.all(empIds.map(async id=>{
+      try{const rd=await db.collection('emp_wage_rates').doc(id).get();rateMap[id]=parseFloat(rd.exists?rd.data().hourlyRate||0:0);}catch(e){rateMap[id]=0;}
+    }));
+    let totalSecs=0,totalEarned=0;
+    let html=`<table style="width:100%;border-collapse:collapse;font-size:0.8rem;direction:rtl;">
       <thead><tr style="background:#1a2e1a;">
-        <th style="padding:9px 12px;text-align:right;color:#4ade80;font-weight:800;">الموظف</th>
-        <th style="padding:9px 8px;text-align:center;color:#4ade80;font-weight:800;">دخول</th>
-        <th style="padding:9px 8px;text-align:center;color:#60a5fa;font-weight:800;">خروج</th>
-        <th style="padding:9px 8px;text-align:center;color:#c9a84c;font-weight:800;">ساعات</th>
+        <th style="padding:9px 10px;text-align:right;color:#4ade80;font-weight:800;">الموظف</th>
+        <th style="padding:9px 6px;text-align:center;color:#4ade80;font-weight:800;">دخول</th>
+        <th style="padding:9px 6px;text-align:center;color:#60a5fa;font-weight:800;">خروج</th>
+        <th style="padding:9px 6px;text-align:center;color:#c9a84c;font-weight:800;">المدة</th>
+        <th style="padding:9px 6px;text-align:center;color:#f97316;font-weight:800;">الأجر</th>
       </tr></thead><tbody>`;
     records.forEach(r=>{
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
       const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
-      const hrs=r.hoursWorked!=null?r.hoursWorked:r.checkIn&&!r.checkOut?null:null;
-      if(hrs!=null)totalHrs+=hrs;
-      const hrsLabel=hrs!=null?hrs+'س':r.checkIn&&!r.checkOut?'<span style="color:#fbbf24;">جارٍ</span>':'—';
+      const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked!=null?Math.round(r.hoursWorked*3600):null);
+      const hrRate=rateMap[r.employeeId]||0;
+      const earned=secs!=null&&hrRate?Math.round(_secsToDecimalHrs(secs)*hrRate*100)/100:null;
+      if(secs!=null){totalSecs+=secs;if(earned)totalEarned+=earned;}
+      const durLabel=secs!=null?_fmtDuration(secs):r.checkIn&&!r.checkOut?'<span style="color:#fbbf24;font-size:0.75rem;">جارٍ</span>':'—';
+      const earnLabel=earned!=null?earned.toFixed(2)+' د.أ':hrRate?'—':'<span style="color:#555;font-size:0.72rem;">لم يُحدد</span>';
       html+=`<tr style="border-bottom:1px solid #222;">
-        <td style="padding:9px 12px;font-weight:700;color:#fff;">${r.employeeName||r.employeeId}</td>
-        <td style="padding:9px 8px;text-align:center;color:#4ade80;font-weight:700;">${inT}</td>
-        <td style="padding:9px 8px;text-align:center;color:#60a5fa;font-weight:700;">${outT}</td>
-        <td style="padding:9px 8px;text-align:center;color:#c9a84c;font-weight:800;">${hrsLabel}</td>
+        <td style="padding:9px 10px;font-weight:700;color:#fff;">${r.employeeName||r.employeeId}</td>
+        <td style="padding:8px 6px;text-align:center;color:#4ade80;font-weight:700;">${inT}</td>
+        <td style="padding:8px 6px;text-align:center;color:#60a5fa;font-weight:700;">${outT}</td>
+        <td style="padding:8px 6px;text-align:center;color:#c9a84c;font-weight:800;">${durLabel}</td>
+        <td style="padding:8px 6px;text-align:center;color:#f97316;font-weight:800;">${earnLabel}</td>
       </tr>`;
     });
     html+='</tbody></table>';
     container.innerHTML=html;
-    if(totalEl&&totalHrs>0)totalEl.innerHTML=`<div style="background:#1a2e1a;border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;"><span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">إجمالي الساعات</span><span style="color:#4ade80;font-weight:900;font-size:1.1rem;">${totalHrs} ساعة</span></div>`;
+    if(totalEl){
+      let summary='';
+      if(totalSecs>0)summary+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;"><span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">إجمالي الساعات</span><span style="color:#4ade80;font-weight:900;">${_fmtDuration(totalSecs)}</span></div>`;
+      if(totalEarned>0)summary+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid #222;"><span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">إجمالي الأجر</span><span style="color:#f97316;font-weight:900;">${totalEarned.toFixed(2)} د.أ</span></div>`;
+      if(summary)totalEl.innerHTML=`<div style="background:#1a1a1a;border-radius:12px;border:1px solid #222;overflow:hidden;">${summary}</div>`;
+    }
   }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
 }
 
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.openAttendanceScan=openAttendanceScan; window.openAttendanceModal=openAttendanceModal; window.closeAttendanceModal=closeAttendanceModal; window._loadAttendanceData=_loadAttendanceData; window._printAttQR=_printAttQR;
+window.ewSaveHourlyRate=ewSaveHourlyRate;
 window.openFrameGallery=openFrameGallery; window.closeFrameGallery=closeFrameGallery; window.markFramePhotoTaken=markFramePhotoTaken;
 window.toggleFrameSelectMode=toggleFrameSelectMode; window._toggleFrameSelect=_toggleFrameSelect; window.frameSelectAll=frameSelectAll; window.markSelectedFramesTaken=markSelectedFramesTaken; window._downloadOrderImages=_downloadOrderImages;
 window.openGalleryMgmt=openGalleryMgmt; window.closeGalleryMgmt=closeGalleryMgmt; window.searchGalleryCustomer=searchGalleryCustomer; window.createGalleryCustomer=createGalleryCustomer; window.uploadGalleryPhotos=uploadGalleryPhotos; window.deleteGalleryPhoto=deleteGalleryPhoto; window._printGalleryQR=_printGalleryQR; window._previewGalleryPhoto=_previewGalleryPhoto;
