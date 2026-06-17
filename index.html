@@ -12691,62 +12691,97 @@ function renderOperatorDailyView(){
         </div>
         ${groupCards}${ungroupedCards}
       </div>`;
-    // orphan withdrawals (for stores not in orders)
+    // orphan withdrawals (for stores not in orders) — split by type
     const orphanWds=_opWithdrawals.filter(w=>!orderStoreNames.has(w.storeName));
-    if(orphanWds.length||(!isClosed&&!_opDayOrders.length)){
-      const orphanTotal=orphanWds.reduce((s,w)=>s+(w.amount||0),0);
-      const orphanRows=orphanWds.map(w=>`
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #fecaca;gap:8px;">
+    if(orphanWds.length){
+      const _oRow=(w,color,bg,border)=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed ${border};gap:8px;">
           <div style="flex:1;min-width:0;">
             <div style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${w.storeName||'—'}</div>
             ${w.notes?`<div style="font-size:0.73rem;color:#9ca3af;">${w.notes}</div>`:''}
             <div style="font-size:0.7rem;color:#9ca3af;">${w.date||''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-            <span style="font-weight:900;color:#dc2626;font-size:0.88rem;">${(w.amount||0).toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></span>
-            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
-          </div>
-        </div>`).join('');
-      body.innerHTML+=`
-        <div style="margin-top:12px;">
-          <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
-            <span>💸 مسحوبات أخرى (${orphanWds.length})</span>
-            ${orphanWds.length?`<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${orphanTotal.toFixed(2)} د.أ</span>`:''}
-          </div>
-          <div style="background:#fff5f5;border:1.5px solid #fecaca;border-radius:12px;overflow:hidden;">
-            <div style="padding:4px 14px 8px;">${orphanRows||'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:14px;">لا توجد</div>'}</div>
-            ${!isClosed?`<div style="padding:8px 14px;border-top:1px solid #fecaca;"><button onclick="showAddWithdrawalModal()" style="width:100%;padding:9px;background:#dc2626;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ إضافة مسحوب</button></div>`:''}
+            <span style="font-weight:900;color:${color};font-size:0.88rem;">${(w.amount||0).toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></span>
+            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:${bg};color:${color};border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
           </div>
         </div>`;
+      const orphanStore=orphanWds.filter(w=>w.storeId);
+      const orphanGeneral=orphanWds.filter(w=>!w.storeId);
+      if(orphanStore.length){
+        const tot=orphanStore.reduce((s,w)=>s+(w.amount||0),0);
+        body.innerHTML+=`
+          <div style="margin-top:12px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+              <span>💰 دفعات مُستَلَمَة (${orphanStore.length})</span>
+              <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${tot.toFixed(2)} د.أ</span>
+            </div>
+            <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;overflow:hidden;">
+              <div style="padding:4px 14px 8px;">${orphanStore.map(w=>_oRow(w,'#166534','#dcfce7','#86efac')).join('')}</div>
+            </div>
+          </div>`;
+      }
+      if(orphanGeneral.length){
+        const tot=orphanGeneral.reduce((s,w)=>s+(w.amount||0),0);
+        body.innerHTML+=`
+          <div style="margin-top:12px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+              <span>💸 مسحوبات أخرى (${orphanGeneral.length})</span>
+              <span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${tot.toFixed(2)} د.أ</span>
+            </div>
+            <div style="background:#fff5f5;border:1.5px solid #fecaca;border-radius:12px;overflow:hidden;">
+              <div style="padding:4px 14px 8px;">${orphanGeneral.map(w=>_oRow(w,'#dc2626','#fee2e2','#fecaca')).join('')}</div>
+            </div>
+          </div>`;
+      }
     }
   }
 
   // ===== Withdrawals section (no orders at all) =====
   if(!_opDayOrders.length&&(_opWithdrawals.length||!isClosed)){
-    const totWd=_opWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
-    const wRows=_opWithdrawals.map(w=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #fecaca;gap:8px;">
+    const storeWds=_opWithdrawals.filter(w=>w.storeId);
+    const generalWds=_opWithdrawals.filter(w=>!w.storeId);
+    const _wRow=(w,color,bg,border)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed ${border};gap:8px;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${w.storeName||'—'}</div>
           ${w.notes?`<div style="font-size:0.73rem;color:#9ca3af;">${w.notes}</div>`:''}
           <div style="font-size:0.7rem;color:#9ca3af;">${w.date||''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <div style="font-weight:900;color:#dc2626;font-size:0.88rem;white-space:nowrap;">${(w.amount||0).toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></div>
-          ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;" title="حذف">×</button>`:''}
-        </div>
-      </div>`).join('');
-    body.innerHTML+=`
-      <div style="margin-top:16px;">
-        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-          <span>💸 المسحوبات (${_opWithdrawals.length})</span>
-          ${_opWithdrawals.length?`<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${totWd.toFixed(2)} د.أ</span>`:''}
-        </div>
-        <div style="background:#fff5f5;border:1.5px solid #fecaca;border-radius:12px;overflow:hidden;">
-          <div style="padding:4px 14px 8px;">${wRows||'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:14px;">لا توجد مسحوبات</div>'}</div>
-          ${!isClosed?`<div style="padding:8px 14px;border-top:1px solid #fecaca;"><button onclick="showAddWithdrawalModal()" style="width:100%;padding:9px;background:#dc2626;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ إضافة مسحوب</button></div>`:''}
+          <div style="font-weight:900;color:${color};font-size:0.88rem;white-space:nowrap;">${(w.amount||0).toFixed(2)} <span style="font-size:0.65rem;">د.أ</span></div>
+          ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:${bg};color:${color};border:none;border-radius:6px;width:22px;height:22px;font-size:0.8rem;cursor:pointer;font-weight:900;line-height:1;" title="حذف">×</button>`:''}
         </div>
       </div>`;
+    if(storeWds.length){
+      const totS=storeWds.reduce((s,w)=>s+(w.amount||0),0);
+      const sRows=storeWds.map(w=>_wRow(w,'#166534','#dcfce7','#86efac')).join('');
+      body.innerHTML+=`
+        <div style="margin-top:16px;">
+          <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+            <span>💰 دفعات مُستَلَمَة (${storeWds.length})</span>
+            <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${totS.toFixed(2)} د.أ</span>
+          </div>
+          <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;overflow:hidden;">
+            <div style="padding:4px 14px 8px;">${sRows}</div>
+          </div>
+        </div>`;
+    }
+    if(generalWds.length||!isClosed){
+      const totG=generalWds.reduce((s,w)=>s+(w.amount||0),0);
+      const gRows=generalWds.map(w=>_wRow(w,'#dc2626','#fee2e2','#fecaca')).join('');
+      body.innerHTML+=`
+        <div style="margin-top:16px;">
+          <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+            <span>💸 مسحوبات (${generalWds.length})</span>
+            ${generalWds.length?`<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${totG.toFixed(2)} د.أ</span>`:''}
+          </div>
+          <div style="background:#fff5f5;border:1.5px solid #fecaca;border-radius:12px;overflow:hidden;">
+            <div style="padding:4px 14px 8px;">${gRows||'<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:14px;">لا توجد مسحوبات</div>'}</div>
+            ${!isClosed?`<div style="padding:8px 14px;border-top:1px solid #fecaca;"><button onclick="showAddWithdrawalModal()" style="width:100%;padding:9px;background:#dc2626;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ إضافة مسحوب</button></div>`:''}
+          </div>
+        </div>`;
+    }
   }
 
   // ===== Expenses section (list + inline form) =====
