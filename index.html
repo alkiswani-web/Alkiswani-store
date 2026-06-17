@@ -2877,6 +2877,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <div style="display:flex;justify-content:flex-end;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
             <button onclick="openFrameGallery()" id="frameGalleryBtn" style="padding:8px 14px;background:#7c3aed;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:5px;">📁 البراويز <span id="frameGalleryCount" style="background:rgba(255,255,255,0.25);border-radius:8px;padding:1px 7px;font-size:0.72rem;">0</span></button>
             <button onclick="openGalleryMgmt()" style="padding:8px 14px;background:#c9a84c;color:#000;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📸 معارض الزبائن</button>
+            <button onclick="openAttendanceModal()" style="padding:8px 14px;background:#166534;color:#4ade80;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">⏱ الدوام</button>
             <button onclick="openBatchDistributeModal()" style="padding:8px 16px;background:#111;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18);">🚚 وزّع الطلبات</button>
             <button id="opSelectModeBtn" onclick="toggleOpSelectMode()" style="padding:8px 16px;background:#fff;color:#555;border:1px solid #ebebeb;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">☑ تحديد للطباعة</button>
           </div>
@@ -3442,12 +3443,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button id="empLocShareBtn" onclick="_empToggleLocationShare()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background 0.2s;">تفعيل</button>
     </div>
 
-    <!-- Customer Gallery Button -->
-    <div id="empGallerySection" style="margin-bottom:14px;">
-      <button onclick="openGalleryMgmt()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1a1a2e,#2d1b4e);color:#c9a84c;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 14px rgba(0,0,0,0.12);">
-        <span style="font-size:1.2rem;">📸</span>
-        <span>معارض الزبائن</span>
-        <span style="font-size:0.75rem;font-weight:400;color:rgba(201,168,76,0.6);">رفع صور وتوليد QR</span>
+    <!-- Attendance + Gallery Buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <button onclick="openAttendanceScan()" style="padding:13px 8px;background:linear-gradient(135deg,#0a2e1a,#1a4a2e);color:#4ade80;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,0.15);">
+        <span style="font-size:1.4rem;">⏱</span>
+        <span>دوام</span>
+        <span style="font-size:0.68rem;font-weight:400;color:rgba(74,222,128,0.6);">تسجيل دخول / خروج</span>
+      </button>
+      <button onclick="openGalleryMgmt()" style="padding:13px 8px;background:linear-gradient(135deg,#1a1a2e,#2d1b4e);color:#c9a84c;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,0.12);">
+        <span style="font-size:1.4rem;">📸</span>
+        <span>معارض</span>
+        <span style="font-size:0.68rem;font-weight:400;color:rgba(201,168,76,0.6);">رفع صور وتوليد QR</span>
       </button>
     </div>
 
@@ -3785,6 +3791,33 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="empEdit_img_preview"></div>
       </div>
       <button onclick="saveEmpOrderEdit()" style="width:100%;padding:12px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:800;cursor:pointer;">💾 حفظ التعديلات</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ATTENDANCE MODAL (OPERATOR) ===== -->
+<div id="attendanceModal" style="display:none;position:fixed;inset:0;z-index:1200;background:#0a0a0a;overflow-y:auto;font-family:'Tajawal',sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:0 0 60px;">
+    <div style="background:#111;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:2;">
+      <div style="font-size:1.05rem;font-weight:900;color:#c9a84c;">⏱ سجل الدوام</div>
+      <button onclick="closeAttendanceModal()" style="background:#222;color:#fff;border:none;border-radius:9px;padding:7px 14px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">← رجوع</button>
+    </div>
+    <div style="padding:16px;">
+      <!-- QR Section -->
+      <div id="attQRSection" style="background:#161616;border:1.5px solid #2a2a2a;border-radius:16px;padding:18px;text-align:center;margin-bottom:16px;">
+        <div style="color:rgba(255,255,255,0.5);font-size:0.82rem;margin-bottom:10px;">امسح هذا الكود عند الدخول والخروج</div>
+        <div id="attQRImg" style="display:flex;justify-content:center;margin-bottom:10px;"></div>
+        <button onclick="_printAttQR()" style="padding:8px 20px;background:#c9a84c;color:#000;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">🖨 طباعة</button>
+      </div>
+      <!-- Date Filter -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <input type="date" id="attDateFilter" style="flex:1;padding:9px 12px;background:#1a1a1a;border:1.5px solid #333;border-radius:10px;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;" onchange="_loadAttendanceData(this.value)">
+        <button onclick="_loadAttendanceData(document.getElementById('attDateFilter').value)" style="padding:9px 16px;background:#c9a84c;color:#000;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;">🔍</button>
+      </div>
+      <!-- Records -->
+      <div id="attRecordsContainer" style="background:#161616;border-radius:14px;overflow:hidden;border:1px solid #222;"></div>
+      <!-- Total -->
+      <div id="attTotalSection" style="margin-top:10px;"></div>
     </div>
   </div>
 </div>
@@ -4130,7 +4163,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260616-r11';
+  const V='20260617-r1';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -14539,7 +14572,156 @@ window.closeEmpPanel=closeEmpPanel; window.logoutEmp=logoutEmp;
 window.onEmpImageChange=onEmpImageChange; window.clearEmpImage=clearEmpImage;
 window.submitEmpOrder=submitEmpOrder;
 window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window.editEmpWorker=editEmpWorker;
+// ============================
+// ATTENDANCE SYSTEM
+// ============================
+let _attToken=null;
+let _qrScanCallback=null;
+
+async function _getOrCreateAttToken(){
+  if(_attToken) return _attToken;
+  try{
+    try{await firebase.firestore().enableNetwork();}catch(e){}
+    const snap=await db.collection('config').doc('attendance_qr').get({source:'server'});
+    if(snap.exists&&snap.data().token){
+      _attToken=snap.data().token;
+    } else {
+      const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const tok='ATT-'+Array.from({length:12},()=>c[Math.floor(Math.random()*c.length)]).join('');
+      await db.collection('config').doc('attendance_qr').set({token:tok,createdAt:new Date().toISOString()});
+      _attToken=tok;
+    }
+    return _attToken;
+  }catch(e){console.error('AttToken',e);return null;}
+}
+
+function openAttendanceScan(){
+  if(!_empCurrentUser){alert('سجّل دخولك أولاً');return;}
+  _qrScanCallback=_handleAttendanceScan;
+  openQRScanner();
+}
+
+async function _handleAttendanceScan(raw){
+  _qrScanCallback=null;
+  const token=await _getOrCreateAttToken();
+  if(!token||raw.trim()!==token){
+    _showAttResult('error','كود خاطئ — استخدم QR الدوام الصحيح');
+    return;
+  }
+  const emp=_empCurrentUser;
+  const now=new Date();
+  const date=now.toLocaleDateString('en-CA');
+  const docId=(emp.id||emp.username)+'_'+date;
+  try{
+    try{await firebase.firestore().enableNetwork();}catch(e){}
+    const snap=await db.collection('attendance').doc(docId).get({source:'server'});
+    if(!snap.exists||!snap.data().checkIn){
+      await db.collection('attendance').doc(docId).set({
+        employeeId:emp.id||emp.username,
+        employeeName:emp.displayName||emp.username,
+        date,checkIn:now.toISOString(),checkOut:null,hoursWorked:null
+      });
+      _showAttResult('in',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}));
+    } else if(!snap.data().checkOut){
+      const hrs=Math.round((now-new Date(snap.data().checkIn))/36000)/100;
+      await db.collection('attendance').doc(docId).update({checkOut:now.toISOString(),hoursWorked:hrs});
+      _showAttResult('out',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),hrs);
+    } else {
+      _showAttResult('done',snap.data().hoursWorked);
+    }
+  }catch(e){_showAttResult('error',e.message);}
+}
+
+function _showAttResult(type,...args){
+  const ex=document.getElementById('attResultOverlay');
+  if(ex)ex.remove();
+  let icon,title,sub='',color;
+  if(type==='in'){icon='✅';title='تم تسجيل الدخول';sub=`<div style="font-size:1.6rem;font-weight:900;color:#fff;margin:6px 0;">${args[0]}</div>`;color='#4ade80';}
+  else if(type==='out'){icon='✅';title='تم تسجيل الخروج';sub=`<div style="font-size:1.6rem;font-weight:900;color:#fff;margin:6px 0;">${args[0]}</div><div style="color:rgba(255,255,255,0.6);font-size:0.9rem;">المجموع: ${args[1]} ساعة</div>`;color='#60a5fa';}
+  else if(type==='done'){icon='ℹ️';title='دوام اليوم مكتمل';sub=`<div style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-top:6px;">المجموع: ${args[0]} ساعة</div>`;color='#fbbf24';}
+  else{icon='❌';title=args[0];color='#f87171';}
+  const ov=document.createElement('div');
+  ov.id='attResultOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;font-family:\'Tajawal\',sans-serif;';
+  ov.innerHTML=`<div style="background:#111;border-radius:22px;padding:34px 28px;text-align:center;max-width:290px;width:88%;border:2px solid ${color}33;">
+    <div style="font-size:2.8rem;">${icon}</div>
+    <div style="font-size:1.1rem;font-weight:900;color:${color};margin:10px 0 4px;">${title}</div>
+    ${sub}
+    <button onclick="document.getElementById('attResultOverlay').remove()" style="margin-top:18px;padding:12px 32px;background:${color};color:#000;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:900;cursor:pointer;">موافق</button>
+  </div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>{const e=document.getElementById('attResultOverlay');if(e)e.remove();},5000);
+}
+
+async function openAttendanceModal(){
+  document.getElementById('attendanceModal').style.display='block';
+  document.body.style.overflow='hidden';
+  const today=new Date().toLocaleDateString('en-CA');
+  document.getElementById('attDateFilter').value=today;
+  await _loadAttQR();
+  await _loadAttendanceData(today);
+}
+function closeAttendanceModal(){
+  document.getElementById('attendanceModal').style.display='none';
+  document.body.style.overflow='';
+}
+
+async function _loadAttQR(){
+  const token=await _getOrCreateAttToken();
+  const imgEl=document.getElementById('attQRImg');
+  if(!token||!imgEl)return;
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(token)+'&size=180x180&bgcolor=ffffff&color=000000&margin=10';
+  imgEl.innerHTML=`<img src="${qrUrl}" style="width:160px;height:160px;border-radius:8px;border:3px solid #fff;">`;
+}
+
+function _printAttQR(){
+  if(!_attToken)return;
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(_attToken)+'&size=400x400&bgcolor=ffffff&color=000000&margin=15';
+  const w=window.open('','_blank','width=420,height=520');
+  w.document.write(`<html><head><title>QR الدوام</title><style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:Tajawal,Arial;background:#fff;direction:rtl;}img{width:280px;height:280px;}h2{margin:12px 0 4px;font-size:1.3rem;}p{color:#666;font-size:0.85rem;margin:4px 0 16px;}</style></head><body><h2>⏱ QR الدوام</h2><p>امسح هذا الكود لتسجيل الدخول / الخروج</p><img src="${qrUrl}"><script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
+async function _loadAttendanceData(date){
+  const container=document.getElementById('attRecordsContainer');
+  const totalEl=document.getElementById('attTotalSection');
+  if(!container)return;
+  container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">⏳ تحميل...</div>';
+  if(totalEl)totalEl.innerHTML='';
+  try{
+    try{await firebase.firestore().enableNetwork();}catch(e){}
+    const snap=await db.collection('attendance').where('date','==',date).get({source:'server'});
+    if(snap.empty){container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">لا يوجد سجلات لهذا اليوم</div>';return;}
+    const records=snap.docs.map(d=>d.data()).sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
+    let totalHrs=0;
+    let html=`<table style="width:100%;border-collapse:collapse;font-size:0.82rem;direction:rtl;">
+      <thead><tr style="background:#1a2e1a;">
+        <th style="padding:9px 12px;text-align:right;color:#4ade80;font-weight:800;">الموظف</th>
+        <th style="padding:9px 8px;text-align:center;color:#4ade80;font-weight:800;">دخول</th>
+        <th style="padding:9px 8px;text-align:center;color:#60a5fa;font-weight:800;">خروج</th>
+        <th style="padding:9px 8px;text-align:center;color:#c9a84c;font-weight:800;">ساعات</th>
+      </tr></thead><tbody>`;
+    records.forEach(r=>{
+      const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
+      const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
+      const hrs=r.hoursWorked!=null?r.hoursWorked:r.checkIn&&!r.checkOut?null:null;
+      if(hrs!=null)totalHrs+=hrs;
+      const hrsLabel=hrs!=null?hrs+'س':r.checkIn&&!r.checkOut?'<span style="color:#fbbf24;">جارٍ</span>':'—';
+      html+=`<tr style="border-bottom:1px solid #222;">
+        <td style="padding:9px 12px;font-weight:700;color:#fff;">${r.employeeName||r.employeeId}</td>
+        <td style="padding:9px 8px;text-align:center;color:#4ade80;font-weight:700;">${inT}</td>
+        <td style="padding:9px 8px;text-align:center;color:#60a5fa;font-weight:700;">${outT}</td>
+        <td style="padding:9px 8px;text-align:center;color:#c9a84c;font-weight:800;">${hrsLabel}</td>
+      </tr>`;
+    });
+    html+='</tbody></table>';
+    container.innerHTML=html;
+    if(totalEl&&totalHrs>0)totalEl.innerHTML=`<div style="background:#1a2e1a;border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;"><span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">إجمالي الساعات</span><span style="color:#4ade80;font-weight:900;font-size:1.1rem;">${totalHrs} ساعة</span></div>`;
+  }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
+}
+
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
+window.openAttendanceScan=openAttendanceScan; window.openAttendanceModal=openAttendanceModal; window.closeAttendanceModal=closeAttendanceModal; window._loadAttendanceData=_loadAttendanceData; window._printAttQR=_printAttQR;
 window.openFrameGallery=openFrameGallery; window.closeFrameGallery=closeFrameGallery; window.markFramePhotoTaken=markFramePhotoTaken;
 window.toggleFrameSelectMode=toggleFrameSelectMode; window._toggleFrameSelect=_toggleFrameSelect; window.frameSelectAll=frameSelectAll; window.markSelectedFramesTaken=markSelectedFramesTaken; window._downloadOrderImages=_downloadOrderImages;
 window.openGalleryMgmt=openGalleryMgmt; window.closeGalleryMgmt=closeGalleryMgmt; window.searchGalleryCustomer=searchGalleryCustomer; window.createGalleryCustomer=createGalleryCustomer; window.uploadGalleryPhotos=uploadGalleryPhotos; window.deleteGalleryPhoto=deleteGalleryPhoto; window._printGalleryQR=_printGalleryQR; window._previewGalleryPhoto=_previewGalleryPhoto;
@@ -17911,7 +18093,8 @@ function _qrOnDetected(raw){
   // Small delay so flash is visible, then close and handle
   setTimeout(()=>{
     closeQRScanner();
-    _handleQRResult(raw);
+    if(_qrScanCallback){const cb=_qrScanCallback;_qrScanCallback=null;cb(raw);}
+    else{_handleQRResult(raw);}
   },150);
 }
 
