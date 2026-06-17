@@ -5329,17 +5329,8 @@ async function loadEmpWages(){
   if(!grid)return;
   grid.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;grid-column:1/-1;padding:10px;">⏳ جاري التحميل...</div>';
   try{
-    const [storesSnap,ordersSnap,paymentsSnap,ratesSnap]=await Promise.all([
-      db.collection('operator_stores').orderBy('name').get(),
-      db.collection('employee_orders').where('status','==','delivered').get(),
-      db.collection('emp_wage_payments').get(),
-      db.collection('emp_wage_rates').get()
-    ]);
+    const storesSnap=await db.collection('operator_stores').orderBy('name').get();
     _ewStores=storesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>!s.archived);
-    const orders=ordersSnap.docs.map(d=>d.data());
-    const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const ratesMap={};
-    ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
 
     const mashghalCard=`<div onclick="ewOpenMashghal()" style="background:#f0fdf4;border:2px solid #16a34a;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 2px 8px rgba(22,163,74,0.10);grid-column:1/-1;">
       <div style="font-size:2rem;margin-bottom:6px;">🏭</div>
@@ -5349,26 +5340,15 @@ async function loadEmpWages(){
     if(!_ewStores.length){grid.innerHTML=mashghalCard;return;}
 
     grid.innerHTML=mashghalCard+_ewStores.map(store=>{
-      const storeOrders=orders.filter(o=>o.pageId===store.pageId);
-      const workerIds=[...new Set(storeOrders.map(o=>o.workerId).filter(Boolean))];
-      let totalBal=0;
-      workerIds.forEach(wid=>{
-        const rate=parseFloat(ratesMap[wid]?.[store.id]||ratesMap[wid]?.[store.pageId]||0);
-        const earned=storeOrders.filter(o=>o.workerId===wid).length*rate;
-        const paid=payments.filter(p=>p.workerId===wid&&(p.storeId===store.id||p.pageId===store.pageId)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
-        totalBal+=earned-paid;
-      });
-      const balColor=totalBal>0.01?'#ef4444':totalBal<-0.01?'#f59e0b':'#22c55e';
-      const balLabel=totalBal>0.01?`متبقي ${totalBal.toFixed(2)} د.أ`:totalBal<-0.01?`زائد ${Math.abs(totalBal).toFixed(2)} د.أ`:'مسوَّى ✅';
       return `<div onclick="ewOpenStore('${store.id}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
         <div style="font-size:2rem;margin-bottom:6px;">🏪</div>
-        <div style="font-weight:800;color:#111;font-size:0.9rem;margin-bottom:4px;">${store.name}</div>
-        <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:8px;">${workerIds.length} موظف · ${storeOrders.length} طلب</div>
-        <div style="font-weight:800;font-size:0.82rem;color:${balColor};">${balLabel}</div>
+        <div style="font-weight:800;color:#111;font-size:0.9rem;margin-bottom:8px;">${store.name}</div>
+        <div style="font-size:0.72rem;color:#9ca3af;">اضغط لعرض الحساب</div>
       </div>`;
     }).join('');
   }catch(e){grid.innerHTML='<div style="color:#dc2626;font-size:0.82rem;grid-column:1/-1;padding:10px;">❌ '+e.message+'</div>';}
 }
+
 
 async function ewOpenMashghal(){
   _ewStore={id:'__mashghal__',name:'المشغل',pageId:'__mashghal__'};
