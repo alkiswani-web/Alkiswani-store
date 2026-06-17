@@ -4173,7 +4173,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script>
 // Force reload if cached version is stale
 (function(){
-  const V='20260617-r2';
+  const V='20260617-r3';
   if(sessionStorage.getItem('_av')!==V){
     sessionStorage.setItem('_av',V);
     location.reload(true);
@@ -14284,6 +14284,8 @@ async function init(){
   if(new URLSearchParams(window.location.search).has('rep')){_initRepApp();return;}
   const _gToken=new URLSearchParams(window.location.search).get('g');
   if(_gToken){_initPublicSlideshow(_gToken);return;}
+  // Ensure Firestore is online before loading any data
+  try{await firebase.firestore().enableNetwork();}catch(e){}
   try{ initDarkMode(); }catch(e){}
   try{ checkReferral(); }catch(e){}
   try{ updateWishBadge(); }catch(e){}
