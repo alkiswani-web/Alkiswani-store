@@ -12993,14 +12993,26 @@ async function saveGroupWithdrawal(){
   if(!groupName){toast('⚠️ خطأ: لا يوجد مجموعة');return;}
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
+    const grpStoreId='__grp__'+groupName;
+    const batch=db.batch();
     const wRef=db.collection('operator_withdrawals').doc();
-    await wRef.set({
+    batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       groupName, storeName:groupName,
-      storeId:'__grp__'+groupName,
+      storeId:grpStoreId,
       amount, date, notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    const pmtRef=db.collection('operator_store_payments').doc();
+    batch.set(pmtRef,{
+      storeId:grpStoreId,storeName:groupName,amount,date,
+      notes:(notes||''),
+      sourceWithdrawalId:wRef.id,
+      sessionId:_opCurrentSession.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    _opAcctPaid[grpStoreId]=(_opAcctPaid[grpStoreId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
     toast('✅ تم تسجيل المسحوب للمجموعة');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
@@ -13058,7 +13070,16 @@ async function saveOperatorWithdrawalFixed(){
       sourceWithdrawalId:wRef.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    const pmtRef=db.collection('operator_store_payments').doc();
+    batch.set(pmtRef,{
+      storeId,storeName,amount,date,
+      notes:(notes||''),
+      sourceWithdrawalId:wRef.id,
+      sessionId:_opCurrentSession.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
     await batch.commit();
+    _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
     toast('✅ تم تسجيل المسحوب');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
