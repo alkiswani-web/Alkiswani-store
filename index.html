@@ -14749,9 +14749,20 @@ async function _loadAttQR(){
 
 function _printAttQR(){
   if(!_attToken)return;
-  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(_attToken)+'&size=400x400&bgcolor=ffffff&color=000000&margin=15';
-  const w=window.open('','_blank','width=420,height=520');
-  w.document.write(`<html><head><title>QR الدوام</title><style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:Tajawal,Arial;background:#fff;direction:rtl;}img{width:280px;height:280px;}h2{margin:12px 0 4px;font-size:1.3rem;}p{color:#666;font-size:0.85rem;margin:4px 0 16px;}</style></head><body><h2>⏱ QR الدوام</h2><p>امسح هذا الكود لتسجيل الدخول / الخروج</p><img src="${qrUrl}"><script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(_attToken)+'&size=500x500&bgcolor=ffffff&color=000000&margin=10';
+  const w=window.open('','_blank','width=300,height=340');
+  w.document.write(`<html><head><title>QR الدوام</title><style>
+    @page{size:5cm 7cm;margin:0;}
+    *{box-sizing:border-box;}
+    body{margin:0;width:5cm;height:7cm;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;font-family:Tajawal,Arial,sans-serif;direction:rtl;overflow:hidden;}
+    .title{font-size:11pt;font-weight:900;color:#166534;margin-bottom:3mm;letter-spacing:0.5px;}
+    img{width:4cm;height:4cm;display:block;}
+    .sub{font-size:7.5pt;color:#555;margin-top:3mm;text-align:center;line-height:1.4;}
+  </style></head><body>
+    <div class="title">⏱ دوام المشغل</div>
+    <img src="${qrUrl}">
+    <div class="sub">امسح الكود لتسجيل<br>الدخول / الخروج</div>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
 }
 
