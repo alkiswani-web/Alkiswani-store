@@ -14642,9 +14642,14 @@ window.addEmpWorker=addEmpWorker; window.deleteEmpWorker=deleteEmpWorker; window
 let _attToken=null;
 let _qrScanCallback=null;
 let _netEnablePromise=null;
+let _netEnabledOnce=false;
 function _ensureNet(){
+  if(_netEnabledOnce) return Promise.resolve();
   if(!_netEnablePromise)
-    _netEnablePromise=firebase.firestore().enableNetwork().catch(()=>{}).finally(()=>{setTimeout(()=>{_netEnablePromise=null;},8000);});
+    _netEnablePromise=firebase.firestore().enableNetwork()
+      .then(()=>{_netEnabledOnce=true;})
+      .catch(()=>{})
+      .finally(()=>{_netEnablePromise=null;});
   return _netEnablePromise;
 }
 
@@ -14690,8 +14695,7 @@ async function _handleAttendanceScan(raw){
   const date=now.toLocaleDateString('en-CA');
   const docId=(emp.id||emp.username)+'_'+date;
   try{
-    await _ensureNet();
-    const snap=await db.collection('attendance').doc(docId).get({source:'server'});
+    const snap=await db.collection('attendance').doc(docId).get();
     if(!snap.exists||!snap.data().checkIn){
       await db.collection('attendance').doc(docId).set({
         employeeId:emp.id||emp.username,
@@ -14786,8 +14790,7 @@ async function _loadAttendanceData(date){
   container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">⏳ تحميل...</div>';
   if(totalEl)totalEl.innerHTML='';
   try{
-    await _ensureNet();
-    const snap=await db.collection('attendance').where('date','==',date).get({source:'server'});
+    const snap=await db.collection('attendance').where('date','==',date).get();
     if(snap.empty){container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">لا يوجد سجلات لهذا اليوم</div>';return;}
     const records=snap.docs.map(d=>d.data()).sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
     // Fetch hourly rates for all employees
