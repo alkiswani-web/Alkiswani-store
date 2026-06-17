@@ -5482,7 +5482,7 @@ async function _ewRefreshEmployee(){
         : db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
       db.collection('emp_wage_payments').where('workerId','==',_ewWorker.id).where('storeId','==',_ewStore.id).get(),
       db.collection('emp_wage_rates').doc(_ewWorker.id).get(),
-      db.collection('attendance').where('employeeId','==',_ewWorker.id).where('date','>=',dateFrom).where('date','<=',dateTo).get()
+      db.collection('attendance').where('employeeId','==',_ewWorker.id).get()
     ]);
 
     const rates=(rateDoc.exists?rateDoc.data().rates:{})||{};
@@ -5493,8 +5493,8 @@ async function _ewRefreshEmployee(){
     const hrInput=document.getElementById('ewHourlyRateInput');
     if(hrInput)hrInput.value=hourlyRate?hourlyRate.toFixed(2):'';
 
-    // Attendance entries
-    const attDocs=attSnap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    // Attendance entries — filter by month in JS (avoids composite index)
+    const attDocs=attSnap.docs.map(d=>d.data()).filter(r=>r.date>=dateFrom&&r.date<=dateTo).sort((a,b)=>a.date.localeCompare(b.date));
     let totalAttSecs=0;
     attDocs.forEach(r=>{totalAttSecs+=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);});
     const attEarned=hourlyRate?Math.round(_secsToDecimalHrs(totalAttSecs)*hourlyRate*100)/100:0;
