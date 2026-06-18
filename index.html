@@ -11514,15 +11514,14 @@ async function openAcctDetail(storeId, storeName){
     _acctCurrentSales=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false);
   }catch(e){_acctCurrentSales=[];}
   try{
-    const [paySnap,wdSnap]=await Promise.all([
-      db.collection('operator_store_payments').where('storeId','==',storeId).get(),
-      db.collection('operator_withdrawals').where('storeId','==',storeId).get()
-    ]);
-    const directPays=paySnap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'}));
-    const countedWdIds=new Set(directPays.filter(p=>p.sourceWithdrawalId).map(p=>p.sourceWithdrawalId));
-    const wdPays=wdSnap.docs.filter(d=>!countedWdIds.has(d.id)).map(d=>({id:d.id,...d.data(),_col:'operator_withdrawals'}));
-    _acctCurrentPayments=[...directPays,...wdPays].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  }catch(e){_acctCurrentPayments=[];}
+    const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).orderBy('date','desc').get();
+    _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'}));
+  }catch(e){
+    try{
+      const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).get();
+      _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'}));
+    }catch(e2){_acctCurrentPayments=[];}
+  }
   try{
     const snap=await db.collection('page_refunds').where('storeId','==',storeId).get();
     _acctCurrentRefunds=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -12179,18 +12178,15 @@ async function _loadOpSessionData(){
   try{ await _loadDeliveryReps(); }catch(e){}
   // Load cumulative account balances for all stores
   try{
-    const [sSnap,pSnap,rSnap,rSessionSnap,wAllSnap]=await Promise.all([
+    const [sSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
       db.collection('operator_sales').get(),
       db.collection('operator_store_payments').get(),
       db.collection('page_refunds').get(),
-      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get(),
-      db.collection('operator_withdrawals').get()
+      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
-    const _countedWdIds=new Set();
-    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}if(p.sourceWithdrawalId)_countedWdIds.add(p.sourceWithdrawalId);});
-    wAllSnap.docs.forEach(d=>{if(_countedWdIds.has(d.id))return;const w=d.data();if(w.storeId&&w.amount>0)_opAcctPaid[w.storeId]=(_opAcctPaid[w.storeId]||0)+(w.amount||0);});
+    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
     // Session-specific refunds: those within the session date range (for display in store cards)
     _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
