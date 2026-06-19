@@ -4,8 +4,17 @@
  * parseOrder: receives a free-text customer message and returns structured
  * order fields (name, phone, address, area, product, qty, notes) using Claude.
  * The Anthropic API key is stored as a secret and never exposed to the client.
+ *
+ * attendanceNotify: triggers on attendance check-in/check-out and sends
+ * FCM push notifications to all registered operator devices.
  */
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
+const {initializeApp, getApps} = require("firebase-admin/app");
+const {getFirestore} = require("firebase-admin/firestore");
+const {getMessaging} = require("firebase-admin/messaging");
+
+if (!getApps().length) initializeApp();
 const {defineSecret} = require("firebase-functions/params");
 
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
@@ -83,5 +92,75 @@ exports.parseOrder = onCall(
         qty: Number(parsed.qty) || 1,
         notes: String(parsed.notes || ""),
       };
+    },
+);
+
+// ===== Attendance push notifications =====
+
+async function _sendAttendanceNotif(title, body) {
+  const db = getFirestore();
+  const messaging = getMessaging();
+  const snap = await db.collection("fcm_tokens").get();
+  const tokens = snap.docs.map((d) => d.data().token).filter(Boolean);
+  if (!tokens.length) return;
+  await Promise.allSettled(
+      tokens.map((token) =>
+        messaging.send({
+          token,
+          notification: {title, body},
+          webpush: {
+            notification: {icon: "/icon-192.png", requireInteraction: true},
+            headers: {Urgency: "high"},
+          },
+        }).catch(() => {}),
+      ),
+  );
+}
+
+function _fmtTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString("ar-SA", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Amman",
+  });
+}
+
+function _fmtDur(secs) {
+  if (!secs) return "";
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return h > 0 ? `${h}س ${m}د` : `${m}د`;
+}
+
+// Check-in: new attendance document created
+exports.attendanceCheckIn = onDocumentCreated(
+    {document: "attendance/{docId}", region: "us-central1"},
+    async (event) => {
+      const data = event.data.data();
+      if (!data || !data.checkIn) return;
+      const name = data.employeeName || data.employeeId || "موظف";
+      const time = _fmtTime(data.checkIn);
+      await _sendAttendanceNotif(
+          `✅ دخول — ${name}`,
+          `سجّل دخوله الساعة ${time}`,
+      );
+    },
+);
+
+// Check-out: attendance document updated with checkOut
+exports.attendanceCheckOut = onDocumentUpdated(
+    {document: "attendance/{docId}", region: "us-central1"},
+    async (event) => {
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+      if (!after || before.checkOut || !after.checkOut) return;
+      const name = after.employeeName || after.employeeId || "موظف";
+      const time = _fmtTime(after.checkOut);
+      const dur = _fmtDur(after.secondsWorked);
+      await _sendAttendanceNotif(
+          `🔴 خروج — ${name}`,
+          `خرج الساعة ${time}${dur ? ` · داوم ${dur}` : ""}`,
+      );
     },
 );
