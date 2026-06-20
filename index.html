@@ -18169,8 +18169,14 @@ async function loadRosemaryWallet(){
     }catch(e2){_rwTxList=[];}
   }
   try{
-    const snap=await db.collection('operator_expenses').get();
-    _rwExpenses=snap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
+    const sessionId=_opCurrentSession?.id||null;
+    let expSnap;
+    if(sessionId){
+      expSnap=await db.collection('operator_expenses').where('sessionId','==',sessionId).get();
+    }else{
+      expSnap={docs:[]};
+    }
+    _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
   const dateEl=document.getElementById('rw_date');
   if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
