@@ -20,14 +20,22 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v76';
-const ASSETS = [
-  'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap'
+const CACHE = 'alkiswani-v78';
+const FB = 'https://www.gstatic.com/firebasejs/10.12.0';
+
+// Pre-cache Firebase SDK on install (versioned — safe to cache long-term)
+const PRECACHE = [
+  `${FB}/firebase-app-compat.js`,
+  `${FB}/firebase-auth-compat.js`,
+  `${FB}/firebase-firestore-compat.js`,
+  `${FB}/firebase-storage-compat.js`,
+  `${FB}/firebase-functions-compat.js`,
+  `${FB}/firebase-messaging-compat.js`,
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(ASSETS)).catch(()=>{})
+    caches.open(CACHE).then(cache => cache.addAll(PRECACHE)).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -42,35 +50,53 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if(e.request.url.includes('firebase') ||
-     e.request.url.includes('googleapis') ||
-     e.request.url.includes('firestore') ||
-     e.request.url.includes('gstatic')) {
-    return;
-  }
-  // HTML: always network-first so updates load immediately
-  if(e.request.mode === 'navigate' || e.request.destination === 'document') {
+  const url = e.request.url;
+
+  // Firebase SDK (gstatic): cache-first — versioned, never changes
+  if(url.includes('gstatic.com/firebasejs/')) {
     e.respondWith(
-      fetch(e.request).then(res => {
-        if(res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, clone));
-        }
+      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+        if(res && res.status === 200)
+          caches.open(CACHE).then(c => c.put(e.request, res.clone()));
         return res;
-      }).catch(() => caches.match(e.request))
+      }))
     );
     return;
   }
-  // Other assets: network-first, cache fallback
+
+  // Firestore/FCM API calls: never cache
+  if(url.includes('firestore.googleapis.com') ||
+     url.includes('fcm.googleapis.com') ||
+     url.includes('firebase.googleapis.com') ||
+     url.includes('identitytoolkit') ||
+     url.includes('securetoken')) {
+    return;
+  }
+
+  // HTML (navigation): stale-while-revalidate — show cache instantly, update in background
+  if(e.request.mode === 'navigate' || e.request.destination === 'document') {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          const networkFetch = fetch(e.request).then(res => {
+            if(res && res.status === 200) cache.put(e.request, res.clone());
+            return res;
+          }).catch(() => cached);
+          return cached || networkFetch;
+        })
+      )
+    );
+    return;
+  }
+
+  // Other static assets: network-first, cache fallback
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        if(res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, clone));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+    fetch(e.request).then(res => {
+      if(res && res.status === 200) {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
