@@ -2340,7 +2340,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button id="optab-btn-sales" onclick="switchOpTab('sales')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🛒 مبيعات</button>
         <button id="optab-btn-daysheet" onclick="switchOpTab('daysheet')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 يومي</button>
         <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 كشف</button>
-        <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رصيد</button>
+        <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🌿 رصيد روزميري</button>
         <button id="optab-btn-workers" onclick="switchOpTab('workers')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">👥 موظفون</button>
         <button id="optab-btn-empwages" onclick="switchOpTab('empwages')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رواتب</button>
         <button id="optab-btn-expenses" onclick="switchOpTab('expenses')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🧾 مصاريف</button>
@@ -2638,12 +2638,102 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <!-- ========== BALANCE TAB (الرصيد) ========== -->
       <div id="optab-balance" style="display:none;">
 
+        <!-- ===== رصيد روزميري ===== -->
+        <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:2px dashed var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="font-size:1rem;font-weight:800;color:#be185d;">🌿 رصيد روزميري</div>
+            <button onclick="loadRosemaryWallet()" style="padding:5px 12px;background:var(--card-bg);color:var(--text-mid);border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">↻ تحديث</button>
+          </div>
+
+          <!-- Main balance card -->
+          <div id="rw_balance_card" style="margin-bottom:12px;"></div>
+
+          <!-- Edit initial balance form (hidden) -->
+          <div id="rw_initial_form" style="display:none;background:var(--card-bg);border:1.5px solid #fce7f3;border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;font-weight:700;color:#be185d;margin-bottom:10px;">✏️ تعديل الرصيد الأولي</div>
+            <div style="display:flex;gap:8px;">
+              <input type="number" id="rw_initial_inp" min="0" step="0.5" placeholder="0.00"
+                style="flex:1;padding:10px 12px;border:1.5px solid #fce7f3;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fdf2f8;color:var(--text-dark);">
+              <button onclick="saveRwInitialBalance()" style="padding:10px 16px;background:#be185d;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;">💾 حفظ</button>
+              <button onclick="document.getElementById('rw_initial_form').style.display='none'" style="padding:10px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
+            </div>
+          </div>
+
+          <!-- Add transaction form -->
+          <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fce7f3;">
+            <div style="font-size:0.88rem;font-weight:700;color:#be185d;margin-bottom:12px;">➕ تسجيل حركة جديدة</div>
+
+            <!-- Type toggle: إيداع / سحب -->
+            <div style="display:flex;gap:0;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:12px;">
+              <button id="rw_btn_deposit" onclick="setRwType('deposit')"
+                style="flex:1;padding:10px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💚 إيداع</button>
+              <button id="rw_btn_withdraw" onclick="setRwType('withdraw')"
+                style="flex:1;padding:10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1.5px solid var(--border);">🔴 سحب</button>
+            </div>
+
+            <!-- Deposit: store selector -->
+            <div id="rw_store_row_deposit" class="fg" style="margin-bottom:10px;">
+              <label>🏪 المتجر (مصدر الإيداع)</label>
+              <select id="rw_store_deposit" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+                <option value="">-- اختر متجر --</option>
+              </select>
+            </div>
+
+            <!-- Withdraw: sub-type selector + store if needed -->
+            <div id="rw_withdraw_options" style="display:none;margin-bottom:10px;">
+              <div style="display:flex;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:10px;">
+                <button id="rw_sub_store" onclick="setRwWithdrawSubtype('store')"
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;color:#be185d;cursor:pointer;border-bottom:2px solid #be185d;">🏪 دفعة متجر</button>
+                <button id="rw_sub_operator_expense" onclick="setRwWithdrawSubtype('operator_expense')"
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;">🔧 مصاريف مشغل</button>
+                <button id="rw_sub_personal" onclick="setRwWithdrawSubtype('personal')"
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;">🏠 مصاريف شخصية</button>
+              </div>
+              <div id="rw_store_row_withdraw" class="fg">
+                <label>🏪 المتجر (المدفوع له)</label>
+                <select id="rw_store_withdraw" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+                  <option value="">-- اختر متجر --</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Amount + Date -->
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>💵 المبلغ (د.أ)</label>
+                <input type="number" id="rw_amount" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>📅 التاريخ</label>
+                <input type="date" id="rw_date"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="fg" style="margin-bottom:12px;">
+              <label>📝 ملاحظات</label>
+              <input type="text" id="rw_notes" placeholder="سبب الحركة..."
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+
+            <button onclick="addRwTx()" style="width:100%;padding:12px;background:#be185d;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الحركة</button>
+          </div>
+
+          <!-- Transaction history -->
+          <button onclick="toggleBalSection('rw_tx_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid #fce7f3;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#be185d;cursor:pointer;margin-bottom:8px;">
+            <span>📋 سجل الحركات</span><span>▼</span>
+          </button>
+          <div id="rw_tx_list" style="display:none;margin-bottom:8px;"></div>
+        </div>
+
         <!-- Summary Cards -->
         <div id="opbal_summary" style="margin-bottom:16px;"></div>
 
         <!-- Edit Malik duties (hidden by default) -->
         <div id="opbal_duties_form" style="display:none;background:var(--card-bg);border:1.5px solid #fcd34d;border-radius:12px;padding:14px;margin-bottom:14px;">
-          <div style="font-size:0.85rem;font-weight:700;color:#92400e;margin-bottom:10px;">✏️ تعديل إجمالي مستحقات ملك</div>
+          <div style="font-size:0.85rem;font-weight:700;color:#92400e;margin-bottom:10px;">✏️ تعديل إجمالي مستحقات ابو يحيى</div>
           <div style="display:flex;gap:8px;">
             <input type="number" id="opbal_duties_inp" min="0" step="0.5" placeholder="0.00"
               style="flex:1;padding:10px 12px;border:1.5px solid #fcd34d;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
@@ -2707,7 +2797,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- Pay Malik Form -->
         <div class="form-card" style="margin-top:16px;margin-bottom:14px;border:1.5px solid #fde68a;background:#fffbeb;">
-          <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:12px;">💸 دفع الى ملك</div>
+          <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:12px;">💸 دفع الى ابو يحيى</div>
           <div class="form-row" style="margin-bottom:10px;">
             <div class="fg">
               <label>💵 المبلغ (د.أ)</label>
@@ -2725,12 +2815,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <input type="text" id="opbal_pay_notes" placeholder="سبب الدفع..."
               style="width:100%;padding:10px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
           </div>
-          <button onclick="addMalikPayment()" style="width:100%;padding:12px;background:#92400e;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 تسجيل الدفع لملك</button>
+          <button onclick="addMalikPayment()" style="width:100%;padding:12px;background:#92400e;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 تسجيل الدفع لابو يحيى</button>
         </div>
 
         <!-- Malik Payments History -->
         <button onclick="toggleBalSection('opbal_payments_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#92400e;cursor:pointer;margin-bottom:8px;">
-          <span>💸 سجل المدفوعات لملك</span><span>▼</span>
+          <span>💸 سجل المدفوعات لابو يحيى</span><span>▼</span>
         </button>
         <div id="opbal_payments_list" style="display:none;margin-bottom:8px;"></div>
 
@@ -17638,6 +17728,7 @@ async function loadBalanceTab(){
   loadStoreTx();
   if(!_opStoresList.length) await loadOpStores();
   loadAlkiswaniSection();
+  loadRosemaryWallet();
 }
 
 function toggleBalSection(id,btn){
@@ -17665,25 +17756,25 @@ function renderBalanceSummary(){
     <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
       <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
       <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${totalCapital.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
-      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مدفوعات لملك ${totalPayments.toFixed(2)}</div>
+      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مدفوعات لابو يحيى ${totalPayments.toFixed(2)}</div>
       <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
         style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
     </div>
     <!-- ملك card -->
     <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);">👤 ملك</div>
+        <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);">👤 ابو يحيى</div>
         <button onclick="document.getElementById('opbal_duties_form').style.display='block';document.getElementById('opbal_duties_inp').value='${totalDuties.toFixed(2)}'"
           style="background:var(--border);border:none;padding:4px 10px;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;color:var(--text-mid);">✏️ تعديل المستحقات</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div style="background:${milkDebt>0?'#fef3c7':milkDebt<0?'#eff6ff':'#f0fdf4'};border:1.5px solid ${milkDebt>0?'#fcd34d':milkDebt<0?'#93c5fd':'#86efac'};border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:0.72rem;font-weight:700;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};margin-bottom:4px;">${milkDebt>0?'🔴 مستحقات عليك':milkDebt<0?'💰 رصيد لك عند ملك':'✅ مسوي'}</div>
+          <div style="font-size:0.72rem;font-weight:700;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};margin-bottom:4px;">${milkDebt>0?'🔴 مستحقات عليك':milkDebt<0?'💰 رصيد لك عند ابو يحيى':'✅ مسوي'}</div>
           <div style="font-size:1.2rem;font-weight:900;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};">${Math.abs(milkDebt).toFixed(2)}</div>
           <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
         </div>
         <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:4px;">💵 رصيد معها</div>
+          <div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:4px;">💵 رصيد معه</div>
           <div style="font-size:1.2rem;font-weight:900;color:#1e40af;">${milkCash.toFixed(2)}</div>
           <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
         </div>
@@ -17702,7 +17793,7 @@ async function saveMalikDuties(){
     );
     _opBalSettings.malikDutiesAdj=adj;
     document.getElementById('opbal_duties_form').style.display='none';
-    toast('✅ تم تعديل مستحقات ملك');
+    toast('✅ تم تعديل مستحقات ابو يحيى');
     renderBalanceSummary();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
@@ -17759,7 +17850,7 @@ async function addMalikPayment(){
     });
     document.getElementById('opbal_pay_amount').value='';
     document.getElementById('opbal_pay_notes').value='';
-    toast('✅ تم تسجيل الدفع لملك');
+    toast('✅ تم تسجيل الدفع لابو يحيى');
     loadBalanceTab();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
@@ -17777,7 +17868,7 @@ function renderBalancePayments(){
   const wrap=document.getElementById('opbal_payments_list');
   if(!wrap) return;
   if(!_opBalPayments.length){
-    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مدفوعات لملك بعد</div>';
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد مدفوعات لابو يحيى بعد</div>';
     return;
   }
   wrap.innerHTML=_opBalPayments.map(p=>`
@@ -18056,6 +18147,177 @@ async function migrateRawMaterialCosts(){
   if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}
 }
 
+// ===== رصيد روزميري =====
+let _rwSettings={initialBalance:0};
+let _rwTxList=[];
+let _rwTxType='deposit';
+let _rwWithdrawSubtype='store';
+
+async function loadRosemaryWallet(){
+  try{
+    const doc=await db.collection('rosemary_wallet').doc('settings').get();
+    _rwSettings=doc.exists?doc.data():{initialBalance:0};
+  }catch(e){_rwSettings={initialBalance:0};}
+  try{
+    const snap=await db.collection('rosemary_transactions').orderBy('date','desc').get();
+    _rwTxList=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    try{
+      const snap=await db.collection('rosemary_transactions').get();
+      _rwTxList=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    }catch(e2){_rwTxList=[];}
+  }
+  const dateEl=document.getElementById('rw_date');
+  if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
+  if(!_opStoresList.length) await loadOpStores();
+  renderRosemaryWallet();
+}
+
+function renderRosemaryWallet(){
+  const totalDeposits=_rwTxList.filter(t=>t.type==='deposit').reduce((s,t)=>s+(t.amount||0),0);
+  const totalWithdrawals=_rwTxList.filter(t=>t.type==='withdraw').reduce((s,t)=>s+(t.amount||0),0);
+  const initialBalance=_rwSettings.initialBalance||0;
+  const currentBalance=initialBalance+totalDeposits-totalWithdrawals;
+  const card=document.getElementById('rw_balance_card');
+  if(card) card.innerHTML=`
+    <div style="background:linear-gradient(135deg,#be185d,#9d174d);border-radius:14px;padding:16px;color:#fff;position:relative;">
+      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">🌿 رصيد روزميري الحالي</div>
+      <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${currentBalance.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
+      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${initialBalance.toFixed(2)} + إيداعات ${totalDeposits.toFixed(2)} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
+      <button onclick="document.getElementById('rw_initial_form').style.display='block';document.getElementById('rw_initial_inp').value='${initialBalance}'"
+        style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ رصيد أولي</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:0.68rem;opacity:0.85;">💚 إجمالي الإيداعات</div>
+          <div style="font-weight:800;font-size:0.95rem;">${totalDeposits.toFixed(2)} د.أ</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:0.68rem;opacity:0.85;">🔴 إجمالي السحوبات</div>
+          <div style="font-weight:800;font-size:0.95rem;">${totalWithdrawals.toFixed(2)} د.أ</div>
+        </div>
+      </div>
+    </div>`;
+  const storeOpts=(_opStoresList||[]).filter(s=>!s.archived)
+    .map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
+  ['rw_store_deposit','rw_store_withdraw'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.innerHTML=`<option value="">-- اختر متجر --</option>`+storeOpts;
+  });
+  renderRwTxList();
+}
+
+function renderRwTxList(){
+  const wrap=document.getElementById('rw_tx_list');
+  if(!wrap) return;
+  if(!_rwTxList.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد حركات بعد</div>';
+    return;
+  }
+  const subtypeLabel={store:'دفعة متجر',operator_expense:'مصاريف مشغل',personal:'مصاريف شخصية'};
+  const subtypeColor={store:'#dc2626',operator_expense:'#7c3aed',personal:'#ea580c'};
+  wrap.innerHTML=_rwTxList.map(t=>{
+    const isD=t.type==='deposit';
+    const label=isD?'إيداع':(subtypeLabel[t.subType]||'سحب');
+    const borderColor=isD?'#16a34a':(subtypeColor[t.subType]||'#dc2626');
+    const storeText=t.storeName?` — ${t.storeName}`:'';
+    return `<div style="background:var(--card-bg);border:1px solid ${isD?'#86efac':'#fca5a5'};border-right:4px solid ${borderColor};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;color:${isD?'#166534':'#991b1b'};font-size:0.9rem;">${isD?'💚':'🔴'} ${label}${storeText} — ${(t.amount||0).toFixed(2)} د.أ</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);">📅 ${t.date||''}${t.notes?' — '+t.notes:''}</div>
+      </div>
+      <button onclick="deleteRwTx('${t.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function setRwType(type){
+  _rwTxType=type;
+  const dep=document.getElementById('rw_btn_deposit');
+  const wth=document.getElementById('rw_btn_withdraw');
+  if(dep){dep.style.background=type==='deposit'?'var(--green-dark)':'var(--card-bg)';dep.style.color=type==='deposit'?'#fff':'var(--text-mid)';dep.style.fontWeight=type==='deposit'?'700':'400';}
+  if(wth){wth.style.background=type==='withdraw'?'#dc2626':'var(--card-bg)';wth.style.color=type==='withdraw'?'#fff':'var(--text-mid)';wth.style.fontWeight=type==='withdraw'?'700':'400';}
+  const depRow=document.getElementById('rw_store_row_deposit');
+  const wthOpts=document.getElementById('rw_withdraw_options');
+  if(depRow) depRow.style.display=type==='deposit'?'block':'none';
+  if(wthOpts) wthOpts.style.display=type==='withdraw'?'block':'none';
+  if(type==='withdraw') setRwWithdrawSubtype(_rwWithdrawSubtype);
+}
+
+function setRwWithdrawSubtype(subtype){
+  _rwWithdrawSubtype=subtype;
+  ['store','operator_expense','personal'].forEach(st=>{
+    const btn=document.getElementById(`rw_sub_${st}`);
+    if(btn){
+      const active=st===subtype;
+      btn.style.fontWeight=active?'700':'400';
+      btn.style.borderBottom=active?'2px solid #be185d':'2px solid transparent';
+      btn.style.color=active?'#be185d':'var(--text-mid)';
+    }
+  });
+  const storeRow=document.getElementById('rw_store_row_withdraw');
+  if(storeRow) storeRow.style.display=subtype==='store'?'block':'none';
+}
+
+async function addRwTx(){
+  const amount=parseFloat(document.getElementById('rw_amount').value);
+  const date=document.getElementById('rw_date').value;
+  const notes=document.getElementById('rw_notes').value.trim();
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!date){toast('⚠️ اختر التاريخ');return;}
+  const txData={
+    type:_rwTxType,amount,date,notes,
+    sessionId:(_opCurrentSession&&_opCurrentSession.id)||null,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if(_rwTxType==='deposit'){
+    const sel=document.getElementById('rw_store_deposit');
+    const storeId=sel?sel.value:'';
+    const storeName=sel&&sel.selectedIndex>=0?sel.options[sel.selectedIndex].dataset.name||'':'';
+    if(!storeId){toast('⚠️ اختر المتجر');return;}
+    txData.subType='store';
+    txData.storeId=storeId;
+    txData.storeName=storeName;
+  }else{
+    txData.subType=_rwWithdrawSubtype;
+    if(_rwWithdrawSubtype==='store'){
+      const sel=document.getElementById('rw_store_withdraw');
+      const storeId=sel?sel.value:'';
+      const storeName=sel&&sel.selectedIndex>=0?sel.options[sel.selectedIndex].dataset.name||'':'';
+      if(!storeId){toast('⚠️ اختر المتجر');return;}
+      txData.storeId=storeId;
+      txData.storeName=storeName;
+    }
+  }
+  try{
+    await db.collection('rosemary_transactions').add(txData);
+    document.getElementById('rw_amount').value='';
+    document.getElementById('rw_notes').value='';
+    toast('✅ تم الحفظ');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteRwTx(id){
+  if(!confirm('حذف هذه الحركة؟')) return;
+  try{
+    await db.collection('rosemary_transactions').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+async function saveRwInitialBalance(){
+  const v=parseFloat(document.getElementById('rw_initial_inp').value);
+  if(isNaN(v)||v<0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    await db.collection('rosemary_wallet').doc('settings').set({initialBalance:v,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    _rwSettings.initialBalance=v;
+    document.getElementById('rw_initial_form').style.display='none';
+    toast('✅ تم حفظ الرصيد الأولي');
+    renderRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
 window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
 window.saveMalikDuties=saveMalikDuties;
 window.migrateOldSales=migrateOldSales;
@@ -18063,6 +18325,9 @@ window.migrateRawMaterialCosts=migrateRawMaterialCosts;
 window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=deleteBalancePurchase;
 window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
 window.setStoreBalType=setStoreBalType; window.addStoreTx=addStoreTx; window.deleteStoreTx=deleteStoreTx;
+window.loadRosemaryWallet=loadRosemaryWallet; window.saveRwInitialBalance=saveRwInitialBalance;
+window.setRwType=setRwType; window.setRwWithdrawSubtype=setRwWithdrawSubtype;
+window.addRwTx=addRwTx; window.deleteRwTx=deleteRwTx;
 window.loadAlkiswaniSection=loadAlkiswaniSection;
 window.toggleBalSection=toggleBalSection;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
