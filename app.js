@@ -8001,7 +8001,7 @@ async function _loadOpSessionData(){
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
-    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
+    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId&&p.withdrawalType!=='withdrawal'){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
     // Session-specific refunds: those within the session date range (for display in store cards)
     _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
@@ -8217,24 +8217,36 @@ function renderOperatorDailyView(){
         grpMap[s.group].owed+=owed;grpMap[s.group].paid+=paid;grpMap[s.group].refund+=refund;
       } else if(!s.archived){
         const bal=owed-paid-refund;
-        if(bal>0.01) ungroupedRows.push({id:s.id,name:s.name,bal});
+        if(bal>0.01) ungroupedRows.push({id:s.id,name:s.name,bal,owed,paid});
       }
     });
     Object.values(grpMap).forEach(g=>{g.paid+=(_opAcctPaid['__grp__'+g.name]||0);});
     const grpRows=Object.values(grpMap).sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(g=>{
       const bal=g.owed-g.paid-g.refund;if(bal<=0.01)return '';
       const safeG=g.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #e5e7eb;gap:8px;">
-        <span style="font-weight:800;color:#111;font-size:0.85rem;">🗂 ${g.name}</span>
-        <span style="font-weight:900;color:#dc2626;font-size:0.85rem;">${bal.toFixed(2)} د.أ</span>
-        <button onclick="showAddWithdrawalModalForGroup('${safeG}')" style="padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
+      return `<div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:8px;">
+          <span style="font-weight:800;color:#111;font-size:0.85rem;">🗂 ${g.name}</span>
+          <button onclick="showAddWithdrawalModalForGroup('${safeG}','payment')" style="padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
+        </div>
+        <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
+          <span style="color:#dc2626;">المستحق: <strong>${g.owed.toFixed(2)}</strong></span>
+          <span style="color:#166534;">المدفوع: <strong>${g.paid.toFixed(2)}</strong></span>
+          <span style="color:#92400e;font-weight:800;">الباقي: ${bal.toFixed(2)} د.أ</span>
+        </div>
       </div>`;}).join('');
     const storeRows=ungroupedRows.sort((a,b)=>b.bal-a.bal).map(s=>{
       const safeN=s.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #e5e7eb;gap:8px;">
-        <span style="font-weight:700;color:#374151;font-size:0.85rem;">🏪 ${s.name}</span>
-        <span style="font-weight:900;color:#dc2626;font-size:0.85rem;">${s.bal.toFixed(2)} د.أ</span>
-        <button onclick="showAddWithdrawalModalForStore('${s.id}','${safeN}')" style="padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
+      return `<div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:8px;">
+          <span style="font-weight:700;color:#374151;font-size:0.85rem;">🏪 ${s.name}</span>
+          <button onclick="showAddWithdrawalModalForStore('${s.id}','${safeN}','payment')" style="padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
+        </div>
+        <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
+          <span style="color:#dc2626;">المستحق: <strong>${s.owed.toFixed(2)}</strong></span>
+          <span style="color:#166534;">المدفوع: <strong>${s.paid.toFixed(2)}</strong></span>
+          <span style="color:#92400e;font-weight:800;">الباقي: ${s.bal.toFixed(2)} د.أ</span>
+        </div>
       </div>`;}).join('');
     if(grpRows||storeRows){
       html+=`<div style="background:var(--card-bg);border:1.5px solid #fca5a5;border-radius:12px;overflow:hidden;margin-bottom:14px;">
@@ -8296,7 +8308,7 @@ function renderOperatorDailyView(){
           eligibleReps[k].orders.push(o);eligibleReps[k].total+=o.collectAmt;
         }
       });
-      const storeWds=_opWithdrawals.filter(w=>w.storeName===store.name);
+      const storeWds=_opWithdrawals.filter(w=>w.storeName===store.name&&w.withdrawalType!=='payment');
       const storeWdTotal=storeWds.reduce((s,w)=>s+(w.amount||0),0);
       const storeBalance=store.eligibleTotal-storeWdTotal;
       const balColor=storeBalance>=0?'#166534':'#dc2626';
@@ -8828,24 +8840,26 @@ async function deleteOperatorWithdrawal(wid){
     if(!pmtSnap.empty) batch.delete(pmtSnap.docs[0].ref);
     await batch.commit();
     const wd=_opWithdrawals.find(w=>w.id===wid);
-    if(wd?.storeId) _opAcctPaid[wd.storeId]=Math.max(0,(_opAcctPaid[wd.storeId]||0)-(wd.amount||0));
+    if(wd?.storeId&&wd.withdrawalType!=='withdrawal') _opAcctPaid[wd.storeId]=Math.max(0,(_opAcctPaid[wd.storeId]||0)-(wd.amount||0));
     _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
     renderOperatorDailyView();
     toast('✅ تم حذف المسحوب');
   }catch(e){toast('❌ '+e.message);}
 }
 
-function showAddWithdrawalModalForGroup(groupName){
+function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const today=jordanDateStr();
+  const isPayment=type==='payment';
   const overlay=document.createElement('div');
   overlay.id='withdrawal_modal';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
   overlay.innerHTML=`
     <div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;">
-      <div style="font-weight:800;font-size:1.05rem;color:#5b21b6;margin-bottom:4px;text-align:center;">👥 مسحوب مجتمع</div>
-      <div style="text-align:center;font-size:0.8rem;color:#7c3aed;margin-bottom:16px;">${groupName}</div>
+      <div style="font-weight:800;font-size:1.05rem;color:${isPayment?'#dc2626':'#5b21b6'};margin-bottom:4px;text-align:center;">${isPayment?'💳 دفعة مجتمع':'👥 مسحوب مجتمع'}</div>
+      <div style="text-align:center;font-size:0.8rem;color:${isPayment?'#ef4444':'#7c3aed'};margin-bottom:16px;">${groupName}</div>
       <input type="hidden" id="wd_group_name_fixed" value="${groupName}">
+      <input type="hidden" id="wd_withdrawal_type" value="${type}">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
       <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
@@ -8853,7 +8867,7 @@ function showAddWithdrawalModalForGroup(groupName){
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
       <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
       <div style="display:flex;gap:10px;">
-        <button onclick="saveGroupWithdrawal()" style="flex:1;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 حفظ</button>
+        <button onclick="saveGroupWithdrawal()" style="flex:1;padding:12px;background:${isPayment?'#dc2626':'#7c3aed'};color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">${isPayment?'💳 حفظ الدفعة':'💸 حفظ'}</button>
         <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
       </div>
     </div>`;
@@ -8863,6 +8877,7 @@ function showAddWithdrawalModalForGroup(groupName){
 
 async function saveGroupWithdrawal(){
   const groupName=document.getElementById('wd_group_name_fixed')?.value||'';
+  const withdrawalType=document.getElementById('wd_withdrawal_type')?.value||'withdrawal';
   const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
   const date=document.getElementById('wd_date')?.value||jordanDateStr();
   const notes=(document.getElementById('wd_notes')?.value||'').trim();
@@ -8876,38 +8891,42 @@ async function saveGroupWithdrawal(){
       sessionId:_opCurrentSession.id,
       groupName, storeName:groupName,
       storeId:grpStoreId,
+      withdrawalType,
       amount, date, notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef=db.collection('operator_store_payments').doc();
     batch.set(pmtRef,{
       storeId:grpStoreId,storeName:groupName,amount,date,
+      withdrawalType,
       notes:(notes||''),
       sourceWithdrawalId:wRef.id,
       sessionId:_opCurrentSession.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     await batch.commit();
-    _opAcctPaid[grpStoreId]=(_opAcctPaid[grpStoreId]||0)+amount;
+    if(withdrawalType==='payment') _opAcctPaid[grpStoreId]=(_opAcctPaid[grpStoreId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
-    toast('✅ تم تسجيل المسحوب للمجموعة');
+    toast(withdrawalType==='payment'?'✅ تم تسجيل الدفعة للمجموعة':'✅ تم تسجيل المسحوب للمجموعة');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
     _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
 }
 
-function showAddWithdrawalModalForStore(storeId, storeName){
+function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const today=jordanDateStr();
+  const isPayment=type==='payment';
   const overlay=document.createElement('div');
   overlay.id='withdrawal_modal';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
   overlay.innerHTML=`
     <div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;">
-      <div style="font-weight:800;font-size:1.05rem;color:#1a3a2a;margin-bottom:18px;text-align:center;">💸 مسحوب — ${storeName}</div>
+      <div style="font-weight:800;font-size:1.05rem;color:#1a3a2a;margin-bottom:18px;text-align:center;">${isPayment?'💳 دفعة':'💸 مسحوب'} — ${storeName}</div>
       <input type="hidden" id="wd_store_id_fixed" value="${storeId}">
       <input type="hidden" id="wd_store_name_fixed" value="${storeName}">
+      <input type="hidden" id="wd_withdrawal_type" value="${type}">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
       <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
@@ -8915,7 +8934,7 @@ function showAddWithdrawalModalForStore(storeId, storeName){
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
       <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
       <div style="display:flex;gap:10px;">
-        <button onclick="saveOperatorWithdrawalFixed()" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 حفظ</button>
+        <button onclick="saveOperatorWithdrawalFixed()" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">${isPayment?'💳 حفظ الدفعة':'💸 حفظ'}</button>
         <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
       </div>
     </div>`;
@@ -8926,6 +8945,7 @@ function showAddWithdrawalModalForStore(storeId, storeName){
 async function saveOperatorWithdrawalFixed(){
   const storeId=document.getElementById('wd_store_id_fixed')?.value||'';
   const storeName=document.getElementById('wd_store_name_fixed')?.value||'';
+  const withdrawalType=document.getElementById('wd_withdrawal_type')?.value||'withdrawal';
   const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
   const date=document.getElementById('wd_date')?.value||jordanDateStr();
   const notes=(document.getElementById('wd_notes')?.value||'').trim();
@@ -8937,6 +8957,7 @@ async function saveOperatorWithdrawalFixed(){
     batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
+      withdrawalType,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const balRef=db.collection('operator_store_balance').doc();
@@ -8949,15 +8970,16 @@ async function saveOperatorWithdrawalFixed(){
     const pmtRef=db.collection('operator_store_payments').doc();
     batch.set(pmtRef,{
       storeId,storeName,amount,date,
+      withdrawalType,
       notes:(notes||''),
       sourceWithdrawalId:wRef.id,
       sessionId:_opCurrentSession.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     await batch.commit();
-    _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
+    if(withdrawalType==='payment') _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
-    toast('✅ تم تسجيل المسحوب');
+    toast(withdrawalType==='payment'?'✅ تم تسجيل الدفعة':'✅ تم تسجيل المسحوب');
     const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',_opCurrentSession.id).get();
     _opWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()}));
     renderOperatorDailyView();
