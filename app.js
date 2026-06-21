@@ -13879,6 +13879,7 @@ let _rwExpenses=[];
 let _rwRepOrders=[];
 let _rwTxType='deposit';
 let _rwWithdrawSubtype='store';
+let _rwRepOrdersUnsub=null;
 
 async function loadRosemaryWallet(){
   try{
@@ -13904,23 +13905,24 @@ async function loadRosemaryWallet(){
     }
     _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
-  // Load rep-delivered orders from current session (auto-counted as deposits)
-  try{
-    const sessionId=_opCurrentSession?.id||null;
-    if(sessionId){
-      const from=_opCurrentSession?.openedDate||jordanDateStr();
-      const to=_opCurrentSession?.closedDate||jordanDateStr();
-      const snap=await db.collection('employee_orders')
-        .where('deliveredDate','>=',from)
-        .where('deliveredDate','<=',to)
-        .get();
-      _rwRepOrders=snap.docs
-        .map(d=>({id:d.id,...d.data()}))
-        .filter(o=>o.status==='delivered'&&o.deliveryRepName);
-    }else{
-      _rwRepOrders=[];
-    }
-  }catch(e){_rwRepOrders=[];}
+  // Real-time listener for rep-delivered orders in current session
+  if(_rwRepOrdersUnsub){_rwRepOrdersUnsub();_rwRepOrdersUnsub=null;}
+  const sessionId2=_opCurrentSession?.id||null;
+  if(sessionId2){
+    const from=_opCurrentSession.openedDate||jordanDateStr();
+    const to=_opCurrentSession.closedDate||jordanDateStr();
+    _rwRepOrdersUnsub=db.collection('employee_orders')
+      .where('deliveredDate','>=',from)
+      .where('deliveredDate','<=',to)
+      .onSnapshot(snap=>{
+        _rwRepOrders=snap.docs
+          .map(d=>({id:d.id,...d.data()}))
+          .filter(o=>o.status==='delivered'&&o.deliveryRepName);
+        renderRosemaryWallet();
+      },()=>{_rwRepOrders=[];renderRosemaryWallet();});
+  }else{
+    _rwRepOrders=[];
+  }
   const dateEl=document.getElementById('rw_date');
   if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
   if(!_opStoresList.length) await loadOpStores();
