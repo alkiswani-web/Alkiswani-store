@@ -13937,9 +13937,10 @@ async function loadRosemaryWallet(){
       .where('deliveredDate','>=',from)
       .where('deliveredDate','<=',to)
       .onSnapshot(snap=>{
+        const excludedRwReps=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
         _rwRepOrders=snap.docs
           .map(d=>({id:d.id,...d.data()}))
-          .filter(o=>o.status==='delivered'&&o.deliveryRepName);
+          .filter(o=>o.status==='delivered'&&o.deliveryRepName&&!excludedRwReps.has(o.deliveryRepName));
         renderRosemaryWallet();
       },()=>{_rwRepOrders=[];renderRosemaryWallet();});
   }else{
