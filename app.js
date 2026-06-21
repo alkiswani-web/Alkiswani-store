@@ -13911,13 +13911,12 @@ async function loadRosemaryWallet(){
       const from=_opCurrentSession?.openedDate||jordanDateStr();
       const to=_opCurrentSession?.closedDate||jordanDateStr();
       const snap=await db.collection('employee_orders')
-        .where('status','==','delivered')
         .where('deliveredDate','>=',from)
         .where('deliveredDate','<=',to)
         .get();
       _rwRepOrders=snap.docs
         .map(d=>({id:d.id,...d.data()}))
-        .filter(o=>o.deliveryRepName);
+        .filter(o=>o.status==='delivered'&&o.deliveryRepName);
     }else{
       _rwRepOrders=[];
     }
