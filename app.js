@@ -13876,7 +13876,6 @@ async function migrateRawMaterialCosts(){
 let _rwSettings={initialBalance:0};
 let _rwTxList=[];
 let _rwExpenses=[];
-let _rwKashfWithdrawals=[];
 let _rwRepOrders=[];
 let _rwTxType='deposit';
 let _rwWithdrawSubtype='operator_expense';
@@ -13906,16 +13905,6 @@ async function loadRosemaryWallet(){
     }
     _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
-  // Load store withdrawals from كشف (مسحوبات المتاجر) for current session
-  try{
-    const sessionId=_opCurrentSession?.id||null;
-    if(sessionId){
-      const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',sessionId).get();
-      _rwKashfWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data(),_fromKashf:true}));
-    }else{
-      _rwKashfWithdrawals=[];
-    }
-  }catch(e){_rwKashfWithdrawals=[];}
   // Real-time listener for rep-delivered orders in current session
   if(_rwRepOrdersUnsub){_rwRepOrdersUnsub();_rwRepOrdersUnsub=null;}
   const sessionId2=_opCurrentSession?.id||null;
@@ -13945,15 +13934,14 @@ function renderRosemaryWallet(){
   const totalManualDeposits=_rwTxList.filter(t=>t.type==='deposit').reduce((s,t)=>s+(t.amount||0),0);
   const totalWithdrawals=_rwTxList.filter(t=>t.type==='withdraw').reduce((s,t)=>s+(t.amount||0),0);
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
-  const totalKashfWithdrawals=_rwKashfWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
   const totalRepDeposits=_rwRepOrders.reduce((s,o)=>{
     const amt=o.totalPrice||((o.products||[]).reduce((a,p)=>a+(p.price*(p.qty||1)),0));
     return s+amt;
   },0);
   const initialBalance=_rwSettings.initialBalance||0;
   const totalDeposits=totalManualDeposits+totalRepDeposits;
-  const currentBalance=initialBalance+totalDeposits-totalWithdrawals-totalExpenses-totalKashfWithdrawals;
-  const totalOut=totalWithdrawals+totalExpenses+totalKashfWithdrawals;
+  const currentBalance=initialBalance+totalDeposits-totalWithdrawals-totalExpenses;
+  const totalOut=totalWithdrawals+totalExpenses;
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
     <div style="background:linear-gradient(135deg,#be185d,#9d174d);border-radius:14px;padding:16px;color:#fff;position:relative;">
@@ -14000,14 +13988,7 @@ function renderRwTxList(){
     storeName:o.storeName||o.pageId||'',
     notes:o.deliveryRepName||''
   }));
-  const kashfWithdrawalRows=_rwKashfWithdrawals.map(w=>({
-    _fromKashf:true, id:w.id,
-    type:'withdraw', subType:'store',
-    amount:w.amount, date:w.date,
-    storeName:w.storeName||'',
-    notes:w.notes||''
-  }));
-  const combined=[..._rwTxList,...expenseRows,...repOrderRows,...kashfWithdrawalRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const combined=[..._rwTxList,...expenseRows,...repOrderRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!combined.length){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد حركات بعد</div>';
     return;
@@ -14018,7 +13999,7 @@ function renderRwTxList(){
     const borderColor=isD?'#16a34a':(subtypeColor[t.subType]||'#dc2626');
     const storeText=t.storeName?` — ${t.storeName}`:'';
     const notesText=t.notes?` — ${t.notes}`:'';
-    const deleteBtn=(t._fromExpenses||t._fromRepOrder||t._fromKashf)
+    const deleteBtn=(t._fromExpenses||t._fromRepOrder)
       ?`<span style="font-size:0.68rem;color:#9ca3af;">📋 الكشف</span>`
       :`<button onclick="deleteRwTx('${t.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>`;
     return `<div style="background:var(--card-bg);border:1px solid ${isD?'#86efac':'#fca5a5'};border-right:4px solid ${borderColor};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
