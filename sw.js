@@ -20,11 +20,11 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v78';
+const CACHE = 'alkiswani-v79';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.0';
 
-// Pre-cache Firebase SDK on install (versioned — safe to cache long-term)
 const PRECACHE = [
+  '/app.js',
   `${FB}/firebase-app-compat.js`,
   `${FB}/firebase-auth-compat.js`,
   `${FB}/firebase-firestore-compat.js`,
@@ -51,6 +51,22 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
+
+  // app.js: stale-while-revalidate — show cached instantly, update in background
+  if(url.endsWith('/app.js') || url.includes('/app.js?')) {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          const networkFetch = fetch(e.request).then(res => {
+            if(res && res.status === 200) cache.put(e.request, res.clone());
+            return res;
+          }).catch(() => cached);
+          return cached || networkFetch;
+        })
+      )
+    );
+    return;
+  }
 
   // Firebase SDK (gstatic): cache-first — versioned, never changes
   if(url.includes('gstatic.com/firebasejs/')) {
