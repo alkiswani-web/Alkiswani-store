@@ -13899,6 +13899,7 @@ let _rwSettings={initialBalance:0};
 let _rwTxList=[];
 let _rwExpenses=[];
 let _rwRepOrders=[];
+let _rwStoreWithdrawals=[];
 let _rwTxType='deposit';
 let _rwWithdrawSubtype='operator_expense';
 let _rwRepOrdersUnsub=null;
@@ -13927,7 +13928,17 @@ async function loadRosemaryWallet(){
     }
     _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
+  // Load مسحوبات المتاجر (withdrawalType='withdrawal') for current session → auto-deduct from balance
+  try{
+    const sessionId=_opCurrentSession?.id||null;
+    if(sessionId){
+      const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',sessionId).get();
+      _rwStoreWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.withdrawalType!=='payment');
+    }else{_rwStoreWithdrawals=[];}
+  }catch(e){_rwStoreWithdrawals=[];}
   // Real-time listener for rep-delivered orders in current session
+  // Ensure delivery reps exclusion list is loaded before the snapshot fires
+  try{await _loadDeliveryReps();}catch(e){}
   if(_rwRepOrdersUnsub){_rwRepOrdersUnsub();_rwRepOrdersUnsub=null;}
   const sessionId2=_opCurrentSession?.id||null;
   if(sessionId2){
@@ -13957,14 +13968,15 @@ function renderRosemaryWallet(){
   const totalManualDeposits=_rwTxList.filter(t=>t.type==='deposit').reduce((s,t)=>s+(t.amount||0),0);
   const totalWithdrawals=_rwTxList.filter(t=>t.type==='withdraw').reduce((s,t)=>s+(t.amount||0),0);
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
+  const totalStoreWithdrawals=_rwStoreWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
   const totalRepDeposits=_rwRepOrders.reduce((s,o)=>{
     const amt=o.totalPrice||((o.products||[]).reduce((a,p)=>a+(p.price*(p.qty||1)),0));
     return s+amt;
   },0);
   const initialBalance=_rwSettings.initialBalance||0;
   const totalDeposits=totalManualDeposits+totalRepDeposits;
-  const currentBalance=initialBalance+totalDeposits-totalWithdrawals-totalExpenses;
-  const totalOut=totalWithdrawals+totalExpenses;
+  const currentBalance=initialBalance+totalDeposits-totalWithdrawals-totalExpenses-totalStoreWithdrawals;
+  const totalOut=totalWithdrawals+totalExpenses+totalStoreWithdrawals;
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
     <div style="background:linear-gradient(135deg,#be185d,#9d174d);border-radius:14px;padding:16px;color:#fff;position:relative;">
@@ -13994,8 +14006,8 @@ function renderRosemaryWallet(){
 function renderRwTxList(){
   const wrap=document.getElementById('rw_tx_list');
   if(!wrap) return;
-  const subtypeLabel={store:'دفعة متجر',operator_expense:'مصاريف مشغل',personal:'مصاريف شخصية',rep:'طلب مندوب'};
-  const subtypeColor={store:'#dc2626',operator_expense:'#7c3aed',personal:'#ea580c'};
+  const subtypeLabel={store:'دفعة متجر',operator_expense:'مصاريف مشغل',personal:'مصاريف شخصية',rep:'طلب مندوب',store_withdrawal:'مسحوب متجر'};
+  const subtypeColor={store:'#dc2626',operator_expense:'#7c3aed',personal:'#ea580c',store_withdrawal:'#b45309'};
   // Merge rosemary_transactions + operator_expenses + rep orders from كشف
   const expenseRows=_rwExpenses.map(e=>({
     _fromExpenses:true, id:e.id,
@@ -14011,7 +14023,15 @@ function renderRwTxList(){
     storeName:o.storeName||o.pageId||'',
     notes:o.deliveryRepName||''
   }));
-  const combined=[..._rwTxList,...expenseRows,...repOrderRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const storeWdRows=_rwStoreWithdrawals.map(w=>({
+    _fromStoreWithdrawal:true, id:w.id,
+    type:'withdraw', subType:'store_withdrawal',
+    amount:w.amount||0,
+    date:w.date||'',
+    storeName:w.storeName||'',
+    notes:w.notes||''
+  }));
+  const combined=[..._rwTxList,...expenseRows,...repOrderRows,...storeWdRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!combined.length){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد حركات بعد</div>';
     return;
@@ -14022,7 +14042,7 @@ function renderRwTxList(){
     const borderColor=isD?'#16a34a':(subtypeColor[t.subType]||'#dc2626');
     const storeText=t.storeName?` — ${t.storeName}`:'';
     const notesText=t.notes?` — ${t.notes}`:'';
-    const deleteBtn=(t._fromExpenses||t._fromRepOrder)
+    const deleteBtn=(t._fromExpenses||t._fromRepOrder||t._fromStoreWithdrawal)
       ?`<span style="font-size:0.68rem;color:#9ca3af;">📋 الكشف</span>`
       :`<button onclick="deleteRwTx('${t.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>`;
     return `<div style="background:var(--card-bg);border:1px solid ${isD?'#86efac':'#fca5a5'};border-right:4px solid ${borderColor};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
