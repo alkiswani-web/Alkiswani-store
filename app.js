@@ -13878,7 +13878,7 @@ let _rwTxList=[];
 let _rwExpenses=[];
 let _rwRepOrders=[];
 let _rwTxType='deposit';
-let _rwWithdrawSubtype='store';
+let _rwWithdrawSubtype='operator_expense';
 let _rwRepOrdersUnsub=null;
 
 async function loadRosemaryWallet(){
@@ -13963,10 +13963,8 @@ function renderRosemaryWallet(){
     </div>`;
   const storeOpts=(_opStoresList||[]).filter(s=>!s.archived)
     .map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
-  ['rw_store_deposit','rw_store_withdraw'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.innerHTML=`<option value="">-- اختر متجر --</option>`+storeOpts;
-  });
+  const depSel=document.getElementById('rw_store_deposit');
+  if(depSel) depSel.innerHTML=`<option value="">-- اختر متجر --</option>`+storeOpts;
   renderRwTxList();
 }
 
@@ -14029,17 +14027,16 @@ function setRwType(type){
 
 function setRwWithdrawSubtype(subtype){
   _rwWithdrawSubtype=subtype;
-  ['store','operator_expense','personal'].forEach(st=>{
+  ['operator_expense','personal'].forEach(st=>{
     const btn=document.getElementById(`rw_sub_${st}`);
     if(btn){
       const active=st===subtype;
       btn.style.fontWeight=active?'700':'400';
-      btn.style.borderBottom=active?'2px solid #be185d':'2px solid transparent';
-      btn.style.color=active?'#be185d':'var(--text-mid)';
+      const activeColor=st==='operator_expense'?'#7c3aed':'#ea580c';
+      btn.style.borderBottom=active?`2px solid ${activeColor}`:'2px solid transparent';
+      btn.style.color=active?activeColor:'var(--text-mid)';
     }
   });
-  const storeRow=document.getElementById('rw_store_row_withdraw');
-  if(storeRow) storeRow.style.display=subtype==='store'?'block':'none';
 }
 
 async function addRwTx(){
@@ -14063,14 +14060,6 @@ async function addRwTx(){
     txData.storeName=storeName;
   }else{
     txData.subType=_rwWithdrawSubtype;
-    if(_rwWithdrawSubtype==='store'){
-      const sel=document.getElementById('rw_store_withdraw');
-      const storeId=sel?sel.value:'';
-      const storeName=sel&&sel.selectedIndex>=0?sel.options[sel.selectedIndex].dataset.name||'':'';
-      if(!storeId){toast('⚠️ اختر المتجر');return;}
-      txData.storeId=storeId;
-      txData.storeName=storeName;
-    }
   }
   try{
     await db.collection('rosemary_transactions').add(txData);

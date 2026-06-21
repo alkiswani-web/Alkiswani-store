@@ -2682,21 +2682,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               </select>
             </div>
 
-            <!-- Withdraw: sub-type selector + store if needed -->
+            <!-- Withdraw: sub-type selector -->
             <div id="rw_withdraw_options" style="display:none;margin-bottom:10px;">
               <div style="display:flex;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:10px;">
-                <button id="rw_sub_store" onclick="setRwWithdrawSubtype('store')"
-                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;color:#be185d;cursor:pointer;border-bottom:2px solid #be185d;">🏪 دفعة متجر</button>
                 <button id="rw_sub_operator_expense" onclick="setRwWithdrawSubtype('operator_expense')"
-                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;">🔧 مصاريف مشغل</button>
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;color:#7c3aed;cursor:pointer;border-bottom:2px solid #7c3aed;">🔧 مصاريف مشغل</button>
                 <button id="rw_sub_personal" onclick="setRwWithdrawSubtype('personal')"
                   style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;">🏠 مصاريف شخصية</button>
-              </div>
-              <div id="rw_store_row_withdraw" class="fg">
-                <label>🏪 المتجر (المدفوع له)</label>
-                <select id="rw_store_withdraw" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-                  <option value="">-- اختر متجر --</option>
-                </select>
               </div>
             </div>
 
