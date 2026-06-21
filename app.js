@@ -13876,6 +13876,7 @@ async function migrateRawMaterialCosts(){
 let _rwSettings={initialBalance:0};
 let _rwTxList=[];
 let _rwExpenses=[];
+let _rwPendingOrders=[];
 let _rwTxType='deposit';
 let _rwWithdrawSubtype='store';
 
@@ -13903,10 +13904,76 @@ async function loadRosemaryWallet(){
     }
     _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
+  // Load rep-delivered orders not yet deposited in رصيد روزميري
+  try{
+    const from=_opCurrentSession?.openedDate||jordanDateStr();
+    const to=_opCurrentSession?.closedDate||jordanDateStr();
+    const snap=await db.collection('employee_orders')
+      .where('status','==','delivered')
+      .where('deliveredDate','>=',from)
+      .where('deliveredDate','<=',to)
+      .get();
+    _rwPendingOrders=snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(o=>o.deliveryRepName&&!o.depositedInRosemary);
+  }catch(e){_rwPendingOrders=[];}
   const dateEl=document.getElementById('rw_date');
   if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
   if(!_opStoresList.length) await loadOpStores();
   renderRosemaryWallet();
+}
+
+function renderPendingRepOrders(){
+  const wrap=document.getElementById('rw_pending_section');
+  if(!wrap) return;
+  if(!_rwPendingOrders.length){wrap.innerHTML='';return;}
+  // Group by store
+  const byStore={};
+  _rwPendingOrders.forEach(o=>{
+    const key=o.pageId||o.storeId||o.storeName||'غير محدد';
+    const name=o.storeName||o.pageId||'متجر';
+    if(!byStore[key]) byStore[key]={name,total:0,ids:[],pageId:o.pageId||''};
+    const total=o.totalPrice||((o.products||[]).reduce((s,p)=>s+(p.price*(p.qty||1)),0));
+    byStore[key].total+=total;
+    byStore[key].ids.push(o.id);
+  });
+  const rows=Object.entries(byStore).map(([key,s])=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fdf2f8;border:1px solid #fbcfe8;border-right:4px solid #be185d;border-radius:10px;margin-bottom:7px;">
+      <div>
+        <div style="font-weight:700;color:#9d174d;font-size:0.88rem;">🏪 ${s.name}</div>
+        <div style="font-size:0.75rem;color:#be185d;">${s.ids.length} طلب — ${s.total.toFixed(2)} د.أ</div>
+      </div>
+      <button onclick="prefillRwDeposit('${key}','${s.name}',${s.total.toFixed(2)},'${s.ids.join(',')}')"
+        style="padding:7px 12px;background:#be185d;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💚 إيداع</button>
+    </div>`).join('');
+  wrap.innerHTML=`
+    <div style="background:#fdf2f8;border:1.5px solid #fbcfe8;border-radius:12px;padding:12px 14px;">
+      <div style="font-size:0.85rem;font-weight:700;color:#9d174d;margin-bottom:10px;">⏳ طلبات مناديب غير مودعة (${_rwPendingOrders.length} طلب)</div>
+      ${rows}
+    </div>`;
+}
+
+async function prefillRwDeposit(storeId,storeName,amount,orderIdsStr){
+  // Switch to deposit mode and pre-fill form
+  setRwType('deposit');
+  const amtEl=document.getElementById('rw_amount');
+  const notesEl=document.getElementById('rw_notes');
+  const dateEl=document.getElementById('rw_date');
+  const sel=document.getElementById('rw_store_deposit');
+  if(amtEl) amtEl.value=amount.toFixed(2);
+  if(notesEl) notesEl.value='طلبات مناديب';
+  if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
+  // Select the store in dropdown
+  if(sel){
+    for(let opt of sel.options){
+      if(opt.value===storeId||opt.dataset.name===storeName){sel.value=opt.value;break;}
+    }
+  }
+  // Store pending order IDs to mark as deposited after save
+  window._rwPendingOrderIds=(orderIdsStr||'').split(',').filter(Boolean);
+  // Scroll to form
+  document.getElementById('rw_btn_deposit')?.scrollIntoView({behavior:'smooth',block:'center'});
+  toast('✅ تم ملء النموذج — تحقق وحفظ');
 }
 
 function renderRosemaryWallet(){
@@ -13941,6 +14008,7 @@ function renderRosemaryWallet(){
     const el=document.getElementById(id);
     if(el) el.innerHTML=`<option value="">-- اختر متجر --</option>`+storeOpts;
   });
+  renderPendingRepOrders();
   renderRwTxList();
 }
 
@@ -14042,6 +14110,15 @@ async function addRwTx(){
     await db.collection('rosemary_transactions').add(txData);
     document.getElementById('rw_amount').value='';
     document.getElementById('rw_notes').value='';
+    if(_rwTxType==='deposit'){
+      const pendingIds=window._rwPendingOrderIds||[];
+      if(pendingIds.length){
+        const batch=db.batch();
+        pendingIds.forEach(id=>batch.update(db.collection('employee_orders').doc(id),{depositedInRosemary:true}));
+        await batch.commit().catch(()=>{});
+        window._rwPendingOrderIds=[];
+      }
+    }
     toast('✅ تم الحفظ');
     loadRosemaryWallet();
   }catch(e){toast('❌ خطأ في الحفظ');}
