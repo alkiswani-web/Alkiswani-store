@@ -13899,7 +13899,6 @@ let _rwSettings={initialBalance:0};
 let _rwTxList=[];
 let _rwExpenses=[];
 let _rwRepOrders=[];
-let _rwStoreWithdrawals=[];
 let _rwTxType='deposit';
 let _rwWithdrawSubtype='operator_expense';
 let _rwRepOrdersUnsub=null;
@@ -13928,15 +13927,6 @@ async function loadRosemaryWallet(){
     }
     _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
-  // Load مسحوبات المتاجر (withdrawalType='withdrawal') for current session → auto-deduct from balance
-  try{
-    const sessionId=_opCurrentSession?.id||null;
-    if(sessionId){
-      const wSnap=await db.collection('operator_withdrawals').where('sessionId','==',sessionId).get();
-      _rwStoreWithdrawals=wSnap.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.withdrawalType!=='payment');
-    }else{_rwStoreWithdrawals=[];}
-  }catch(e){_rwStoreWithdrawals=[];}
-  // Real-time listener for rep-delivered orders in current session
   // Ensure delivery reps exclusion list is loaded before the snapshot fires
   try{await _loadDeliveryReps();}catch(e){}
   if(_rwRepOrdersUnsub){_rwRepOrdersUnsub();_rwRepOrdersUnsub=null;}
@@ -13968,7 +13958,8 @@ function renderRosemaryWallet(){
   const totalManualDeposits=_rwTxList.filter(t=>t.type==='deposit').reduce((s,t)=>s+(t.amount||0),0);
   const totalWithdrawals=_rwTxList.filter(t=>t.type==='withdraw').reduce((s,t)=>s+(t.amount||0),0);
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
-  const totalStoreWithdrawals=_rwStoreWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
+  const rwStoreWds=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment');
+  const totalStoreWithdrawals=rwStoreWds.reduce((s,w)=>s+(w.amount||0),0);
   const totalRepDeposits=_rwRepOrders.reduce((s,o)=>{
     const amt=o.totalPrice||((o.products||[]).reduce((a,p)=>a+(p.price*(p.qty||1)),0));
     return s+amt;
@@ -14023,7 +14014,7 @@ function renderRwTxList(){
     storeName:o.storeName||o.pageId||'',
     notes:o.deliveryRepName||''
   }));
-  const storeWdRows=_rwStoreWithdrawals.map(w=>({
+  const storeWdRows=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').map(w=>({
     _fromStoreWithdrawal:true, id:w.id,
     type:'withdraw', subType:'store_withdrawal',
     amount:w.amount||0,
