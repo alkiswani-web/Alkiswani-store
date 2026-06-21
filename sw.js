@@ -52,7 +52,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // app.js: stale-while-revalidate — show cached instantly, update in background
   if(url.endsWith('/app.js') || url.includes('/app.js?')) {
     e.respondWith(
       caches.open(CACHE).then(cache =>
@@ -68,7 +67,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Firebase SDK (gstatic): cache-first — versioned, never change
   if(url.includes('gstatic.com/firebasejs/')) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
@@ -80,7 +78,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Firestore/FCM/Auth API calls: never cache
   if(url.includes('firestore.googleapis.com') ||
      url.includes('fcm.googleapis.com') ||
      url.includes('firebase.googleapis.com') ||
@@ -89,7 +86,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML (navigation): stale-while-revalidate
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
     e.respondWith(
       caches.open(CACHE).then(cache =>
@@ -105,7 +101,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Other static assets: network-first, cache fallback
   e.respondWith(
     fetch(e.request).then(res => {
       if(res && res.status === 200)
