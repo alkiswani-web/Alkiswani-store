@@ -13961,7 +13961,7 @@ function renderRosemaryWallet(){
   const rwStoreWds=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment');
   const totalStoreWithdrawals=rwStoreWds.reduce((s,w)=>s+(w.amount||0),0);
   const totalRepDeposits=_rwRepOrders.reduce((s,o)=>{
-    const amt=o.totalPrice||((o.products||[]).reduce((a,p)=>a+(p.price*(p.qty||1)),0));
+    const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
     return s+amt;
   },0);
   const initialBalance=_rwSettings.initialBalance||0;
@@ -14009,7 +14009,7 @@ function renderRwTxList(){
   const repOrderRows=_rwRepOrders.map(o=>({
     _fromRepOrder:true, id:o.id,
     type:'deposit', subType:'rep',
-    amount:o.totalPrice||((o.products||[]).reduce((s,p)=>s+(p.price*(p.qty||1)),0)),
+    amount:Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),
     date:o.deliveredDate||'',
     storeName:o.storeName||o.pageId||'',
     notes:o.deliveryRepName||''
