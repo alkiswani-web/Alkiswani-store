@@ -8440,7 +8440,7 @@ function renderOperatorDailyView(){
     const groupCards=Object.entries(storeGroups).sort((a,b)=>a[0].localeCompare(b[0],'ar')).map(([groupName,stores])=>{
       const grpEligible=stores.reduce((s,st)=>s+st.eligibleTotal,0);
       // group-level withdrawals: those tagged with groupName OR any per-store withdrawal for stores in this group
-      const grpWds=_opWithdrawals.filter(w=>w.groupName===groupName||stores.some(st=>st.name===w.storeName));
+      const grpWds=_opWithdrawals.filter(w=>(w.groupName===groupName||stores.some(st=>st.name===w.storeName))&&w.withdrawalType!=='payment');
       const grpWdTotal=grpWds.reduce((s,w)=>s+(w.amount||0),0);
       const grpBalance=grpEligible-grpWdTotal;
       const grpBalColor=grpBalance>=0?'#fff':'#fca5a5';
