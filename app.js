@@ -13997,8 +13997,8 @@ function renderRosemaryWallet(){
 function renderRwTxList(){
   const wrap=document.getElementById('rw_tx_list');
   if(!wrap) return;
-  const subtypeLabel={store:'دفعة متجر',operator_expense:'مصاريف مشغل',personal:'مصاريف شخصية',rep:'طلب مندوب',store_withdrawal:'مسحوب متجر'};
-  const subtypeColor={store:'#dc2626',operator_expense:'#7c3aed',personal:'#ea580c',store_withdrawal:'#b45309'};
+  const subtypeLabel={store:'دفعة متجر',operator_expense:'مصاريف مشغل',personal:'مصاريف شخصية',salary:'رواتب',other:'أخرى',rep:'طلب مندوب',store_withdrawal:'مسحوب متجر'};
+  const subtypeColor={store:'#dc2626',operator_expense:'#7c3aed',personal:'#ea580c',salary:'#0891b2',other:'#6b7280',store_withdrawal:'#b45309'};
   // Merge rosemary_transactions + operator_expenses + rep orders from كشف
   const expenseRows=_rwExpenses.map(e=>({
     _fromExpenses:true, id:e.id,
@@ -14029,7 +14029,7 @@ function renderRwTxList(){
   }
   wrap.innerHTML=combined.map(t=>{
     const isD=t.type==='deposit';
-    const label=isD?'إيداع':(subtypeLabel[t.subType]||'سحب');
+    const label=isD?'إيداع':(t.subType==='other'&&t.customLabel?t.customLabel:subtypeLabel[t.subType]||'سحب');
     const borderColor=isD?'#16a34a':(subtypeColor[t.subType]||'#dc2626');
     const storeText=t.storeName?` — ${t.storeName}`:'';
     const notesText=t.notes?` — ${t.notes}`:'';
@@ -14061,16 +14061,19 @@ function setRwType(type){
 
 function setRwWithdrawSubtype(subtype){
   _rwWithdrawSubtype=subtype;
-  ['operator_expense','personal'].forEach(st=>{
+  const subtypeColors={operator_expense:'#7c3aed',personal:'#ea580c',salary:'#0891b2',other:'#6b7280'};
+  ['operator_expense','personal','salary','other'].forEach(st=>{
     const btn=document.getElementById(`rw_sub_${st}`);
     if(btn){
       const active=st===subtype;
       btn.style.fontWeight=active?'700':'400';
-      const activeColor=st==='operator_expense'?'#7c3aed':'#ea580c';
+      const activeColor=subtypeColors[st]||'#374151';
       btn.style.borderBottom=active?`2px solid ${activeColor}`:'2px solid transparent';
       btn.style.color=active?activeColor:'var(--text-mid)';
     }
   });
+  const otherRow=document.getElementById('rw_other_label_row');
+  if(otherRow) otherRow.style.display=subtype==='other'?'block':'none';
 }
 
 async function addRwTx(){
@@ -14094,11 +14097,17 @@ async function addRwTx(){
     txData.storeName=storeName;
   }else{
     txData.subType=_rwWithdrawSubtype;
+    if(_rwWithdrawSubtype==='other'){
+      const customLabel=(document.getElementById('rw_other_label')?.value||'').trim();
+      if(!customLabel){toast('⚠️ اكتب اسم البند');return;}
+      txData.customLabel=customLabel;
+    }
   }
   try{
     await db.collection('rosemary_transactions').add(txData);
     document.getElementById('rw_amount').value='';
     document.getElementById('rw_notes').value='';
+    if(_rwWithdrawSubtype==='other'){const el=document.getElementById('rw_other_label');if(el)el.value='';}
     toast('✅ تم الحفظ');
     loadRosemaryWallet();
   }catch(e){toast('❌ خطأ في الحفظ');}
