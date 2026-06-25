@@ -2684,11 +2684,21 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
             <!-- Withdraw: sub-type selector -->
             <div id="rw_withdraw_options" style="display:none;margin-bottom:10px;">
-              <div style="display:flex;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:10px;">
+              <div style="display:flex;flex-wrap:wrap;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:10px;">
                 <button id="rw_sub_operator_expense" onclick="setRwWithdrawSubtype('operator_expense')"
-                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;color:#7c3aed;cursor:pointer;border-bottom:2px solid #7c3aed;">🔧 مصاريف مشغل</button>
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;color:#7c3aed;cursor:pointer;border-bottom:2px solid #7c3aed;white-space:nowrap;">🔧 مصاريف مشغل</button>
                 <button id="rw_sub_personal" onclick="setRwWithdrawSubtype('personal')"
-                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;">🏠 مصاريف شخصية</button>
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;white-space:nowrap;">🏠 مصاريف شخصية</button>
+                <button id="rw_sub_salary" onclick="setRwWithdrawSubtype('salary')"
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;white-space:nowrap;">💰 رواتب</button>
+                <button id="rw_sub_other" onclick="setRwWithdrawSubtype('other')"
+                  style="flex:1;padding:8px 4px;border:none;background:transparent;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--text-mid);border-bottom:2px solid transparent;white-space:nowrap;">📝 أخرى</button>
+              </div>
+              <!-- Custom label — shown only when "أخرى" is selected -->
+              <div id="rw_other_label_row" style="display:none;margin-bottom:10px;">
+                <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">اسم البند</label>
+                <input type="text" id="rw_other_label" placeholder="مثال: إيجار، ديون، تأمين..."
+                  style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;">
               </div>
             </div>
 
