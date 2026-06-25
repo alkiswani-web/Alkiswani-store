@@ -14066,10 +14066,11 @@ function setRwWithdrawSubtype(subtype){
     const btn=document.getElementById(`rw_sub_${st}`);
     if(btn){
       const active=st===subtype;
+      const c=subtypeColors[st]||'#374151';
+      btn.style.background=active?c:'var(--card-bg)';
+      btn.style.color=active?'#fff':'var(--text-mid)';
+      btn.style.border=active?`2px solid ${c}`:'2px solid var(--border)';
       btn.style.fontWeight=active?'700':'400';
-      const activeColor=subtypeColors[st]||'#374151';
-      btn.style.borderBottom=active?`2px solid ${activeColor}`:'2px solid transparent';
-      btn.style.color=active?activeColor:'var(--text-mid)';
     }
   });
   const otherRow=document.getElementById('rw_other_label_row');
