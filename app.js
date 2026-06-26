@@ -2855,7 +2855,7 @@ function _fillEmpDlvProdOptions(storeId){
   prodSel.innerHTML='<option value="">— المنتج —</option>'+
     _empDlvProductsList.map(p=>{
       const price=storeId&&p.storePrices?.[storeId]?p.storePrices[storeId]:(p.defaultSellPrice||0);
-      return `<option value="${p.id}" data-name="${p.name}" data-price="${price}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}">${p.name} — ${parseFloat(price).toFixed(2)} د.أ</option>`;
+      return `<option value="${p.id}" data-name="${p.name}" data-price="${price}" data-raw="${p.rawMaterialCost||0}" data-tree="${p.treeCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}">${p.name} — ${parseFloat(price).toFixed(2)} د.أ</option>`;
     }).join('');
   const info=document.getElementById('empDlv_price_info');
   if(info)info.textContent='';
@@ -2878,7 +2878,7 @@ function addEmpDlvItem(){
   const price=parseFloat(opt.dataset.price||0);
   const existing=_empDlvCart.find(i=>i.productId===opt.value);
   if(existing){existing.qty+=qty;}
-  else{_empDlvCart.push({productId:opt.value,productName:opt.dataset.name,qty,sellPrice:price,rawMaterialCost:parseFloat(opt.dataset.raw||0),machineWorkerWage:parseFloat(opt.dataset.machine||0),assemblyWorkerWage:parseFloat(opt.dataset.assembly||0)});}
+  else{_empDlvCart.push({productId:opt.value,productName:opt.dataset.name,qty,sellPrice:price,rawMaterialCost:parseFloat(opt.dataset.raw||0),treeCost:parseFloat(opt.dataset.tree||0),machineWorkerWage:parseFloat(opt.dataset.machine||0),assemblyWorkerWage:parseFloat(opt.dataset.assembly||0)});}
   if(qtyEl)qtyEl.value=1;
   if(prodSel)prodSel.value='';
   const info=document.getElementById('empDlv_price_info');
@@ -2958,6 +2958,7 @@ async function submitEmpDelivery(){
         productId:item.productId,productName:item.productName,
         qty:item.qty,sellPrice:item.sellPrice,
         rawMaterialCost:item.rawMaterialCost||0,
+        treeCost:item.treeCost||0,
         machineWorkerWage:item.machineWorkerWage||0,
         assemblyWorkerWage:item.assemblyWorkerWage||0,
         notes,date,
@@ -4287,7 +4288,7 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       // بحث بالـ ID أولاً، فإذا ما لاقى يبحث بالاسم (للطلبات القديمة)
       const opProd=_opProductsList.find(p=>p.id===product.id)||_opProductsList.find(p=>p.name===product.name);
       const storePrice=opProd?.storePrices?.[store.id]||0;
-      const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
+      const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.treeCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
       // لا نستخدم أبداً سعر الزبون (product.price) — نستخدم سعر المتجر أو التكلفة فقط
       const sellPrice=storePrice||totalCost||0;
       const ref=db.collection('operator_sales').doc();
@@ -4299,6 +4300,7 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
         qty:product.qty||1,
         sellPrice,
         rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
+        treeCost:opProd?(opProd.treeCost||0):0,
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
         assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
         notes:orderData.notes||'',
@@ -4361,7 +4363,7 @@ async function addPageRefundEntry(orderId, orderData, reason){
     let totalCost=0;
     const items=products.map(p=>{
       const op=_opProductsList.find(x=>x.id===p.id)||_opProductsList.find(x=>x.name===p.name);
-      const unitCost=op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
+      const unitCost=op?((op.rawMaterialCost||0)+(op.treeCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
       const qty=p.qty||1;
       totalCost+=unitCost*qty;
       return {name:p.name||'',qty,unitCost};
@@ -4722,7 +4724,7 @@ async function loadDaySheet(){
     function _storeForPage(pageId){return _opStoresList.find(s=>s.pageId===pageId)||null;}
     function _prodCost(name){
       const op=_opProductsList.find(p=>p.name===name);
-      return op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
+      return op?((op.rawMaterialCost||0)+(op.treeCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
     }
     const noStoreKey='__no_store__';
     const storeMap={};
@@ -4822,7 +4824,7 @@ function _renderDaySheet(orders,refunds,date,dayExpenses){
 
   function _prodCost(name){
     const op=_opProductsList.find(p=>p.name===name);
-    return op?((op.rawMaterialCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
+    return op?((op.rawMaterialCost||0)+(op.treeCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
   }
   function _storeForPage(pageId){
     return _opStoresList.find(s=>s.pageId===pageId)||null;
@@ -6110,7 +6112,7 @@ function _fillDlvProdOptions(storeId){
     _opProductsList.map(p=>{
       const storePrices=p.storePrices||{};
       const price=storeId&&storePrices[storeId]?storePrices[storeId]:(p.defaultSellPrice||0);
-      return `<option value="${p.id}" data-name="${p.name}" data-price="${price}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}">${p.name} — ${price.toFixed(2)} د.أ</option>`;
+      return `<option value="${p.id}" data-name="${p.name}" data-price="${price}" data-raw="${p.rawMaterialCost||0}" data-tree="${p.treeCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}">${p.name} — ${price.toFixed(2)} د.أ</option>`;
     }).join('');
   const info=document.getElementById('dlv_price_info');
   if(info) info.textContent='';
@@ -6155,6 +6157,7 @@ function addDlvItem(){
     cart.push({
       productId:opt.value, productName:opt.dataset.name, qty, sellPrice:price,
       rawMaterialCost:parseFloat(opt.dataset.raw||0),
+      treeCost:parseFloat(opt.dataset.tree||0),
       machineWorkerWage:parseFloat(opt.dataset.machine||0),
       assemblyWorkerWage:parseFloat(opt.dataset.assembly||0)
     });
@@ -6348,6 +6351,7 @@ async function deliverOrder(orderId){
         productId:item.productId,productName:item.productName,
         qty:item.qty,sellPrice:item.sellPrice,
         rawMaterialCost:item.rawMaterialCost||0,
+        treeCost:item.treeCost||0,
         machineWorkerWage:item.machineWorkerWage||0,
         assemblyWorkerWage:item.assemblyWorkerWage||0,
         notes:ord.notes,date:ord.date,
@@ -6379,6 +6383,7 @@ async function deliverAllOrders(){
           productId:item.productId,productName:item.productName,
           qty:item.qty,sellPrice:item.sellPrice,
           rawMaterialCost:item.rawMaterialCost||0,
+          treeCost:item.treeCost||0,
           machineWorkerWage:item.machineWorkerWage||0,
           assemblyWorkerWage:item.assemblyWorkerWage||0,
           notes:ord.notes,date:ord.date,
@@ -6530,10 +6535,14 @@ function renderOpProductsList(){
           <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:0.78rem;">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:0.78rem;">
         <div style="background:#fefce8;border-radius:7px;padding:7px;text-align:center;">
           <div style="color:#92400e;margin-bottom:2px;">🧱 مواد خام</div>
           <div style="font-weight:800;color:#92400e;">${(p.rawMaterialCost||0).toFixed(2)}</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:7px;padding:7px;text-align:center;">
+          <div style="color:#15803d;margin-bottom:2px;">🌳 شجر</div>
+          <div style="font-weight:800;color:#15803d;">${(p.treeCost||0).toFixed(2)}</div>
         </div>
         <div style="background:#eff6ff;border-radius:7px;padding:7px;text-align:center;">
           <div style="color:#1e40af;margin-bottom:2px;">⚙️ ماكينة</div>
@@ -6576,6 +6585,7 @@ function editOpProduct(id){
   document.getElementById('opp_name').value=p.name||'';
   document.getElementById('opp_sell').value=p.sellPrice||'';
   document.getElementById('opp_raw').value=p.rawMaterialCost||'';
+  document.getElementById('opp_tree').value=p.treeCost||'';
   document.getElementById('opp_machine').value=p.machineWorkerWage||'';
   document.getElementById('opp_assembly').value=p.assemblyWorkerWage||'';
   _oppCurrentImageUrl=p.imageDataUrl||'';
@@ -6602,7 +6612,7 @@ function editOpProduct(id){
 
 function cancelEditProduct(){
   _editingProductId=null;
-  ['opp_name','opp_raw','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
+  ['opp_name','opp_raw','opp_tree','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
     const el=document.getElementById(id);if(el) el.value='';
   });
   _opStoresList.forEach(s=>{
@@ -6627,6 +6637,7 @@ function cancelEditProduct(){
 async function saveOpProduct(){
   const name=document.getElementById('opp_name').value.trim();
   const raw=parseFloat(document.getElementById('opp_raw').value)||0;
+  const tree=parseFloat(document.getElementById('opp_tree').value)||0;
   const machine=parseFloat(document.getElementById('opp_machine').value)||0;
   const assembly=parseFloat(document.getElementById('opp_assembly').value)||0;
   const sell=parseFloat(document.getElementById('opp_sell').value)||0;
@@ -6643,14 +6654,14 @@ async function saveOpProduct(){
     const category=(document.getElementById('opp_category')?.value||'').trim();
     if(_editingProductId){
       await db.collection('operator_products').doc(_editingProductId).update({
-        name,rawMaterialCost:raw,machineWorkerWage:machine,
+        name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
         colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||''
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
-        name,rawMaterialCost:raw,machineWorkerWage:machine,
+        name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
         storePrices,colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -6868,7 +6879,7 @@ async function openStoreAccount(storeId,storeName,date){
   const sel=document.getElementById('opsa_prod_sel');
   if(sel){
     sel.innerHTML='<option value="">اختر منتج...</option>'+
-      _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
+      _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-tree="${p.treeCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
   }
   const dEl=document.getElementById('opsa_delivery');
   const wEl=document.getElementById('opsa_op_wage');
@@ -6904,6 +6915,7 @@ function addItemToStoreOrder(){
     productName:opt.text,
     qty,
     rawMaterialCost:parseFloat(opt.dataset.raw)||0,
+    treeCost:parseFloat(opt.dataset.tree)||0,
     machineWorkerWage:parseFloat(opt.dataset.machine)||0,
     assemblyWorkerWage:parseFloat(opt.dataset.assembly)||0,
     sellPrice:parseFloat(opt.dataset.sell)||0
@@ -6937,6 +6949,7 @@ function renderStoreOrderItems(){
               <th style="padding:8px;text-align:right;font-weight:600;">المنتج</th>
               <th style="padding:8px;text-align:center;font-weight:600;">كمية</th>
               <th style="padding:8px;text-align:center;font-weight:600;color:#92400e;">🧱 مواد</th>
+              <th style="padding:8px;text-align:center;font-weight:600;color:#15803d;">🌳 شجر</th>
               <th style="padding:8px;text-align:center;font-weight:600;color:#1e40af;">⚙️ ماكينة</th>
               <th style="padding:8px;text-align:center;font-weight:600;color:#7c3aed;">🔧 تركيب</th>
               <th style="padding:8px;text-align:center;font-weight:600;color:#166534;">💰 بيع</th>
@@ -6949,6 +6962,7 @@ function renderStoreOrderItems(){
                 <td style="padding:8px;color:var(--text-dark);font-weight:600;">${it.productName}</td>
                 <td style="padding:8px;text-align:center;">${it.qty}</td>
                 <td style="padding:8px;text-align:center;color:#92400e;">${((it.rawMaterialCost||0)*it.qty).toFixed(2)}</td>
+                <td style="padding:8px;text-align:center;color:#15803d;">${((it.treeCost||0)*it.qty).toFixed(2)}</td>
                 <td style="padding:8px;text-align:center;color:#1e40af;">${((it.machineWorkerWage||0)*it.qty).toFixed(2)}</td>
                 <td style="padding:8px;text-align:center;color:#7c3aed;">${((it.assemblyWorkerWage||0)*it.qty).toFixed(2)}</td>
                 <td style="padding:8px;text-align:center;font-weight:700;color:#166534;">${((it.sellPrice||0)*it.qty).toFixed(2)}</td>
@@ -6967,10 +6981,11 @@ function calcStoreOrderSummary(){
   const opWage=parseFloat(document.getElementById('opsa_op_wage')?.value)||0;
   const items=_currentStoreOrder.items||[];
   const totalRaw=items.reduce((s,it)=>s+(it.rawMaterialCost||0)*it.qty,0);
+  const totalTree=items.reduce((s,it)=>s+(it.treeCost||0)*it.qty,0);
   const totalMachine=items.reduce((s,it)=>s+(it.machineWorkerWage||0)*it.qty,0);
   const totalAssembly=items.reduce((s,it)=>s+(it.assemblyWorkerWage||0)*it.qty,0);
   const totalSell=items.reduce((s,it)=>s+(it.sellPrice||0)*it.qty,0);
-  const totalCost=totalRaw+totalMachine+totalAssembly+delivery+opWage;
+  const totalCost=totalRaw+totalTree+totalMachine+totalAssembly+delivery+opWage;
   const profit=totalSell-totalCost;
   const isP=profit>=0;
   const isClosed=_currentStoreOrder.status==='closed';
@@ -6989,6 +7004,10 @@ function calcStoreOrderSummary(){
             <div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div>
             <div style="font-weight:800;color:#92400e;font-size:1rem;">${totalRaw.toFixed(2)} د.أ</div>
           </div>
+          ${totalTree>0?`<div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;">
+            <div style="font-size:0.7rem;color:#15803d;margin-bottom:2px;">🌳 تكلفة الشجر</div>
+            <div style="font-weight:800;color:#15803d;font-size:1rem;">${totalTree.toFixed(2)} د.أ</div>
+          </div>`:''}
           <div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;">
             <div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div>
             <div style="font-weight:800;color:#1e40af;font-size:1rem;">${totalMachine.toFixed(2)} د.أ</div>
@@ -7050,9 +7069,9 @@ async function refreshStoreOrderCosts(){
   let updated=0;
   _currentStoreOrder.items=_currentStoreOrder.items.map(item=>{
     const prod=_opProductsList.find(p=>p.id===item.productId);
-    if(prod&&(prod.rawMaterialCost||prod.machineWorkerWage||prod.assemblyWorkerWage)){
+    if(prod&&(prod.rawMaterialCost||prod.treeCost||prod.machineWorkerWage||prod.assemblyWorkerWage)){
       updated++;
-      return{...item,rawMaterialCost:prod.rawMaterialCost||0,machineWorkerWage:prod.machineWorkerWage||0,assemblyWorkerWage:prod.assemblyWorkerWage||0,sellPrice:prod.sellPrice||item.sellPrice||0};
+      return{...item,rawMaterialCost:prod.rawMaterialCost||0,treeCost:prod.treeCost||0,machineWorkerWage:prod.machineWorkerWage||0,assemblyWorkerWage:prod.assemblyWorkerWage||0,sellPrice:prod.sellPrice||item.sellPrice||0};
     }
     return item;
   });
@@ -7080,10 +7099,11 @@ function printStoreOrder(){
   const opWage=parseFloat(document.getElementById('opsa_op_wage')?.value)||0;
   const items=_currentStoreOrder.items||[];
   const totalRaw=items.reduce((s,it)=>s+(it.rawMaterialCost||0)*it.qty,0);
+  const totalTree=items.reduce((s,it)=>s+(it.treeCost||0)*it.qty,0);
   const totalMachine=items.reduce((s,it)=>s+(it.machineWorkerWage||0)*it.qty,0);
   const totalAssembly=items.reduce((s,it)=>s+(it.assemblyWorkerWage||0)*it.qty,0);
   const totalSell=items.reduce((s,it)=>s+(it.sellPrice||0)*it.qty,0);
-  const totalCost=totalRaw+totalMachine+totalAssembly+delivery+opWage;
+  const totalCost=totalRaw+totalTree+totalMachine+totalAssembly+delivery+opWage;
   const profit=totalSell-totalCost;
   const isP=profit>=0;
   const rows=items.map(it=>`
@@ -7091,6 +7111,7 @@ function printStoreOrder(){
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${it.productName}</td>
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${it.qty}</td>
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#92400e;">${((it.rawMaterialCost||0)*it.qty).toFixed(2)}</td>
+      <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#15803d;">${((it.treeCost||0)*it.qty).toFixed(2)}</td>
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#1e40af;">${((it.machineWorkerWage||0)*it.qty).toFixed(2)}</td>
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#7c3aed;">${((it.assemblyWorkerWage||0)*it.qty).toFixed(2)}</td>
       <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:#166534;">${((it.sellPrice||0)*it.qty).toFixed(2)}</td>
@@ -7120,6 +7141,7 @@ tbody tr:nth-child(even){background:#f9fafb;}
   <th style="text-align:right;">المنتج</th>
   <th>كمية</th>
   <th style="color:#fef3c7;">🧱 مواد خام</th>
+  <th style="color:#bbf7d0;">🌳 شجر</th>
   <th style="color:#bfdbfe;">⚙️ ماكينة</th>
   <th style="color:#ddd6fe;">🔧 تركيب</th>
   <th style="color:#bbf7d0;">💰 بيع</th>
@@ -7128,6 +7150,7 @@ tbody tr:nth-child(even){background:#f9fafb;}
 </table>
 <div class="summary">
   <div class="box" style="background:#fefce8;"><div class="lbl" style="color:#92400e;">🧱 مجموع المواد</div><div class="val" style="color:#92400e;">${totalRaw.toFixed(2)} د.أ</div></div>
+  ${totalTree>0?`<div class="box" style="background:#f0fdf4;"><div class="lbl" style="color:#15803d;">🌳 تكلفة الشجر</div><div class="val" style="color:#15803d;">${totalTree.toFixed(2)} د.أ</div></div>`:''}
   <div class="box" style="background:#eff6ff;"><div class="lbl" style="color:#1e40af;">⚙️ أجرة الماكينة</div><div class="val" style="color:#1e40af;">${totalMachine.toFixed(2)} د.أ</div></div>
   <div class="box" style="background:#f5f3ff;"><div class="lbl" style="color:#7c3aed;">🔧 أجرة التركيب</div><div class="val" style="color:#7c3aed;">${totalAssembly.toFixed(2)} د.أ</div></div>
   ${opWage>0?`<div class="box" style="background:#fdf4ff;"><div class="lbl" style="color:#9d174d;">👤 أجرة المشغل</div><div class="val" style="color:#9d174d;">${opWage.toFixed(2)} د.أ</div></div>`:''}
@@ -7166,10 +7189,10 @@ function initSalesTab(){
   const prSel=document.getElementById('opsale_prod_sel');
   if(prSel){
     prSel.innerHTML='<option value="">اختر المنتج...</option>'+
-      _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
+      _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-tree="${p.treeCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
     if(!_opProductsList.length) loadOpProducts().then(()=>{
       prSel.innerHTML='<option value="">اختر المنتج...</option>'+
-        _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
+        _opProductsList.map(p=>`<option value="${p.id}" data-raw="${p.rawMaterialCost||0}" data-tree="${p.treeCost||0}" data-machine="${p.machineWorkerWage||0}" data-assembly="${p.assemblyWorkerWage||0}" data-sell="${p.sellPrice||0}">${p.name}</option>`).join('');
     });
   }
   loadTodaySales();
@@ -7236,6 +7259,7 @@ function updateSalePriceFromSelection(){
   const prod=_opProductsList.find(p=>p.id===prSel.value);
   if(!prod) return;
   const raw=prod.rawMaterialCost||0;
+  const tree=prod.treeCost||0;
   const machine=prod.machineWorkerWage||0;
   const assembly=prod.assemblyWorkerWage||0;
   // Use store-specific price if available, else fall back to product default
@@ -7245,9 +7269,11 @@ function updateSalePriceFromSelection(){
   if(infoBox){
     infoBox.style.display='block';
     document.getElementById('opsale_info_raw').textContent=raw.toFixed(2)+' د.أ';
+    const treeEl=document.getElementById('opsale_info_tree');
+    if(treeEl) treeEl.textContent=tree.toFixed(2)+' د.أ';
     document.getElementById('opsale_info_machine').textContent=machine.toFixed(2)+' د.أ';
     document.getElementById('opsale_info_assembly').textContent=assembly.toFixed(2)+' د.أ';
-    const profit=effectiveSell-(raw+machine+assembly);
+    const profit=effectiveSell-(raw+tree+machine+assembly);
     const pEl=document.getElementById('opsale_info_profit');
     pEl.textContent=profit.toFixed(2)+' د.أ';
     pEl.style.color=profit>=0?'#166534':'#dc2626';
@@ -7272,6 +7298,7 @@ async function saveSaleEntry(){
       productId:prSel.value, productName:prOpt.text,
       qty,
       rawMaterialCost:parseFloat(prOpt.dataset.raw)||0,
+      treeCost:parseFloat(prOpt.dataset.tree)||0,
       machineWorkerWage:parseFloat(prOpt.dataset.machine)||0,
       assemblyWorkerWage:parseFloat(prOpt.dataset.assembly)||0,
       sellPrice:customSell,
@@ -7474,10 +7501,10 @@ function _acctItemCost(it){
   const prod=_opProductsList.find(p=>p.id===it.productId)||_opProductsList.find(p=>p.name===it.productName);
   if(prod){
     const sp=it.storeId&&prod.storePrices?.[it.storeId]||0;
-    const tc=(prod.rawMaterialCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
+    const tc=(prod.rawMaterialCost||0)+(prod.treeCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
     if(sp||tc) return sp||tc;
   }
-  return(it.rawMaterialCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);
+  return(it.rawMaterialCost||0)+(it.treeCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);
 }
 
 function renderAcctDetail(){
@@ -8175,28 +8202,30 @@ function renderOperatorDailyView(){
     const byProd={};
     _opDailySales.forEach(function(s){
       const key=s.productName;
-      if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,machine:0,assembly:0,sell:0};
+      if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,tree:0,machine:0,assembly:0,sell:0};
       byProd[key].qty+=s.qty||1;
       byProd[key].raw+=(s.rawMaterialCost||0)*(s.qty||1);
+      byProd[key].tree+=(s.treeCost||0)*(s.qty||1);
       byProd[key].machine+=(s.machineWorkerWage||0)*(s.qty||1);
       byProd[key].assembly+=(s.assemblyWorkerWage||0)*(s.qty||1);
       byProd[key].sell+=(s.sellPrice||0)*(s.qty||1);
     });
     const prods=Object.values(byProd);
     const totRaw=prods.reduce(function(s,p){return s+p.raw;},0);
+    const totTree=prods.reduce(function(s,p){return s+p.tree;},0);
     const totMachine=prods.reduce(function(s,p){return s+p.machine;},0);
     const totAssembly=prods.reduce(function(s,p){return s+p.assembly;},0);
     const totSell=prods.reduce(function(s,p){return s+p.sell;},0);
-    const totCost=totRaw+totMachine+totAssembly;
+    const totCost=totRaw+totTree+totMachine+totAssembly;
     const totProfit=totSell-totCost;
     const isP=totProfit>=0;
     const rows=prods.map(function(p){
-      const cost=p.raw+p.machine+p.assembly;
+      const cost=p.raw+p.tree+p.machine+p.assembly;
       const profit=p.sell-cost;
-      return '<tr style="border-bottom:1px solid var(--border);font-size:0.78rem;"><td style="padding:7px 8px;font-weight:600;color:var(--text-dark);">'+p.name+'</td><td style="padding:7px 8px;text-align:center;">'+p.qty+'</td><td style="padding:7px 8px;text-align:center;color:#92400e;">'+p.raw.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#1e40af;">'+p.machine.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#7c3aed;">'+p.assembly.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;font-weight:700;color:#166534;">'+p.sell.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;font-weight:700;color:'+(profit>=0?'#166534':'#dc2626')+';">'+profit.toFixed(2)+'</td></tr>';
+      return '<tr style="border-bottom:1px solid var(--border);font-size:0.78rem;"><td style="padding:7px 8px;font-weight:600;color:var(--text-dark);">'+p.name+'</td><td style="padding:7px 8px;text-align:center;">'+p.qty+'</td><td style="padding:7px 8px;text-align:center;color:#92400e;">'+p.raw.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#15803d;">'+p.tree.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#1e40af;">'+p.machine.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#7c3aed;">'+p.assembly.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;font-weight:700;color:#166534;">'+p.sell.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;font-weight:700;color:'+(profit>=0?'#166534':'#dc2626')+';">'+profit.toFixed(2)+'</td></tr>';
     }).join('');
-    html+='<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:420px;"><thead><tr style="background:#1a3a2a;color:#fff;font-size:0.72rem;"><th style="padding:8px;text-align:right;font-weight:600;">المنتج</th><th style="padding:8px;text-align:center;font-weight:600;">كمية</th><th style="padding:8px;text-align:center;font-weight:600;color:#fef3c7;">🧱 مواد</th><th style="padding:8px;text-align:center;font-weight:600;color:#bfdbfe;">⚙️ ماكينة</th><th style="padding:8px;text-align:center;font-weight:600;color:#ddd6fe;">🔧 تركيب</th><th style="padding:8px;text-align:center;font-weight:600;color:#bbf7d0;">💰 بيع</th><th style="padding:8px;text-align:center;font-weight:600;color:#d4a843;">💵 ربح</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr style="background:#f9fafb;font-size:0.8rem;font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px;color:var(--text-dark);">المجموع</td><td style="padding:8px;text-align:center;">'+prods.reduce(function(s,p){return s+p.qty;},0)+'</td><td style="padding:8px;text-align:center;color:#92400e;">'+totRaw.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#1e40af;">'+totMachine.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#7c3aed;">'+totAssembly.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#166534;">'+totSell.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:'+(isP?'#166534':'#dc2626')+';">'+totProfit.toFixed(2)+'</td></tr></tfoot></table></div></div>';
-    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"><div style="background:#fefce8;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div><div style="font-weight:800;color:#92400e;font-size:1rem;">'+totRaw.toFixed(2)+' د.أ</div></div><div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div><div style="font-weight:800;color:#1e40af;font-size:1rem;">'+totMachine.toFixed(2)+' د.أ</div></div><div style="background:#f5f3ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#7c3aed;margin-bottom:2px;">🔧 أجرة عامل التركيب</div><div style="font-weight:800;color:#7c3aed;font-size:1rem;">'+totAssembly.toFixed(2)+' د.أ</div></div><div style="background:#fef2f2;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div><div style="font-weight:800;color:#dc2626;font-size:1rem;">'+totCost.toFixed(2)+' د.أ</div></div></div>';
+    html+='<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:480px;"><thead><tr style="background:#1a3a2a;color:#fff;font-size:0.72rem;"><th style="padding:8px;text-align:right;font-weight:600;">المنتج</th><th style="padding:8px;text-align:center;font-weight:600;">كمية</th><th style="padding:8px;text-align:center;font-weight:600;color:#fef3c7;">🧱 مواد</th><th style="padding:8px;text-align:center;font-weight:600;color:#bbf7d0;">🌳 شجر</th><th style="padding:8px;text-align:center;font-weight:600;color:#bfdbfe;">⚙️ ماكينة</th><th style="padding:8px;text-align:center;font-weight:600;color:#ddd6fe;">🔧 تركيب</th><th style="padding:8px;text-align:center;font-weight:600;color:#bbf7d0;">💰 بيع</th><th style="padding:8px;text-align:center;font-weight:600;color:#d4a843;">💵 ربح</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr style="background:#f9fafb;font-size:0.8rem;font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px;color:var(--text-dark);">المجموع</td><td style="padding:8px;text-align:center;">'+prods.reduce(function(s,p){return s+p.qty;},0)+'</td><td style="padding:8px;text-align:center;color:#92400e;">'+totRaw.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#15803d;">'+totTree.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#1e40af;">'+totMachine.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#7c3aed;">'+totAssembly.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#166534;">'+totSell.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:'+(isP?'#166534':'#dc2626')+';">'+totProfit.toFixed(2)+'</td></tr></tfoot></table></div></div>';
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"><div style="background:#fefce8;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div><div style="font-weight:800;color:#92400e;font-size:1rem;">'+totRaw.toFixed(2)+' د.أ</div></div><div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#15803d;margin-bottom:2px;">🌳 مجموع تكلفة الشجر</div><div style="font-weight:800;color:#15803d;font-size:1rem;">'+totTree.toFixed(2)+' د.أ</div></div><div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div><div style="font-weight:800;color:#1e40af;font-size:1rem;">'+totMachine.toFixed(2)+' د.أ</div></div><div style="background:#f5f3ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#7c3aed;margin-bottom:2px;">🔧 أجرة عامل التركيب</div><div style="font-weight:800;color:#7c3aed;font-size:1rem;">'+totAssembly.toFixed(2)+' د.أ</div></div><div style="background:#fef2f2;border-radius:9px;padding:9px;text-align:center;grid-column:1/-1;"><div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div><div style="font-weight:800;color:#dc2626;font-size:1rem;">'+totCost.toFixed(2)+' د.أ</div></div></div>';
     const totProfitAfterExp=totProfit-totExp;
     const isPE=totProfitAfterExp>=0;
     const expCell=totExp>0?'<div style="background:#fff7ed;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#9a3412;margin-bottom:2px;">🧾 مصاريف</div><div style="font-weight:800;color:#9a3412;font-size:1.1rem;">'+totExp.toFixed(2)+' د.أ</div></div>':'';
@@ -9076,32 +9105,35 @@ function _buildOpDayHTML(forPrint){
   const byProd={};
   _opDailySales.forEach(s=>{
     const key=s.productName;
-    if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,machine:0,assembly:0,sell:0};
+    if(!byProd[key]) byProd[key]={name:key,qty:0,raw:0,tree:0,machine:0,assembly:0,sell:0};
     byProd[key].qty+=s.qty||1;
     byProd[key].raw+=(s.rawMaterialCost||0)*(s.qty||1);
+    byProd[key].tree+=(s.treeCost||0)*(s.qty||1);
     byProd[key].machine+=(s.machineWorkerWage||0)*(s.qty||1);
     byProd[key].assembly+=(s.assemblyWorkerWage||0)*(s.qty||1);
     byProd[key].sell+=(s.sellPrice||0)*(s.qty||1);
   });
   const prods=Object.values(byProd);
   const totRaw=prods.reduce((s,p)=>s+p.raw,0);
+  const totTree=prods.reduce((s,p)=>s+p.tree,0);
   const totMachine=prods.reduce((s,p)=>s+p.machine,0);
   const totAssembly=prods.reduce((s,p)=>s+p.assembly,0);
   const totSell=prods.reduce((s,p)=>s+p.sell,0);
-  const totCost=totRaw+totMachine+totAssembly;
+  const totCost=totRaw+totTree+totMachine+totAssembly;
   const totProfit=totSell-totCost;
   const isP=totProfit>=0;
   const rows=prods.map(p=>`<tr>
     <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;">${p.name}</td>
     <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${p.qty}</td>
     <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#92400e;">${p.raw.toFixed(2)}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#15803d;">${p.tree.toFixed(2)}</td>
     <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#1e40af;">${p.machine.toFixed(2)}</td>
     <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;color:#7c3aed;">${p.assembly.toFixed(2)}</td>
     <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:#166534;">${p.sell.toFixed(2)}</td>
-    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${(p.sell-(p.raw+p.machine+p.assembly))>=0?'#166534':'#dc2626'};">${(p.sell-(p.raw+p.machine+p.assembly)).toFixed(2)}</td>
+    <td style="padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${(p.sell-(p.raw+p.tree+p.machine+p.assembly))>=0?'#166534':'#dc2626'};">${(p.sell-(p.raw+p.tree+p.machine+p.assembly)).toFixed(2)}</td>
   </tr>`).join('');
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
-  return {rows,totRaw,totMachine,totAssembly,totSell,totCost,totProfit,isP,today,isClosed,prods};
+  return {rows,totRaw,totTree,totMachine,totAssembly,totSell,totCost,totProfit,isP,today,isClosed,prods};
 }
 
 function printOperatorDay(){
@@ -9130,7 +9162,7 @@ tbody tr:nth-child(even){background:#f9fafb;}
 <table>
 <thead><tr>
   <th style="text-align:right;">المنتج</th><th>كمية</th>
-  <th style="color:#fef3c7;">🧱 مواد</th><th style="color:#bfdbfe;">⚙️ ماكينة</th>
+  <th style="color:#fef3c7;">🧱 مواد</th><th style="color:#bbf7d0;">🌳 شجر</th><th style="color:#bfdbfe;">⚙️ ماكينة</th>
   <th style="color:#ddd6fe;">🔧 تركيب</th><th style="color:#bbf7d0;">💰 بيع</th>
   <th style="color:#d4a843;">💵 ربح</th>
 </tr></thead>
@@ -9138,6 +9170,7 @@ tbody tr:nth-child(even){background:#f9fafb;}
 <tfoot><tr>
   <td style="padding:8px;">المجموع</td><td style="text-align:center;">${d.prods.reduce((s,p)=>s+p.qty,0)}</td>
   <td style="text-align:center;color:#92400e;">${d.totRaw.toFixed(2)}</td>
+  <td style="text-align:center;color:#15803d;">${d.totTree.toFixed(2)}</td>
   <td style="text-align:center;color:#1e40af;">${d.totMachine.toFixed(2)}</td>
   <td style="text-align:center;color:#7c3aed;">${d.totAssembly.toFixed(2)}</td>
   <td style="text-align:center;color:#166534;">${d.totSell.toFixed(2)}</td>
@@ -9146,6 +9179,7 @@ tbody tr:nth-child(even){background:#f9fafb;}
 </table>
 <div class="grid">
   <div class="box" style="background:#fefce8;"><div class="lbl" style="color:#92400e;">🧱 مواد خام</div><div class="val" style="color:#92400e;">${d.totRaw.toFixed(2)} د.أ</div></div>
+  <div class="box" style="background:#f0fdf4;"><div class="lbl" style="color:#15803d;">🌳 تكلفة الشجر</div><div class="val" style="color:#15803d;">${d.totTree.toFixed(2)} د.أ</div></div>
   <div class="box" style="background:#eff6ff;"><div class="lbl" style="color:#1e40af;">⚙️ أجرة ماكينة</div><div class="val" style="color:#1e40af;">${d.totMachine.toFixed(2)} د.أ</div></div>
   <div class="box" style="background:#f5f3ff;"><div class="lbl" style="color:#7c3aed;">🔧 أجرة تركيب</div><div class="val" style="color:#7c3aed;">${d.totAssembly.toFixed(2)} د.أ</div></div>
 </div>
@@ -9165,13 +9199,14 @@ function whatsappOperatorDay(){
   msg+=d.isClosed?'🔒 مغلق\n':'🟢 مفتوح\n';
   msg+=`━━━━━━━━━━━━\n`;
   d.prods.forEach(p=>{
-    const cost=p.raw+p.machine+p.assembly;
+    const cost=p.raw+p.tree+p.machine+p.assembly;
     msg+=`📦 ${p.name} ×${p.qty}\n`;
-    msg+=`  🧱 مواد: ${p.raw.toFixed(2)} | ⚙️ ماكينة: ${p.machine.toFixed(2)} | 🔧 تركيب: ${p.assembly.toFixed(2)}\n`;
+    msg+=`  🧱 مواد: ${p.raw.toFixed(2)} | 🌳 شجر: ${p.tree.toFixed(2)} | ⚙️ ماكينة: ${p.machine.toFixed(2)} | 🔧 تركيب: ${p.assembly.toFixed(2)}\n`;
     msg+=`  💰 بيع: ${p.sell.toFixed(2)} | 💵 ربح: ${(p.sell-cost).toFixed(2)}\n`;
   });
   msg+=`━━━━━━━━━━━━\n`;
   msg+=`🧱 مجموع المواد: ${d.totRaw.toFixed(2)} د.أ\n`;
+  msg+=`🌳 مجموع الشجر: ${d.totTree.toFixed(2)} د.أ\n`;
   msg+=`⚙️ مجموع الماكينة: ${d.totMachine.toFixed(2)} د.أ\n`;
   msg+=`🔧 مجموع التركيب: ${d.totAssembly.toFixed(2)} د.أ\n`;
   msg+=`💸 إجمالي التكاليف: ${d.totCost.toFixed(2)} د.أ\n`;
@@ -13873,9 +13908,10 @@ async function migrateRawMaterialCosts(){
         const prod=_opProductsList.find(p=>p.id===s.productId)||_opProductsList.find(p=>p.name===s.productName);
         if(!prod) return;
         const storePrice=s.storeId&&prod.storePrices?.[s.storeId]||0;
-        const totalCost=(prod.rawMaterialCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
+        const totalCost=(prod.rawMaterialCost||0)+(prod.treeCost||0)+(prod.machineWorkerWage||0)+(prod.assemblyWorkerWage||0);
         const update={
           rawMaterialCost:prod.rawMaterialCost||0,
+          treeCost:prod.treeCost||0,
           machineWorkerWage:prod.machineWorkerWage||0,
           assemblyWorkerWage:prod.assemblyWorkerWage||0
         };
