@@ -4289,8 +4289,10 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       const opProd=_opProductsList.find(p=>p.id===product.id)||_opProductsList.find(p=>p.name===product.name);
       const storePrice=opProd?.storePrices?.[store.id]||0;
       const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.treeCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
-      // لا نستخدم أبداً سعر الزبون (product.price) — نستخدم سعر المتجر أو التكلفة فقط
+      // المستحق = السعر الرسمي (سعر المتجر أو التكلفة). soldPrice = السعر الفعلي يلي انباع فيه للزبون
       const sellPrice=storePrice||totalCost||0;
+      const customerUnit=parseFloat(product.price)||0;
+      const soldPrice=(customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
       const ref=db.collection('operator_sales').doc();
       batch.set(ref,{
         storeId:store.id,
@@ -4299,6 +4301,7 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
         productName:product.name||'',
         qty:product.qty||1,
         sellPrice,
+        soldPrice,
         rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
         treeCost:opProd?(opProd.treeCost||0):0,
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
@@ -7292,6 +7295,9 @@ async function saveSaleEntry(){
   const stOpt=stSel.options[stSel.selectedIndex];
   const prOpt=prSel.options[prSel.selectedIndex];
   const today=jordanDateStr();
+  // السعر الرسمي = سعر المتجر الخاص أو سعر المنتج العام. customSell = السعر الفعلي المُدخل.
+  const prodObj=_opProductsList.find(p=>p.id===prSel.value);
+  const officialUnit=(prodObj&&(prodObj.storePrices?.[stSel.value]||prodObj.sellPrice))||customSell;
   try{
     await db.collection('operator_sales').add({
       storeId:stSel.value, storeName:stOpt.text,
@@ -7301,7 +7307,8 @@ async function saveSaleEntry(){
       treeCost:parseFloat(prOpt.dataset.tree)||0,
       machineWorkerWage:parseFloat(prOpt.dataset.machine)||0,
       assemblyWorkerWage:parseFloat(prOpt.dataset.assembly)||0,
-      sellPrice:customSell,
+      sellPrice:officialUnit,
+      soldPrice:customSell,
       notes, date:today,
       delivered:false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -7409,6 +7416,7 @@ function renderGroupAcctDetail(){
   const totalOwed=_acctCurrentSales.reduce((s,it)=>s+_acctItemCost(it)*(it.qty||1),0);
   const totalPaid=_acctCurrentPayments.reduce((s,p)=>s+(p.amount||0),0);
   const totalRefund=_acctCurrentRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
+  const totalDiscount=_acctCurrentSales.reduce((s,it)=>s+_acctItemDiscount(it)*(it.qty||1),0);
   const balance=totalOwed-totalPaid-totalRefund;
   const balColor=balance>0?'#92400e':balance<0?'#166534':'#374151';
   const balBg=balance>0?'#fff7ed':balance<0?'#f0fdf4':'#f9fafb';
@@ -7453,7 +7461,7 @@ function renderGroupAcctDetail(){
       <div style="font-size:0.78rem;font-weight:700;color:#6d28d9;margin-bottom:8px;">👥 ${_acctCurrentGroupName} — كشف مجمع</div>
       ${storeBreakdown}
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:repeat(${totalDiscount>0?4:3},1fr);gap:8px;margin-bottom:16px;">
       <div style="background:#fee2e2;border-radius:12px;padding:12px 8px;text-align:center;">
         <div style="font-size:0.68rem;color:#dc2626;font-weight:700;margin-bottom:4px;">💸 عليهم</div>
         <div style="font-weight:900;color:#dc2626;font-size:1.1rem;">${totalOwed.toFixed(2)}</div>
@@ -7464,6 +7472,11 @@ function renderGroupAcctDetail(){
         <div style="font-weight:900;color:#166534;font-size:1.1rem;">${totalPaid.toFixed(2)}</div>
         <div style="font-size:0.65rem;color:#166534;margin-top:2px;">د.أ</div>
       </div>
+      ${totalDiscount>0?`<div style="background:#fff7ed;border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-size:0.68rem;color:#b45309;font-weight:700;margin-bottom:4px;">🏷 خصومات</div>
+        <div style="font-weight:900;color:#b45309;font-size:1.1rem;">${totalDiscount.toFixed(2)}</div>
+        <div style="font-size:0.65rem;color:#b45309;margin-top:2px;">د.أ</div>
+      </div>`:''}
       <div style="background:${balBg};border-radius:12px;padding:12px 8px;text-align:center;">
         <div style="font-size:0.68rem;color:${balColor};font-weight:700;margin-bottom:4px;">${balLabel}</div>
         <div style="font-weight:900;color:${balColor};font-size:1.1rem;">${Math.abs(balance).toFixed(2)}</div>
@@ -7507,20 +7520,29 @@ function _acctItemCost(it){
   return(it.rawMaterialCost||0)+(it.treeCost||0)+(it.machineWorkerWage||0)+(it.assemblyWorkerWage||0);
 }
 
+// الخصم لكل سطر = السعر الرسمي − السعر الفعلي (لما الفعلي أقل) — تتحمّله الصفحة
+function _acctItemDiscount(it){
+  const official=_acctItemCost(it);
+  const sold=(it.soldPrice!=null?it.soldPrice:official);
+  return Math.max(0,official-sold);
+}
+
 function renderAcctDetail(){
   const body=document.getElementById('opacct_detail_body');
   if(!body) return;
   const totalOwed=_acctCurrentSales.reduce((s,it)=>_acctItemCost(it)*(it.qty||1)+s,0);
   const totalPaid=_acctCurrentPayments.reduce((s,p)=>(p.amount||0)+s,0);
   const totalRefund=(_acctCurrentRefunds||[]).reduce((s,r)=>(r.totalCost||0)+s,0);
+  const totalDiscount=_acctCurrentSales.reduce((s,it)=>_acctItemDiscount(it)*(it.qty||1)+s,0);
   const balance=totalOwed-totalPaid-totalRefund;
   const balColor=balance>0?'#92400e':balance<0?'#166534':'#374151';
   const balBg=balance>0?'#fff7ed':balance<0?'#f0fdf4':'#f9fafb';
   const balLabel=balance>0?'📊 باقي عليه':balance<0?'💰 رصيد له':'✅ مسوي';
+  const _discCols=(totalRefund>0?1:0)+(totalDiscount>0?1:0);
 
   // Summary
   const summaryHTML=`
-    <div style="display:grid;grid-template-columns:${totalRefund>0?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr'};gap:8px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:repeat(${3+_discCols},1fr);gap:8px;margin-bottom:16px;">
       <div style="background:#fee2e2;border-radius:12px;padding:12px 8px;text-align:center;">
         <div style="font-size:0.68rem;color:#dc2626;font-weight:700;margin-bottom:4px;">💸 عليه</div>
         <div style="font-weight:900;color:#dc2626;font-size:1.1rem;">${totalOwed.toFixed(2)}</div>
@@ -7531,6 +7553,11 @@ function renderAcctDetail(){
         <div style="font-weight:900;color:#166534;font-size:1.1rem;">${totalPaid.toFixed(2)}</div>
         <div style="font-size:0.65rem;color:#166534;margin-top:2px;">د.أ</div>
       </div>
+      ${totalDiscount>0?`<div style="background:#fff7ed;border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-size:0.68rem;color:#b45309;font-weight:700;margin-bottom:4px;">🏷 خصومات</div>
+        <div style="font-weight:900;color:#b45309;font-size:1.1rem;">${totalDiscount.toFixed(2)}</div>
+        <div style="font-size:0.65rem;color:#b45309;margin-top:2px;">د.أ</div>
+      </div>`:''}
       ${totalRefund>0?`<div style="background:#fce7f3;border-radius:12px;padding:12px 8px;text-align:center;">
         <div style="font-size:0.68rem;color:#9d174d;font-weight:700;margin-bottom:4px;">↩️ رصيد له</div>
         <div style="font-weight:900;color:#9d174d;font-size:1.1rem;">${totalRefund.toFixed(2)}</div>
@@ -7895,6 +7922,7 @@ let _opDayRecord=null;
 let _opAcctOwed={};
 let _opAcctPaid={};
 let _opAcctRefund={};
+let _opAcctDiscount={};
 let _opViewDate=null;
 let _opCurrentSession=null;
 let _opMashghalWages=[];
@@ -8026,13 +8054,22 @@ async function _loadOpSessionData(){
       db.collection('page_refunds').get(),
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
-    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){_opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);}});
+    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
+      const qty=s.qty||1;
+      // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
+      const official=(s.sellPrice||0);
+      const sold=(s.soldPrice!=null?s.soldPrice:official);
+      _opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+official*qty;
+      // الخصم = الرسمي − الفعلي (لما الفعلي أقل) — تتحمّله الصفحة
+      const disc=Math.max(0,official-sold)*qty;
+      if(disc>0.0001) _opAcctDiscount[s.storeId]=(_opAcctDiscount[s.storeId]||0)+disc;
+    }});
     pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId&&p.withdrawalType!=='withdrawal'){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
     // Session-specific refunds: those within the session date range (for display in store cards)
     _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opSessionRefunds=[];}
+  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_opSessionRefunds=[];}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -8241,12 +8278,13 @@ function renderOperatorDailyView(){
       const owed=_opAcctOwed[s.id]||0;
       const paid=_opAcctPaid[s.id]||0;
       const refund=_opAcctRefund[s.id]||0;
+      const discount=_opAcctDiscount[s.id]||0;
       if(s.group){
-        if(!grpMap[s.group])grpMap[s.group]={name:s.group,owed:0,paid:0,refund:0};
-        grpMap[s.group].owed+=owed;grpMap[s.group].paid+=paid;grpMap[s.group].refund+=refund;
+        if(!grpMap[s.group])grpMap[s.group]={name:s.group,owed:0,paid:0,refund:0,discount:0};
+        grpMap[s.group].owed+=owed;grpMap[s.group].paid+=paid;grpMap[s.group].refund+=refund;grpMap[s.group].discount+=discount;
       } else if(!s.archived){
         const bal=owed-paid-refund;
-        if(bal>0.01) ungroupedRows.push({id:s.id,name:s.name,bal,owed,paid});
+        if(bal>0.01) ungroupedRows.push({id:s.id,name:s.name,bal,owed,paid,discount});
       }
     });
     Object.values(grpMap).forEach(g=>{g.paid+=(_opAcctPaid['__grp__'+g.name]||0);});
@@ -8261,6 +8299,7 @@ function renderOperatorDailyView(){
         <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
           <span style="color:#dc2626;">المستحق: <strong>${g.owed.toFixed(2)}</strong></span>
           <span style="color:#166534;">المدفوع: <strong>${g.paid.toFixed(2)}</strong></span>
+          ${g.discount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${g.discount.toFixed(2)}</strong></span>`:''}
           <span style="color:#92400e;font-weight:800;">الباقي: ${bal.toFixed(2)} د.أ</span>
         </div>
       </div>`;}).join('');
@@ -8274,6 +8313,7 @@ function renderOperatorDailyView(){
         <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
           <span style="color:#dc2626;">المستحق: <strong>${s.owed.toFixed(2)}</strong></span>
           <span style="color:#166534;">المدفوع: <strong>${s.paid.toFixed(2)}</strong></span>
+          ${s.discount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${s.discount.toFixed(2)}</strong></span>`:''}
           <span style="color:#92400e;font-weight:800;">الباقي: ${s.bal.toFixed(2)} د.أ</span>
         </div>
       </div>`;}).join('');
@@ -8403,6 +8443,7 @@ function renderOperatorDailyView(){
       const acctOwed=_opAcctOwed[store.storeId]||0;
       const acctPaid=_opAcctPaid[store.storeId]||0;
       const acctRefund=_opAcctRefund[store.storeId]||0;
+      const acctDiscount=_opAcctDiscount[store.storeId]||0;
       const acctBal=acctOwed-acctPaid-acctRefund;
       const acctBalColor=acctBal>0?'#92400e':acctBal<0?'#166534':'#6b7280';
       const acctBg=acctBal>0?'#fff7ed':acctBal<0?'#f0fdf4':'#f9fafb';
@@ -8413,6 +8454,7 @@ function renderOperatorDailyView(){
           <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
             <span style="color:#dc2626;">مبيعات: <strong>${acctOwed.toFixed(2)}</strong></span>
             <span style="color:#166534;">مدفوع: <strong>${acctPaid.toFixed(2)}</strong></span>
+            ${acctDiscount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${acctDiscount.toFixed(2)}</strong></span>`:''}
             ${acctRefund>0?`<span style="color:#9d174d;">مرتجع: <strong>${acctRefund.toFixed(2)}</strong></span>`:''}
             <span style="color:${acctBalColor};font-weight:800;">${acctLabel}: ${Math.abs(acctBal).toFixed(2)} د.أ</span>
           </div>
@@ -8481,6 +8523,7 @@ function renderOperatorDailyView(){
       const grpAcctOwed=allGrpStores.reduce((s,st)=>s+(_opAcctOwed[st.id]||0),0);
       const grpAcctPaid=allGrpStores.reduce((s,st)=>s+(_opAcctPaid[st.id]||0),0)+(_opAcctPaid['__grp__'+groupName]||0);
       const grpAcctRefund=allGrpStores.reduce((s,st)=>s+(_opAcctRefund[st.id]||0),0);
+      const grpAcctDiscount=allGrpStores.reduce((s,st)=>s+(_opAcctDiscount[st.id]||0),0);
       const grpAcctBal=grpAcctOwed-grpAcctPaid-grpAcctRefund;
       const grpAcctLabel=grpAcctBal>0?'ضايل عليهم':grpAcctBal<0?'رصيد لهم':'مسويين';
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
@@ -8523,6 +8566,7 @@ function renderOperatorDailyView(){
           <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
             <span style="color:#dc2626;">مبيعات: <strong>${grpAcctOwed.toFixed(2)}</strong></span>
             <span style="color:#166534;">مدفوع: <strong>${grpAcctPaid.toFixed(2)}</strong></span>
+            ${grpAcctDiscount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${grpAcctDiscount.toFixed(2)}</strong></span>`:''}
             ${grpAcctRefund>0?`<span style="color:#9d174d;">مرتجع: <strong>${grpAcctRefund.toFixed(2)}</strong></span>`:''}
             <span style="color:${grpAcctBal>0?'#92400e':grpAcctBal<0?'#166534':'#6b7280'};font-weight:800;">${grpAcctLabel}: ${Math.abs(grpAcctBal).toFixed(2)} د.أ</span>
           </div>
