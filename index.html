@@ -2392,6 +2392,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <!-- Per-store prices -->
           <div id="opp_store_prices_section" style="margin-bottom:10px;"></div>
+          <!-- Multiple price options -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:2px;">💵 أسعار متعددة (اختياري)</div>
+            <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">لو المنتج إله أكثر من سعر بيع — اكتب اسم كل خيار وسعره، وبتختار وقت البيع</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input type="text" id="opp_priceopt_label" placeholder="اسم الخيار: عادي، مميز، جملة..." style="flex:2;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;background:var(--card-bg);color:var(--text-dark);" onkeydown="if(event.key==='Enter'){event.preventDefault();addOppPriceOption();}">
+              <input type="number" id="opp_priceopt_price" min="0" step="0.5" placeholder="السعر" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;background:var(--card-bg);color:var(--text-dark);" onkeydown="if(event.key==='Enter'){event.preventDefault();addOppPriceOption();}">
+              <button onclick="addOppPriceOption()" style="padding:8px 14px;background:#854d0e;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+            </div>
+            <div id="opp_priceopts_chips" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+          </div>
           <!-- Product image upload -->
           <div style="margin-bottom:10px;">
             <div style="font-size:0.8rem;font-weight:700;color:var(--text-mid);margin-bottom:6px;">📷 صورة المنتج (اختياري)</div>
@@ -2551,6 +2562,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <label>💰 سعر البيع لهذا المتجر (د.أ)</label>
               <input type="number" id="opsale_sell" min="0" step="0.5" placeholder="0.00" style="width:100%;padding:11px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
             </div>
+          </div>
+          <!-- Price options (shown when product has multiple prices) -->
+          <div id="opsale_price_options" style="display:none;margin-bottom:10px;">
+            <div style="font-size:0.75rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 اختر السعر</div>
+            <div id="opsale_price_options_chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
           </div>
           <!-- Cost breakdown (readonly info) -->
           <div id="opsale_cost_info" style="display:none;background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;">
