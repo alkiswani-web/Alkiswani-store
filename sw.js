@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v98';
+const CACHE = 'alkiswani-v99';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.0';
 
 const PRECACHE = [
@@ -52,18 +52,16 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // app.js: stale-while-revalidate — show cached instantly, update in background
+  // app.js: network-first — always get latest when online, fall back to cache offline
   if(url.endsWith('/app.js') || url.includes('/app.js?')) {
     e.respondWith(
-      caches.open(CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          const networkFetch = fetch(e.request).then(res => {
-            if(res && res.status === 200) cache.put(e.request, res.clone());
-            return res;
-          }).catch(() => cached);
-          return cached || networkFetch;
-        })
-      )
+      fetch(e.request).then(res => {
+        if(res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }
@@ -89,18 +87,16 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML (navigation): stale-while-revalidate — show cache instantly, update in background
+  // HTML (navigation): network-first — always get latest when online, fall back to cache offline
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
     e.respondWith(
-      caches.open(CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          const networkFetch = fetch(e.request).then(res => {
-            if(res && res.status === 200) cache.put(e.request, res.clone());
-            return res;
-          }).catch(() => cached);
-          return cached || networkFetch;
-        })
-      )
+      fetch(e.request).then(res => {
+        if(res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }
