@@ -2379,6 +2379,18 @@ function updateCartItemPrice(idx,price){
   renderEmpOrderCart();
 }
 
+// قائمة الأسعار القابلة للاختيار = السعر الأساسي + الخيارات المضافة (بدون تكرار)
+// baseOverride: سعر أساسي بديل (مثلاً سعر المتجر بشاشة البيع)
+function _productPriceChoices(prod,baseOverride){
+  const opts=Array.isArray(prod?.priceOptions)?prod.priceOptions:[];
+  if(!opts.length) return [];
+  const base=parseFloat(baseOverride!=null?baseOverride:(prod?.sellPrice||0))||0;
+  const list=[];
+  if(base>0&&!opts.some(o=>Math.abs((o.price||0)-base)<0.001)) list.push({label:'أساسي',price:base});
+  opts.forEach(o=>list.push({label:o.label,price:parseFloat(o.price)||0}));
+  return list;
+}
+
 function calcEmpOrderTotal(){return _empOrderCart.reduce((s,i)=>s+(i.price*i.qty),0);}
 
 // ===== SMART PASTE (AI) + CUSTOMER MEMORY =====
@@ -2534,7 +2546,7 @@ function renderEmpOrderCart(){
   wrap.innerHTML=_empOrderCart.map((item,i)=>{
     const prod=(_empSharedProducts||[]).find(p=>p.id===item.id)||{};
     const colors=Array.isArray(prod.colors)?prod.colors:[];
-    const priceOpts=Array.isArray(prod.priceOptions)?prod.priceOptions:[];
+    const priceOpts=_productPriceChoices(prod);
     const req=!!prod.requiresWriting;
     const showExtras=colors.length||req||priceOpts.length;
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;return `<button onclick="updateCartItemPrice(${i},${(o.price||0)})" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
@@ -3508,7 +3520,7 @@ function renderEmpEditCart(){
           </div>
           <button onclick="removeEmpEditItem(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
         </div>
-        ${(()=>{const pr=(_opProductsList||[]).find(p=>p.id===item.id)||(_empSharedProducts||[]).find(p=>p.id===item.id)||{};const po=Array.isArray(pr.priceOptions)?pr.priceOptions:[];return po.length?`<div style="margin-bottom:7px;"><div style="font-size:0.72rem;font-weight:700;color:#854d0e;margin-bottom:4px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${po.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;return `<button onclick="updateEmpEditPrice(${i},${(o.price||0)})" style="padding:4px 11px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:18px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';})()}
+        ${(()=>{const pr=(_opProductsList||[]).find(p=>p.id===item.id)||(_empSharedProducts||[]).find(p=>p.id===item.id)||{};const po=_productPriceChoices(pr);return po.length?`<div style="margin-bottom:7px;"><div style="font-size:0.72rem;font-weight:700;color:#854d0e;margin-bottom:4px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${po.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;return `<button onclick="updateEmpEditPrice(${i},${(o.price||0)})" style="padding:4px 11px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:18px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';})()}
         <div style="display:flex;gap:6px;">
           <input value="${(item.color||'').replace(/"/g,'&quot;')}" placeholder="🎨 اللون" oninput="_empEditCart[${i}].color=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
           <input value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="✍️ الكتابة" oninput="_empEditCart[${i}].writing=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
@@ -7340,7 +7352,7 @@ function updateSalePriceFromSelection(){
   // Multiple price options chips
   const optsWrap=document.getElementById('opsale_price_options');
   const optsChips=document.getElementById('opsale_price_options_chips');
-  const opts=Array.isArray(prod.priceOptions)?prod.priceOptions:[];
+  const opts=_productPriceChoices(prod,effectiveSell);
   if(optsWrap&&optsChips){
     if(opts.length){
       optsWrap.style.display='block';
