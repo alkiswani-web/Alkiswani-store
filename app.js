@@ -6420,6 +6420,34 @@ let _opProductsList=[];
 let _editingProductId=null;
 let _oppCurrentImageUrl='';
 let _oppColors=[];
+let _oppPriceOptions=[];
+
+function addOppPriceOption(){
+  const lblInp=document.getElementById('opp_priceopt_label');
+  const prInp=document.getElementById('opp_priceopt_price');
+  const label=(lblInp?.value||'').trim();
+  const price=parseFloat(prInp?.value);
+  if(!label){toast('⚠️ اكتب اسم الخيار');return;}
+  if(isNaN(price)||price<0){toast('⚠️ أدخل سعراً صحيحاً');return;}
+  _oppPriceOptions.push({label,price});
+  if(lblInp) lblInp.value='';
+  if(prInp) prInp.value='';
+  renderOppPriceOptionChips();
+}
+function removeOppPriceOption(i){
+  _oppPriceOptions.splice(i,1);
+  renderOppPriceOptionChips();
+}
+function renderOppPriceOptionChips(){
+  const wrap=document.getElementById('opp_priceopts_chips');
+  if(!wrap)return;
+  wrap.innerHTML=_oppPriceOptions.length
+    ?_oppPriceOptions.map((o,i)=>`<div style="display:inline-flex;align-items:center;gap:5px;background:#fef9c3;border:1px solid #fde047;border-radius:20px;padding:4px 10px;font-size:0.8rem;color:#854d0e;">
+        <span><strong>${o.label}</strong> — ${(o.price||0).toFixed(2)} د.أ</span>
+        <button onclick="removeOppPriceOption(${i})" style="background:none;border:none;cursor:pointer;color:#854d0e;font-size:0.85rem;padding:0;line-height:1;">✕</button>
+      </div>`).join('')
+    :'<div style="font-size:0.75rem;color:#9ca3af;">لا يوجد أسعار متعددة — المنتج بيستخدم سعر البيع العادي</div>';
+}
 
 function addOppColor(){
   const inp=document.getElementById('opp_color_input');
@@ -6525,6 +6553,18 @@ function renderOpProductsList(){
           </div>
         </div>`
       :'';
+    const poEntries=Array.isArray(p.priceOptions)?p.priceOptions:[];
+    const priceOptsHtml=poEntries.length
+      ?`<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <div style="font-size:0.72rem;font-weight:700;color:var(--text-mid);margin-bottom:5px;">💵 أسعار متعددة</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            ${poEntries.map(o=>`<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:3px 8px;font-size:0.73rem;">
+                <span style="color:var(--text-mid);">${o.label}</span>
+                <strong style="color:#854d0e;margin-right:4px;">${(o.price||0).toFixed(2)} د.أ</strong>
+              </div>`).join('')}
+          </div>
+        </div>`
+      :'';
     const prodImg=p.imageDataUrl||'';
     return `
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
@@ -6561,6 +6601,7 @@ function renderOpProductsList(){
         </div>
       </div>
       ${storePricesHtml}
+      ${priceOptsHtml}
     </div>`;
   }).join('');
 }
@@ -6600,6 +6641,8 @@ function editOpProduct(id){
   });
   _oppColors=Array.isArray(p.colors)?[...p.colors]:[];
   renderOppColorChips();
+  _oppPriceOptions=Array.isArray(p.priceOptions)?p.priceOptions.map(o=>({label:o.label,price:o.price})):[];
+  renderOppPriceOptionChips();
   const rw=document.getElementById('opp_requires_writing');
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
@@ -6626,6 +6669,8 @@ function cancelEditProduct(){
   _renderOppImgPreview();
   _oppColors=[];
   renderOppColorChips();
+  _oppPriceOptions=[];
+  renderOppPriceOptionChips();
   const rw=document.getElementById('opp_requires_writing');
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
@@ -6659,14 +6704,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||''
+        colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
@@ -7269,18 +7314,50 @@ function updateSalePriceFromSelection(){
   const storeSpecific=stSel.value&&prod.storePrices&&prod.storePrices[stSel.value];
   const effectiveSell=storeSpecific?prod.storePrices[stSel.value]:(prod.sellPrice||0);
   sellInp.value=effectiveSell||'';
-  if(infoBox){
-    infoBox.style.display='block';
-    document.getElementById('opsale_info_raw').textContent=raw.toFixed(2)+' د.أ';
-    const treeEl=document.getElementById('opsale_info_tree');
-    if(treeEl) treeEl.textContent=tree.toFixed(2)+' د.أ';
-    document.getElementById('opsale_info_machine').textContent=machine.toFixed(2)+' د.أ';
-    document.getElementById('opsale_info_assembly').textContent=assembly.toFixed(2)+' د.أ';
-    const profit=effectiveSell-(raw+tree+machine+assembly);
-    const pEl=document.getElementById('opsale_info_profit');
-    pEl.textContent=profit.toFixed(2)+' د.أ';
-    pEl.style.color=profit>=0?'#166534':'#dc2626';
+  // Multiple price options chips
+  const optsWrap=document.getElementById('opsale_price_options');
+  const optsChips=document.getElementById('opsale_price_options_chips');
+  const opts=Array.isArray(prod.priceOptions)?prod.priceOptions:[];
+  if(optsWrap&&optsChips){
+    if(opts.length){
+      optsWrap.style.display='block';
+      optsChips.innerHTML=opts.map(o=>`<button type="button" onclick="pickSalePrice(${(o.price||0)})" style="padding:7px 12px;background:#fef9c3;border:1.5px solid #fde047;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;color:#854d0e;cursor:pointer;white-space:nowrap;">${o.label} — ${(o.price||0).toFixed(2)} د.أ</button>`).join('');
+    }else{
+      optsWrap.style.display='none';
+      optsChips.innerHTML='';
+    }
   }
+  _recalcSaleInfo();
+}
+
+function pickSalePrice(price){
+  const sellInp=document.getElementById('opsale_sell');
+  if(sellInp) sellInp.value=price;
+  _recalcSaleInfo();
+}
+
+function _recalcSaleInfo(){
+  const prSel=document.getElementById('opsale_prod_sel');
+  const sellInp=document.getElementById('opsale_sell');
+  const infoBox=document.getElementById('opsale_cost_info');
+  if(!prSel||!sellInp||!infoBox) return;
+  const prod=_opProductsList.find(p=>p.id===prSel.value);
+  if(!prod) return;
+  const raw=prod.rawMaterialCost||0;
+  const tree=prod.treeCost||0;
+  const machine=prod.machineWorkerWage||0;
+  const assembly=prod.assemblyWorkerWage||0;
+  const sell=parseFloat(sellInp.value)||0;
+  infoBox.style.display='block';
+  document.getElementById('opsale_info_raw').textContent=raw.toFixed(2)+' د.أ';
+  const treeEl=document.getElementById('opsale_info_tree');
+  if(treeEl) treeEl.textContent=tree.toFixed(2)+' د.أ';
+  document.getElementById('opsale_info_machine').textContent=machine.toFixed(2)+' د.أ';
+  document.getElementById('opsale_info_assembly').textContent=assembly.toFixed(2)+' د.أ';
+  const profit=sell-(raw+tree+machine+assembly);
+  const pEl=document.getElementById('opsale_info_profit');
+  pEl.textContent=profit.toFixed(2)+' د.أ';
+  pEl.style.color=profit>=0?'#166534':'#dc2626';
 }
 
 async function saveSaleEntry(){
@@ -11001,6 +11078,7 @@ window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; wi
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
 window.selectEmpColor=selectEmpColor;
 window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
+window.addOppPriceOption=addOppPriceOption; window.removeOppPriceOption=removeOppPriceOption;
 window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory; window.toggleEmpUrgent=toggleEmpUrgent;
 window.runSmartPaste=runSmartPaste; window.onEmpPhoneInput=onEmpPhoneInput; window.applyEmpCustomer=applyEmpCustomer;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
@@ -14253,7 +14331,7 @@ window.addPendingOrder=addPendingOrder; window.deliverOrder=deliverOrder; window
 window.onDlvImageChange=onDlvImageChange; window.clearDlvImage=clearDlvImage; window.openDlvImage=openDlvImage;
 // Sales tab
 window.saveSaleEntry=saveSaleEntry; window.deleteSaleEntry=deleteSaleEntry; window.confirmSaleDelivery=confirmSaleDelivery;
-window.onSaleProdChange=onSaleProdChange;
+window.onSaleProdChange=onSaleProdChange; window.pickSalePrice=pickSalePrice;
 window.initSalesTab=initSalesTab; window.loadTodaySales=loadTodaySales;
 // Account statement tab
 window.loadAcctStoreList=loadAcctStoreList; window.openAcctDetail=openAcctDetail; window.openGroupAcctDetail=openGroupAcctDetail;
