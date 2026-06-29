@@ -2373,6 +2373,12 @@ function updateCartItemWriting(idx,value){
   _empOrderCart[idx].writing=value;
 }
 
+function updateCartItemPrice(idx,price){
+  if(!_empOrderCart[idx])return;
+  _empOrderCart[idx].price=parseFloat(price)||0;
+  renderEmpOrderCart();
+}
+
 function calcEmpOrderTotal(){return _empOrderCart.reduce((s,i)=>s+(i.price*i.qty),0);}
 
 // ===== SMART PASTE (AI) + CUSTOMER MEMORY =====
@@ -2528,8 +2534,10 @@ function renderEmpOrderCart(){
   wrap.innerHTML=_empOrderCart.map((item,i)=>{
     const prod=(_empSharedProducts||[]).find(p=>p.id===item.id)||{};
     const colors=Array.isArray(prod.colors)?prod.colors:[];
+    const priceOpts=Array.isArray(prod.priceOptions)?prod.priceOptions:[];
     const req=!!prod.requiresWriting;
-    const showExtras=colors.length||req;
+    const showExtras=colors.length||req||priceOpts.length;
+    const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;return `<button onclick="updateCartItemPrice(${i},${(o.price||0)})" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
     const colorHtml=colors.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#374151;margin-bottom:5px;">🎨 اللون</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${colors.map(c=>`<button onclick="updateCartItemColor(${i},'${c.replace(/'/g,"\\'")}')" style="padding:4px 12px;border:1.5px solid ${item.color===c?'#1a3a2a':'#cbd5e1'};border-radius:20px;background:${item.color===c?'#1a3a2a':'#fff'};color:${item.color===c?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">${c}</button>`).join('')}</div></div>`:'';
     const writingHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:${req?'#92400e':'#374151'};margin-bottom:4px;">✍️ الكتابة${req?' <span style="color:#dc2626;font-weight:800;">* إجباري</span>':' <span style="font-weight:400;color:#9ca3af;">(اختياري)</span>'}</div><input type="text" id="cart_writing_${i}" value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="${req?'اكتب النص هنا... (إجباري)':'اسم الشخص، تاريخ...'}" oninput="updateCartItemWriting(${i},this.value)" style="width:100%;padding:7px 10px;border:1.5px solid ${req&&!item.writing?'#f59e0b':'#e5e7eb'};border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;box-sizing:border-box;background:${req?'#fffbeb':'#fff'};"></div>`;
     return `<div style="padding:9px 10px;background:#f8fafc;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
@@ -2546,7 +2554,7 @@ function renderEmpOrderCart(){
         <div style="font-weight:800;color:#166534;font-size:0.85rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
         <button onclick="removeFromEmpCart(${i})" style="width:22px;height:22px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
       </div>
-      ${showExtras?colorHtml+writingHtml:''}
+      ${showExtras?priceOptsHtml+colorHtml+writingHtml:''}
     </div>`;
   }).join('');
   const t=document.getElementById('emp_total');
@@ -3500,12 +3508,27 @@ function renderEmpEditCart(){
           </div>
           <button onclick="removeEmpEditItem(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
         </div>
+        ${(()=>{const pr=(_opProductsList||[]).find(p=>p.id===item.id)||(_empSharedProducts||[]).find(p=>p.id===item.id)||{};const po=Array.isArray(pr.priceOptions)?pr.priceOptions:[];return po.length?`<div style="margin-bottom:7px;"><div style="font-size:0.72rem;font-weight:700;color:#854d0e;margin-bottom:4px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${po.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;return `<button onclick="updateEmpEditPrice(${i},${(o.price||0)})" style="padding:4px 11px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:18px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';})()}
         <div style="display:flex;gap:6px;">
           <input value="${(item.color||'').replace(/"/g,'&quot;')}" placeholder="🎨 اللون" oninput="_empEditCart[${i}].color=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
           <input value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="✍️ الكتابة" oninput="_empEditCart[${i}].writing=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
         </div>
       </div>`).join('');
   updateEmpEditNet();
+}
+
+function updateEmpEditPrice(i,price){
+  if(!_empEditCart[i])return;
+  const newPrice=parseFloat(price)||0;
+  const oldPrice=parseFloat(_empEditCart[i].price||0);
+  const qty=_empEditCart[i].qty||1;
+  const totalEl=document.getElementById('empEditTotalInput');
+  if(totalEl){
+    const diff=(newPrice-oldPrice)*qty;
+    totalEl.value=Math.max(0,parseFloat(totalEl.value||0)+diff).toFixed(2);
+  }
+  _empEditCart[i].price=newPrice;
+  renderEmpEditCart();
 }
 
 function changeEmpEditQty(i,delta){
@@ -11074,7 +11097,7 @@ window.toggleFrameSelectMode=toggleFrameSelectMode; window._toggleFrameSelect=_t
 window.openGalleryMgmt=openGalleryMgmt; window.closeGalleryMgmt=closeGalleryMgmt; window.searchGalleryCustomer=searchGalleryCustomer; window.createGalleryCustomer=createGalleryCustomer; window.uploadGalleryPhotos=uploadGalleryPhotos; window.deleteGalleryPhoto=deleteGalleryPhoto; window._printGalleryQR=_printGalleryQR; window._previewGalleryPhoto=_previewGalleryPhoto;
 window._slideshowNext=_slideshowNext; window._slideshowPrev=_slideshowPrev; window._slideshowGoTo=_slideshowGoTo;
 window.onEmpPageChange=onEmpPageChange; window.onEmpProductChange=onEmpProductChange;
-window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting;
+window.addToEmpCart=addToEmpCart; window.removeFromEmpCart=removeFromEmpCart; window.changeEmpQty=changeEmpQty; window.updateCartItemColor=updateCartItemColor; window.updateCartItemWriting=updateCartItemWriting; window.updateCartItemPrice=updateCartItemPrice; window.updateEmpEditPrice=updateEmpEditPrice;
 window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEmpProductPicker;
 window.selectEmpColor=selectEmpColor;
 window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
