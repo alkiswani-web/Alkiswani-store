@@ -2719,6 +2719,12 @@ async function submitEmpOrder(){
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
+    // ضغط أي صورة كبيرة لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
+    for(let k=0;k<_empCurrentImages.length;k++){
+      if(_empCurrentImages[k]&&_empCurrentImages[k].length>200000){
+        _empCurrentImages[k]=await _compressImage(_empCurrentImages[k]);
+      }
+    }
     await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
@@ -3501,13 +3507,20 @@ function _renderEmpEditImgPreview(){
   </div>`).join('');
 }
 function _removeEmpEditImg(i){_empEditImages.splice(i,1);_renderEmpEditImgPreview();}
-function onEmpEditImageChange(input){
+async function onEmpEditImageChange(input){
   const files=Array.from(input.files||[]);
-  files.forEach(f=>{
-    const r=new FileReader();
-    r.onload=e=>{_empEditImages.push(e.target.result);_renderEmpEditImgPreview();};
-    r.readAsDataURL(f);
-  });
+  for(const f of files){
+    await new Promise(res=>{
+      const r=new FileReader();
+      r.onload=async e=>{
+        const compressed=await _compressImage(e.target.result);
+        _empEditImages.push(compressed);
+        _renderEmpEditImgPreview();
+        res();
+      };
+      r.readAsDataURL(f);
+    });
+  }
   input.value='';
 }
 
@@ -3649,6 +3662,12 @@ async function saveEmpOrderEdit(){
   const btn=document.querySelector('#empOrderEditModal button[onclick="saveEmpOrderEdit()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
+    // ضغط أي صورة كبيرة (خاصة القديمة غير المضغوطة) لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
+    for(let k=0;k<_empEditImages.length;k++){
+      if(_empEditImages[k]&&_empEditImages[k].length>200000){
+        _empEditImages[k]=await _compressImage(_empEditImages[k]);
+      }
+    }
     const docRef=db.collection('employee_orders').doc(_empEditOrderId);
     const prev=(await docRef.get()).data();
     const by=_empCurrentUser?.displayName||_empCurrentUser?.username||_currentAdminUser||'admin';
