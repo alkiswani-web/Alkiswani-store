@@ -2719,12 +2719,8 @@ async function submitEmpOrder(){
   const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
-    // ضغط أي صورة كبيرة لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
-    for(let k=0;k<_empCurrentImages.length;k++){
-      if(_empCurrentImages[k]&&_empCurrentImages[k].length>200000){
-        _empCurrentImages[k]=await _compressImage(_empCurrentImages[k]);
-      }
-    }
+    // ضغط الصور لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
+    _empCurrentImages=await _compressImagesForDoc(_empCurrentImages);
     await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
@@ -3662,12 +3658,8 @@ async function saveEmpOrderEdit(){
   const btn=document.querySelector('#empOrderEditModal button[onclick="saveEmpOrderEdit()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
-    // ضغط أي صورة كبيرة (خاصة القديمة غير المضغوطة) لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
-    for(let k=0;k<_empEditImages.length;k++){
-      if(_empEditImages[k]&&_empEditImages[k].length>200000){
-        _empEditImages[k]=await _compressImage(_empEditImages[k]);
-      }
-    }
+    // ضغط الصور (خاصة القديمة غير المضغوطة) لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
+    _empEditImages=await _compressImagesForDoc(_empEditImages);
     const docRef=db.collection('employee_orders').doc(_empEditOrderId);
     const prev=(await docRef.get()).data();
     const by=_empCurrentUser?.displayName||_empCurrentUser?.username||_currentAdminUser||'admin';
@@ -6291,20 +6283,41 @@ function _savePendingOrdersLS(orders){
   try{localStorage.setItem(_PENDING_ORDERS_KEY,JSON.stringify(orders));}catch(e){toast('⚠️ تجاوز مساحة التخزين');}
 }
 
-function _compressImage(dataUrl,maxWidth=900,quality=0.65){
+function _compressImage(dataUrl,maxDim=900,quality=0.6){
   return new Promise(resolve=>{
     const img=new Image();
     img.onload=()=>{
-      const canvas=document.createElement('canvas');
       let w=img.width,h=img.height;
-      if(w>maxWidth){h=Math.round(h*maxWidth/w);w=maxWidth;}
+      // تصغير أكبر بُعد لـ maxDim (يشمل الصور الطويلة والعريضة)
+      if(w>maxDim||h>maxDim){
+        if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}
+        else{w=Math.round(w*maxDim/h);h=maxDim;}
+      }
+      const canvas=document.createElement('canvas');
       canvas.width=w;canvas.height=h;
       canvas.getContext('2d').drawImage(img,0,0,w,h);
-      resolve(canvas.toDataURL('image/jpeg',quality));
+      let q=quality, out=canvas.toDataURL('image/jpeg',q);
+      // إنقاص الجودة تدريجياً لو لسا كبيرة (هدف ~480KB لكل صورة)
+      while(out.length>650000&&q>0.3){q-=0.1;out=canvas.toDataURL('image/jpeg',q);}
+      resolve(out);
     };
     img.onerror=()=>resolve(dataUrl);
     img.src=dataUrl;
   });
+}
+
+// يضمن إنه مجموع الصور يبقى تحت حد حجم وثيقة Firestore (~1MB) — يضغط أكثر لو لزم
+async function _compressImagesForDoc(arr){
+  if(!arr||!arr.length) return arr;
+  for(let k=0;k<arr.length;k++){
+    if(arr[k]&&arr[k].length>200000) arr[k]=await _compressImage(arr[k]);
+  }
+  let dim=700;
+  while(arr.reduce((s,u)=>s+(u?u.length:0),0)>950000&&dim>=400){
+    for(let k=0;k<arr.length;k++){ if(arr[k]) arr[k]=await _compressImage(arr[k],dim,0.55); }
+    dim-=150;
+  }
+  return arr;
 }
 
 async function onDlvImageChange(input){
