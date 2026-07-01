@@ -2154,6 +2154,9 @@ let _opOrdersAllData=[];
 let _opOrdersFilter='all';
 let _opSelectMode=false;
 let _opSelectedIds=new Set();
+// تحديد متعدد لقسم قيد التوصيل — المناديب (تسليم جماعي)
+let _delivSelectMode=false;
+let _delivSelectedIds=new Set();
 let _areaFeesCache=null;
 let _empAdvFilter=null,_opAdvFilter=null;
 let _tvModeActive=false,_tvModeInterval=null;
@@ -13289,6 +13292,7 @@ window.closeQRRepAssignModal=closeQRRepAssignModal;
 window.qrAssignToRep=qrAssignToRep; window.qrAssignManualSend=qrAssignManualSend;
 window._showRepPickerInModal=_showRepPickerInModal; window._openQRRepAssignForWaiting=_openQRRepAssignForWaiting;
 window.sendQueuedRepOrders=sendQueuedRepOrders; window.markOrderDelivered=markOrderDelivered;
+window.toggleDelivSelectMode=toggleDelivSelectMode; window.delivToggle=delivToggle; window.delivSelectRep=delivSelectRep; window.bulkDeliverSelected=bulkDeliverSelected;
 window.openBatchDistributeModal=openBatchDistributeModal;
 window.toggleEmpReady=toggleEmpReady;
 
@@ -15086,27 +15090,38 @@ function _renderDeliveryQueue(orders){
   if(delivering.length){
     const byRep={};
     delivering.forEach(o=>{const k=o.deliveryRepName||'بدون مندوب';if(!byRep[k])byRep[k]={name:k,phone:o.deliveryRepPhone||'',orders:[]};byRep[k].orders.push(o);});
+    const selBtn=`<button onclick="toggleDelivSelectMode()" style="padding:5px 12px;background:${_delivSelectMode?'#7c3aed':'#fff'};color:${_delivSelectMode?'#fff':'#7c3aed'};border:1.5px solid #7c3aed;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">${_delivSelectMode?'✕ إلغاء التحديد':'☑ تحديد'}</button>`;
     html+=`<div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-      <div style="font-weight:800;color:#7c3aed;font-size:0.92rem;margin-bottom:12px;">🚚 قيد التوصيل — المناديب (${delivering.length} طلب)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;">
+        <div style="font-weight:800;color:#7c3aed;font-size:0.92rem;">🚚 قيد التوصيل — المناديب (${delivering.length} طلب)</div>
+        ${selBtn}
+      </div>
       ${Object.values(byRep).map(rep=>{
         const total=rep.orders.reduce((s,o)=>s+_orderNet(o),0);
         const encoded=encodeURIComponent(_buildRepCurrentDeliveryMsg(rep.orders,rep.name));
         const phone=(rep.phone||'').replace(/[^\d+]/g,'');
         const waUrl=phone?`https://wa.me/${phone}?text=${encoded}`:`https://wa.me/?text=${encoded}`;
+        const repIds=rep.orders.map(o=>o.id);
+        const repIdsAttr=repIds.join(',');
         return `<div style="background:#fff;border:1.5px solid #ddd6fe;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
             <div><div style="font-weight:700;color:#7c3aed;font-size:0.88rem;">🚚 ${rep.name}</div>
             <div style="font-size:0.73rem;color:#6b7280;">${rep.orders.length} طلب · ${total.toFixed(2)} د.أ</div></div>
-            <a href="${waUrl}" target="_blank" style="padding:7px 12px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;text-decoration:none;flex-shrink:0;">📱 واتساب</a>
+            ${_delivSelectMode
+              ?`<button onclick="delivSelectRep('${repIdsAttr}')" style="padding:7px 12px;background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;flex-shrink:0;">☑ اختر الكل</button>`
+              :`<a href="${waUrl}" target="_blank" style="padding:7px 12px;background:#25D366;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.79rem;font-weight:700;cursor:pointer;text-decoration:none;flex-shrink:0;">📱 واتساب</a>`}
           </div>
           ${rep.orders.map(o=>`
             <div style="background:#faf5ff;border-radius:8px;padding:7px 10px;margin-top:6px;border:1px solid #ede9fe;font-size:0.79rem;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;gap:6px;">
-                <span style="font-weight:700;color:#5b21b6;">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} — ${o.pageName||'—'}</span>
+                <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                  ${_delivSelectMode?`<input type="checkbox" id="delivchk_${o.id}" ${_delivSelectedIds.has(o.id)?'checked':''} onchange="delivToggle('${o.id}')" style="width:18px;height:18px;accent-color:#7c3aed;flex-shrink:0;cursor:pointer;">`:''}
+                  <span style="font-weight:700;color:#5b21b6;">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())} — ${o.pageName||'—'}</span>
+                </div>
                 <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
                   <span style="font-weight:800;color:#166534;">${_orderNet(o).toFixed(2)} د.أ</span>
-                  <button onclick="_openRepPickerFromDetail('${o.id}')" style="padding:4px 8px;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">🔄</button>
-                  <button onclick="markOrderDelivered('${o.id}')" style="padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسليم</button>
+                  ${_delivSelectMode?'':`<button onclick="_openRepPickerFromDetail('${o.id}')" style="padding:4px 8px;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">🔄</button>
+                  <button onclick="markOrderDelivered('${o.id}')" style="padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسليم</button>`}
                 </div>
               </div>
               <div style="color:#374151;">📞 ${o.customerPhone||'—'}</div>
@@ -15115,6 +15130,10 @@ function _renderDeliveryQueue(orders){
             </div>`).join('')}
         </div>`;
       }).join('')}
+      ${_delivSelectMode?`<div id="delivBulkBar" style="position:sticky;bottom:8px;margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#1a1a2e;border-radius:10px;padding:10px 14px;box-shadow:0 4px 14px rgba(0,0,0,0.25);">
+        <span style="color:#fff;font-size:0.82rem;font-weight:700;">محدد: <span id="delivSelCount">${_delivSelectedIds.size}</span> طلب</span>
+        <button onclick="bulkDeliverSelected()" style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">✅ تسليم المحدد</button>
+      </div>`:''}
     </div>`;
 
     // ── 3. قيد التوصيل — مجمّع بالمتجر/الصفحة ──
@@ -15183,6 +15202,35 @@ function _buildStoreDeliveryMsg(orders,storeName){
 
 async function markOrderDelivered(id){
   await updateEmpOrderStatus(id,'delivered');
+}
+
+// ===== تحديد متعدد + تسليم جماعي لقسم قيد التوصيل =====
+function toggleDelivSelectMode(){
+  _delivSelectMode=!_delivSelectMode;
+  if(!_delivSelectMode)_delivSelectedIds.clear();
+  _renderOpOrdersView();
+}
+function delivToggle(id){
+  if(_delivSelectedIds.has(id))_delivSelectedIds.delete(id);else _delivSelectedIds.add(id);
+  const cnt=document.getElementById('delivSelCount');
+  if(cnt)cnt.textContent=_delivSelectedIds.size;
+}
+function delivSelectRep(idsStr){
+  (idsStr||'').split(',').filter(Boolean).forEach(id=>_delivSelectedIds.add(id));
+  _renderOpOrdersView();
+}
+async function bulkDeliverSelected(){
+  const ids=[..._delivSelectedIds];
+  if(!ids.length){toast('⚠️ ما في طلبات محددة');return;}
+  if(!confirm(`تسليم ${ids.length} طلب؟`))return;
+  let done=0;
+  for(const id of ids){
+    try{await updateEmpOrderStatus(id,'delivered');done++;}catch(e){}
+  }
+  _delivSelectedIds.clear();
+  _delivSelectMode=false;
+  toast(`✅ تم تسليم ${done} طلب`);
+  _renderOpOrdersView();
 }
 
 async function sendQueuedRepOrders(repName,waUrl,repPhone){
