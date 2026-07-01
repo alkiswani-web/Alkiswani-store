@@ -9031,15 +9031,6 @@ async function saveOperatorWithdrawal(){
       storeId,storeName,amount,date,notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    // Also save to operator_store_balance (for رصيد المحل)
-    const balRef=db.collection('operator_store_balance').doc();
-    batch.set(balRef,{
-      type:'withdraw',
-      amount,date,
-      notes:(storeName?(storeName+(notes?' — '+notes:'')):(notes||'')),
-      sourceWithdrawalId:wRef.id,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
     const pmtRef2=db.collection('operator_store_payments').doc();
     batch.set(pmtRef2,{
       storeId,storeName,amount,date,
@@ -9189,13 +9180,6 @@ async function saveOperatorWithdrawalFixed(){
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
       withdrawalType,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    const balRef=db.collection('operator_store_balance').doc();
-    batch.set(balRef,{
-      type:'withdraw',amount,date,
-      notes:(storeName+(notes?' — '+notes:'')),
-      sourceWithdrawalId:wRef.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef=db.collection('operator_store_payments').doc();
@@ -14004,6 +13988,8 @@ async function loadStoreTx(){
       _opStoreTxList=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e2){_opStoreTxList=[];}
   }
+  // رصيد المحل يدوي فقط — نستثني الحركات التلقائية القادمة من مسحوبات الكشف
+  _opStoreTxList=_opStoreTxList.filter(t=>!t.sourceWithdrawalId);
   renderStoreTx();
 }
 
