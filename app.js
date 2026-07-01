@@ -1300,7 +1300,8 @@ async function _ewRefreshEmployee(){
     const orderEarned=orderCount*_ewRate;
 
     const totalEarned=attEarned+orderEarned;
-    const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
+    // الدفعات مفلترة حسب الشهر المختار (مثل الدوام) — عشان كل شهر يكون حسابه مستقل
+    const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>{const dt=p.date||'';return dt>=dateFrom&&dt<=dateTo;});
     const paid=paymentsArr.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const bal=totalEarned-paid;
     const balColor=bal>0.01?'#ef4444':bal<-0.01?'#f59e0b':'#22c55e';
