@@ -13694,12 +13694,13 @@ async function loadBalanceTab(){
       _opBalPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e2){_opBalPayments=[];}
   }
-  // Load total raw material costs from all sales
+  // Load total raw material + tree costs from all sales (كلاهما مستحقات على المواد)
   try{
     const snap=await db.collection('operator_sales').get();
     _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false).reduce((sum,d)=>{
       const s=d.data();
-      return sum+((s.rawMaterialCost||s.sellPrice||0)*(s.qty||1));
+      const rawTree=(s.rawMaterialCost||0)+(s.treeCost||0);
+      return sum+((rawTree>0?rawTree:(s.sellPrice||0))*(s.qty||1));
     },0);
   }catch(e){_opBalSalesRaw=0;}
   // Set today's date in forms
