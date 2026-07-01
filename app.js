@@ -7522,11 +7522,11 @@ async function openAcctDetail(storeId, storeName){
   }catch(e){_acctCurrentSales=[];}
   try{
     const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).orderBy('date','desc').get();
-    _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'}));
+    _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'})).filter(p=>p.withdrawalType!=='withdrawal');
   }catch(e){
     try{
       const snap=await db.collection('operator_store_payments').where('storeId','==',storeId).get();
-      _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'}));
+      _acctCurrentPayments=snap.docs.map(d=>({id:d.id,...d.data(),_col:'operator_store_payments'})).filter(p=>p.withdrawalType!=='withdrawal');
     }catch(e2){_acctCurrentPayments=[];}
   }
   try{
@@ -7561,7 +7561,7 @@ async function openGroupAcctDetail(groupName){
     _acctCurrentPayments=[
       ...paySnaps.flatMap(s=>s.docs.map(d=>({id:d.id,...d.data()}))),
       ...groupPaySnap.docs.map(d=>({id:d.id,...d.data()}))
-    ];
+    ].filter(p=>p.withdrawalType!=='withdrawal');
     _acctCurrentRefunds=refundSnaps.flatMap(s=>s.docs.map(d=>({id:d.id,...d.data()})));
   }catch(e){_acctCurrentSales=[];_acctCurrentPayments=[];_acctCurrentRefunds=[];}
   renderGroupAcctDetail();
@@ -8001,8 +8001,8 @@ async function loadAcctStoreList(){
       db.collection('operator_store_payments').get()
     ]);
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId)refundByStore[r.storeId]=(refundByStore[r.storeId]||0)+(r.totalCost||0);});
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId)owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
-    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId)paidByStore[p.storeId]=(paidByStore[p.storeId]||0)+(p.amount||0);});
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false)owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
+    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId&&p.withdrawalType!=='withdrawal')paidByStore[p.storeId]=(paidByStore[p.storeId]||0)+(p.amount||0);});
   }catch(e){}
   const thresholdRow=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;">
     <span style="font-size:0.8rem;color:#6b7280;flex:1;">⚠️ حد تنبيه الرصيد:</span>
