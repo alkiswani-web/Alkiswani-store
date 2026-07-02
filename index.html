@@ -3158,10 +3158,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
 
             <!-- Unified account statement -->
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
               <div style="font-size:0.85rem;font-weight:800;color:var(--text-dark);">📋 كشف الحساب</div>
-              <input type="month" id="ewMonthPicker" onchange="_ewMonth=this.value;_ewRefreshEmployee()"
-                style="padding:5px 9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;background:#fff;cursor:pointer;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <button onclick="_ewMonth='';document.getElementById('ewMonthPicker').value='';_ewRefreshEmployee()" style="padding:5px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;background:#fff;color:var(--green-dark);cursor:pointer;white-space:nowrap;">📋 كامل</button>
+                <input type="month" id="ewMonthPicker" onchange="_ewMonth=this.value;_ewRefreshEmployee()"
+                  style="padding:5px 9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;background:#fff;cursor:pointer;">
+              </div>
             </div>
             <div id="ewKashf" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;"></div>
           </div>
