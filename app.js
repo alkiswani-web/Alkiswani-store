@@ -1277,7 +1277,17 @@ async function _ewRefreshEmployee(){
         : db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
       db.collection('emp_wage_payments').where('workerId','==',_ewWorker.id).where('storeId','==',_ewStore.id).get(),
       db.collection('emp_wage_rates').doc(_ewWorker.id).get(),
-      db.collection('attendance').where('employeeId','==',_ewWorker.id).get()
+      // نطابق الدوام بالمعرّف واسم الموظف معاً — عشان نلقط السجلات القديمة لو انكتبت بمعرّف مختلف
+      (async()=>{
+        const [byId,byName]=await Promise.all([
+          db.collection('attendance').where('employeeId','==',_ewWorker.id).get(),
+          _ewWorker.name?db.collection('attendance').where('employeeName','==',_ewWorker.name).get():Promise.resolve({docs:[]})
+        ]);
+        const m={};
+        byId.docs.forEach(d=>{m[d.id]=d.data();});
+        byName.docs.forEach(d=>{m[d.id]=d.data();});
+        return {docs:Object.keys(m).map(id=>({id,data:()=>m[id]}))};
+      })()
     ]);
 
     const rates=(rateDoc.exists?rateDoc.data().rates:{})||{};
