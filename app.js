@@ -1253,23 +1253,23 @@ async function ewOpenEmployee(workerId,workerName){
   document.getElementById('ewScreen3Title').textContent=`👤 ${workerName}`;
   const orderSec=document.getElementById('ewOrderRateSection');
   if(orderSec)orderSec.style.display=isMashghal?'none':'';
-  // set month picker to current month if not set
+  // افتراضياً عرض كامل تراكمي (بدون تحديد شهر)
   const picker=document.getElementById('ewMonthPicker');
-  if(picker&&!_ewMonth){
-    const n=new Date();
-    _ewMonth=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
-  }
-  if(picker&&_ewMonth)picker.value=_ewMonth;
+  if(picker)picker.value=_ewMonth||'';
   await _ewRefreshEmployee();
 }
 
 async function _ewRefreshEmployee(){
   if(!_ewWorker||!_ewStore)return;
   const isMashghal=_ewStore.id==='__mashghal__';
-  const month=_ewMonth||(()=>{const n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');})();
-  const [yr,mo]=month.split('-');
-  const lastDay=new Date(+yr,+mo,0).getDate();
-  const dateFrom=`${month}-01`,dateTo=`${month}-${String(lastDay).padStart(2,'0')}`;
+  // بدون اختيار شهر = عرض كامل تراكمي (كل الدوام والدفعات) — لأن فترة الحساب تنتهي بإغلاق الكشف مش نهاية الشهر
+  const hasMonth=!!_ewMonth;
+  let dateFrom='0000-00-00',dateTo='9999-99-99';
+  if(hasMonth){
+    const [yr,mo]=_ewMonth.split('-');
+    const lastDay=new Date(+yr,+mo,0).getDate();
+    dateFrom=`${_ewMonth}-01`;dateTo=`${_ewMonth}-${String(lastDay).padStart(2,'0')}`;
+  }
   try{
     const [ordersSnap,paymentsSnap,rateDoc,attSnap]=await Promise.all([
       isMashghal
@@ -1340,7 +1340,7 @@ async function _ewRefreshEmployee(){
     const kashf=document.getElementById('ewKashf');
     if(!kashf)return;
     if(!entries.length){
-      kashf.innerHTML='<div style="padding:16px;text-align:center;color:#9ca3af;font-size:0.82rem;">لا يوجد سجلات لهذا الشهر</div>';
+      kashf.innerHTML='<div style="padding:16px;text-align:center;color:#9ca3af;font-size:0.82rem;">لا يوجد سجلات</div>';
       return;
     }
     // header
