@@ -8988,8 +8988,11 @@ async function editSessionStartDate(){
   if(!newDate||newDate===current) return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)){toast('❌ صيغة التاريخ غلط، استخدم: YYYY-MM-DD');return;}
   try{
-    await db.collection('operator_sessions').doc(_opCurrentSession.id).update({openedDate:newDate});
+    // نعدّل openedAt كمان (بداية اليوم الجديد) عشان الطلبات المُسلّمة قبل فتح الكشف تدخل — الفلتر يعتمد على openedAt مش openedDate
+    const newOpenedAt=firebase.firestore.Timestamp.fromDate(new Date(newDate+'T00:00:00'));
+    await db.collection('operator_sessions').doc(_opCurrentSession.id).update({openedDate:newDate,openedAt:newOpenedAt});
     _opCurrentSession.openedDate=newDate;
+    _opCurrentSession.openedAt=newOpenedAt;
     toast('✅ تم تعديل تاريخ البداية');
     await _loadOpSessionData();
   }catch(e){toast('❌ '+e.message);}
