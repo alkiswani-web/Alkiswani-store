@@ -265,7 +265,7 @@ function renderMostOrdered(){
     <div onclick="openProductPage('${p._docId||p.id}')" style="background:#fff;border-radius:16px;overflow:hidden;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #e5e7eb;transition:transform 0.2s;">
       <div style="height:150px;background:#f3f4f6;overflow:hidden;position:relative;">
         ${p.images?.[0]||p.img
-          ?`<img src="${p.images?.[0]||p.img}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">`
+          ?`<img loading="lazy" decoding="async" src="${p.images?.[0]||p.img}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">`
           :`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">${p.emoji}</div>`}
         <div style="position:absolute;top:8px;right:8px;background:#1a3a2a;color:#fff;padding:2px 8px;border-radius:12px;font-size:0.65rem;font-weight:700;">⭐ الأكثر</div>
       </div>
@@ -405,7 +405,7 @@ function getCardHTML(p){
   return `
     <div class="store-card" data-pid="${pid}" onclick="openProductPage(this.dataset.pid)" style="cursor:pointer;">
       <div class="store-card-img">
-        ${p.images&&p.images.length?`<img src="${p.images[0]}" alt="${p.name}" loading="lazy" decoding="async">`:p.img?`<img src="${p.img}" alt="${p.name}" loading="lazy" decoding="async">`:`<span>${p.emoji}</span>`}
+        ${p.images&&p.images.length?`<img loading="lazy" decoding="async" src="${p.images[0]}" alt="${p.name}" loading="lazy" decoding="async">`:p.img?`<img loading="lazy" decoding="async" src="${p.img}" alt="${p.name}" loading="lazy" decoding="async">`:`<span>${p.emoji}</span>`}
         <div class="card-badge-wrap">
           ${p.outOfStock?`<div class="card-badge" style="background:#6b7280;">نفذ المخزون</div>`:p.badge?`<div class="card-badge">${p.badge}</div>`:''}
           ${p.writing?`<div class="writing-badge">✍️ كتابة</div>`:''}
@@ -535,7 +535,7 @@ function renderCartDrawer(){
   }
   items.innerHTML=cart.map(item=>`
     <div class="cart-item">
-      <div class="cart-item-img">${item.img?`<img src="${item.img}" alt="">`:`<span>${item.emoji}</span>`}</div>
+      <div class="cart-item-img">${item.img?`<img loading="lazy" decoding="async" src="${item.img}" alt="">`:`<span>${item.emoji}</span>`}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${item.name}</div>
         <div class="cart-item-price">${getPriceNum(item)} دينار أردني</div>
@@ -1505,7 +1505,7 @@ function _renderFrameGallery(){
     const bgCol=isSel?'#1e1040':'#0f0f1a';
     const imgHtml=imgs.map((src,i)=>`
       <div style="position:relative;margin-bottom:${i<imgs.length-1?'6px':'0'};">
-        <img src="${src}" onclick="${_frameSelectMode?`_toggleFrameSelect('${o.id}')`:`this.style.maxHeight=this.style.maxHeight==='none'?'220px':'none'`}" onerror="this.style.background='#2d1b4e';this.style.minHeight='80px';this.alt='⚠️ لم تُحمَّل الصورة';" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:${_frameSelectMode?'pointer':'zoom-in'};" loading="lazy">
+        <img loading="lazy" decoding="async" src="${src}" onclick="${_frameSelectMode?`_toggleFrameSelect('${o.id}')`:`this.style.maxHeight=this.style.maxHeight==='none'?'220px':'none'`}" onerror="this.style.background='#2d1b4e';this.style.minHeight='80px';this.alt='⚠️ لم تُحمَّل الصورة';" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;cursor:${_frameSelectMode?'pointer':'zoom-in'};" loading="lazy">
         ${i===0?`<div style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.72);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;padding:3px 9px;border-radius:8px;backdrop-filter:blur(4px);">${prods}</div>`:''}
         ${i===0&&isSel?`<div style="position:absolute;inset:0;border-radius:10px;background:rgba(124,58,237,0.25);display:flex;align-items:center;justify-content:center;"><div style="background:#7c3aed;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">✓</div></div>`:''}
       </div>`).join('');
@@ -1715,7 +1715,7 @@ function _renderGalleryCustomer(){
           <div style="color:rgba(255,255,255,0.35);font-size:0.7rem;margin-top:2px;">${photos.length} صورة</div>
         </div>
         <div style="text-align:center;">
-          <img src="${qrUrl}" style="width:90px;height:90px;border-radius:8px;" loading="lazy">
+          <img loading="lazy" decoding="async" src="${qrUrl}" style="width:90px;height:90px;border-radius:8px;" loading="lazy">
           <div style="color:#c9a84c;font-size:0.65rem;margin-top:4px;">QR Code</div>
         </div>
       </div>
@@ -1740,7 +1740,7 @@ function _renderGalleryCustomer(){
           <button onclick="deleteGalleryPhoto('${_galCurrentPhone}','${p.url}','${p.storagePath||''}',${i})" style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;">✕</button>
         </div>`:`
         <div style="position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;">
-          <img src="${p.url}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="_previewGalleryPhoto('${p.url}','image')">
+          <img loading="lazy" decoding="async" src="${p.url}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="_previewGalleryPhoto('${p.url}','image')">
           <button onclick="deleteGalleryPhoto('${_galCurrentPhone}','${p.url}','${p.storagePath||''}',${i})" style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">✕</button>
         </div>`).join('')
       :'<div style="grid-column:span 3;text-align:center;color:rgba(255,255,255,0.3);padding:30px;font-size:0.85rem;">لا توجد صور أو فيديوهات بعد</div>'}
@@ -1813,7 +1813,7 @@ async function deleteGalleryPhoto(phone,url,storagePath,idx){
 function _printGalleryQR(token,name,url){
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(url)+'&size=400x400&bgcolor=ffffff&color=000000&margin=15';
   const w=window.open('','_blank','width=450,height=550');
-  w.document.write(`<html><head><title>QR - ${name}</title><style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:Tajawal,Arial;background:#fff;direction:rtl;}img{width:300px;height:300px;}h2{margin:14px 0 4px;font-size:1.2rem;}p{color:#666;font-size:0.85rem;margin:4px 0 18px;}</style></head><body><h2>${name}</h2><p>امسح الكود لمشاهدة معرض صورك</p><img src="${qrUrl}"><p style="font-size:0.7rem;color:#999;margin-top:14px;">${url}</p><script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  w.document.write(`<html><head><title>QR - ${name}</title><style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:Tajawal,Arial;background:#fff;direction:rtl;}img{width:300px;height:300px;}h2{margin:14px 0 4px;font-size:1.2rem;}p{color:#666;font-size:0.85rem;margin:4px 0 18px;}</style></head><body><h2>${name}</h2><p>امسح الكود لمشاهدة معرض صورك</p><img loading="lazy" decoding="async" src="${qrUrl}"><p style="font-size:0.7rem;color:#999;margin-top:14px;">${url}</p><script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
 }
 function _previewGalleryPhoto(url,type='image'){
@@ -1822,7 +1822,7 @@ function _previewGalleryPhoto(url,type='image'){
   const close=()=>document.body.removeChild(ov);
   ov.innerHTML=type==='video'
     ?`<div style="position:relative;max-width:95vw;max-height:92vh;"><video src="${url}" controls autoplay style="max-width:95vw;max-height:92vh;border-radius:10px;"></video><button onclick="(${close.toString()})()" style="position:absolute;top:-12px;right:-12px;background:#333;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button></div>`
-    :`<img src="${url}" onclick="(${close.toString()})()" style="max-width:95vw;max-height:92vh;border-radius:10px;object-fit:contain;cursor:zoom-out;">`;
+    :`<img loading="lazy" decoding="async" src="${url}" onclick="(${close.toString()})()" style="max-width:95vw;max-height:92vh;border-radius:10px;object-fit:contain;cursor:zoom-out;">`;
   if(type!=='video') ov.onclick=close;
   document.body.appendChild(ov);
 }
@@ -1878,7 +1878,7 @@ function _slideshowRender(){
       // pause auto-timer while video plays
       if(_slideshowTimer){clearInterval(_slideshowTimer);_slideshowTimer=null;}
     } else {
-      wrap.innerHTML=`<img src="${cur.url}" style="max-width:100%;max-height:100vh;object-fit:contain;" draggable="false">`;
+      wrap.innerHTML=`<img loading="lazy" decoding="async" src="${cur.url}" style="max-width:100%;max-height:100vh;object-fit:contain;" draggable="false">`;
       _slideshowAutoPlay();
     }
   }
@@ -2314,7 +2314,7 @@ function renderEmpProductPicker(){
     const img=p.imageDataUrl||(p.images&&p.images[0])||p.img||'';
     const isSelected=_selectedEmpProductId===p.id;
     return `<div onclick="selectEmpProduct('${p.id}')" id="emp_prod_card_${p.id}" style="cursor:pointer;border-radius:10px;padding:8px;border:2px solid ${isSelected?'#1a3a2a':'#e5e7eb'};background:${isSelected?'#f0fdf4':'#fff'};display:flex;flex-direction:column;align-items:center;gap:5px;transition:border-color 0.15s;">
-      ${img?`<img src="${img}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`:`<div style="width:64px;height:64px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">📦</div>`}
+      ${img?`<img loading="lazy" decoding="async" src="${img}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`:`<div style="width:64px;height:64px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">📦</div>`}
       <div style="font-size:0.76rem;font-weight:700;color:#1a3a2a;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${p.name}</div>
       <div style="font-size:0.72rem;color:#166534;font-weight:600;">${(p.sellPrice||0).toFixed(2)} د.أ</div>
       ${isSelected?'<div style="font-size:0.7rem;color:#1a3a2a;font-weight:800;">✓ مختار</div>':''}
@@ -2340,7 +2340,7 @@ function selectEmpProduct(id){
   if(nameEl) nameEl.textContent=prod.name||'';
   if(priceEl) priceEl.textContent=(prod.sellPrice||0).toFixed(2)+' د.أ / وحدة';
   const img=prod.imageDataUrl||(prod.images&&prod.images[0])||prod.img||'';
-  if(imgWrap) imgWrap.innerHTML=img?`<img src="${img}" style="width:42px;height:42px;object-fit:cover;border-radius:7px;border:1px solid #86efac;">`:'';
+  if(imgWrap) imgWrap.innerHTML=img?`<img loading="lazy" decoding="async" src="${img}" style="width:42px;height:42px;object-fit:cover;border-radius:7px;border:1px solid #86efac;">`:'';
 }
 
 function selectEmpColor(color,btn){
@@ -2690,7 +2690,7 @@ function renderEmpImagePreview(){
   if(!_empCurrentImages.length){wrap.innerHTML='';return;}
   wrap.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;">
     ${_empCurrentImages.map((src,i)=>`<div style="position:relative;">
-      <img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;cursor:zoom-in;">
+      <img loading="lazy" decoding="async" src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;cursor:zoom-in;">
       <button onclick="clearEmpImage(${i})" style="position:absolute;top:3px;left:3px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:0.65rem;display:flex;align-items:center;justify-content:center;padding:0;">✕</button>
     </div>`).join('')}
   </div>
@@ -2838,7 +2838,7 @@ function loadEmpTodayOrders(){
             <!-- Address + notes -->
             <div style="font-size:0.76rem;color:#6b7280;margin-bottom:8px;">📍 ${o.address}${o.notes?` <span style="color:#9ca3af;">· ${o.notes}</span>`:''}</div>
             <!-- Photo -->
-            ${o.imageDataUrl?`<img src="${o.imageDataUrl}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:8px;" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'160px':'none'>"` :''}
+            ${o.imageDataUrl?`<img loading="lazy" decoding="async" src="${o.imageDataUrl}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:8px;" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'160px':'none'>"` :''}
             <!-- Edit history -->
             ${o.editHistory?.length?`<div style="font-size:0.7rem;color:#f97316;margin-bottom:6px;">✏️ تم التعديل ${o.editHistory.length} مرة</div>`:''}
             <!-- Action buttons -->
@@ -2976,7 +2976,7 @@ function renderEmpDlvImagePreview(){
   const wrap=document.getElementById('empDlv_img_preview');if(!wrap)return;
   if(!_empDlvCurrentImage){wrap.innerHTML='';return;}
   wrap.innerHTML=`<div style="position:relative;display:inline-block;width:100%;">
-    <img src="${_empDlvCurrentImage}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;">
+    <img loading="lazy" decoding="async" src="${_empDlvCurrentImage}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;">
     <button onclick="clearEmpDlvImage()" style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>
   </div>`;
 }
@@ -3047,7 +3047,7 @@ function loadEmpDlvTodayList(){
             <span style="font-weight:900;color:#92400e;">${total.toFixed(2)} د.أ</span>
           </div>
           <div style="font-size:0.75rem;color:#6b7280;margin-bottom:4px;">${g.items.map(i=>`${i.productName} × ${i.qty}`).join(' · ')}</div>
-          ${g.imageDataUrl?`<img src="${g.imageDataUrl}" style="width:100%;max-height:80px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;margin-top:6px;">`:'' }
+          ${g.imageDataUrl?`<img loading="lazy" decoding="async" src="${g.imageDataUrl}" style="width:100%;max-height:80px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;margin-top:6px;">`:'' }
         </div>`;
       }).join('');
     },()=>{});
@@ -3356,7 +3356,7 @@ function _showOpOrderDetail(o){
       ${o.internalNote?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">ملاحظة داخلية</div><div style="font-size:0.85rem;color:#555;">${o.internalNote}</div></div>`:''}
       ${o.workerName?`<div style="font-size:0.78rem;color:#999;padding:2px 2px;">الموظف: <b style="color:#555;">${o.workerName}</b></div>`:''}
       ${o.editHistory&&o.editHistory.length?`<div style="font-size:0.71rem;color:#bbb;padding:0 2px;line-height:1.7;">${o.editHistory.map(e=>`<span>${e.note} <span style="color:#ddd;">(${e.by})</span></span>`).join(' ← ')}</div>`:''}
-      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
+      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img loading="lazy" decoding="async" src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">
         ${isOperator&&nextSt&&!isClosed&&nextSt!=='delivering'?_dBtn(`${EMP_STATUSES[nextSt].label} ←`,`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','${nextSt}')`,'primary'):''}
         ${isOperator&&nextSt==='delivering'&&!isClosed?_dBtn('اختر مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
@@ -3512,7 +3512,7 @@ function _renderEmpEditImgPreview(){
   if(!wrap)return;
   if(!_empEditImages.length){wrap.innerHTML='';return;}
   wrap.innerHTML=_empEditImages.map((src,i)=>`<div style="position:relative;display:inline-block;margin:4px;">
-    <img src="${src}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid #86efac;">
+    <img loading="lazy" decoding="async" src="${src}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid #86efac;">
     <button onclick="_removeEmpEditImg(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#ef4444;color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:0.7rem;line-height:1;">✕</button>
   </div>`).join('');
 }
@@ -3770,7 +3770,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
 
   const imgPanel=firstProdImg
     ?`<div style="flex-shrink:0;width:78px;align-self:stretch;overflow:hidden;border-left:1px solid #f3f4f6;position:relative;">
-        <img src="${firstProdImg}" onclick="event.stopPropagation();openEmpOrderImage('${firstProdImg}')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;min-height:80px;">
+        <img loading="lazy" decoding="async" src="${firstProdImg}" onclick="event.stopPropagation();openEmpOrderImage('${firstProdImg}')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;min-height:80px;">
         ${prods.length>1?`<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.55);color:#fff;border-radius:5px;font-size:0.65rem;padding:1px 5px;font-family:'Tajawal',sans-serif;">+${prods.length-1}</div>`:''}
       </div>`
     :'';
@@ -4489,7 +4489,7 @@ async function deletePageRefund(refundId){
 function openEmpOrderImage(src){
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
-  ov.innerHTML=`<img src="${src}" style="max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain;">`;
+  ov.innerHTML=`<img loading="lazy" decoding="async" src="${src}" style="max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain;">`;
   ov.onclick=()=>document.body.removeChild(ov);
   document.body.appendChild(ov);
 }
@@ -4590,7 +4590,7 @@ ${prods.map(p=>`<div class="pr" style="flex-direction:column;align-items:flex-st
 ${dlv>0?`<div class="tot" style="border-top:1.5px solid #e5e7eb;color:#111;font-weight:700;font-size:0.88rem;"><span>إجمالي المنتجات</span><span>${total.toFixed(2)} د.أ</span></div>
 <div class="row"><span class="lbl">🚗 أجور التوصيل</span><span class="val" style="color:#f97316;">+ ${dlv.toFixed(2)} د.أ</span></div>
 <div class="tot"><span>الحساب النهائي</span><span style="color:#16a34a;">${net.toFixed(2)} د.أ</span></div>`:`<div class="tot"><span>الحساب النهائي</span><span>${total.toFixed(2)} د.أ</span></div>`}
-${withPhoto?(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);return imgs.length?`<div style="margin-top:16px;display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`).join('')}</div>`:''})():''}
+${withPhoto?(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);return imgs.length?`<div style="margin-top:16px;display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img loading="lazy" decoding="async" src="${src}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">`).join('')}</div>`:''})():''}
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px dashed #e5e7eb;">
   <div style="font-size:0.72rem;color:#9ca3af;">امسح الكود لتحديث الطلب</div>
@@ -5220,7 +5220,7 @@ function searchAdminProducts(q){
   if(!filtered.length){list.innerHTML='<div class="empty-msg">ما في نتائج</div>';return;}
   list.innerHTML=filtered.map(p=>`
     <div class="prod-row">
-      <div class="prod-thumb">${p.images?.[0]||p.img?`<img src="${p.images?.[0]||p.img}">`:`<span>${p.emoji}</span>`}</div>
+      <div class="prod-thumb">${p.images?.[0]||p.img?`<img loading="lazy" decoding="async" src="${p.images?.[0]||p.img}">`:`<span>${p.emoji}</span>`}</div>
       <div class="prod-info">
         <div class="prod-name">${p.name}</div>
         <div class="prod-meta"><span>📂 ${p.cat}</span>${p.writing?`<span class="writing-tag">✍️ قابل للكتابة</span>`:''}</div>
@@ -5246,7 +5246,7 @@ async function renderAdmin(){
   if(!products.length){list.innerHTML=`<div class="empty-msg">ما في منتجات بعد</div>`;return;}
   list.innerHTML=products.map(p=>`
     <div class="prod-row">
-      <div class="prod-thumb">${p.images?.[0]||p.img?`<img src="${p.images?.[0]||p.img}">`:`<span>${p.emoji}</span>`}</div>
+      <div class="prod-thumb">${p.images?.[0]||p.img?`<img loading="lazy" decoding="async" src="${p.images?.[0]||p.img}">`:`<span>${p.emoji}</span>`}</div>
       <div class="prod-info">
         <div class="prod-name">${p.name}</div>
         <div class="prod-meta"><span>📂 ${p.cat}</span>${p.writing?`<span class="writing-tag">✍️ قابل للكتابة</span>`:''}</div>
@@ -5371,7 +5371,7 @@ function renderColorTags(){
   const c=document.getElementById('colorsTagsContainer');
   c.innerHTML=currentColors.map(color=>{
     const imgHtml=colorImages[color]
-      ?'<img src="'+colorImages[color]+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid var(--green-dark);">'
+      ?'<img loading="lazy" decoding="async" src="'+colorImages[color]+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid var(--green-dark);">'
       :'<div style="width:48px;height:48px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🎨</div>';
     const btnTxt=colorImages[color]?'📷 تغيير الصورة':'📷 إضافة صورة';
     const safeColor=color.replace(/'/g,"\'");
@@ -5453,7 +5453,7 @@ function renderPotTags(){
   if(!c) return;
   c.innerHTML=currentPots.map(pot=>{
     const imgHtml=potImages[pot]
-      ?'<img src="'+potImages[pot]+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid #c9a84c;">'
+      ?'<img loading="lazy" decoding="async" src="'+potImages[pot]+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid #c9a84c;">'
       :'<div style="width:48px;height:48px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🪴</div>';
     const btnTxt=potImages[pot]?'📷 تغيير الصورة':'📷 إضافة صورة';
     const safePot=pot.replace(/'/g,"\\'");
@@ -5496,7 +5496,7 @@ function renderPpPots(pots, potImgs){
     const img=potImgs&&potImgs[pot]?potImgs[pot]:'';
     return `<div onclick="selectPot('${pot.replace(/'/g,"\'")}',this)" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:2px solid #e0e0e0;border-radius:12px;cursor:pointer;transition:all 0.2s;background:#fff;">
       ${img
-        ?`<img src="${img}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #e0e0e0;">`
+        ?`<img loading="lazy" decoding="async" src="${img}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #e0e0e0;">`
         :`<div style="width:52px;height:52px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:1.8rem;">🪴</div>`}
       <span style="font-weight:700;font-size:0.95rem;">${pot}</span>
       <span style="margin-right:auto;font-size:1.1rem;opacity:0;" class="pot-check">✅</span>
@@ -5640,7 +5640,7 @@ function removeExistingImage(idx){
   const upPh=document.getElementById('upPh');
   prevContainer.innerHTML=p.images.map((img,i)=>`
     <div style="position:relative;display:inline-block;">
-      <img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">
+      <img loading="lazy" decoding="async" src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">
       <span onclick="removeExistingImage(${i})" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;font-weight:700;">✕</span>
     </div>
   `).join('');
@@ -5738,7 +5738,7 @@ function editProduct(id){
   if(imgs.length){
     prevContainer.innerHTML=imgs.map((img,i)=>`
       <div style="position:relative;display:inline-block;">
-        <img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">
+        <img loading="lazy" decoding="async" src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;">
         <span onclick="removeExistingImage(${i})" style="position:absolute;top:-6px;right:-6px;background:#e53e3e;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;cursor:pointer;font-weight:700;">✕</span>
       </div>
     `).join('');
@@ -5993,20 +5993,19 @@ function playOrderSound(){
 
 function startOrderListener(){
   if(_orderListener) return;
-  _orderListener=db.collection('orders').onSnapshot(snap=>{
-    const count=snap.size;
-    if(_lastOrderCount===-1){_lastOrderCount=count;return;}
-    if(count>_lastOrderCount){
-      _lastOrderCount=count;
+  // نسمع آخر طلب فقط (limit 1) بدل تحميل كل الطلبات باستمرار — id = Date.now() تصاعدي
+  _orderListener=db.collection('orders').orderBy('id','desc').limit(1).onSnapshot(snap=>{
+    if(snap.empty) return;
+    const latest=snap.docs[0].data();
+    const topId=latest.id||0;
+    if(_lastOrderCount===-1){_lastOrderCount=topId;return;} // أول تحميل: خزّن المرجع بدون تنبيه
+    if(topId>_lastOrderCount){
+      _lastOrderCount=topId;
       playOrderSound();
-      // Get the latest order to show details
-      const docs=snap.docs.sort((a,b)=>b.data().id-a.data().id);
-      const latest=docs[0]?.data();
-      if(latest) showNewOrderAlert(latest);
-      else toast('🔔 وصل طلب جديد!');
+      showNewOrderAlert(latest);
       renderOrders();
-    } else {_lastOrderCount=count;}
-  });
+    }
+  },e=>{console.error('order listener error:',e);});
 }
 
 function showNewOrderAlert(order){
@@ -6350,7 +6349,7 @@ function renderDlvImagePreview(){
   if(!wrap)return;
   if(!_dlvCurrentImage){wrap.innerHTML='';return;}
   wrap.innerHTML=`<div style="position:relative;display:inline-block;width:100%;">
-    <img src="${_dlvCurrentImage}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);">
+    <img loading="lazy" decoding="async" src="${_dlvCurrentImage}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);">
     <button onclick="clearDlvImage()" style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:0.8rem;">✕</button>
   </div>`;
 }
@@ -6413,7 +6412,7 @@ function renderDlvPending(){
           </div>
           <span style="font-weight:900;color:#92400e;font-size:0.95rem;white-space:nowrap;">${total.toFixed(2)} د.أ</span>
         </div>
-        ${ord.imageDataUrl?`<img src="${ord.imageDataUrl}" style="width:100%;max-height:110px;object-fit:cover;border-radius:8px;margin-bottom:8px;border:1px solid var(--border);" onclick="openDlvImage('${ord.id}')">`:'' }
+        ${ord.imageDataUrl?`<img loading="lazy" decoding="async" src="${ord.imageDataUrl}" style="width:100%;max-height:110px;object-fit:cover;border-radius:8px;margin-bottom:8px;border:1px solid var(--border);" onclick="openDlvImage('${ord.id}')">`:'' }
         <div style="font-size:0.78rem;color:var(--text-mid);margin-bottom:10px;line-height:1.6;">${ord.items.map(i=>`${i.productName} × ${i.qty}`).join(' &nbsp;·&nbsp; ')}</div>
         <div style="display:flex;gap:8px;">
           <button onclick="deliverOrder('${ord.id}')" style="flex:1;padding:9px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✅ تسليم</button>
@@ -6429,7 +6428,7 @@ function openDlvImage(orderId){
   if(!ord||!ord.imageDataUrl)return;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
-  ov.innerHTML=`<img src="${ord.imageDataUrl}" style="max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain;">`;
+  ov.innerHTML=`<img loading="lazy" decoding="async" src="${ord.imageDataUrl}" style="max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain;">`;
   ov.onclick=()=>document.body.removeChild(ov);
   document.body.appendChild(ov);
 }
@@ -6598,7 +6597,7 @@ function _renderOppImgPreview(){
   if(!wrap) return;
   if(!_oppCurrentImageUrl){wrap.innerHTML='';return;}
   wrap.innerHTML=`<div style="position:relative;display:inline-block;">
-    <img src="${_oppCurrentImageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:9px;border:1.5px solid #86efac;">
+    <img loading="lazy" decoding="async" src="${_oppCurrentImageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:9px;border:1.5px solid #86efac;">
     <button onclick="clearOppImage()" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#dc2626;color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:0.7rem;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
   </div>`;
 }
@@ -6665,7 +6664,7 @@ function renderOpProductsList(){
     <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-          ${prodImg?`<img src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
+          ${prodImg?`<img loading="lazy" decoding="async" src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
           <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}${p.category?` <span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">📂 ${p.category}</span>`:''}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
@@ -7355,7 +7354,7 @@ function loadTodaySales(){
       }
       wrap.innerHTML=pending.map(s=>{
         const total=(s.sellPrice||0)*(s.qty||1);
-        const imgHtml=s.imageDataUrl?`<img src="${s.imageDataUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" />`:'';
+        const imgHtml=s.imageDataUrl?`<img loading="lazy" decoding="async" src="${s.imageDataUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" />`:'';
         const byHtml=s.addedBy?`<span style="font-size:0.72rem;color:#6b7280;">👤 ${s.addedBy}</span>`:'';
         const dateHtml=s.date?`<span style="font-size:0.7rem;color:#9ca3af;">📅 ${s.date}</span>`:'';
         return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
@@ -9980,7 +9979,7 @@ function openFullImg(src){
   const ov=document.createElement('div');
   ov.id='fullImgOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:999;display:flex;align-items:center;justify-content:center;';
-  ov.innerHTML='<img src="'+src+'" style="max-width:100%;max-height:100%;object-fit:contain;"><button onclick="closeFullImg()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:1.2rem;cursor:pointer;">✕</button>';
+  ov.innerHTML='<img loading="lazy" decoding="async" src="'+src+'" style="max-width:100%;max-height:100%;object-fit:contain;"><button onclick="closeFullImg()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:1.2rem;cursor:pointer;">✕</button>';
   ov.onclick=function(e){if(e.target===ov)closeFullImg();};
   document.body.appendChild(ov);
   _fullImgOverlay=ov;
@@ -10171,8 +10170,8 @@ async function startSocialProof(){
       const diff=Math.floor((Date.now()-orderId)/60000);
       const timeText=diff<1?'للتو':diff<60?'منذ '+diff+' دقيقة':diff<1440?'منذ '+(Math.floor(diff/60))+' ساعة':'منذ '+Math.floor(diff/1440)+' يوم';
       document.getElementById('spTime').textContent=timeText;
-      if(p?.images?.[0]){imgEl.innerHTML=`<img src="${p.images[0]}" alt="">`;}
-      else if(p?.img){imgEl.innerHTML=`<img src="${p.img}" alt="">`;}
+      if(p?.images?.[0]){imgEl.innerHTML=`<img loading="lazy" decoding="async" src="${p.images[0]}" alt="">`;}
+      else if(p?.img){imgEl.innerHTML=`<img loading="lazy" decoding="async" src="${p.img}" alt="">`;}
       else{imgEl.textContent=p?.emoji||'📦';}
       notif.classList.add('show');
       setTimeout(()=>notif.classList.remove('show'),5000);
@@ -10253,7 +10252,7 @@ async function loadCustomerPhotos(){
       <span style="font-size:2rem;">📸</span><span>شارك تجربتك معنا</span>
     </div>`+photos.map(p=>`
       <div class="customer-photo-item">
-        <img src="${p.img}" alt="${p.name}">
+        <img loading="lazy" decoding="async" src="${p.img}" alt="${p.name}">
         <div class="customer-photo-overlay">
           <span class="customer-photo-name">${p.name} - ${p.city||'الأردن'}</span>
         </div>
@@ -10272,7 +10271,7 @@ async function renderPhotosAdmin(){
   const renderPhotoRow=(p,showApprove)=>`
     <div class="prod-row" style="flex-direction:column;gap:8px;">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <img src="${p.img}" style="width:75px;height:75px;object-fit:cover;border-radius:10px;cursor:pointer;" onclick="openFullImg('${p.img}')">
+        <img loading="lazy" decoding="async" src="${p.img}" style="width:75px;height:75px;object-fit:cover;border-radius:10px;cursor:pointer;" onclick="openFullImg('${p.img}')">
         <div style="flex:1;">
           <div style="font-weight:700;">${p.name} · ${p.city||'الأردن'}</div>
           ${p.phone?`<a href="https://wa.me/962${p.phone.replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-size:0.82rem;text-decoration:none;">📱 ${p.phone}</a>`:''}
@@ -10461,7 +10460,7 @@ function openWishlist(){
     items.innerHTML=wishlist.map(p=>{
       const pid=p._docId||String(p.id);
       return `<div class="wishlist-item">
-        <div class="wishlist-item-img">${p.images?.[0]||p.img?`<img src="${p.images?.[0]||p.img}" alt="">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;">${p.emoji}</div>`}</div>
+        <div class="wishlist-item-img">${p.images?.[0]||p.img?`<img loading="lazy" decoding="async" src="${p.images?.[0]||p.img}" alt="">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;">${p.emoji}</div>`}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:0.9rem;color:var(--green-dark);margin-bottom:4px;">${p.name}</div>
           <div style="font-size:0.95rem;font-weight:700;color:var(--brown);margin-bottom:10px;">${parseFloat(p.price)||0} دينار أردني</div>
@@ -10693,7 +10692,7 @@ function renderCatsSection(){
   if(!scroll) return;
   scroll.innerHTML=storeCategories.map(function(cat){
     var inner=cat.img
-      ?'<img src="'+cat.img+'" style="width:100%;height:100%;object-fit:cover;border-radius:18px;">'
+      ?'<img loading="lazy" decoding="async" src="'+cat.img+'" style="width:100%;height:100%;object-fit:cover;border-radius:18px;">'
       :'<div class="cat-bg" style="background:linear-gradient(145deg,'+cat.color1+','+cat.color2+');"></div><span class="cat-emoji">'+cat.emoji+'</span>';
     return '<div class="cat-item" data-cat="'+cat.name+'" onclick="filterCat(this)">'
       +inner
@@ -10853,7 +10852,7 @@ function renderCategoriesAdmin(){
   if(!storeCategories.length){list.innerHTML='<div class="empty-msg">لا يوجد أقسام</div>';return;}
   list.innerHTML=storeCategories.map(function(cat){
     var thumb=cat.img
-      ?'<img src="'+cat.img+'" style="width:44px;height:44px;object-fit:cover;border-radius:10px;flex-shrink:0;">'
+      ?'<img loading="lazy" decoding="async" src="'+cat.img+'" style="width:44px;height:44px;object-fit:cover;border-radius:10px;flex-shrink:0;">'
       :'<div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,'+cat.color1+','+cat.color2+');display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">'+cat.emoji+'</div>';
     return '<div class="prod-row">'
       +thumb
@@ -11073,7 +11072,7 @@ async function _loadAttQR(){
   const imgEl=document.getElementById('attQRImg');
   if(!token||!imgEl)return;
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(token)+'&size=180x180&bgcolor=ffffff&color=000000&margin=10';
-  imgEl.innerHTML=`<img src="${qrUrl}" style="width:160px;height:160px;border-radius:8px;border:3px solid #fff;">`;
+  imgEl.innerHTML=`<img loading="lazy" decoding="async" src="${qrUrl}" style="width:160px;height:160px;border-radius:8px;border:3px solid #fff;">`;
 }
 
 function _printAttQR(){
@@ -11089,7 +11088,7 @@ function _printAttQR(){
     .sub{font-size:7.5pt;color:#555;margin-top:3mm;text-align:center;line-height:1.4;}
   </style></head><body>
     <div class="title">⏱ دوام المشغل</div>
-    <img src="${qrUrl}">
+    <img loading="lazy" decoding="async" src="${qrUrl}">
     <div class="sub">امسح الكود لتسجيل<br>الدخول / الخروج</div>
   <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
@@ -14627,7 +14626,7 @@ function showAdvisorResults(){
         const old=p.oldPrice?getPriceNum({price:p.oldPrice}):null;
         return `<div style="background:#fff;border-radius:14px;border:1px solid #e5e7eb;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
           <div style="height:120px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">
-            ${img?`<img src="${img}" style="width:100%;height:100%;object-fit:cover;">`:(p.emoji||'🌿')}
+            ${img?`<img loading="lazy" decoding="async" src="${img}" style="width:100%;height:100%;object-fit:cover;">`:(p.emoji||'🌿')}
           </div>
           <div style="padding:10px;">
             <div style="font-size:0.82rem;font-weight:700;color:#111827;margin-bottom:4px;line-height:1.3;">${p.name}</div>
@@ -14836,7 +14835,7 @@ function _showQRViewerResult(o){
         <div style="font-weight:800;color:#111;font-size:0.88rem;">${o.deliveryRepName}${o.deliveryRepPhone?` — <span style="color:#555;direction:ltr;display:inline-block;">${o.deliveryRepPhone}</span>`:''}</div>
       </div>`:''}
       ${o.internalNote?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">ملاحظة داخلية</div><div style="font-size:0.85rem;color:#555;">${o.internalNote}</div></div>`:''}
-      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
+      ${imgs.length?`<div style="display:grid;grid-template-columns:repeat(${Math.min(imgs.length,3)},1fr);gap:6px;">${imgs.map(src=>`<img loading="lazy" decoding="async" src="${src}" onclick="openEmpOrderImage('${src}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:zoom-in;">`).join('')}</div>`:''}
       ${['pending','preparing'].includes(o.status)?`<button onclick="updateEmpOrderStatus('${o.id}','prepared').then(()=>{document.getElementById('qrViewerResult').style.display='none';openQRScanner();})" style="width:100%;padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-top:4px;">✅ تم التجهيز</button>`:''}
       <button onclick="openQRScanner()" style="width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-top:4px;">📷 مسح طلب آخر</button>
     </div>`;
