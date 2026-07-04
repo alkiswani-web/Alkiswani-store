@@ -5202,12 +5202,12 @@ function renderOrdersByStatus(){
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
       ${o.cancelReason?`<div style="font-size:0.78rem;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:6px;">🚫 سبب الإلغاء: ${o.cancelReason}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
-        ${currentOrderStatus!=='جديد'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📋 جديد</button>`:''}
-        ${currentOrderStatus!=='قيد التجهيز'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','قيد التجهيز');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #fbbf24;background:#fef9c3;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#92400e;">⚙️ تجهيز</button>`:''}
-        ${currentOrderStatus!=='بالطريق'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','بالطريق');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #93c5fd;background:#dbeafe;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#1e40af;">🚚 بالطريق</button>`:''}
-        ${currentOrderStatus!=='تم التسليم'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>`:''}
+        ${currentOrderStatus!=='جديد'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','جديد')" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">📋 جديد</button>`:''}
+        ${currentOrderStatus!=='قيد التجهيز'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','قيد التجهيز')" style="padding:6px 12px;border-radius:8px;border:1px solid #fbbf24;background:#fef9c3;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#92400e;">⚙️ تجهيز</button>`:''}
+        ${currentOrderStatus!=='بالطريق'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','بالطريق')" style="padding:6px 12px;border-radius:8px;border:1px solid #93c5fd;background:#dbeafe;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#1e40af;">🚚 بالطريق</button>`:''}
+        ${currentOrderStatus!=='تم التسليم'&&currentOrderStatus!=='ملغي'?`<button onclick="updateOrderStatus('${o.id}','تم التسليم')" style="padding:6px 12px;border-radius:8px;border:1px solid #86efac;background:#dcfce7;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#166534;">✅ تسليم</button>`:''}
         ${currentOrderStatus!=='ملغي'?`<button onclick="openCancelDialog('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #fca5a5;background:#fee2e2;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#dc2626;">🚫 إلغاء</button>`:''}
-        ${currentOrderStatus==='ملغي'?`<button onclick="updateOrderStatus('${o.id}','جديد');renderOrders()" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">↩️ استعادة</button>`:''}
+        ${currentOrderStatus==='ملغي'?`<button onclick="updateOrderStatus('${o.id}','جديد')" style="padding:6px 12px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">↩️ استعادة</button>`:''}
         <button onclick="deleteOrder('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#6b7280;">🗑️ حذف</button>
       </div>
     </div>
@@ -9763,7 +9763,15 @@ async function updateOrderStatus(orderId, newStatus, cancelReason=''){
   if(newStatus!=='ملغي') updateData.cancelReason='';
   await db.collection('orders').doc(String(orderId)).update(updateData);
   toast('✅ تم تحديث حالة الطلب');
-  renderOrders();
+  // تحديث محلي بدل إعادة تحميل كل الطلبات (توفير جلب المجموعة كاملة)
+  const all=window._allOrders||[];
+  const oo=all.find(o=>String(o.id)===String(orderId));
+  if(oo){oo.status=newStatus;oo.cancelReason=updateData.cancelReason||'';}
+  const counts={'جديد':0,'قيد التجهيز':0,'بالطريق':0,'تم التسليم':0,'ملغي':0};
+  all.forEach(o=>{const s=o.status||'جديد';if(counts[s]!==undefined)counts[s]++;});
+  const _setC=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  _setC('cnt-new',counts['جديد']);_setC('cnt-prep',counts['قيد التجهيز']);_setC('cnt-way',counts['بالطريق']);_setC('cnt-done',counts['تم التسليم']);_setC('cnt-cancel',counts['ملغي']);
+  if(typeof renderOrdersByStatus==='function') renderOrdersByStatus();
   if(newStatus==='ملغي') return;
   const snap=await db.collection('orders').doc(String(orderId)).get();
   const order=snap.data();
