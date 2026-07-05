@@ -3361,6 +3361,7 @@ function _showOpOrderDetail(o){
         ${isOperator&&nextSt&&!isClosed&&nextSt!=='delivering'?_dBtn(`${EMP_STATUSES[nextSt].label} ←`,`closeOpOrderDetail();updateEmpOrderStatus('${o.id}','${nextSt}')`,'primary'):''}
         ${isOperator&&nextSt==='delivering'&&!isClosed?_dBtn('اختر مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
         ${o.status==='waiting_rep'?_dBtn('تعيين مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${(o.status==='delivering'||o.status==='queued')&&!isClosed?_dBtn('🔄 تغيير المندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
         ${_dIconBtn('✏️',`closeOpOrderDetail();openEmpOrderEdit('${o.id}')`)}
         ${_dIconBtn('🖨',`printEmpOrder('${o.id}',false)`)}
         ${_dIconBtn('🏷️',`printOrderQR('${o.id}')`)}
