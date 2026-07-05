@@ -11013,21 +11013,42 @@ async function _handleAttendanceScan(raw){
   const now=new Date();
   const date=now.toLocaleDateString('en-CA');
   const docId=(emp.id||emp.username)+'_'+date;
+  const docRef=db.collection('attendance').doc(docId);
+  const nowIso=now.toISOString();
+  const timeStr=now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
   try{
-    const snap=await db.collection('attendance').doc(docId).get();
-    if(!snap.exists||!snap.data().checkIn){
-      await db.collection('attendance').doc(docId).set({
+    const snap=await docRef.get();
+    const d=snap.exists?snap.data():null;
+    // جلسات متعددة باليوم — كل مسح يبدّل بين دخول وخروج. متوافق مع السجلات القديمة (checkIn/checkOut)
+    let sessions=(d&&Array.isArray(d.sessions))?d.sessions.map(s=>({...s})):null;
+    if(!sessions){
+      sessions=[];
+      if(d&&d.checkIn) sessions.push({in:d.checkIn,out:d.checkOut||null});
+    }
+    const last=sessions[sessions.length-1];
+    const openSession=last&&!last.out;
+    const _sumSecs=arr=>arr.reduce((t,s)=>t+(s.out?Math.max(0,Math.floor((new Date(s.out)-new Date(s.in))/1000)):0),0);
+    if(openSession){
+      // تسجيل خروج — إغلاق الجلسة المفتوحة
+      last.out=nowIso;
+      const total=_sumSecs(sessions);
+      await docRef.set({
         employeeId:emp.id||emp.username,
         employeeName:emp.displayName||emp.username,
-        date,checkIn:now.toISOString(),checkOut:null,hoursWorked:null
-      });
-      _showAttResult('in',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}));
-    } else if(!snap.data().checkOut){
-      const secs=Math.floor((now-new Date(snap.data().checkIn))/1000);
-      await db.collection('attendance').doc(docId).update({checkOut:now.toISOString(),secondsWorked:secs});
-      _showAttResult('out',now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),secs);
+        date,sessions,
+        checkIn:sessions[0].in,checkOut:nowIso,secondsWorked:total
+      },{merge:true});
+      _showAttResult('out',timeStr,total);
     } else {
-      _showAttResult('done',snap.data().secondsWorked||0);
+      // تسجيل دخول — بدء جلسة جديدة (حتى لو اليوم فيه جلسات سابقة مكتملة)
+      sessions.push({in:nowIso,out:null});
+      await docRef.set({
+        employeeId:emp.id||emp.username,
+        employeeName:emp.displayName||emp.username,
+        date,sessions,
+        checkIn:sessions[0].in,checkOut:null,secondsWorked:_sumSecs(sessions)
+      },{merge:true});
+      _showAttResult('in',timeStr);
     }
   }catch(e){_showAttResult('error',e.message);}
 }
