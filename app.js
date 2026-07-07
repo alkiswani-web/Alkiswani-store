@@ -18,6 +18,8 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+// تخزين محلي (IndexedDB): التحميلات المتكررة تقرأ من الجهاز وتنزّل التغييرات فقط — تسريع كبير وتقليل استهلاك البيانات
+try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(e){}
 const storage = firebase.storage();
 let _akFunctions=null;
 try{_akFunctions=firebase.functions();}catch(e){_akFunctions=null;}

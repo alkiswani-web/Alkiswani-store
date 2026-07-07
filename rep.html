@@ -333,6 +333,7 @@ const firebaseConfig={
 };
 firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
+try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(e){}
 
 // ===== STATUS =====
 const ST={
@@ -501,8 +502,9 @@ async function loadRepsTab(){
 
     const [allReps,delSnap,paySnap,refSnap]=await Promise.all([
       repsPromise,
-      db.collection('employee_orders').where('status','==','delivered').where('deliveredDate','>=',cutoffStr).get()
-        .catch(()=>db.collection('employee_orders').where('status','==','delivered').get()),
+      db.collection('employee_orders').where('deliveredDate','>=',cutoffStr).get()
+        .then(s=>({docs:s.docs.filter(d=>d.data().status==='delivered')}))
+        .catch(()=>({docs:[]})),
       db.collection('rep_payments').get(),
       db.collection('rep_refunds').get()
     ]);
