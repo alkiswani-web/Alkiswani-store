@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v116';
+const CACHE = 'alkiswani-v117';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.0';
 
 const PRECACHE = [
@@ -49,20 +49,28 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// network-first مع مهلة: لو النت بطيء نعرض النسخة المخزنة فوراً والتحديث ينزل بالخلفية للفتحة الجاية
+function networkFirstWithTimeout(req, timeoutMs) {
+  return caches.match(req).then(cached => {
+    const networkFetch = fetch(req).then(res => {
+      if(res && res.status === 200) {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(req, clone));
+      }
+      return res;
+    });
+    if(!cached) return networkFetch; // أول زيارة: لازم النت
+    const timer = new Promise(resolve => setTimeout(() => resolve(cached), timeoutMs));
+    return Promise.race([networkFetch.catch(() => cached), timer]);
+  });
+}
+
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // app.js: network-first — always get latest when online, fall back to cache offline
+  // app.js: network-first with timeout fallback to cache
   if(url.endsWith('/app.js') || url.includes('/app.js?')) {
-    e.respondWith(
-      fetch(e.request).then(res => {
-        if(res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => caches.match(e.request))
-    );
+    e.respondWith(networkFirstWithTimeout(e.request, 2500));
     return;
   }
 
@@ -87,17 +95,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML (navigation): network-first — always get latest when online, fall back to cache offline
+  // HTML (navigation): network-first with timeout fallback to cache
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
-    e.respondWith(
-      fetch(e.request).then(res => {
-        if(res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => caches.match(e.request))
-    );
+    e.respondWith(networkFirstWithTimeout(e.request, 2500));
     return;
   }
 

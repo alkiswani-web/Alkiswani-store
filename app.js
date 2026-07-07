@@ -2737,6 +2737,7 @@ async function submitEmpOrder(){
   try{
     // ضغط الصور لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
     _empCurrentImages=await _compressImagesForDoc(_empCurrentImages);
+    _empCurrentImages=await _uploadImagesToStorage(_empCurrentImages,'order-images');
     await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
@@ -3677,6 +3678,7 @@ async function saveEmpOrderEdit(){
   try{
     // ضغط الصور (خاصة القديمة غير المضغوطة) لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
     _empEditImages=await _compressImagesForDoc(_empEditImages);
+    _empEditImages=await _uploadImagesToStorage(_empEditImages,'order-images');
     const docRef=db.collection('employee_orders').doc(_empEditOrderId);
     const prev=(await docRef.get()).data();
     const by=_empCurrentUser?.displayName||_empCurrentUser?.username||_currentAdminUser||'admin';
@@ -6334,6 +6336,23 @@ async function _compressImagesForDoc(arr){
     dim-=150;
   }
   return arr;
+}
+
+// رفع الصور لـ Firebase Storage وإرجاع روابط بدل base64 — الطلب يصير خفيف جداً
+// لو الرفع فشل (قواعد/نت) نرجع للـ base64 المضغوط كما قبل — بدون أي كسر
+async function _uploadImagesToStorage(arr,prefix){
+  if(!arr||!arr.length) return arr;
+  const out=[];
+  for(let i=0;i<arr.length;i++){
+    const img=arr[i];
+    if(!img||!img.startsWith('data:')){out.push(img);continue;} // رابط جاهز أصلاً
+    try{
+      const ref=storage.ref(prefix+'/'+Date.now()+'_'+i+'_'+Math.floor(Math.random()*1e6)+'.jpg');
+      await ref.putString(img,'data_url');
+      out.push(await ref.getDownloadURL());
+    }catch(e){out.push(img);}
+  }
+  return out;
 }
 
 async function onDlvImageChange(input){
