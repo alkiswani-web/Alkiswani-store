@@ -3001,6 +3001,10 @@ async function submitEmpDelivery(){
   const btn=document.querySelector('#empDeliverySection button[onclick="submitEmpDelivery()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
   try{
+    if(_empDlvCurrentImage&&_empDlvCurrentImage.startsWith('data:')){
+      const [up]=await _uploadImagesToStorage([_empDlvCurrentImage],'sale-images');
+      _empDlvCurrentImage=up||_empDlvCurrentImage;
+    }
     const batch=db.batch();
     _empDlvCart.forEach(item=>{
       const ref=db.collection('operator_sales').doc();
@@ -6355,6 +6359,59 @@ async function _uploadImagesToStorage(arr,prefix){
   return out;
 }
 
+// صيانة (مرة واحدة): نقل الصور القديمة المخزّنة base64 داخل الوثائق إلى Storage
+// آمن: لا نعدّل الوثيقة إلا إذا نجح رفع كل صورها — أي فشل يُبقيها كما هي
+async function migrateImagesToStorage(btn){
+  if(!confirm('نقل صور الطلبات والمنتجات القديمة إلى التخزين السحابي؟\nيُشغَّل مرة واحدة وقد يستغرق عدة دقائق — لا تغلق الصفحة أثناء التنفيذ.'))return;
+  if(btn)btn.disabled=true;
+  let moved=0,failed=0;
+  const isB64=u=>u&&typeof u==='string'&&u.startsWith('data:');
+  try{
+    // 1) صور المنتجات (operator_products)
+    const pSnap=await db.collection('operator_products').get();
+    let i=0;
+    for(const d of pSnap.docs){
+      i++;
+      if(btn)btn.textContent=`⏳ المنتجات ${i}/${pSnap.size}…`;
+      const p=d.data();
+      if(!isB64(p.imageDataUrl))continue;
+      const [url]=await _uploadImagesToStorage([p.imageDataUrl],'product-images');
+      if(isB64(url)){failed++;continue;}
+      await d.ref.update({imageDataUrl:url});moved++;
+    }
+    // 2) صور الطلبات (آخر 120 يوم — تغطي كل الطلبات النشطة والمعروضة)
+    const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-120*864e5));
+    const oSnap=await db.collection('employee_orders').where('createdAt','>=',cutoff).get();
+    i=0;
+    for(const d of oSnap.docs){
+      i++;
+      if(btn)btn.textContent=`⏳ الطلبات ${i}/${oSnap.size}…`;
+      const o=d.data();
+      const arr=(o.imageDataUrls&&o.imageDataUrls.length)?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+      if(!arr.some(isB64))continue;
+      const out=await _uploadImagesToStorage(arr,'order-images');
+      if(out.some(isB64)){failed++;continue;}
+      await d.ref.update({imageDataUrls:out,imageDataUrl:out[0]||''});moved++;
+    }
+    // 3) صور المبيعات (operator_sales — آخر 120 يوم بالتاريخ النصي)
+    const dateCut=new Date(Date.now()-120*864e5).toISOString().slice(0,10);
+    const sSnap=await db.collection('operator_sales').where('date','>=',dateCut).get();
+    i=0;
+    for(const d of sSnap.docs){
+      i++;
+      if(btn)btn.textContent=`⏳ المبيعات ${i}/${sSnap.size}…`;
+      const s=d.data();
+      if(!isB64(s.imageDataUrl))continue;
+      const [url]=await _uploadImagesToStorage([s.imageDataUrl],'sale-images');
+      if(isB64(url)){failed++;continue;}
+      await d.ref.update({imageDataUrl:url});moved++;
+    }
+    toast(`✅ تم نقل ${moved} عنصر${failed?` — تعذّر ${failed} (بقيت كما هي)`:''}`);
+  }catch(e){toast('❌ '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent='⚡ ابدأ النقل الآن';}}
+}
+window.migrateImagesToStorage=migrateImagesToStorage;
+
 async function onDlvImageChange(input){
   const file=input.files[0];
   if(!file)return;
@@ -6816,6 +6873,11 @@ async function saveOpProduct(){
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
     const category=(document.getElementById('opp_category')?.value||'').trim();
+    // صورة المنتج → التخزين السحابي (رابط خفيف بدل base64 داخل الوثيقة)، مع fallback آمن
+    if(_oppCurrentImageUrl&&_oppCurrentImageUrl.startsWith('data:')){
+      const [up]=await _uploadImagesToStorage([_oppCurrentImageUrl],'product-images');
+      _oppCurrentImageUrl=up||_oppCurrentImageUrl;
+    }
     if(_editingProductId){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,

@@ -3237,6 +3237,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- SETTINGS sub-tab (moved from emporders) -->
         <div id="emp-subtab-settings" style="display:none;">
+          <!-- Migrate embedded images to Storage (performance) -->
+          <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:14px;padding:16px 18px;margin-bottom:16px;">
+            <div style="font-size:0.9rem;font-weight:700;color:#1e40af;margin-bottom:6px;">⚡ تسريع: نقل الصور القديمة للتخزين السحابي</div>
+            <div style="font-size:0.78rem;color:#1e3a8a;margin-bottom:10px;">ينقل صور الطلبات والمنتجات المخزّنة داخل قاعدة البيانات إلى التخزين السحابي (روابط خفيفة) — يسرّع التحميل كثيراً. يُشغَّل مرة واحدة وقد يستغرق دقائق. آمن: أي صورة يفشل نقلها تبقى كما هي.</div>
+            <button onclick="migrateImagesToStorage(this)" style="padding:9px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">⚡ ابدأ النقل الآن</button>
+          </div>
           <!-- Clear rep from waiting orders -->
           <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:14px;padding:16px 18px;margin-bottom:16px;">
             <div style="font-size:0.9rem;font-weight:700;color:#92400e;margin-bottom:6px;">🧹 مسح مندوب من طلبات انتظار مندوب</div>
