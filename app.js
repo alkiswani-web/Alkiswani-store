@@ -14263,7 +14263,14 @@ async function loadRosemaryWallet(){
     const doc=await db.collection('rosemary_wallet').doc('settings').get();
     _rwSettings=doc.exists?doc.data():{initialBalance:0};
   }catch(e){_rwSettings={initialBalance:0};}
-  const sessionId=_opCurrentSession?.id||null;
+  // لو الكشف مش محمّل بالذاكرة (فتح التبويب مباشرة) — جيب الكشف المفتوح من قاعدة البيانات
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){
+    try{
+      const ss=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
+      if(!ss.empty)_opCurrentSession={id:ss.docs[0].id,...ss.docs[0].data()};
+    }catch(e){}
+  }
+  const sessionId=(_opCurrentSession&&_opCurrentSession.status!=='closed')?_opCurrentSession.id:null;
   // السحوبات اليدوية — للكشف الحالي فقط
   try{
     const snap=await db.collection('rosemary_transactions').get();
@@ -14310,7 +14317,7 @@ function renderRosemaryWallet(){
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
   const initialBalance=_rwSettings.initialBalance||0;
   const currentBalance=initialBalance+_rwSalesProfit-totalExpenses-totalWithdrawals;
-  const noSession=!(_opCurrentSession&&_opCurrentSession.id);
+  const noSession=!(_opCurrentSession&&_opCurrentSession.id&&_opCurrentSession.status!=='closed');
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
     <div style="background:linear-gradient(135deg,#be185d,#9d174d);border-radius:14px;padding:16px;color:#fff;position:relative;">
