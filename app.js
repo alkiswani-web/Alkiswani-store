@@ -14250,31 +14250,29 @@ async function migrateRawMaterialCosts(){
   if(btn){btn.disabled=false;btn.textContent='🔄 تحديث تكاليف المواد';}
 }
 
-// ===== رصيد روزميري =====
+// ===== رصيد روزميري — محفظة أرباح المحل =====
+// الرصيد = رصيد أولي (يدوي) + أرباح مبيعات الكشف الحالي − مصاريف الكشف الحالي − سحوبات يدوية (مصاريف مشغل)
 let _rwSettings={initialBalance:0};
-let _rwTxList=[];
-let _rwExpenses=[];
-let _rwRepOrders=[];
-let _rwTxType='deposit';
-let _rwWithdrawSubtype='operator_expense';
-let _rwRepOrdersUnsub=null;
+let _rwTxList=[];       // سحوبات يدوية للكشف الحالي فقط
+let _rwExpenses=[];     // مصاريف الكشف الحالي (تلقائي)
+let _rwSalesProfit=0;   // أرباح مبيعات الكشف الحالي (تلقائي)
+let _rwSalesCount=0;
 
 async function loadRosemaryWallet(){
   try{
     const doc=await db.collection('rosemary_wallet').doc('settings').get();
     _rwSettings=doc.exists?doc.data():{initialBalance:0};
   }catch(e){_rwSettings={initialBalance:0};}
+  const sessionId=_opCurrentSession?.id||null;
+  // السحوبات اليدوية — للكشف الحالي فقط
   try{
-    const snap=await db.collection('rosemary_transactions').orderBy('date','desc').get();
-    _rwTxList=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){
-    try{
-      const snap=await db.collection('rosemary_transactions').get();
-      _rwTxList=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-    }catch(e2){_rwTxList=[];}
-  }
+    const snap=await db.collection('rosemary_transactions').get();
+    _rwTxList=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(t=>t.type==='withdraw'&&sessionId&&t.sessionId===sessionId)
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }catch(e){_rwTxList=[];}
+  // مصاريف الكشف الحالي
   try{
-    const sessionId=_opCurrentSession?.id||null;
     let expSnap;
     if(sessionId){
       expSnap=await db.collection('operator_expenses').where('sessionId','==',sessionId).get();
@@ -14283,154 +14281,94 @@ async function loadRosemaryWallet(){
     }
     _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
-  // Ensure delivery reps exclusion list is loaded before the snapshot fires
-  try{await _loadDeliveryReps();}catch(e){}
-  if(_rwRepOrdersUnsub){_rwRepOrdersUnsub();_rwRepOrdersUnsub=null;}
-  const sessionId2=_opCurrentSession?.id||null;
-  if(sessionId2){
-    const from=_opCurrentSession.openedDate||jordanDateStr();
-    const to=_opCurrentSession.closedDate||jordanDateStr();
-    _rwRepOrdersUnsub=db.collection('employee_orders')
-      .where('deliveredDate','>=',from)
-      .where('deliveredDate','<=',to)
-      .onSnapshot(snap=>{
-        const excludedRwReps=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
-        _rwRepOrders=snap.docs
-          .map(d=>({id:d.id,...d.data()}))
-          .filter(o=>o.status==='delivered'&&o.deliveryRepName&&!excludedRwReps.has(o.deliveryRepName));
-        renderRosemaryWallet();
-      },()=>{_rwRepOrders=[];renderRosemaryWallet();});
-  }else{
-    _rwRepOrders=[];
-  }
+  // أرباح مبيعات الكشف الحالي = Σ (سعر البيع − التكاليف) × الكمية للمبيعات المُسلّمة
+  _rwSalesProfit=0;_rwSalesCount=0;
+  try{
+    if(sessionId){
+      const from=_opCurrentSession.openedDate||jordanDateStr();
+      const to=_opCurrentSession.closedDate||jordanDateStr();
+      const sSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
+      sSnap.docs.forEach(d=>{
+        const s=d.data();
+        if(s.delivered===false)return;
+        if(s.sessionId&&s.sessionId!==sessionId)return;
+        const qty=s.qty||1;
+        const cost=(s.rawMaterialCost||0)+(s.treeCost||0)+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0);
+        _rwSalesProfit+=((s.sellPrice||0)-cost)*qty;
+        _rwSalesCount++;
+      });
+    }
+  }catch(e){_rwSalesProfit=0;_rwSalesCount=0;}
   const dateEl=document.getElementById('rw_date');
   if(dateEl&&!dateEl.value) dateEl.value=jordanDateStr();
-  if(!_opStoresList.length) await loadOpStores();
   renderRosemaryWallet();
 }
 
 
 function renderRosemaryWallet(){
-  const totalManualDeposits=_rwTxList.filter(t=>t.type==='deposit').reduce((s,t)=>s+(t.amount||0),0);
-  const totalWithdrawals=_rwTxList.filter(t=>t.type==='withdraw').reduce((s,t)=>s+(t.amount||0),0);
+  const totalWithdrawals=_rwTxList.reduce((s,t)=>s+(t.amount||0),0);
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
-  const rwStoreWds=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment');
-  const totalStoreWithdrawals=rwStoreWds.reduce((s,w)=>s+(w.amount||0),0);
-  const totalRepDeposits=_rwRepOrders.reduce((s,o)=>{
-    const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
-    return s+amt;
-  },0);
   const initialBalance=_rwSettings.initialBalance||0;
-  const totalDeposits=totalManualDeposits+totalRepDeposits;
-  const currentBalance=initialBalance+totalDeposits-totalWithdrawals-totalExpenses-totalStoreWithdrawals;
-  const totalOut=totalWithdrawals+totalExpenses+totalStoreWithdrawals;
+  const currentBalance=initialBalance+_rwSalesProfit-totalExpenses-totalWithdrawals;
+  const noSession=!(_opCurrentSession&&_opCurrentSession.id);
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
     <div style="background:linear-gradient(135deg,#be185d,#9d174d);border-radius:14px;padding:16px;color:#fff;position:relative;">
-      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">🌿 رصيد روزميري الحالي</div>
+      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">🌿 أرباح المحل — رصيد روزميري</div>
       <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${currentBalance.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
-      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${initialBalance.toFixed(2)} + إيداعات ${totalDeposits.toFixed(2)} − سحوبات ${totalOut.toFixed(2)}</div>
+      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${initialBalance.toFixed(2)} + أرباح مبيعات ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
+      ${noSession?'<div style="font-size:0.72rem;background:rgba(255,255,255,0.18);border-radius:8px;padding:5px 10px;margin-top:6px;">⚠️ لا يوجد كشف مفتوح — الأرباح والمصاريف تُحسب من الكشف المفتوح</div>':''}
       <button onclick="document.getElementById('rw_initial_form').style.display='block';document.getElementById('rw_initial_inp').value='${initialBalance}'"
         style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ رصيد أولي</button>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">
         <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:0.68rem;opacity:0.85;">💚 إجمالي الإيداعات</div>
-          <div style="font-weight:800;font-size:0.95rem;">${totalDeposits.toFixed(2)} د.أ</div>
+          <div style="font-size:0.68rem;opacity:0.85;">💚 أرباح المبيعات</div>
+          <div style="font-weight:800;font-size:0.95rem;">${_rwSalesProfit.toFixed(2)} د.أ</div>
+          <div style="font-size:0.62rem;opacity:0.7;">${_rwSalesCount} مبيعة</div>
         </div>
         <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:0.68rem;opacity:0.85;">🔴 إجمالي السحوبات</div>
-          <div style="font-weight:800;font-size:0.95rem;">${totalOut.toFixed(2)} د.أ</div>
+          <div style="font-size:0.68rem;opacity:0.85;">🧾 المصاريف</div>
+          <div style="font-weight:800;font-size:0.95rem;">${totalExpenses.toFixed(2)} د.أ</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:0.68rem;opacity:0.85;">🔴 السحوبات</div>
+          <div style="font-weight:800;font-size:0.95rem;">${totalWithdrawals.toFixed(2)} د.أ</div>
         </div>
       </div>
     </div>`;
-  const storeOpts=(_opStoresList||[]).filter(s=>!s.archived)
-    .map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
-  const depSel=document.getElementById('rw_store_deposit');
-  if(depSel) depSel.innerHTML=`<option value="">-- اختر متجر --</option>`+storeOpts;
   renderRwTxList();
 }
 
 function renderRwTxList(){
   const wrap=document.getElementById('rw_tx_list');
   if(!wrap) return;
-  const subtypeLabel={store:'دفعة متجر',operator_expense:'مصاريف مشغل',personal:'مصاريف شخصية',salary:'رواتب',other:'أخرى',rep:'طلب مندوب',store_withdrawal:'مسحوب متجر'};
-  const subtypeColor={store:'#dc2626',operator_expense:'#7c3aed',personal:'#ea580c',salary:'#0891b2',other:'#6b7280',store_withdrawal:'#b45309'};
-  // Merge rosemary_transactions + operator_expenses + rep orders from كشف
-  const expenseRows=_rwExpenses.map(e=>({
-    _fromExpenses:true, id:e.id,
-    type:'withdraw', subType:'operator_expense',
-    amount:e.amount, date:e.date,
+  // سطر أرباح المبيعات (ملخّص واحد من الكشف) + المصاريف (تلقائي) + السحوبات اليدوية
+  const rows=[];
+  if(_rwSalesCount>0){
+    rows.push({_auto:true,type:'deposit',label:'أرباح مبيعات الكشف',amount:_rwSalesProfit,date:'',notes:`${_rwSalesCount} مبيعة`});
+  }
+  _rwExpenses.forEach(e=>rows.push({
+    _auto:true,type:'withdraw',label:'مصاريف',amount:e.amount,date:e.date,
     notes:(e.category&&e.category!=='أخرى'?e.category:'')+(e.notes?' — '+e.notes:e.category==='أخرى'&&e.notes?e.notes:'')
   }));
-  const repOrderRows=_rwRepOrders.map(o=>({
-    _fromRepOrder:true, id:o.id,
-    type:'deposit', subType:'rep',
-    amount:Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),
-    date:o.deliveredDate||'',
-    storeName:o.storeName||o.pageId||'',
-    notes:o.deliveryRepName||''
-  }));
-  const storeWdRows=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').map(w=>({
-    _fromStoreWithdrawal:true, id:w.id,
-    type:'withdraw', subType:'store_withdrawal',
-    amount:w.amount||0,
-    date:w.date||'',
-    storeName:w.storeName||'',
-    notes:w.notes||''
-  }));
-  const combined=[..._rwTxList,...expenseRows,...repOrderRows,...storeWdRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  if(!combined.length){
+  _rwTxList.forEach(t=>rows.push({id:t.id,type:'withdraw',label:'سحب — مصاريف مشغل',amount:t.amount,date:t.date,notes:t.notes||''}));
+  if(!rows.length){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد حركات بعد</div>';
     return;
   }
-  wrap.innerHTML=combined.map(t=>{
+  wrap.innerHTML=rows.map(t=>{
     const isD=t.type==='deposit';
-    const label=isD?'إيداع':(t.subType==='other'&&t.customLabel?t.customLabel:subtypeLabel[t.subType]||'سحب');
-    const borderColor=isD?'#16a34a':(subtypeColor[t.subType]||'#dc2626');
-    const storeText=t.storeName?` — ${t.storeName}`:'';
-    const notesText=t.notes?` — ${t.notes}`:'';
-    const deleteBtn=(t._fromExpenses||t._fromRepOrder||t._fromStoreWithdrawal)
+    const deleteBtn=t._auto
       ?`<span style="font-size:0.68rem;color:#9ca3af;">📋 الكشف</span>`
       :`<button onclick="deleteRwTx('${t.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>`;
-    return `<div style="background:var(--card-bg);border:1px solid ${isD?'#86efac':'#fca5a5'};border-right:4px solid ${borderColor};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+    return `<div style="background:var(--card-bg);border:1px solid ${isD?'#86efac':'#fca5a5'};border-right:4px solid ${isD?'#16a34a':'#dc2626'};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <div style="font-weight:700;color:${isD?'#166534':'#991b1b'};font-size:0.9rem;">${isD?'💚':'🔴'} ${label}${storeText} — ${(t.amount||0).toFixed(2)} د.أ</div>
-        <div style="font-size:0.75rem;color:var(--text-mid);">📅 ${t.date||''}${notesText}</div>
+        <div style="font-weight:700;color:${isD?'#166534':'#991b1b'};font-size:0.9rem;">${isD?'💚':'🔴'} ${t.label} — ${(t.amount||0).toFixed(2)} د.أ</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);">${t.date?'📅 '+t.date:''}${t.notes?(t.date?' — ':'')+t.notes:''}</div>
       </div>
       ${deleteBtn}
     </div>`;
   }).join('');
-}
-
-function setRwType(type){
-  _rwTxType=type;
-  const dep=document.getElementById('rw_btn_deposit');
-  const wth=document.getElementById('rw_btn_withdraw');
-  if(dep){dep.style.background=type==='deposit'?'var(--green-dark)':'var(--card-bg)';dep.style.color=type==='deposit'?'#fff':'var(--text-mid)';dep.style.fontWeight=type==='deposit'?'700':'400';}
-  if(wth){wth.style.background=type==='withdraw'?'#dc2626':'var(--card-bg)';wth.style.color=type==='withdraw'?'#fff':'var(--text-mid)';wth.style.fontWeight=type==='withdraw'?'700':'400';}
-  const depRow=document.getElementById('rw_store_row_deposit');
-  const wthOpts=document.getElementById('rw_withdraw_options');
-  if(depRow) depRow.style.display=type==='deposit'?'block':'none';
-  if(wthOpts) wthOpts.style.display=type==='withdraw'?'block':'none';
-  if(type==='withdraw') setRwWithdrawSubtype(_rwWithdrawSubtype);
-}
-
-function setRwWithdrawSubtype(subtype){
-  _rwWithdrawSubtype=subtype;
-  const subtypeColors={operator_expense:'#7c3aed',personal:'#ea580c',salary:'#0891b2',other:'#6b7280'};
-  ['operator_expense','personal','salary','other'].forEach(st=>{
-    const btn=document.getElementById(`rw_sub_${st}`);
-    if(btn){
-      const active=st===subtype;
-      const c=subtypeColors[st]||'#374151';
-      btn.style.background=active?c:'var(--card-bg)';
-      btn.style.color=active?'#fff':'var(--text-mid)';
-      btn.style.border=active?`2px solid ${c}`:'2px solid var(--border)';
-      btn.style.fontWeight=active?'700':'400';
-    }
-  });
-  const otherRow=document.getElementById('rw_other_label_row');
-  if(otherRow) otherRow.style.display=subtype==='other'?'block':'none';
 }
 
 async function addRwTx(){
@@ -14439,32 +14377,16 @@ async function addRwTx(){
   const notes=document.getElementById('rw_notes').value.trim();
   if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   if(!date){toast('⚠️ اختر التاريخ');return;}
+  if(!_opCurrentSession||!_opCurrentSession.id){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const txData={
-    type:_rwTxType,amount,date,notes,
-    sessionId:(_opCurrentSession&&_opCurrentSession.id)||null,
+    type:'withdraw',subType:'operator_expense',amount,date,notes,
+    sessionId:_opCurrentSession.id,
     createdAt:firebase.firestore.FieldValue.serverTimestamp()
   };
-  if(_rwTxType==='deposit'){
-    const sel=document.getElementById('rw_store_deposit');
-    const storeId=sel?sel.value:'';
-    const storeName=sel&&sel.selectedIndex>=0?sel.options[sel.selectedIndex].dataset.name||'':'';
-    if(!storeId){toast('⚠️ اختر المتجر');return;}
-    txData.subType='store';
-    txData.storeId=storeId;
-    txData.storeName=storeName;
-  }else{
-    txData.subType=_rwWithdrawSubtype;
-    if(_rwWithdrawSubtype==='other'){
-      const customLabel=(document.getElementById('rw_other_label')?.value||'').trim();
-      if(!customLabel){toast('⚠️ اكتب اسم البند');return;}
-      txData.customLabel=customLabel;
-    }
-  }
   try{
     await db.collection('rosemary_transactions').add(txData);
     document.getElementById('rw_amount').value='';
     document.getElementById('rw_notes').value='';
-    if(_rwWithdrawSubtype==='other'){const el=document.getElementById('rw_other_label');if(el)el.value='';}
     toast('✅ تم الحفظ');
     loadRosemaryWallet();
   }catch(e){toast('❌ خطأ في الحفظ');}
@@ -14499,7 +14421,6 @@ window.addBalancePurchase=addBalancePurchase; window.deleteBalancePurchase=delet
 window.addMalikPayment=addMalikPayment; window.deleteMalikPayment=deleteMalikPayment;
 window.setStoreBalType=setStoreBalType; window.addStoreTx=addStoreTx; window.deleteStoreTx=deleteStoreTx;
 window.loadRosemaryWallet=loadRosemaryWallet; window.saveRwInitialBalance=saveRwInitialBalance;
-window.setRwType=setRwType; window.setRwWithdrawSubtype=setRwWithdrawSubtype;
 window.addRwTx=addRwTx; window.deleteRwTx=deleteRwTx;
 window.loadAlkiswaniSection=loadAlkiswaniSection;
 window.toggleBalSection=toggleBalSection;
