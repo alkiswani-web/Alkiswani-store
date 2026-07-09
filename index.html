@@ -2686,45 +2686,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
           </div>
 
-          <!-- Add transaction form -->
+          <!-- Add withdrawal form (مصاريف مشغل فقط) -->
           <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fce7f3;">
-            <div style="font-size:0.88rem;font-weight:700;color:#be185d;margin-bottom:12px;">➕ تسجيل حركة جديدة</div>
-
-            <!-- Type toggle: إيداع / سحب -->
-            <div style="display:flex;gap:0;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:12px;">
-              <button id="rw_btn_deposit" onclick="setRwType('deposit')"
-                style="flex:1;padding:10px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💚 إيداع</button>
-              <button id="rw_btn_withdraw" onclick="setRwType('withdraw')"
-                style="flex:1;padding:10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1.5px solid var(--border);">🔴 سحب</button>
-            </div>
-
-            <!-- Deposit: store selector -->
-            <div id="rw_store_row_deposit" class="fg" style="margin-bottom:10px;">
-              <label>🏪 المتجر (مصدر الإيداع)</label>
-              <select id="rw_store_deposit" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-                <option value="">-- اختر متجر --</option>
-              </select>
-            </div>
-
-            <!-- Withdraw: sub-type selector -->
-            <div id="rw_withdraw_options" style="display:none;margin-bottom:10px;">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
-                <button id="rw_sub_operator_expense" onclick="setRwWithdrawSubtype('operator_expense')"
-                  style="padding:9px 6px;border:2px solid #7c3aed;background:#7c3aed;color:#fff;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">🔧 مصاريف مشغل</button>
-                <button id="rw_sub_personal" onclick="setRwWithdrawSubtype('personal')"
-                  style="padding:9px 6px;border:2px solid var(--border);background:var(--card-bg);color:var(--text-mid);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">🏠 مصاريف شخصية</button>
-                <button id="rw_sub_salary" onclick="setRwWithdrawSubtype('salary')"
-                  style="padding:9px 6px;border:2px solid var(--border);background:var(--card-bg);color:var(--text-mid);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">💰 رواتب</button>
-                <button id="rw_sub_other" onclick="setRwWithdrawSubtype('other')"
-                  style="padding:9px 6px;border:2px solid var(--border);background:var(--card-bg);color:var(--text-mid);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:pointer;">📝 أخرى</button>
-              </div>
-              <!-- Custom label — shown only when "أخرى" is selected -->
-              <div id="rw_other_label_row" style="display:none;margin-bottom:10px;">
-                <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">اسم البند</label>
-                <input type="text" id="rw_other_label" placeholder="مثال: إيجار، ديون، تأمين..."
-                  style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;background:var(--card-bg);color:var(--text-dark);box-sizing:border-box;">
-              </div>
-            </div>
+            <div style="font-size:0.88rem;font-weight:700;color:#be185d;margin-bottom:4px;">🔴 تسجيل سحب — مصاريف مشغل</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-bottom:12px;">الأرباح والمصاريف تُضاف وتُخصم تلقائياً من الكشف — هنا تسجّل سحب يدوي فقط</div>
 
             <!-- Amount + Date -->
             <div class="form-row" style="margin-bottom:10px;">
@@ -2747,7 +2712,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
             </div>
 
-            <button onclick="addRwTx()" style="width:100%;padding:12px;background:#be185d;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ الحركة</button>
+            <button onclick="addRwTx()" style="width:100%;padding:12px;background:#be185d;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 تسجيل السحب</button>
           </div>
 
           <!-- Transaction history -->
