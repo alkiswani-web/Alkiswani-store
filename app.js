@@ -2673,15 +2673,10 @@ async function onEmpImageChange(input){
   const toProcess=files.slice(0,remaining);
   if(files.length>remaining)toast(`⚠️ تم إضافة ${remaining} صورة فقط (الحد الأقصى ${MAX})`);
   for(const file of toProcess){
-    await new Promise(res=>{
-      const reader=new FileReader();
-      reader.onload=async e=>{
-        const compressed=await _compressImage(e.target.result);
-        _empCurrentImages.push(compressed);
-        res();
-      };
-      reader.readAsDataURL(file);
-    });
+    try{
+      const compressed=await _fileToCompressedDataUrl(file);
+      _empCurrentImages.push(compressed);
+    }catch(err){toast('⚠️ '+(err.message||'تعذّر معالجة الصورة'));}
   }
   input.value='';
   renderEmpImagePreview();
@@ -3528,19 +3523,11 @@ function _removeEmpEditImg(i){_empEditImages.splice(i,1);_renderEmpEditImgPrevie
 async function onEmpEditImageChange(input){
   const files=Array.from(input.files||[]);
   for(const f of files){
-    await new Promise(res=>{
-      const r=new FileReader();
-      r.onload=async e=>{
-        try{
-          const compressed=await _compressImage(e.target.result);
-          _empEditImages.push(compressed);
-          _renderEmpEditImgPreview();
-        }catch(err){toast('⚠️ تعذّر معالجة الصورة');}
-        res();
-      };
-      r.onerror=()=>{toast('⚠️ تعذّر قراءة الملف');res();};
-      r.readAsDataURL(f);
-    });
+    try{
+      const compressed=await _fileToCompressedDataUrl(f);
+      _empEditImages.push(compressed);
+      _renderEmpEditImgPreview();
+    }catch(err){toast('⚠️ '+(err.message||'تعذّر معالجة الصورة'));}
   }
   input.value='';
 }
@@ -6351,6 +6338,36 @@ async function _compressImagesForDoc(arr){
     dim-=150;
   }
   return arr;
+}
+
+// ضغط صورة مباشرة من الملف (أسرع وأخف من FileReader للصور الضخمة، ويكشف الصيغ غير المدعومة مثل HEIC)
+async function _fileToCompressedDataUrl(file,maxDim=900,quality=0.6){
+  try{
+    const bmp=await createImageBitmap(file);
+    let w=bmp.width,h=bmp.height;
+    if(w>maxDim||h>maxDim){
+      if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}
+      else{w=Math.round(w*maxDim/h);h=maxDim;}
+    }
+    const canvas=document.createElement('canvas');
+    canvas.width=w;canvas.height=h;
+    canvas.getContext('2d').drawImage(bmp,0,0,w,h);
+    if(bmp.close)bmp.close();
+    let q=quality,out=canvas.toDataURL('image/jpeg',q);
+    while(out.length>650000&&q>0.3){q-=0.1;out=canvas.toDataURL('image/jpeg',q);}
+    return out;
+  }catch(e){
+    // فشل فك الترميز — جرّب المسار القديم؛ لو ما نفع فالصيغة غير مدعومة (HEIC مثلاً)
+    const dataUrl=await new Promise((resolve,reject)=>{
+      const r=new FileReader();
+      r.onload=ev=>resolve(ev.target.result);
+      r.onerror=()=>reject(new Error('تعذّر قراءة الملف'));
+      r.readAsDataURL(file);
+    });
+    const out=await _compressImage(dataUrl);
+    if(out&&out.startsWith('data:image/jpeg'))return out;
+    throw new Error('صيغة الصورة غير مدعومة — استخدم JPG أو PNG (غيّر إعداد الكاميرا من HEIC)');
+  }
 }
 
 // رفع الصور لـ Firebase Storage وإرجاع روابط بدل base64 — الطلب يصير خفيف جداً
