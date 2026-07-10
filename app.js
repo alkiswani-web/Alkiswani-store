@@ -2792,6 +2792,7 @@ function loadEmpTodayOrders(){
     .onSnapshot(snap=>{
       const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
         .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+      window._empMyOrdersCache=orders; // للتعبئة الفورية بنافذة التعديل
       if(!orders.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div>';return;}
       wrap.innerHTML=orders.map(o=>{
         const st=_empSt(o.status);
@@ -3510,15 +3511,30 @@ function openEmpOrderEdit(orderId){
   _empEditImages=[];
   const modal=document.getElementById('empOrderEditModal');
   modal.style.display='flex';
-  // تعبئة فورية من الذاكرة (قوائم الطلبات المحمّلة) — بدون انتظار النت، فما تظهر نافذة فاضية
-  const cached=(typeof _empOrdersAllData!=='undefined'?(_empOrdersAllData||[]):[]).find(x=>x.id===orderId)
+  // تعبئة فورية من الذاكرة (قائمة الموظف + قوائم الأدمن) — بدون انتظار النت، فما تظهر نافذة فاضية
+  const cached=(window._empMyOrdersCache||[]).find(x=>x.id===orderId)
+    ||(typeof _empOrdersAllData!=='undefined'?(_empOrdersAllData||[]):[]).find(x=>x.id===orderId)
     ||(typeof _opOrdersAllData!=='undefined'?(_opOrdersAllData||[]):[]).find(x=>x.id===orderId);
   if(cached){_fillEmpEditForm(cached);return;}
-  // مش بالذاكرة — جيبه من قاعدة البيانات
-  db.collection('employee_orders').doc(orderId).get().then(snap=>{
-    if(!snap.exists){toast('❌ الطلب غير موجود');closeEmpOrderEdit();return;}
-    _fillEmpEditForm(snap.data());
-  }).catch(e=>{toast('❌ '+e.message);closeEmpOrderEdit();});
+  // مش بالذاكرة — جيبه من قاعدة البيانات (السيرفر ثم كاش الجهاز)، مع زر إعادة محاولة بدل نافذة فاضية
+  const _fetchAndFill=()=>{
+    db.collection('employee_orders').doc(orderId).get()
+      .catch(()=>db.collection('employee_orders').doc(orderId).get({source:'cache'}))
+      .then(snap=>{
+        if(!snap||!snap.exists){toast('❌ الطلب غير موجود');closeEmpOrderEdit();return;}
+        _fillEmpEditForm(snap.data());
+      })
+      .catch(e=>{
+        toast('⚠️ تعذّر تحميل الطلب — '+(e.message||''));
+        const ph=document.getElementById('empEdit_phone');
+        if(ph&&!ph.value){
+          // ما في بيانات: أعرض زر إعادة محاولة داخل النافذة بدل تركها فاضية
+          const wrap=document.getElementById('empEdit_img_preview');
+          if(wrap)wrap.innerHTML=`<button onclick="openEmpOrderEdit('${orderId}')" style="width:100%;padding:12px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-weight:800;cursor:pointer;">🔄 إعادة تحميل بيانات الطلب</button>`;
+        }
+      });
+  };
+  _fetchAndFill();
 }
 function _renderEmpEditImgPreview(){
   const wrap=document.getElementById('empEdit_img_preview');
