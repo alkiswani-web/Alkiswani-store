@@ -3447,6 +3447,62 @@ async function _openRepPickerFromDetail(orderId){
   await _showRepPickerInModal(orderId);
 }
 
+function _fillEmpEditForm(o){
+  _empEditCart=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]).map(p=>({...p}));
+  _empEditDeliveryFee=o.deliveryFee??2;
+  // Show/hide delivery fee section based on admin status
+  const editDlvSec=document.getElementById('empEditDeliverySection');
+  if(editDlvSec)editDlvSec.style.display=_currentAdminUser?'block':'none';
+  _empEditImages=o.imageDataUrls?[...o.imageDataUrls]:(o.imageDataUrl?[o.imageDataUrl]:[]);
+  document.getElementById('empEdit_phone').value=o.customerPhone||'';
+  document.getElementById('empEdit_address').value=o.address||'';
+  document.getElementById('empEdit_notes').value=o.notes||'';
+  const areaEl=document.getElementById('empEdit_area');if(areaEl)areaEl.value=o.area||'';
+  const pageEl=document.getElementById('empEdit_page');
+  if(pageEl){
+    db.collection('employee_pages').orderBy('name').get().then(ps=>{
+      const pages=ps.docs.map(d=>({id:d.id,...d.data()}));
+      pageEl.innerHTML='<option value="">— اختار الصفحة —</option>'+pages.map(p=>`<option value="${p.id}" data-name="${p.name}"${(o.pageId===p.id||o.pageName===p.name)?' selected':''}>${p.name}</option>`).join('');
+      if(!pageEl.value&&o.pageName){const opt=document.createElement('option');opt.value='';opt.textContent=o.pageName;opt.selected=true;pageEl.prepend(opt);}
+    }).catch(()=>{});
+  }
+  // Populate add-product dropdown with operator products (not website products)
+  const addProdSel=document.getElementById('empEditAddProd');
+  if(addProdSel){
+    const _populateEditProdSel=()=>{
+      const storeId=o.storeId||'';
+      addProdSel.innerHTML='<option value="">اختر منتج...</option>'+(_empSharedProducts||[]).map(p=>{
+        const price=storeId&&p.storePrices&&p.storePrices[storeId]?p.storePrices[storeId]:(p.sellPrice||p.price||p.defaultSellPrice||0);
+        return `<option value="${p.id}" data-price="${price}">${p.name}</option>`;
+      }).join('');
+    };
+    if(_empSharedProducts){
+      _populateEditProdSel();
+    } else {
+      addProdSel.innerHTML='<option value="">جاري التحميل...</option>';
+      db.collection('operator_products').get()
+        .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);_populateEditProdSel();})
+        .catch(()=>{addProdSel.innerHTML='<option value="">اختر منتج...</option>';});
+    }
+  }
+  const urgEl=document.getElementById('empEdit_urgent');
+  if(urgEl) urgEl.checked=!!o.urgent;
+  const totalEl=document.getElementById('empEditTotalInput');
+  if(totalEl)totalEl.value=(o.totalPrice!=null?o.totalPrice-(_empEditDeliveryFee||0):_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0)).toFixed(2);
+  try{
+    const dlv=_empEditDeliveryFee;
+    const btns=document.querySelectorAll('#empEditDeliveryBtns button');
+    btns.forEach(b=>{b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';});
+    const customEl=document.getElementById('empEdit_delivery_custom');
+    if(dlv===0&&btns[0]){btns[0].style.background='#1a3a2a';btns[0].style.color='#fff';btns[0].style.borderColor='#1a3a2a';customEl.style.display='none';}
+    else if(dlv===2&&btns[1]){btns[1].style.background='#1a3a2a';btns[1].style.color='#fff';btns[1].style.borderColor='#1a3a2a';customEl.style.display='none';}
+    else if(dlv===3&&btns[2]){btns[2].style.background='#1a3a2a';btns[2].style.color='#fff';btns[2].style.borderColor='#1a3a2a';customEl.style.display='none';}
+    else if(dlv>0&&btns[3]){btns[3].style.background='#1a3a2a';btns[3].style.color='#fff';btns[3].style.borderColor='#1a3a2a';customEl.style.display='block';customEl.value=dlv;}
+  }catch(e){}
+  _renderEmpEditImgPreview();
+  renderEmpEditCart();
+}
+
 function openEmpOrderEdit(orderId){
   _empEditOrderId=orderId;
   _empEditCart=[];
@@ -3454,60 +3510,14 @@ function openEmpOrderEdit(orderId){
   _empEditImages=[];
   const modal=document.getElementById('empOrderEditModal');
   modal.style.display='flex';
+  // تعبئة فورية من الذاكرة (قوائم الطلبات المحمّلة) — بدون انتظار النت، فما تظهر نافذة فاضية
+  const cached=(typeof _empOrdersAllData!=='undefined'?(_empOrdersAllData||[]):[]).find(x=>x.id===orderId)
+    ||(typeof _opOrdersAllData!=='undefined'?(_opOrdersAllData||[]):[]).find(x=>x.id===orderId);
+  if(cached){_fillEmpEditForm(cached);return;}
+  // مش بالذاكرة — جيبه من قاعدة البيانات
   db.collection('employee_orders').doc(orderId).get().then(snap=>{
     if(!snap.exists){toast('❌ الطلب غير موجود');closeEmpOrderEdit();return;}
-    const o=snap.data();
-    _empEditCart=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]).map(p=>({...p}));
-    _empEditDeliveryFee=o.deliveryFee??2;
-    // Show/hide delivery fee section based on admin status
-    const editDlvSec=document.getElementById('empEditDeliverySection');
-    if(editDlvSec)editDlvSec.style.display=_currentAdminUser?'block':'none';
-    _empEditImages=o.imageDataUrls?[...o.imageDataUrls]:(o.imageDataUrl?[o.imageDataUrl]:[]);
-    document.getElementById('empEdit_phone').value=o.customerPhone||'';
-    document.getElementById('empEdit_address').value=o.address||'';
-    document.getElementById('empEdit_notes').value=o.notes||'';
-    const areaEl=document.getElementById('empEdit_area');if(areaEl)areaEl.value=o.area||'';
-    const pageEl=document.getElementById('empEdit_page');
-    if(pageEl){
-      db.collection('employee_pages').orderBy('name').get().then(ps=>{
-        const pages=ps.docs.map(d=>({id:d.id,...d.data()}));
-        pageEl.innerHTML='<option value="">— اختار الصفحة —</option>'+pages.map(p=>`<option value="${p.id}" data-name="${p.name}"${(o.pageId===p.id||o.pageName===p.name)?' selected':''}>${p.name}</option>`).join('');
-        if(!pageEl.value&&o.pageName){const opt=document.createElement('option');opt.value='';opt.textContent=o.pageName;opt.selected=true;pageEl.prepend(opt);}
-      }).catch(()=>{});
-    }
-    // Populate add-product dropdown with operator products (not website products)
-    const addProdSel=document.getElementById('empEditAddProd');
-    if(addProdSel){
-      const _populateEditProdSel=()=>{
-        const storeId=o.storeId||'';
-        addProdSel.innerHTML='<option value="">اختر منتج...</option>'+(_empSharedProducts||[]).map(p=>{
-          const price=storeId&&p.storePrices&&p.storePrices[storeId]?p.storePrices[storeId]:(p.sellPrice||p.price||p.defaultSellPrice||0);
-          return `<option value="${p.id}" data-price="${price}">${p.name}</option>`;
-        }).join('');
-      };
-      if(_empSharedProducts){
-        _populateEditProdSel();
-      } else {
-        addProdSel.innerHTML='<option value="">جاري التحميل...</option>';
-        db.collection('operator_products').get()
-          .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);_populateEditProdSel();})
-          .catch(()=>{addProdSel.innerHTML='<option value="">اختر منتج...</option>';});
-      }
-    }
-    const urgEl=document.getElementById('empEdit_urgent');
-    if(urgEl) urgEl.checked=!!o.urgent;
-    const totalEl=document.getElementById('empEditTotalInput');
-    if(totalEl)totalEl.value=(o.totalPrice!=null?o.totalPrice-(_empEditDeliveryFee||0):_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0)).toFixed(2);
-    const dlv=_empEditDeliveryFee;
-    const btns=document.querySelectorAll('#empEditDeliveryBtns button');
-    btns.forEach(b=>{b.style.background='#fff';b.style.color='#374151';b.style.borderColor='#e5e7eb';});
-    const customEl=document.getElementById('empEdit_delivery_custom');
-    if(dlv===0){btns[0].style.background='#1a3a2a';btns[0].style.color='#fff';btns[0].style.borderColor='#1a3a2a';customEl.style.display='none';}
-    else if(dlv===2){btns[1].style.background='#1a3a2a';btns[1].style.color='#fff';btns[1].style.borderColor='#1a3a2a';customEl.style.display='none';}
-    else if(dlv===3){btns[2].style.background='#1a3a2a';btns[2].style.color='#fff';btns[2].style.borderColor='#1a3a2a';customEl.style.display='none';}
-    else if(dlv>0){btns[3].style.background='#1a3a2a';btns[3].style.color='#fff';btns[3].style.borderColor='#1a3a2a';customEl.style.display='block';customEl.value=dlv;}
-    _renderEmpEditImgPreview();
-    renderEmpEditCart();
+    _fillEmpEditForm(snap.data());
   }).catch(e=>{toast('❌ '+e.message);closeEmpOrderEdit();});
 }
 function _renderEmpEditImgPreview(){
