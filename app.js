@@ -9356,11 +9356,51 @@ async function saveOperatorWithdrawalFixed(){
 }
 
 async function closeOperatorDay(){await closeOperatorSession();}
+// ترحيل رصيد روزميري عند إغلاق الكشف: الحساب النهائي (أولي + أرباح − مصاريف − سحوبات) يصير الرصيد الأولي الجديد
+async function _rwCarryOverOnClose(session,toDate){
+  try{
+    const sid=session.id;
+    const from=session.openedDate||toDate;
+    let initial=0;
+    try{
+      const st=await db.collection('rosemary_wallet').doc('settings').get();
+      initial=(st.exists?st.data().initialBalance:0)||0;
+    }catch(e){}
+    // أرباح مبيعات الكشف
+    let profit=0;
+    const sSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',toDate).get();
+    sSnap.docs.forEach(d=>{
+      const s=d.data();
+      if(s.delivered===false)return;
+      if(s.sessionId&&s.sessionId!==sid)return;
+      const cost=(s.rawMaterialCost||0)+(s.treeCost||0)+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0);
+      profit+=((s.sellPrice||0)-cost)*(s.qty||1);
+    });
+    // مصاريف الكشف
+    let expenses=0;
+    const eSnap=await db.collection('operator_expenses').where('sessionId','==',sid).get();
+    eSnap.docs.forEach(d=>{expenses+=(d.data().amount||0);});
+    // سحوبات روزميري اليدوية للكشف
+    let withdrawals=0;
+    const wSnap=await db.collection('rosemary_transactions').where('sessionId','==',sid).get();
+    wSnap.docs.forEach(d=>{const t=d.data();if(t.type==='withdraw')withdrawals+=(t.amount||0);});
+    const newInitial=Math.round((initial+profit-expenses-withdrawals)*100)/100;
+    await db.collection('rosemary_wallet').doc('settings').set({
+      initialBalance:newInitial,
+      lastCarryOver:{sessionId:sid,from,to:toDate,prevInitial:initial,profit,expenses,withdrawals,at:new Date().toISOString()},
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    toast(`🌿 تم ترحيل رصيد روزميري: ${newInitial.toFixed(2)} د.أ`);
+  }catch(e){toast('⚠️ تعذّر ترحيل رصيد روزميري: '+e.message);}
+}
+
 async function closeOperatorSession(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const today=jordanDateStr();
   if(!confirm(`إغلاق الكشف؟\nالفترة: من ${_fmtDate(_opCurrentSession.openedDate)} إلى ${_fmtDate(today)}`)) return;
   try{
+    // ترحيل رصيد روزميري قبل الإغلاق (الحساب النهائي → رصيد أولي جديد)
+    await _rwCarryOverOnClose(_opCurrentSession,today);
     await db.collection('operator_sessions').doc(_opCurrentSession.id).update({
       status:'closed',closedDate:today,closedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
