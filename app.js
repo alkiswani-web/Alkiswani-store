@@ -8901,14 +8901,18 @@ function renderOperatorDailyView(){
     const ungroupedCards=ungroupedStores.map(s=>_storeCard(s,false,false)).join('');
 
     // إجمالي التحصيل: قيمة الطلبات للزبون − أجور التوصيل = صافي الكاش اللي لازم يرجع للمحل
-    const _collCustomer=_opDayOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
-    const _collDelivery=_opDayOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
-    const _collNet=_opDayOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
+    // نستثني المناديب المستبعدين (شركات التوصيل الخارجية) — إنت ما بتستلم كاش منهم
+    const _collOrders=_opDayOrders.filter(o=>!(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName)));
+    const _collExcludedCount=_opDayOrders.length-_collOrders.length;
+    const _collCustomer=_collOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
+    const _collDelivery=_collOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
+    const _collNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
     body.innerHTML+=`
       <div style="margin-top:16px;">
         <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
           <div style="font-size:0.8rem;opacity:0.9;margin-bottom:4px;">💰 التحصيل المتوقع — كم كاش لازم يرجعلك</div>
           <div style="font-size:1.7rem;font-weight:900;margin-bottom:8px;">${_collNet.toFixed(2)} <span style="font-size:0.85rem;">د.أ</span></div>
+          ${_collExcludedCount>0?`<div style="font-size:0.68rem;opacity:0.8;margin-bottom:8px;">🚫 مستثنى ${_collExcludedCount} طلب لمناديب مستبعدين (شركات توصيل)</div>`:''}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
               <div style="font-size:0.66rem;opacity:0.85;">🧾 قيمة الطلبات للزبون</div>
