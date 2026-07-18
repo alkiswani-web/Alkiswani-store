@@ -8900,12 +8900,27 @@ function renderOperatorDailyView(){
 
     const ungroupedCards=ungroupedStores.map(s=>_storeCard(s,false,false)).join('');
 
+    // إجمالي التحصيل: قيمة الطلبات للزبون − أجور التوصيل = صافي الكاش اللي لازم يرجع للمحل
+    const _collCustomer=_opDayOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
+    const _collDelivery=_opDayOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
+    const _collNet=_opDayOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
     body.innerHTML+=`
       <div style="margin-top:16px;">
-        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-          <span>📦 طلبات التوصيل المُسلَّمة (${_opDayOrders.length})</span>
-          <span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:0.78rem;">${_opDayOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0).toFixed(2)} د.أ</span>
+        <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
+          <div style="font-size:0.8rem;opacity:0.9;margin-bottom:4px;">💰 التحصيل المتوقع — كم كاش لازم يرجعلك</div>
+          <div style="font-size:1.7rem;font-weight:900;margin-bottom:8px;">${_collNet.toFixed(2)} <span style="font-size:0.85rem;">د.أ</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.66rem;opacity:0.85;">🧾 قيمة الطلبات للزبون</div>
+              <div style="font-weight:800;font-size:0.92rem;">${_collCustomer.toFixed(2)} د.أ</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.66rem;opacity:0.85;">🚚 أجور التوصيل (تُخصم)</div>
+              <div style="font-weight:800;font-size:0.92rem;">${_collDelivery.toFixed(2)} د.أ</div>
+            </div>
+          </div>
         </div>
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">📦 طلبات التوصيل المُسلَّمة (${_opDayOrders.length})</div>
         ${groupCards}${ungroupedCards}
       </div>`;
     // orphan withdrawals (for stores not in orders) — split by type
