@@ -7111,13 +7111,45 @@ async function unarchiveOpStore(id){
 }
 
 async function deleteOpStore(id){
-  if(!confirm('حذف نهائي؟ هذا الإجراء لا يمكن التراجع عنه.')) return;
+  if(!confirm('حذف نهائي؟\n⚠️ ملاحظة: مبيعات ودفعات المتجر ستبقى محفوظة، والحذف قد يخربط حساب المجموعة. يُفضّل الأرشفة بدل الحذف.\nمتابعة الحذف؟')) return;
   try{
     await db.collection('operator_stores').doc(id).delete();
     toast('✅ تم الحذف');
     loadOpStores();
   }catch(e){toast('❌ خطأ في الحذف');}
 }
+
+// استرجاع المتاجر المحذوفة التي لها مبيعات/دفعات — تُعاد بمعرّفاتها الأصلية (مؤرشفة) فترجع لحساباتها ومجموعاتها
+async function recoverDeletedStores(btn){
+  if(!confirm('استرجاع المتاجر المحذوفة التي لها سجلات (مبيعات/دفعات)؟\nستُعاد كمتاجر مؤرشفة بأسمائها الأصلية — بعدها عيّن مجموعتها (مثل مدينة الخشب) من قائمة المتاجر.')) return;
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الاسترجاع...';}
+  try{
+    const [sSnap,pSnap,storesSnap]=await Promise.all([
+      db.collection('operator_sales').get(),
+      db.collection('operator_store_payments').get(),
+      db.collection('operator_stores').get()
+    ]);
+    const existing=new Set(storesSnap.docs.map(d=>d.id));
+    const orphan={};
+    const _add=(id,name)=>{
+      if(!id||typeof id!=='string'||id.indexOf('__grp__')===0) return;
+      if(existing.has(id)) return;
+      if(!orphan[id]) orphan[id]=name||'متجر مُستعاد';
+    };
+    sSnap.docs.forEach(d=>{const x=d.data();_add(x.storeId,x.storeName);});
+    pSnap.docs.forEach(d=>{const x=d.data();_add(x.storeId,x.storeName);});
+    const ids=Object.keys(orphan);
+    if(!ids.length){toast('لا يوجد متاجر محذوفة لها سجلات');return;}
+    const batch=db.batch();
+    ids.forEach(id=>{batch.set(db.collection('operator_stores').doc(id),{name:orphan[id],archived:true,recovered:true},{merge:true});});
+    await batch.commit();
+    toast(`✅ تم استرجاع ${ids.length} متجر — عيّن مجموعتها من قائمة المتاجر`);
+    _opAllStoresList=[];_opStoresList=[];
+    loadOpStores();
+  }catch(e){toast('❌ '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent='🔧 استرجاع المتاجر المحذوفة';}}
+}
+window.recoverDeletedStores=recoverDeletedStores;
 
 async function promptLinkStore(storeId){
   const form=document.getElementById(`link_form_${storeId}`);

@@ -2471,6 +2471,11 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </select>
             <button onclick="addOpStore()" style="width:100%;padding:10px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;">+ إضافة</button>
           </div>
+          <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-size:0.82rem;font-weight:700;color:#1e40af;margin-bottom:4px;">🔧 استرجاع المتاجر المحذوفة</div>
+            <div style="font-size:0.74rem;color:#1e3a8a;margin-bottom:8px;">إذا حذفت متجراً له مبيعات/دفعات وتخربط حساب المجموعة — هذا الزر يعيده مؤرشفاً بمعرّفه الأصلي، ثم عيّن مجموعته من القائمة تحت.</div>
+            <button onclick="recoverDeletedStores(this)" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;">🔧 استرجاع المتاجر المحذوفة</button>
+          </div>
           <div id="opstore_list"></div>
         </div>
 
