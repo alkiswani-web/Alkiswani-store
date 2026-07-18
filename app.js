@@ -3367,6 +3367,7 @@ function _showOpOrderDetail(o){
           :`<div style="font-size:0.82rem;color:#bbb;">لم يُعيَّن مندوب بعد</div>`}
       </div>`:''}
       ${o.cancelReason?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #fecaca;border-right:3px solid #dc2626;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">سبب الإلغاء</div><div style="font-size:0.85rem;font-weight:700;color:#dc2626;">${o.cancelReason}</div></div>`:''}
+      ${o.returnReason?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #e5e7eb;border-right:3px solid #6b7280;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">سبب الإرجاع</div><div style="font-size:0.85rem;font-weight:700;color:#374151;">${o.returnReason}</div></div>`:''}
       ${o.holdReason?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">سبب التعليق</div><div style="font-size:0.85rem;font-weight:700;color:#555;">${o.holdReason}</div></div>`:''}
       ${o.internalNote?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;border-right:3px solid #111;"><div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:4px;letter-spacing:1px;">ملاحظة داخلية</div><div style="font-size:0.85rem;color:#555;">${o.internalNote}</div></div>`:''}
       ${o.workerName?`<div style="font-size:0.78rem;color:#999;padding:2px 2px;">الموظف: <b style="color:#555;">${o.workerName}</b></div>`:''}
@@ -3382,8 +3383,9 @@ function _showOpOrderDetail(o){
         ${_dIconBtn('🏷️',`printOrderQR('${o.id}')`)}
         ${isOperator?_dIconBtn('📱',`closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')`):''}
       </div>
-      ${!isClosed?`<div style="display:flex;gap:8px;">
+      ${!isClosed?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${o.status!=='waiting_rep'&&o.status!=='delivering'&&o.status!=='queued'?_dBtn('إرسال لمندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${o.status==='delivering'?_dBtn('↩️ إرجاع الطلب',`_returnOpOrderFromDetail('${o.id}')`,'plain'):''}
         ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -3419,14 +3421,17 @@ async function _cancelOpOrderFromDetail(id){
     const data=snap.data();
     const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
     const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('cancelled').label}`};
-    await docRef.update({status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const upd={status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    // إذا كان الطلب دخل الكشف (قيد التوصيل) — نشيل تاريخه ونزيل المبيعة من حساب المتجر
+    if(data.status==='delivering') upd.deliveredDate=firebase.firestore.FieldValue.delete();
+    await docRef.update(upd);
+    if(data.status==='delivering') await unsyncOrderFromAccounting(id);
     toast('🚫 تم إلغاء الطلب');
-    // no accounting effect for simple cancel
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 
 async function _returnOpOrderFromDetail(id){
-  if(!confirm('↩️ إلغاء مع إرجاع الطلب\n\nسيتم إلغاء الطلب وإرجاع تكلفة الإنتاج للمتجر في الكشف الحالي.\nهل أنت متأكد؟'))return;
   closeOpOrderDetail();
   closeOpCardMenu();
   try{
@@ -3434,17 +3439,29 @@ async function _returnOpOrderFromDetail(id){
     const snap=await docRef.get();
     if(!snap.exists){toast('❌ الطلب غير موجود');return;}
     const data=snap.data();
-    if(data.status!=='delivered'){toast('⚠️ الطلب غير مُسلَّم');return;}
+    const isDelivering=data.status==='delivering';
+    if(data.status!=='delivered'&&!isDelivering){toast('⚠️ الطلب غير مُسلَّم أو قيد التوصيل');return;}
+    const reason=prompt('سبب الإرجاع:');
+    if(reason===null)return;
     const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
-    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt('delivered').label} ← ${_empSt('returned').label} (إرجاع)`};
-    await docRef.update({
-      status:'returned',
+    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('returned').label} (إرجاع)`};
+    const upd={
+      status:'returned',returnReason:reason||'',
       editHistory:[...(data.editHistory||[]),editEntry],
       needsReview:firebase.firestore.FieldValue.delete(),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    toast('↩️ تم الإرجاع — سيُضاف قيد للمتجر في الكشف الحالي');
-    await _handleDeliveredCancel(id,data,'returned');
+    };
+    if(isDelivering) upd.deliveredDate=firebase.firestore.FieldValue.delete();
+    await docRef.update(upd);
+    if(isDelivering){
+      // قيد التوصيل: نشيل المبيعة نهائياً (ما دخلت البضاعة أصلاً) — ما يتسجّل تكلفة على المتجر
+      await unsyncOrderFromAccounting(id);
+      toast('↩️ تم الإرجاع — تمت إزالة الطلب من حساب المتجر');
+    }else{
+      // مُسلَّم: قيد إرجاع للتكلفة كما قبل
+      toast('↩️ تم الإرجاع — سيُضاف قيد للمتجر في الكشف الحالي');
+      await _handleDeliveredCancel(id,data,'returned');
+    }
     if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
@@ -4336,10 +4353,11 @@ async function updateEmpOrderStatus(id,newStatus){
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(prevStatus).label} ← ${_empSt(newStatus).label}`};
     const editHistory=[...(data.editHistory||[]),editEntry];
     const extraFields={};
-    if(newStatus==='delivered') extraFields.deliveredDate=jordanDateStr();
-    if(!['delivered','onhold'].includes(newStatus)&&prevStatus==='delivered')
+    // الطلب يدخل الكشف من "قيد التوصيل" — نسجّل تاريخ دخوله (deliveredDate) عند delivering أو delivered
+    if((newStatus==='delivered'||newStatus==='delivering')&&!data.deliveredDate) extraFields.deliveredDate=jordanDateStr();
+    if(!['delivered','delivering','onhold'].includes(newStatus)&&(prevStatus==='delivered'||prevStatus==='delivering'))
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus!=='delivered')
+    if(['cancelled','returned','refused'].includes(newStatus))
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
     // Clear rep assignment when moving back to waiting_rep
     const _deleteFields=[];
@@ -4363,7 +4381,12 @@ async function updateEmpOrderStatus(id,newStatus){
     _patchLocal(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
     _patchLocal(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
     sendPushNotification('تحديث طلب 📋','طلب '+(data.orderNum||('#'+id.slice(-6)))+' ← '+_empSt(newStatus).label,{tag:'status-update',orderId:id});
-    if(newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
+    // المحاسبة تدخل من "قيد التوصيل" (وكذلك المُسلَّم) — syncOrderToAccounting يتخطى المكرر تلقائياً
+    if(newStatus==='delivering'||newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
+    // إلغاء/إرجاع طلب "قيد التوصيل" → إزالة المبيعة من حساب المتجر (ما يتسجّل عليه تكلفة)
+    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivering'){
+      unsyncOrderFromAccounting(id);
+    }
     // Only 'returned' and 'refused' trigger accounting refund — 'cancelled' is a no-op
     if(['returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
       _handleDeliveredCancel(id,data,newStatus);
@@ -8459,7 +8482,7 @@ async function _loadOpSessionData(){
       const snap=await db.collection('employee_orders')
         .where('deliveredDate','>=',ordersFrom).where('deliveredDate','<=',to).get();
       const withDate=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .filter(o=>o.status==='delivered'&&_orderBelongsToSession(o));
+        .filter(o=>(o.status==='delivered'||o.status==='delivering')&&_orderBelongsToSession(o));
       const fromTs=firebase.firestore.Timestamp.fromDate(new Date(ordersFrom+'T00:00:00'));
       const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
       let noDate=[];
@@ -8483,7 +8506,7 @@ async function _loadOpSessionData(){
     .where('deliveredDate','<=',to)
     .onSnapshot(async snap=>{
       const withDate=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .filter(o=>o.status==='delivered'&&_orderBelongsToSession(o));
+        .filter(o=>(o.status==='delivered'||o.status==='delivering')&&_orderBelongsToSession(o));
       const noDateOrders=_opDayOrders.filter(o=>!o.deliveredDate);
       const map={};
       [...withDate,...noDateOrders].forEach(o=>map[o.id]=o);
@@ -8956,7 +8979,7 @@ function renderOperatorDailyView(){
             </div>
           </div>
         </div>
-        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">📦 طلبات التوصيل المُسلَّمة (${_opDayOrders.length})</div>
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">📦 طلبات التوصيل (قيد التوصيل + مُسلَّمة) (${_opDayOrders.length})</div>
         ${groupCards}${ungroupedCards}
       </div>`;
     // orphan withdrawals (for stores not in orders) — split by type
