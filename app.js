@@ -215,11 +215,23 @@ let _adminUsersList=[];
 
 // ===== FIREBASE FUNCTIONS =====
 async function loadProducts(){
-  const snap=await db.collection('products').get();
-  products=snap.docs.map(d=>({...d.data(), _docId:d.id}));
-  renderStore();
-  renderMostOrdered();
-  updateHeroStats();
+  const _apply=s=>{products=s.docs.map(d=>({...d.data(),_docId:d.id}));renderStore();renderMostOrdered();updateHeroStats();};
+  let snap=null;
+  try{
+    // السيرفر بمهلة 4 ثوانٍ — لو بطّأ نعرض من كاش الجهاز فوراً والتحديث يكمل بالخلفية
+    snap=await Promise.race([
+      db.collection('products').get(),
+      new Promise(res=>setTimeout(()=>res(null),4000))
+    ]);
+    if(!snap){
+      try{const c=await db.collection('products').get({source:'cache'});if(c&&c.docs.length)snap=c;}catch(e){}
+      db.collection('products').get().then(_apply).catch(()=>{});
+    }
+  }catch(e){
+    try{const c=await db.collection('products').get({source:'cache'});if(c&&c.docs.length)snap=c;}catch(e2){}
+  }
+  if(!snap){setTimeout(loadProducts,5000);return;} // لا سيرفر ولا كاش — إعادة محاولة تلقائية
+  _apply(snap);
 }
 
 async function updateHeroStats(){
