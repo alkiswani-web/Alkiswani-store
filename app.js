@@ -1149,6 +1149,7 @@ let _ewWorker=null;
 let _ewStores=[];
 let _ewRate=0;
 let _ewMonth='';
+let _ewAllWorkers=[];
 
 function _ewShow(n){['ewScreen1','ewScreen2','ewScreen3'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.style.display=i+1===n?'block':'none';});}
 
@@ -1230,12 +1231,16 @@ async function ewOpenStore(storeId){
       db.collection('emp_wage_rates').get()
     ]);
     const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
+    _ewAllWorkers=workers;
     const orders=ordersSnap.docs.map(d=>d.data()).filter(o=>o.status==='delivered');
     const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
     const ratesMap={};
     ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
-    const workerIds=[...new Set(orders.map(o=>o.workerId).filter(Boolean))];
-    if(!workerIds.length){list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد موظفين لهذا المتجر</div>';return;}
+    // الموظفون الظاهرون: يلي عندهم طلبات مسلّمة + يلي محدد إلهم أجر يدوي لهذا المتجر (حتى لو ما عندهم طلبات بعد)
+    const withRate=Object.keys(ratesMap).filter(wid=>parseFloat(ratesMap[wid]?.[storeId]||0)>0);
+    const workerIds=[...new Set([...orders.map(o=>o.workerId).filter(Boolean),...withRate])];
+    const addBtn=`<button onclick="ewShowAddWorkerPicker()" style="background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:14px;padding:13px 16px;cursor:pointer;color:#1d4ed8;font-family:'Tajawal',sans-serif;font-weight:800;font-size:0.85rem;width:100%;">➕ أضف موظف لهذا المتجر</button>`;
+    if(!workerIds.length){list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px 10px 14px;">لا يوجد موظفين لهذا المتجر بعد — أضف موظف وحدد له أجر الطلب.</div>'+addBtn;return;}
     list.innerHTML=workerIds.map(wid=>{
       const w=workers.find(x=>x.id===wid)||{id:wid,name:wid};
       const rate=parseFloat(ratesMap[wid]?.[storeId]||0);
@@ -1255,8 +1260,29 @@ async function ewOpenStore(storeId){
           <div style="font-weight:800;color:${balColor};font-size:0.85rem;">${balLabel}</div>
         </div>
       </div>`;
-    }).join('');
+    }).join('')+addBtn;
   }catch(e){list.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';}
+}
+
+// اختيار موظف موجود (من تبويب الموظفين) لإضافته لهذا المتجر وتحديد أجر الطلب له
+function ewShowAddWorkerPicker(){
+  if(!_ewStore)return;
+  const list=document.getElementById('ewEmpList');
+  if(!list)return;
+  if(!_ewAllWorkers.length){
+    list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد موظفين في النظام — أضفهم أولاً من تبويب «الموظفون».</div>'+
+      `<button onclick="ewOpenStore('${_ewStore.id}')" style="background:#f3f4f6;border:none;border-radius:12px;padding:11px;cursor:pointer;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.82rem;width:100%;margin-top:8px;">← رجوع</button>`;
+    return;
+  }
+  const rows=_ewAllWorkers.map(w=>{
+    const name=(w.name||w.username||w.id).replace(/'/g,'&#39;');
+    return `<div onclick="ewOpenEmployee('${w.id}','${name}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-weight:800;color:#111;font-size:0.9rem;">👤 ${w.name||w.username||w.id}</div>
+      <span style="color:#1d4ed8;font-size:0.8rem;font-weight:700;">تحديد الأجر ←</span>
+    </div>`;
+  }).join('');
+  list.innerHTML=`<div style="font-size:0.8rem;color:#6b7280;padding:2px 4px 10px;">اختر الموظف ثم حدّد له «أجر الطلب» واحفظ:</div>`+rows+
+    `<button onclick="ewOpenStore('${_ewStore.id}')" style="background:#f3f4f6;border:none;border-radius:12px;padding:11px;cursor:pointer;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.82rem;width:100%;margin-top:8px;">← رجوع</button>`;
 }
 
 async function ewOpenEmployee(workerId,workerName){
