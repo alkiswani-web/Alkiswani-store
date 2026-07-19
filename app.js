@@ -279,7 +279,7 @@ function renderMostOrdered(){
     <div onclick="openProductPage('${p._docId||p.id}')" style="background:#fff;border-radius:16px;overflow:hidden;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #e5e7eb;transition:transform 0.2s;">
       <div style="height:150px;background:#f3f4f6;overflow:hidden;position:relative;">
         ${p.images?.[0]||p.img
-          ?`<img loading="lazy" decoding="async" src="${p.images?.[0]||p.img}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">`
+          ?`<img loading="lazy" decoding="async" src="${p.images?.[0]||p.img}" onerror="this.onerror=null;this.outerHTML='<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;background:#f3f4f6;&quot;>${p.emoji||'🌿'}</div>'" style="width:100%;height:100%;object-fit:cover;">`
           :`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">${p.emoji}</div>`}
         <div style="position:absolute;top:8px;right:8px;background:#1a3a2a;color:#fff;padding:2px 8px;border-radius:12px;font-size:0.65rem;font-weight:700;">⭐ الأكثر</div>
       </div>
@@ -419,7 +419,7 @@ function getCardHTML(p){
   return `
     <div class="store-card" data-pid="${pid}" onclick="openProductPage(this.dataset.pid)" style="cursor:pointer;">
       <div class="store-card-img">
-        ${p.images&&p.images.length?`<img loading="lazy" decoding="async" src="${p.images[0]}" alt="${p.name}" loading="lazy" decoding="async">`:p.img?`<img loading="lazy" decoding="async" src="${p.img}" alt="${p.name}" loading="lazy" decoding="async">`:`<span>${p.emoji}</span>`}
+        ${(p.images&&p.images.length)||p.img?`<img loading="lazy" decoding="async" src="${(p.images&&p.images[0])||p.img}" alt="${p.name}" onerror="this.onerror=null;this.outerHTML='<span>${p.emoji||'🌿'}</span>'">`:`<span>${p.emoji}</span>`}
         <div class="card-badge-wrap">
           ${p.outOfStock?`<div class="card-badge" style="background:#6b7280;">نفذ المخزون</div>`:p.badge?`<div class="card-badge">${p.badge}</div>`:''}
           ${p.writing?`<div class="writing-badge">✍️ كتابة</div>`:''}
