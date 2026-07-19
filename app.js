@@ -3427,8 +3427,9 @@ async function _cancelOpOrderFromDetail(id){
     await docRef.update(upd);
     if(data.status==='delivering') await unsyncOrderFromAccounting(id);
     toast('🚫 تم إلغاء الطلب');
-    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
-  }catch(e){toast('❌ '+e.message);}
+    if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
+    _refreshKashfIfOpen();
+  }catch(e){toast("❌ "+e.message);}
 }
 
 async function _returnOpOrderFromDetail(id){
@@ -3462,8 +3463,9 @@ async function _returnOpOrderFromDetail(id){
       toast('↩️ تم الإرجاع — سيُضاف قيد للمتجر في الكشف الحالي');
       await _handleDeliveredCancel(id,data,'returned');
     }
-    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
-  }catch(e){toast('❌ '+e.message);}
+    if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
+    _refreshKashfIfOpen();
+  }catch(e){toast("❌ "+e.message);}
 }
 
 async function _openRepPickerFromDetail(orderId){
@@ -4397,6 +4399,7 @@ async function updateEmpOrderStatus(id,newStatus){
     // Re-render orders list so UI reflects the change immediately
     if(typeof _renderOpOrdersView==='function') _renderOpOrdersView();
     if(typeof _renderEmpOrdersView==='function') _renderEmpOrdersView();
+    _refreshKashfIfOpen();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -4473,6 +4476,19 @@ async function _enterDeliveringSync(orderId,data){
     if(!dd){dd=jordanDateStr();try{await db.collection('employee_orders').doc(orderId).update({deliveredDate:dd});}catch(e){}}
     await syncOrderToAccounting(orderId,data,dd,true,_opCurrentSession?.id||null);
   }catch(e){console.error('_enterDeliveringSync error:',e);}
+  _refreshKashfIfOpen();
+}
+
+// يحدّث عرض الكشف تلقائياً (مع debounce للدفعات) إذا كان مفتوحاً — فما تحتاج تعمل جلب يدوي
+let _kashfRefreshTimer=null;
+function _refreshKashfIfOpen(){
+  try{
+    const view=document.getElementById('opacct-operator-view');
+    if(!view||view.style.display==='none')return;
+    if(!_opCurrentSession||_opCurrentSession.status==='closed')return;
+    clearTimeout(_kashfRefreshTimer);
+    _kashfRefreshTimer=setTimeout(()=>{if(typeof _loadOpSessionData==='function')_loadOpSessionData();},1200);
+  }catch(e){}
 }
 
 // Smart cancel handler: if delivery was in current session → remove from sales (reversal).
