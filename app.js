@@ -4466,6 +4466,15 @@ async function unsyncOrderFromAccounting(orderId){
   }catch(e){console.error('unsyncOrderFromAccounting error:',e);}
 }
 
+// عند تعيين مندوب لطلب (قيد التوصيل) عبر تحديث مباشر — نضمن تسجيل تاريخ الدخول ومزامنة المحاسبة
+async function _enterDeliveringSync(orderId,data){
+  try{
+    let dd=data&&data.deliveredDate;
+    if(!dd){dd=jordanDateStr();try{await db.collection('employee_orders').doc(orderId).update({deliveredDate:dd});}catch(e){}}
+    await syncOrderToAccounting(orderId,data,dd,true,_opCurrentSession?.id||null);
+  }catch(e){console.error('_enterDeliveringSync error:',e);}
+}
+
 // Smart cancel handler: if delivery was in current session → remove from sales (reversal).
 // If delivery was in a different/closed session → keep old record, add refund to current period.
 async function _handleDeliveredCancel(orderId, orderData, reason){
@@ -12497,7 +12506,9 @@ async function sendAndMarkDelivering_withRep(waUrl, repName, repPhone){
       const data=snap.data();
       const prevStatus=data?.status||'prepared';
       const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(prevStatus).label} ← ${_empSt('delivering').label}`};
-      await docRef.update({status:'delivering',...repUpdate,assignedAt:_batchAssignedAt,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      const _dd=data?.deliveredDate||jordanDateStr();
+      await docRef.update({status:'delivering',...repUpdate,assignedAt:_batchAssignedAt,deliveredDate:_dd,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      _enterDeliveringSync(id,{...data,deliveredDate:_dd});
     }catch(e){}
   });
 }
@@ -13729,7 +13740,9 @@ async function _batchDistAssign(repName,repPhone){
       const data=snap.data();
       if(!data||['delivered','cancelled','returned','refused'].includes(data.status))continue;
       const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← قيد التوصيل (${repName})`};
-      await docRef.update({status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      const _dd=data.deliveredDate||jordanDateStr();
+      await docRef.update({status:'delivering',deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),deliveredDate:_dd,editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      _enterDeliveringSync(id,{...data,deliveredDate:_dd});
       done++;
     }catch(e){}
   }
@@ -15235,7 +15248,9 @@ async function qrAssignToRep(repName,repPhone){
     const assignStatus=data.status==='delivered'?'delivered':'delivering';
     const noteLabel=data.status==='delivered'?`تعيين مندوب (${repName})`:`${fromLabel} ← قيد التوصيل (${repName})`;
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:noteLabel};
-    await docRef.update({status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const _dd=data?.deliveredDate||jordanDateStr();
+    await docRef.update({status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),deliveredDate:_dd,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    _enterDeliveringSync(_qrAssignOrderId,{...data,deliveredDate:_dd});
     // Patch local cache immediately
     const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||''};};
     _pL(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
@@ -15514,7 +15529,9 @@ async function sendQueuedRepOrders(repName,waUrl,repPhone){
       const snap=await docRef.get();
       const d=snap.data();
       const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`قائمة توصيل ← قيد التوصيل`};
-      await docRef.update({status:'delivering',editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      const _dd=d?.deliveredDate||jordanDateStr();
+      await docRef.update({status:'delivering',deliveredDate:_dd,editHistory:[...(d?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      _enterDeliveringSync(o.id,{...d,deliveredDate:_dd});
     }catch(e){}
   }
   // Patch local cache so UI reflects immediately without waiting for snapshot
