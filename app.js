@@ -9147,7 +9147,7 @@ function renderOperatorDailyView(){
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
   if(!isClosed){
     const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
-    const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚚 جلب التسليمات</button>`;
+    const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚚 جلب طلبات التوصيل</button>`;
     const deleteSessionBtn=`<button onclick="deleteCurrentSession()" style="flex:1;min-width:100px;padding:12px;background:#6b7280;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🗑️ حذف الكشف</button>`;
     actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${deleteSessionBtn}${editDateBtn}${printBtn}${waBtn}`;
   } else {
@@ -9175,24 +9175,31 @@ async function fetchRepDeliveries(btn){
     const fromTs=firebase.firestore.Timestamp.fromDate(new Date(from+'T00:00:00'));
     const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
 
-    // Two queries: by deliveredDate range AND by updatedAt range (catch old orders without deliveredDate)
-    const [snap1,snap2]=await Promise.all([
+    // ثلاث استعلامات: بالتاريخ + بآخر تحديث + كل طلبات "قيد التوصيل" الحالية (لجلبها دفعة واحدة)
+    const [snap1,snap2,snap3]=await Promise.all([
       db.collection('employee_orders').where('deliveredDate','>=',from).where('deliveredDate','<=',to).get(),
-      db.collection('employee_orders').where('updatedAt','>=',fromTs).where('updatedAt','<=',toTs).get()
+      db.collection('employee_orders').where('updatedAt','>=',fromTs).where('updatedAt','<=',toTs).get(),
+      db.collection('employee_orders').where('status','==','delivering').get()
     ]);
 
     const map={};
-    snap1.docs.forEach(d=>{const o={id:d.id,...d.data()};if(o.status==='delivered') map[o.id]=o;});
-    snap2.docs.forEach(d=>{const o={id:d.id,...d.data()};if(o.status==='delivered'&&!o.deliveredDate) map[o.id]=o;});
+    const _take=o=>{if(o.status==='delivered'||o.status==='delivering')map[o.id]=o;};
+    snap1.docs.forEach(d=>_take({id:d.id,...d.data()}));
+    snap2.docs.forEach(d=>{const o={id:d.id,...d.data()};if((o.status==='delivered'||o.status==='delivering')&&!o.deliveredDate)map[o.id]=o;});
+    snap3.docs.forEach(d=>_take({id:d.id,...d.data()})); // كل طلبات قيد التوصيل
     const allDelivered=Object.values(map);
 
-    if(!allDelivered.length){toast('لا توجد تسليمات في هذه الفترة');return;}
+    if(!allDelivered.length){toast('لا توجد طلبات قيد التوصيل أو مُسلَّمة في هذه الفترة');return;}
 
-    // Sync each delivered order into operator_sales (same as admin flow)
-    // syncOrderToAccounting already skips duplicates (checks fromOrderId)
+    // مزامنة كل طلب مع الكشف — نسجّل تاريخ الدخول للطلبات قيد التوصيل، والمكرر يُتخطى تلقائياً
     let synced=0;
     for(const order of allDelivered){
       try{
+        if(!order.deliveredDate){
+          const dd=jordanDateStr();
+          await db.collection('employee_orders').doc(order.id).update({deliveredDate:dd});
+          order.deliveredDate=dd;
+        }
         await syncOrderToAccounting(order.id,order,order.deliveredDate||jordanDateStr(),true,_opCurrentSession.id);
         synced++;
       }catch(e){console.error('fetchRepDeliveries sync error:',order.id,e);}
@@ -9202,7 +9209,7 @@ async function fetchRepDeliveries(btn){
     // Reload statement fully so _opDailySales picks up the new operator_sales records
     await _loadOpSessionData();
   }catch(e){toast('❌ '+e.message);}
-  finally{if(btn){btn.disabled=false;btn.textContent='🚚 جلب تسليمات المناديب';}}
+  finally{if(btn){btn.disabled=false;btn.textContent='🚚 جلب طلبات التوصيل';}}
 }
 async function editSessionStartDate(){
   if(!_opCurrentSession||_opCurrentSession.status==='closed') return;
