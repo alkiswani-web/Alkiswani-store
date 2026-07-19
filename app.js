@@ -8961,7 +8961,11 @@ function renderOperatorDailyView(){
     const _collExcludedCount=_opDayOrders.length-_collOrders.length;
     const _collCustomer=_collOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
     const _collDelivery=_collOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
-    const _collNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
+    const _collOrdersNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
+    // خصم مسحوبات المتاجر (النوع "مسحوب" مش "دفعة") ومصاريف الكشف الحالي من الكاش المتوقع
+    const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').reduce((s,w)=>s+(w.amount||0),0);
+    const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
+    const _collNet=_collOrdersNet-_collStoreWd-_collExpenses;
     body.innerHTML+=`
       <div style="margin-top:16px;">
         <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
@@ -8976,6 +8980,14 @@ function renderOperatorDailyView(){
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
               <div style="font-size:0.66rem;opacity:0.85;">🚚 أجور التوصيل (تُخصم)</div>
               <div style="font-weight:800;font-size:0.92rem;">${_collDelivery.toFixed(2)} د.أ</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.66rem;opacity:0.85;">💸 مسحوبات المتاجر (تُخصم)</div>
+              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collStoreWd.toFixed(2)} د.أ</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.66rem;opacity:0.85;">🧾 المصاريف (تُخصم)</div>
+              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collExpenses.toFixed(2)} د.أ</div>
             </div>
           </div>
         </div>
