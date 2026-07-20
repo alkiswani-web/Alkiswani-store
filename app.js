@@ -8345,6 +8345,7 @@ let _opSessionRefunds=[];
 let _opDayOrders=[];
 let _opWithdrawals=[];
 let _opDayExpenses=[];
+let _opSessionPurchases=[]; // مشتريات المواد الخام (أبو يحيى) ضمن فترة الكشف الحالي
 let _opDayRecord=null;
 let _opAcctOwed={};
 let _opAcctPaid={};
@@ -8447,6 +8448,11 @@ async function _loadOpSessionData(){
     const eSnap=await db.collection('operator_expenses').where('date','>=',from).where('date','<=',to).get();
     _opDayExpenses=eSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opDayExpenses=[];}
+  // مشتريات المواد الخام (أبو يحيى) ضمن فترة الكشف الحالي — تُخصم من التحصيل المتوقع
+  try{
+    const pSnap=await db.collection('operator_purchases').where('date','>=',from).where('date','<=',to).get();
+    _opSessionPurchases=pSnap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opSessionPurchases=[];}
   // Mashghal employee wages for this session period
   try{
     const [attSnap,ratesSnap,workersSnap]=await Promise.all([
@@ -9016,7 +9022,9 @@ function renderOperatorDailyView(){
     // خصم مسحوبات المتاجر (النوع "مسحوب" مش "دفعة") ومصاريف الكشف الحالي من الكاش المتوقع
     const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').reduce((s,w)=>s+(w.amount||0),0);
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
-    const _collNet=_collOrdersNet-_collStoreWd-_collExpenses;
+    // خصم مشتريات المواد الخام (أبو يحيى) المسجّلة ضمن فترة الكشف الحالي
+    const _collPurchases=(_opSessionPurchases||[]).reduce((s,p)=>s+(p.amount||0),0);
+    const _collNet=_collOrdersNet-_collStoreWd-_collExpenses-_collPurchases;
     body.innerHTML+=`
       <div style="margin-top:16px;">
         <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
@@ -9040,6 +9048,10 @@ function renderOperatorDailyView(){
               <div style="font-size:0.66rem;opacity:0.85;">🧾 المصاريف (تُخصم)</div>
               <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collExpenses.toFixed(2)} د.أ</div>
             </div>
+            ${_collPurchases>0?`<div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;grid-column:1/-1;">
+              <div style="font-size:0.66rem;opacity:0.85;">🧱 مشتريات المواد الخام (تُخصم)</div>
+              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collPurchases.toFixed(2)} د.أ</div>
+            </div>`:''}
           </div>
         </div>
         <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">📦 طلبات التوصيل (قيد التوصيل + مُسلَّمة) (${_opDayOrders.length})</div>
