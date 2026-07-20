@@ -8345,7 +8345,7 @@ let _opSessionRefunds=[];
 let _opDayOrders=[];
 let _opWithdrawals=[];
 let _opDayExpenses=[];
-let _opSessionPurchases=[]; // مشتريات المواد الخام (أبو يحيى) ضمن فترة الكشف الحالي
+let _opRawBuys=[]; // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
 let _opDayRecord=null;
 let _opAcctOwed={};
 let _opAcctPaid={};
@@ -8448,11 +8448,11 @@ async function _loadOpSessionData(){
     const eSnap=await db.collection('operator_expenses').where('date','>=',from).where('date','<=',to).get();
     _opDayExpenses=eSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opDayExpenses=[];}
-  // مشتريات المواد الخام (أبو يحيى) ضمن فترة الكشف الحالي — تُخصم من التحصيل المتوقع
+  // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
   try{
-    const pSnap=await db.collection('operator_purchases').where('date','>=',from).where('date','<=',to).get();
-    _opSessionPurchases=pSnap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opSessionPurchases=[];}
+    const rbSnap=await db.collection('operator_rawbuys').where('sessionId','==',_opCurrentSession.id).get();
+    _opRawBuys=rbSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }catch(e){_opRawBuys=[];}
   // Mashghal employee wages for this session period
   try{
     const [attSnap,ratesSnap,workersSnap]=await Promise.all([
@@ -9022,9 +9022,9 @@ function renderOperatorDailyView(){
     // خصم مسحوبات المتاجر (النوع "مسحوب" مش "دفعة") ومصاريف الكشف الحالي من الكاش المتوقع
     const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').reduce((s,w)=>s+(w.amount||0),0);
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
-    // خصم مشتريات المواد الخام (أبو يحيى) المسجّلة ضمن فترة الكشف الحالي
-    const _collPurchases=(_opSessionPurchases||[]).reduce((s,p)=>s+(p.amount||0),0);
-    const _collNet=_collOrdersNet-_collStoreWd-_collExpenses-_collPurchases;
+    // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
+    const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
+    const _collNet=_collOrdersNet-_collStoreWd-_collExpenses-_collRawBuys;
     body.innerHTML+=`
       <div style="margin-top:16px;">
         <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
@@ -9048,11 +9048,16 @@ function renderOperatorDailyView(){
               <div style="font-size:0.66rem;opacity:0.85;">🧾 المصاريف (تُخصم)</div>
               <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collExpenses.toFixed(2)} د.أ</div>
             </div>
-            ${_collPurchases>0?`<div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;grid-column:1/-1;">
-              <div style="font-size:0.66rem;opacity:0.85;">🧱 مشتريات المواد الخام (تُخصم)</div>
-              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collPurchases.toFixed(2)} د.أ</div>
-            </div>`:''}
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.66rem;opacity:0.85;">🧱 شراء مواد خام (تُخصم)</div>
+              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collRawBuys.toFixed(2)} د.أ</div>
+            </div>
           </div>
+          ${!isClosed?`<button onclick="addRawBuy()" style="width:100%;margin-top:10px;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.45);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ شراء مواد خام (ينخصم من الكاش)</button>`:''}
+          ${_opRawBuys.length?`<div style="margin-top:8px;background:rgba(0,0,0,0.12);border-radius:9px;padding:6px 8px;">${_opRawBuys.map(rb=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,0.12);">
+            <span style="font-size:0.72rem;opacity:0.9;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;font-size:0.8rem;color:#fca5a5;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:rgba(220,38,38,0.5);color:#fff;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
+          </div>`).join('')}</div>`:''}
         </div>
         <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">📦 طلبات التوصيل (قيد التوصيل + مُسلَّمة) (${_opDayOrders.length})</div>
         ${groupCards}${ungroupedCards}
@@ -9388,6 +9393,37 @@ async function deleteOperatorWithdrawal(wid){
     _opWithdrawals=_opWithdrawals.filter(w=>w.id!==wid);
     renderOperatorDailyView();
     toast('✅ تم حذف المسحوب');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// شراء مواد خام يدوي — ينخصم من الكاش (التحصيل المتوقع) فقط، مش من الأرباح ولا مربوط بأبو يحيى
+async function addRawBuy(){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  const raw=prompt('💵 مبلغ شراء المواد الخام (د.أ):');
+  if(raw===null)return;
+  const amount=parseFloat(raw);
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  const notes=(prompt('📝 ملاحظة (اختياري):')||'').trim();
+  try{
+    const ref=await db.collection('operator_rawbuys').add({
+      amount,notes,date:jordanDateStr(),
+      sessionId:_opCurrentSession.id,
+      addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    _opRawBuys.unshift({id:ref.id,amount,notes,date:jordanDateStr(),sessionId:_opCurrentSession.id});
+    renderOperatorDailyView();
+    toast('✅ تم تسجيل شراء المواد — انخصم من الكاش');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteRawBuy(id){
+  if(!confirm('حذف هذا الشراء؟')) return;
+  try{
+    await db.collection('operator_rawbuys').doc(id).delete();
+    _opRawBuys=_opRawBuys.filter(rb=>rb.id!==id);
+    renderOperatorDailyView();
+    toast('🗑 تم الحذف');
   }catch(e){toast('❌ '+e.message);}
 }
 
