@@ -8871,7 +8871,7 @@ function renderOperatorDailyView(){
               <div style="font-weight:800;color:#dc2626;font-size:0.88rem;">${storeWdTotal.toFixed(2)}</div>
             </div>
             <div style="text-align:center;background:${stMatBg};border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:${stMatColor};margin-bottom:1px;">🧾 مطلوب للمتجر</div>
+              <div style="font-size:0.62rem;color:${stMatColor};margin-bottom:1px;">🧾 المستحق على المتجر</div>
               <div style="font-weight:800;color:${stMatColor};font-size:0.88rem;">${stMatloub.toFixed(2)}</div>
             </div>
             <div style="text-align:center;background:${stSafiBg};border-radius:8px;padding:7px 4px;">
@@ -8948,7 +8948,7 @@ function renderOperatorDailyView(){
               <div style="font-weight:800;color:#fca5a5;font-size:0.9rem;">${grpWdTotal.toFixed(2)}</div>
             </div>
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.6rem;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};margin-bottom:2px;">🧾 مطلوب للمتاجر</div>
+              <div style="font-size:0.6rem;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};margin-bottom:2px;">🧾 المستحق على المتاجر</div>
               <div style="font-weight:800;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};font-size:0.9rem;">${grpMatloub.toFixed(2)}</div>
             </div>
             <div style="background:${grpSafi>=0?'rgba(255,255,255,0.25)':'rgba(220,38,38,0.4)'};border-radius:8px;padding:7px;text-align:center;">
