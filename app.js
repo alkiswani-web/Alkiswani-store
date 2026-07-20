@@ -9404,26 +9404,38 @@ async function addRawBuy(){
   const amount=parseFloat(raw);
   if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   const notes=(prompt('📝 ملاحظة (اختياري):')||'').trim();
+  const date=jordanDateStr();
   try{
+    // 1) يُسجَّل أيضاً كشراء في رأس المال (المشتريات/أبو يحيى) — عشان يظهر بتبويب الرصيد
+    const pRef=await db.collection('operator_purchases').add({
+      amount,date,notes,
+      fromRawBuy:true,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // 2) يُخصم من الكاش (التحصيل المتوقع) — مربوط بالشراء أعلاه
     const ref=await db.collection('operator_rawbuys').add({
-      amount,notes,date:jordanDateStr(),
+      amount,notes,date,
       sessionId:_opCurrentSession.id,
+      purchaseId:pRef.id,
       addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    _opRawBuys.unshift({id:ref.id,amount,notes,date:jordanDateStr(),sessionId:_opCurrentSession.id});
+    _opRawBuys.unshift({id:ref.id,amount,notes,date,sessionId:_opCurrentSession.id,purchaseId:pRef.id});
     renderOperatorDailyView();
-    toast('✅ تم تسجيل شراء المواد — انخصم من الكاش');
+    toast('✅ انخصم من الكاش وانسجّل بـ رأس المال');
   }catch(e){toast('❌ '+e.message);}
 }
 
 async function deleteRawBuy(id){
   if(!confirm('حذف هذا الشراء؟')) return;
   try{
+    const rb=_opRawBuys.find(x=>x.id===id);
     await db.collection('operator_rawbuys').doc(id).delete();
-    _opRawBuys=_opRawBuys.filter(rb=>rb.id!==id);
+    // نحذف نفس الشراء من رأس المال إذا كان مربوطاً
+    if(rb&&rb.purchaseId){try{await db.collection('operator_purchases').doc(rb.purchaseId).delete();}catch(e){}}
+    _opRawBuys=_opRawBuys.filter(x=>x.id!==id);
     renderOperatorDailyView();
-    toast('🗑 تم الحذف');
+    toast('🗑 تم الحذف من الكاش ورأس المال');
   }catch(e){toast('❌ '+e.message);}
 }
 
