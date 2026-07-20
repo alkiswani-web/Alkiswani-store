@@ -8702,64 +8702,7 @@ function renderOperatorDailyView(){
     const gridCols=totExp>0?'1fr 1fr 1fr':'1fr 1fr';
     html+='<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;margin-bottom:12px;"><div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#166534;margin-bottom:2px;">💰 إجمالي البيع</div><div style="font-weight:800;color:#166534;font-size:1.1rem;">'+totSell.toFixed(2)+' د.أ</div></div>'+expCell+'<div style="background:'+(isPE?'#dcfce7':'#fee2e2')+'";border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:'+(isPE?'#166534':'#dc2626')+';margin-bottom:2px;">'+(isPE?'✅ صافي الربح':'⚠️ الخسارة')+(totExp>0?' (بعد المصاريف)':'')+'</div><div style="font-weight:900;color:'+(isPE?'#166534':'#dc2626')+';font-size:1.2rem;">'+Math.abs(totProfitAfterExp).toFixed(2)+' د.أ</div></div></div>';
   }
-  // ===== Store payments panel =====
-  if(!isClosed&&(_opStoresList||[]).length){
-    const grpMap={};
-    const ungroupedRows=[];
-    const allSt=(_opAllStoresList.length?_opAllStoresList:_opStoresList);
-    allSt.forEach(s=>{
-      const owed=_opAcctOwed[s.id]||0;
-      const paid=_opAcctPaid[s.id]||0;
-      const refund=_opAcctRefund[s.id]||0;
-      const discount=_opAcctDiscount[s.id]||0;
-      if(s.group){
-        if(!grpMap[s.group])grpMap[s.group]={name:s.group,owed:0,paid:0,refund:0,discount:0};
-        grpMap[s.group].owed+=owed;grpMap[s.group].paid+=paid;grpMap[s.group].refund+=refund;grpMap[s.group].discount+=discount;
-      } else if(!s.archived){
-        const bal=owed-paid-refund;
-        if(bal>0.01) ungroupedRows.push({id:s.id,name:s.name,bal,owed,paid,discount});
-      }
-    });
-    Object.values(grpMap).forEach(g=>{g.paid+=(_opAcctPaid['__grp__'+g.name]||0);});
-    const grpRows=Object.values(grpMap).sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(g=>{
-      const bal=g.owed-g.paid-g.refund;if(bal<=0.01)return '';
-      const safeG=g.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:8px;">
-          <span style="font-weight:800;color:#111;font-size:0.85rem;">🗂 ${g.name}</span>
-          <button onclick="showAddWithdrawalModalForGroup('${safeG}','payment')" style="padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
-        </div>
-        <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
-          <span style="color:#dc2626;">المستحق: <strong>${g.owed.toFixed(2)}</strong></span>
-          <span style="color:#166534;">المدفوع: <strong>${g.paid.toFixed(2)}</strong></span>
-          ${g.discount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${g.discount.toFixed(2)}</strong></span>`:''}
-          <span style="color:#92400e;font-weight:800;">الباقي: ${bal.toFixed(2)} د.أ</span>
-        </div>
-      </div>`;}).join('');
-    const storeRows=ungroupedRows.sort((a,b)=>b.bal-a.bal).map(s=>{
-      const safeN=s.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:8px;">
-          <span style="font-weight:700;color:#374151;font-size:0.85rem;">🏪 ${s.name}</span>
-          <button onclick="showAddWithdrawalModalForStore('${s.id}','${safeN}','payment')" style="padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
-        </div>
-        <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
-          <span style="color:#dc2626;">المستحق: <strong>${s.owed.toFixed(2)}</strong></span>
-          <span style="color:#166534;">المدفوع: <strong>${s.paid.toFixed(2)}</strong></span>
-          ${s.discount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${s.discount.toFixed(2)}</strong></span>`:''}
-          <span style="color:#92400e;font-weight:800;">الباقي: ${s.bal.toFixed(2)} د.أ</span>
-        </div>
-      </div>`;}).join('');
-    if(grpRows||storeRows){
-      html+=`<div style="background:var(--card-bg);border:1.5px solid #fca5a5;border-radius:12px;overflow:hidden;margin-bottom:14px;">
-        <div style="background:#dc2626;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="color:#fff;font-weight:800;font-size:0.88rem;">💳 دفعات المتاجر</span>
-          <span style="color:#fca5a5;font-size:0.75rem;">الرصيد الكلي المتراكم</span>
-        </div>
-        ${grpRows}${storeRows}
-      </div>`;
-    }
-  }
+  // (أُزيل قسم «دفعات المتاجر» المنفصل — صار «مطلوب» + زر «دفعة للمتجر» داخل كل كرت متجر/مجموعة)
   // ===== Mashghal wages section =====
   if(_opMashghalWages&&_opMashghalWages.length){
     const totW=_opMashghalWages.reduce((s,w)=>s+w.earned,0);
@@ -8892,6 +8835,13 @@ function renderOperatorDailyView(){
             <span style="color:${acctBalColor};font-weight:800;">${acctLabel}: ${Math.abs(acctBal).toFixed(2)} د.أ</span>
           </div>
         </div>`:'';
+      // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
+      const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
+      const stSafi=store.eligibleTotal-storeWdTotal-stMatloub;
+      const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
+      const stMatColor=stMatloub>0.01?'#92400e':'#166534';
+      const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
+      const stSafiColor=stSafi>=0?'#4338ca':'#dc2626';
       // When inside a group: compact view — no per-store session balance/withdrawals/account balance
       if(inGroup){
         return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;">
@@ -8911,7 +8861,7 @@ function renderOperatorDailyView(){
         ${eligBlocks}
         ${exclBlocks}
         <div style="padding:10px 14px;background:#f9fafb;border-top:1px solid #e5e7eb;">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:${storeWds.length||!isClosed?'8px':'0'};">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
             <div style="text-align:center;background:#f0fdf4;border-radius:8px;padding:7px 4px;">
               <div style="font-size:0.62rem;color:#166534;margin-bottom:1px;">💰 قابل للسحب</div>
               <div style="font-weight:800;color:#166534;font-size:0.88rem;">${store.eligibleTotal.toFixed(2)}</div>
@@ -8920,13 +8870,20 @@ function renderOperatorDailyView(){
               <div style="font-size:0.62rem;color:#dc2626;margin-bottom:1px;">💸 مسحوب</div>
               <div style="font-weight:800;color:#dc2626;font-size:0.88rem;">${storeWdTotal.toFixed(2)}</div>
             </div>
-            <div style="text-align:center;background:${balBg};border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:${balColor};margin-bottom:1px;">📊 رصيد الكشف</div>
-              <div style="font-weight:900;color:${balColor};font-size:0.88rem;">${storeBalance.toFixed(2)}</div>
+            <div style="text-align:center;background:${stMatBg};border-radius:8px;padding:7px 4px;">
+              <div style="font-size:0.62rem;color:${stMatColor};margin-bottom:1px;">🧾 مطلوب للمتجر</div>
+              <div style="font-weight:800;color:${stMatColor};font-size:0.88rem;">${stMatloub.toFixed(2)}</div>
+            </div>
+            <div style="text-align:center;background:${stSafiBg};border-radius:8px;padding:7px 4px;">
+              <div style="font-size:0.62rem;color:${stSafiColor};margin-bottom:1px;">✅ الصافي</div>
+              <div style="font-weight:900;color:${stSafiColor};font-size:0.88rem;">${stSafi.toFixed(2)}</div>
             </div>
           </div>
           ${storeWds.length?`<div style="margin-bottom:6px;">${wdRows}</div>`:''}
-          ${!isClosed?`<button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="width:100%;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب — ${store.name}</button>`:''}
+          ${!isClosed?`<div style="display:flex;gap:6px;">
+            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 مسحوب</button>
+            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:8px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💳 دفعة للمتجر</button>
+          </div>`:''}
         </div>
         ${refundBlock}
         ${acctRow}
@@ -8960,6 +8917,10 @@ function renderOperatorDailyView(){
       const grpAcctBal=grpAcctOwed-grpAcctPaid-grpAcctRefund;
       const grpAcctLabel=grpAcctBal>0?'ضايل عليهم':grpAcctBal<0?'رصيد لهم':'مسويين';
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
+      // المربعات الأربعة للمجموعة: قابل للسحب − مسحوب − مطلوب = الصافي
+      const grpMatloub=grpAcctBal; // المطلوب للمجموعة (تراكمي)
+      const grpSafi=grpEligible-grpWdTotal-grpMatloub;
+      const grpSafiColor=grpSafi>=0?'#fff':'#fca5a5';
       const grpWdRows=grpWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,0.2);gap:6px;">
           <div style="flex:1;min-width:0;">
@@ -8977,7 +8938,7 @@ function renderOperatorDailyView(){
             <div style="color:#fff;font-weight:800;font-size:0.92rem;">👥 ${groupName} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${stores.length} متاجر — ${grpTotalOrders} طلب)</span></div>
             <div style="color:#e9d5ff;font-weight:900;font-size:0.88rem;">${grpTotalAmt.toFixed(2)} د.أ</div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:${grpWds.length||!isClosed?'10px':'0'};">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:${grpWds.length||!isClosed?'10px':'0'};">
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
               <div style="font-size:0.6rem;color:rgba(255,255,255,0.75);margin-bottom:2px;">💰 قابل للسحب</div>
               <div style="font-weight:800;color:#fff;font-size:0.9rem;">${grpEligible.toFixed(2)}</div>
@@ -8986,13 +8947,20 @@ function renderOperatorDailyView(){
               <div style="font-size:0.6rem;color:rgba(255,255,255,0.75);margin-bottom:2px;">💸 مسحوب</div>
               <div style="font-weight:800;color:#fca5a5;font-size:0.9rem;">${grpWdTotal.toFixed(2)}</div>
             </div>
-            <div style="background:${grpBalance>=0?'rgba(255,255,255,0.25)':'rgba(220,38,38,0.4)'};border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.6rem;color:${grpBalColor};margin-bottom:2px;">📊 الرصيد الكلي</div>
-              <div style="font-weight:900;color:${grpBalColor};font-size:0.92rem;">${grpBalance.toFixed(2)}</div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.6rem;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};margin-bottom:2px;">🧾 مطلوب للمتاجر</div>
+              <div style="font-weight:800;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};font-size:0.9rem;">${grpMatloub.toFixed(2)}</div>
+            </div>
+            <div style="background:${grpSafi>=0?'rgba(255,255,255,0.25)':'rgba(220,38,38,0.4)'};border-radius:8px;padding:7px;text-align:center;">
+              <div style="font-size:0.6rem;color:${grpSafiColor};margin-bottom:2px;">✅ الصافي</div>
+              <div style="font-weight:900;color:${grpSafiColor};font-size:0.92rem;">${grpSafi.toFixed(2)}</div>
             </div>
           </div>
           ${grpWdRows?`<div style="margin-bottom:8px;">${grpWdRows}</div>`:''}
-          ${!isClosed?`<button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="width:100%;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.4);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💸 إضافة مسحوب للمجموعة</button>`:''}
+          ${!isClosed?`<div style="display:flex;gap:6px;">
+            <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="flex:1;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.4);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💸 مسحوب</button>
+            <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}','payment')" style="flex:1;padding:9px;background:rgba(255,255,255,0.28);color:#fff;border:1.5px solid rgba(255,255,255,0.5);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💳 دفعة للمتاجر</button>
+          </div>`:''}
         </div>
         <div style="padding:8px 12px;background:#f3e8ff;border-top:2px solid #c4b5fd;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
           <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;">🗂 رصيد الحساب الكلي للمجموعة</div>
