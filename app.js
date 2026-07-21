@@ -8656,16 +8656,23 @@ function renderOperatorDailyView(){
   // الكشف = عرض المبيعات فقط (منتجات + كمية + سعر البيع + الإجمالي)
   // كل الحسابات (تكاليف/أرباح/تحصيل/متاجر/رواتب) تُعرض في تبويب رصيد روزميري داخل #opbal_accounting
   const kashfBody=document.getElementById('opacct_op_body');
-  const body=document.getElementById('opbal_accounting'); // هدف الحسابات (تبويب رصيد روزميري)
+  const elColl=document.getElementById('cc-coll');
+  const elStores=document.getElementById('cc-stores');
+  const elProfit=document.getElementById('cc-profit');
   const actionsWrap=document.getElementById('opacct_op_actions');
   if(!kashfBody||!actionsWrap) return;
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
   const totExp=(_opDayExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const closedBanner=isClosed?'<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>':'';
+  const closedBanner=isClosed?'<div style="background:rgba(220,38,38,.14);border:1px solid rgba(220,38,38,.3);border-radius:12px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#e08a8a;font-size:0.85rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>':'';
+  const _emptyCC='<div class="cc-empty">لا يوجد بيانات في هذه الفترة</div>';
+  const cpLbl=document.getElementById('cc_period_lbl'); if(cpLbl) cpLbl.textContent=isClosed?'كشف مغلق':'كشف مفتوح';
   // Only skip render when closed and truly nothing to show
   if(isClosed&&!_opDailySales.length&&!_opDayOrders.length&&!_opWithdrawals.length){
     kashfBody.innerHTML=closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
-    if(body) body.innerHTML=closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد حسابات في هذه الفترة</div>';
+    if(elColl) elColl.innerHTML=closedBanner+_emptyCC;
+    if(elStores) elStores.innerHTML=_emptyCC;
+    if(elProfit) elProfit.innerHTML=_emptyCC;
+    if(typeof _renderCcGauge==='function')_renderCcGauge(0,0,0);
     actionsWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الكشف مغلق</div>';
     return;
   }
@@ -8683,19 +8690,11 @@ function renderOperatorDailyView(){
     kashfHtml+=`<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:340px;"><thead><tr style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;font-size:0.76rem;"><th style="padding:11px 10px;text-align:right;font-weight:700;">🛍 المنتج</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الكمية</th><th style="padding:11px 10px;text-align:center;font-weight:700;">سعر البيع</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الإجمالي</th></tr></thead><tbody>${srows}</tbody><tfoot><tr style="background:#f0fdf4;font-size:0.86rem;font-weight:900;border-top:2px solid #86efac;"><td style="padding:11px 10px;color:#166534;">الإجمالي</td><td style="padding:11px 10px;text-align:center;color:#166534;">${totQty}</td><td style="padding:11px 10px;"></td><td style="padding:11px 10px;text-align:center;color:#166534;">${totSellK.toFixed(2)} د.أ</td></tr></tfoot></table></div></div>`;
   }
   kashfBody.innerHTML=kashfHtml;
-  // ===== الحسابات (تُبنى في html وتُعرض داخل تبويب رصيد روزميري) =====
-  let html=closedBanner+`<div style="order:-3;position:relative;overflow:hidden;background:linear-gradient(135deg,#0b1220 0%,#132135 55%,#1b2b45 100%);border-radius:20px;padding:20px 20px 18px;margin-bottom:16px;box-shadow:0 10px 30px rgba(11,18,32,0.35);border:1px solid rgba(212,175,55,0.25);">
-    <div style="position:absolute;top:-40px;left:-30px;width:150px;height:150px;background:radial-gradient(circle,rgba(212,175,55,0.22),transparent 70%);"></div>
-    <div style="position:relative;display:flex;align-items:center;gap:10px;">
-      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#d4af37,#b8860b);display:flex;align-items:center;justify-content:center;font-size:1.3rem;box-shadow:0 4px 12px rgba(212,175,55,0.4);">💼</div>
-      <div>
-        <div style="color:#fff;font-weight:900;font-size:1.12rem;letter-spacing:0.2px;">مركز الحسابات</div>
-        <div style="color:#c9b981;font-size:0.72rem;margin-top:2px;font-weight:600;">التحصيل · المتاجر · التكاليف · الأرباح</div>
-      </div>
-    </div>
-    <div style="position:relative;height:2px;margin-top:14px;background:linear-gradient(90deg,rgba(212,175,55,0.6),transparent);border-radius:2px;"></div>
-  </div>`;
-  if(!_opDailySales.length&&!_opDayOrders.length) html+='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:16px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);margin-bottom:12px;">لا يوجد حسابات في هذه الفترة</div>';
+  // ===== الحسابات: ثلاثة بافرات لثلاث لوحات (التحصيل / المتاجر / الأرباح) =====
+  let collHtml='';   // لوحة التحصيل
+  let storesHtml=''; // لوحة المتاجر
+  let html=closedBanner; // لوحة الأرباح والملخص (التكاليف/الأرباح/الرواتب/المصاريف/المسحوبات/الصافي)
+  let ccNet=0,ccIn=0,ccOut=0; // بيانات ساعة التحصيل
   // ===== ملخص التكاليف والأرباح (only if sales exist) =====
   if(_opDailySales.length){
     const byProd={};
@@ -8744,7 +8743,6 @@ function renderOperatorDailyView(){
       ${rows}
     </div>`;
   }
-  body.innerHTML=html;
   // ===== Delivered orders + per-store balance =====
   if(_opDayOrders.length){
     const excludedRepNames=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
@@ -9019,8 +9017,9 @@ function renderOperatorDailyView(){
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
     const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys;
-    body.innerHTML+=`
-      <div style="order:-1;margin-bottom:16px;">
+    ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys;
+    collHtml+=`
+      <div style="margin-bottom:6px;">
         <div style="position:relative;overflow:hidden;background:linear-gradient(135deg,#064e3b 0%,#047857 55%,#0d9488 100%);border-radius:20px;padding:20px;color:#fff;margin-bottom:12px;box-shadow:0 12px 30px rgba(6,78,59,0.35);border:1px solid rgba(255,255,255,0.12);">
           <div style="position:absolute;top:-50px;right:-30px;width:170px;height:170px;background:radial-gradient(circle,rgba(255,255,255,0.14),transparent 70%);"></div>
           <div style="position:relative;">
@@ -9060,9 +9059,8 @@ function renderOperatorDailyView(){
           </div>`).join('')}</div>`:''}
           </div>
         </div>
-        <div style="font-size:0.9rem;font-weight:800;color:#1a3a2a;margin:2px 2px 10px;">🏪 المتاجر · طلبات التوصيل <span style="font-weight:600;color:#9ca3af;font-size:0.78rem;">(${_opDayOrders.length})</span></div>
-        ${groupCards}${ungroupedCards}
       </div>`;
+    storesHtml+=`<div style="font-size:0.95rem;font-weight:800;color:#1a3a2a;margin:2px 2px 12px;">🏪 المتاجر · طلبات التوصيل <span style="font-weight:600;color:#9ca3af;font-size:0.78rem;">(${_opDayOrders.length})</span></div>${groupCards}${ungroupedCards}`;
     // orphan withdrawals (for stores not in orders) — split by type
     const orphanWds=_opWithdrawals.filter(w=>!orderStoreNames.has(w.storeName));
     if(orphanWds.length){
@@ -9082,7 +9080,7 @@ function renderOperatorDailyView(){
       const orphanGeneral=orphanWds.filter(w=>!w.storeId);
       if(orphanStore.length){
         const tot=orphanStore.reduce((s,w)=>s+(w.amount||0),0);
-        body.innerHTML+=`
+        html+=`
           <div style="margin-top:12px;">
             <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
               <span>💰 دفعات مُستَلَمَة (${orphanStore.length})</span>
@@ -9095,7 +9093,7 @@ function renderOperatorDailyView(){
       }
       if(orphanGeneral.length){
         const tot=orphanGeneral.reduce((s,w)=>s+(w.amount||0),0);
-        body.innerHTML+=`
+        html+=`
           <div style="margin-top:12px;">
             <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
               <span>💸 مسحوبات أخرى (${orphanGeneral.length})</span>
@@ -9128,7 +9126,7 @@ function renderOperatorDailyView(){
     if(storeWds.length){
       const totS=storeWds.reduce((s,w)=>s+(w.amount||0),0);
       const sRows=storeWds.map(w=>_wRow(w,'#166534','#dcfce7','#86efac')).join('');
-      body.innerHTML+=`
+      html+=`
         <div style="margin-top:16px;">
           <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
             <span>💰 دفعات مُستَلَمَة (${storeWds.length})</span>
@@ -9142,7 +9140,7 @@ function renderOperatorDailyView(){
     if(generalWds.length||!isClosed){
       const totG=generalWds.reduce((s,w)=>s+(w.amount||0),0);
       const gRows=generalWds.map(w=>_wRow(w,'#dc2626','#fee2e2','#fecaca')).join('');
-      body.innerHTML+=`
+      html+=`
         <div style="margin-top:16px;">
           <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
             <span>💸 مسحوبات (${generalWds.length})</span>
@@ -9168,7 +9166,7 @@ function renderOperatorDailyView(){
           <div style="font-size:0.7rem;color:#9ca3af;">${e.date||''}</div>
         </div>
       </div>`).join('');
-    body.innerHTML+=`
+    html+=`
       <div style="margin-top:16px;">
         <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
           <span>🧾 مصاريف الفترة (${(_opDayExpenses||[]).length})</span>
@@ -9207,7 +9205,7 @@ function renderOperatorDailyView(){
   const totWd=_opWithdrawals.reduce((s,w)=>s+(w.amount||0),0);
   const netFinal=totSalesRevenue+totOrdersRevenue-totWd-totExp;
   if(totSalesRevenue||totOrdersRevenue||totWd||totExp){
-    body.innerHTML+=`
+    html+=`
       <div style="background:linear-gradient(135deg,#0f2419,#1a3a2a);border-radius:14px;padding:16px;margin-top:18px;">
         <div style="font-size:0.72rem;color:rgba(255,255,255,0.55);margin-bottom:10px;">📊 ملخص الكشف</div>
         <div style="display:flex;flex-direction:column;gap:7px;">
@@ -9223,6 +9221,12 @@ function renderOperatorDailyView(){
       </div>`;
   }
 
+  // ===== نشر البافرات في اللوحات الثلاث + رسم ساعة التحصيل =====
+  if(elColl) elColl.innerHTML=collHtml||(closedBanner+_emptyCC);
+  if(elStores) elStores.innerHTML=storesHtml||_emptyCC;
+  if(elProfit) elProfit.innerHTML=(html&&html!==closedBanner)?html:(closedBanner+_emptyCC);
+  if(typeof _renderCcGauge==='function')_renderCcGauge(ccNet,ccIn,ccOut);
+
   // Action buttons
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
@@ -9234,6 +9238,55 @@ function renderOperatorDailyView(){
   } else {
     actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
   }
+}
+
+// تبديل لوحات مركز الحسابات (شرائح)
+function ccSeg(btn,panel){
+  document.querySelectorAll('.cc-chip').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.cc-panel').forEach(p=>p.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  const el=document.querySelector('.cc-panel[data-p="'+panel+'"]');
+  if(el) el.classList.add('on');
+  if(panel==='capital'){ if(typeof renderBalanceSummary==='function') try{renderBalanceSummary();}catch(e){} }
+  if(panel==='wallet'){ if(typeof renderRosemaryWallet==='function') try{renderRosemaryWallet();}catch(e){} }
+}
+
+// ساعة التحصيل — قوس متحرّك بصافي الكاش
+function _renderCcGauge(net,inflow,outflow){
+  const el=document.getElementById('cc-gauge'); if(!el) return;
+  net=+net||0; inflow=+inflow||0; outflow=+outflow||0;
+  const C=628.3;
+  let frac=inflow>0?net/inflow:(net>0?1:0);
+  frac=Math.max(0,Math.min(1,frac));
+  const off=(C*(1-frac)).toFixed(1);
+  const netCol=net>=0?'#e6cf92':'#e08a8a';
+  el.innerHTML=`
+  <div style="position:relative;overflow:hidden;background:radial-gradient(120% 90% at 85% 0%,rgba(201,162,75,.14),transparent 55%),linear-gradient(160deg,#2c2118,#20180f);border:1px solid rgba(201,162,75,.22);border-radius:24px;padding:18px 16px 16px;box-shadow:0 12px 30px rgba(0,0,0,.3);">
+    <div style="text-align:center;font-size:.7rem;color:#c9b981;font-weight:800;letter-spacing:.4px;margin-bottom:6px;">التحصيل المتوقع — الكاش اللي لازم يرجعلك</div>
+    <div style="position:relative;width:212px;height:212px;margin:0 auto;">
+      <svg width="212" height="212" viewBox="0 0 220 220" style="transform:rotate(-90deg);">
+        <circle cx="110" cy="110" r="100" fill="none" stroke="rgba(201,162,75,.12)" stroke-width="15"/>
+        <circle id="cc-arc" cx="110" cy="110" r="100" fill="none" stroke="url(#ccg)" stroke-width="15" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition:stroke-dashoffset 1.15s cubic-bezier(.16,1,.3,1);"/>
+        <defs><linearGradient id="ccg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5aa878"/><stop offset="1" stop-color="#c9a24b"/></linearGradient></defs>
+      </svg>
+      <div style="position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:2px;">
+        <div style="font-size:.62rem;color:#a99a83;font-weight:700;">صافي الكاش</div>
+        <div id="cc-gnum" style="font-size:2.25rem;font-weight:900;color:${netCol};line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;">0</div>
+        <div style="font-size:.8rem;color:#c9a24b;font-weight:800;">دينار أردني</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:10px;">
+      <span style="font-size:.7rem;font-weight:800;color:#8fd0a6;background:rgba(255,255,255,.05);border:1px solid rgba(201,162,75,.14);border-radius:20px;padding:5px 11px;">↑ داخل ${inflow.toFixed(2)}</span>
+      <span style="font-size:.7rem;font-weight:800;color:#e08a8a;background:rgba(255,255,255,.05);border:1px solid rgba(201,162,75,.14);border-radius:20px;padding:5px 11px;">↓ خارج ${outflow.toFixed(2)}</span>
+    </div>
+  </div>`;
+  const arc=el.querySelector('#cc-arc'),num=el.querySelector('#cc-gnum');
+  let reduce=false; try{reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(e){}
+  if(reduce||!arc||!num){ if(arc)arc.style.strokeDashoffset=off; if(num)num.textContent=net.toFixed(2); return; }
+  requestAnimationFrame(()=>{arc.style.strokeDashoffset=off;});
+  const dur=900,t0=performance.now();
+  function step(t){const p=Math.min((t-t0)/dur,1);const e=1-Math.pow(1-p,3);num.textContent=(net*e).toFixed(2);if(p<1)requestAnimationFrame(step);}
+  requestAnimationFrame(step);
 }
 
 async function removeOrderFromStatement(orderId){
