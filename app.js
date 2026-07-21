@@ -8653,21 +8653,43 @@ function jumpOpDate(val){
 }
 
 function renderOperatorDailyView(){
-  const body=document.getElementById('opacct_op_body');
+  // الكشف = عرض المبيعات فقط (منتجات + كمية + سعر البيع + الإجمالي)
+  // كل الحسابات (تكاليف/أرباح/تحصيل/متاجر/رواتب) تُعرض في تبويب رصيد روزميري داخل #opbal_accounting
+  const kashfBody=document.getElementById('opacct_op_body');
+  const body=document.getElementById('opbal_accounting'); // هدف الحسابات (تبويب رصيد روزميري)
   const actionsWrap=document.getElementById('opacct_op_actions');
-  if(!body||!actionsWrap) return;
+  if(!kashfBody||!actionsWrap) return;
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
   const totExp=(_opDayExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const closedBanner=isClosed?'<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>':'';
   // Only skip render when closed and truly nothing to show
   if(isClosed&&!_opDailySales.length&&!_opDayOrders.length&&!_opWithdrawals.length){
-    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات أو طلبات مُسلَّمة في هذه الفترة</div>';
+    kashfBody.innerHTML=closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
+    if(body) body.innerHTML=closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد حسابات في هذه الفترة</div>';
     actionsWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الكشف مغلق</div>';
     return;
   }
-  let html='';
-  if(isClosed) html+='<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#dc2626;font-size:0.88rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>';
-  if(!_opDailySales.length&&!_opDayOrders.length) html+='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:16px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);margin-bottom:12px;">لا يوجد مبيعات أو طلبات مُسلَّمة في هذه الفترة</div>';
-  // ===== Sales table (only if sales exist) =====
+  // ===== الكشف: جدول المبيعات المبسّط (منتج/كمية/سعر البيع/الإجمالي) =====
+  let kashfHtml=closedBanner;
+  if(!_opDailySales.length){
+    kashfHtml+='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:16px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);margin-bottom:12px;">لا يوجد مبيعات في هذه الفترة</div>';
+  } else {
+    const bp={};
+    _opDailySales.forEach(function(s){const k=s.productName;if(!bp[k])bp[k]={name:k,qty:0,sell:0};bp[k].qty+=s.qty||1;bp[k].sell+=(s.sellPrice||0)*(s.qty||1);});
+    const pr=Object.values(bp).sort((a,b)=>b.sell-a.sell);
+    const totQty=pr.reduce((s,p)=>s+p.qty,0);
+    const totSellK=pr.reduce((s,p)=>s+p.sell,0);
+    const srows=pr.map(p=>`<tr style="border-bottom:1px solid var(--border);font-size:0.82rem;"><td style="padding:9px 10px;font-weight:600;color:var(--text-dark);">${p.name}</td><td style="padding:9px 10px;text-align:center;color:var(--text-mid);">${p.qty}</td><td style="padding:9px 10px;text-align:center;color:#166534;">${(p.sell/p.qty).toFixed(2)}</td><td style="padding:9px 10px;text-align:center;font-weight:800;color:#166534;">${p.sell.toFixed(2)}</td></tr>`).join('');
+    kashfHtml+=`<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:340px;"><thead><tr style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;font-size:0.76rem;"><th style="padding:11px 10px;text-align:right;font-weight:700;">🛍 المنتج</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الكمية</th><th style="padding:11px 10px;text-align:center;font-weight:700;">سعر البيع</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الإجمالي</th></tr></thead><tbody>${srows}</tbody><tfoot><tr style="background:#f0fdf4;font-size:0.86rem;font-weight:900;border-top:2px solid #86efac;"><td style="padding:11px 10px;color:#166534;">الإجمالي</td><td style="padding:11px 10px;text-align:center;color:#166534;">${totQty}</td><td style="padding:11px 10px;"></td><td style="padding:11px 10px;text-align:center;color:#166534;">${totSellK.toFixed(2)} د.أ</td></tr></tfoot></table></div></div>`;
+  }
+  kashfBody.innerHTML=kashfHtml;
+  // ===== الحسابات (تُبنى في html وتُعرض داخل تبويب رصيد روزميري) =====
+  let html=closedBanner+`<div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:16px 18px;margin-bottom:16px;box-shadow:0 4px 14px rgba(15,23,42,0.25);">
+    <div style="color:#fff;font-weight:900;font-size:1.05rem;">💼 حسابات الفترة الحالية</div>
+    <div style="color:#94a3b8;font-size:0.74rem;margin-top:3px;">التحصيل والمتاجر والتكاليف والأرباح — كل الأرقام المالية هنا</div>
+  </div>`;
+  if(!_opDailySales.length&&!_opDayOrders.length) html+='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:16px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);margin-bottom:12px;">لا يوجد حسابات في هذه الفترة</div>';
+  // ===== ملخص التكاليف والأرباح (only if sales exist) =====
   if(_opDailySales.length){
     const byProd={};
     _opDailySales.forEach(function(s){
@@ -8689,12 +8711,7 @@ function renderOperatorDailyView(){
     const totCost=totRaw+totTree+totMachine+totAssembly;
     const totProfit=totSell-totCost;
     const isP=totProfit>=0;
-    const rows=prods.map(function(p){
-      const cost=p.raw+p.tree+p.machine+p.assembly;
-      const profit=p.sell-cost;
-      return '<tr style="border-bottom:1px solid var(--border);font-size:0.78rem;"><td style="padding:7px 8px;font-weight:600;color:var(--text-dark);">'+p.name+'</td><td style="padding:7px 8px;text-align:center;">'+p.qty+'</td><td style="padding:7px 8px;text-align:center;color:#92400e;">'+p.raw.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#15803d;">'+p.tree.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#1e40af;">'+p.machine.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;color:#7c3aed;">'+p.assembly.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;font-weight:700;color:#166534;">'+p.sell.toFixed(2)+'</td><td style="padding:7px 8px;text-align:center;font-weight:700;color:'+(profit>=0?'#166534':'#dc2626')+';">'+profit.toFixed(2)+'</td></tr>';
-    }).join('');
-    html+='<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:480px;"><thead><tr style="background:#1a3a2a;color:#fff;font-size:0.72rem;"><th style="padding:8px;text-align:right;font-weight:600;">المنتج</th><th style="padding:8px;text-align:center;font-weight:600;">كمية</th><th style="padding:8px;text-align:center;font-weight:600;color:#fef3c7;">🧱 مواد</th><th style="padding:8px;text-align:center;font-weight:600;color:#bbf7d0;">🌳 شجر</th><th style="padding:8px;text-align:center;font-weight:600;color:#bfdbfe;">⚙️ ماكينة</th><th style="padding:8px;text-align:center;font-weight:600;color:#ddd6fe;">🔧 تركيب</th><th style="padding:8px;text-align:center;font-weight:600;color:#bbf7d0;">💰 بيع</th><th style="padding:8px;text-align:center;font-weight:600;color:#d4a843;">💵 ربح</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr style="background:#f9fafb;font-size:0.8rem;font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px;color:var(--text-dark);">المجموع</td><td style="padding:8px;text-align:center;">'+prods.reduce(function(s,p){return s+p.qty;},0)+'</td><td style="padding:8px;text-align:center;color:#92400e;">'+totRaw.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#15803d;">'+totTree.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#1e40af;">'+totMachine.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#7c3aed;">'+totAssembly.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:#166534;">'+totSell.toFixed(2)+'</td><td style="padding:8px;text-align:center;color:'+(isP?'#166534':'#dc2626')+';">'+totProfit.toFixed(2)+'</td></tr></tfoot></table></div></div>';
+    html+='<div style="font-size:0.92rem;font-weight:800;color:#1a3a2a;margin:2px 2px 10px;">📊 التكاليف والأرباح</div>';
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"><div style="background:#fefce8;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div><div style="font-weight:800;color:#92400e;font-size:1rem;">'+totRaw.toFixed(2)+' د.أ</div></div><div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#15803d;margin-bottom:2px;">🌳 مجموع تكلفة الشجر</div><div style="font-weight:800;color:#15803d;font-size:1rem;">'+totTree.toFixed(2)+' د.أ</div></div><div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div><div style="font-weight:800;color:#1e40af;font-size:1rem;">'+totMachine.toFixed(2)+' د.أ</div></div><div style="background:#f5f3ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#7c3aed;margin-bottom:2px;">🔧 أجرة عامل التركيب</div><div style="font-weight:800;color:#7c3aed;font-size:1rem;">'+totAssembly.toFixed(2)+' د.أ</div></div><div style="background:#fef2f2;border-radius:9px;padding:9px;text-align:center;grid-column:1/-1;"><div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div><div style="font-weight:800;color:#dc2626;font-size:1rem;">'+totCost.toFixed(2)+' د.أ</div></div></div>';
     const totProfitAfterExp=totProfit-totExp;
     const isPE=totProfitAfterExp>=0;
@@ -14117,6 +14134,17 @@ async function loadBalanceTab(){
   if(!_opStoresList.length) await loadOpStores();
   loadAlkiswaniSection();
   loadRosemaryWallet();
+  // تحميل بيانات الكشف وعرض الحسابات الكاملة داخل #opbal_accounting (منقولة من الكشف)
+  try{
+    const acctBox=document.getElementById('opbal_accounting');
+    if(acctBox) acctBox.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل الحسابات...</div>';
+    if(!_opCurrentSession||_opCurrentSession.status==='closed'){
+      const ss=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
+      if(!ss.empty)_opCurrentSession={id:ss.docs[0].id,...ss.docs[0].data()};
+    }
+    if(_opCurrentSession) await _loadOpSessionData();
+    else if(acctBox) acctBox.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد كشف مفتوح</div>';
+  }catch(e){}
 }
 
 function toggleBalSection(id,btn){
