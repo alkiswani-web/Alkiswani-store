@@ -8684,9 +8684,16 @@ function renderOperatorDailyView(){
   }
   kashfBody.innerHTML=kashfHtml;
   // ===== الحسابات (تُبنى في html وتُعرض داخل تبويب رصيد روزميري) =====
-  let html=closedBanner+`<div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:16px 18px;margin-bottom:16px;box-shadow:0 4px 14px rgba(15,23,42,0.25);">
-    <div style="color:#fff;font-weight:900;font-size:1.05rem;">💼 حسابات الفترة الحالية</div>
-    <div style="color:#94a3b8;font-size:0.74rem;margin-top:3px;">التحصيل والمتاجر والتكاليف والأرباح — كل الأرقام المالية هنا</div>
+  let html=closedBanner+`<div style="order:-3;position:relative;overflow:hidden;background:linear-gradient(135deg,#0b1220 0%,#132135 55%,#1b2b45 100%);border-radius:20px;padding:20px 20px 18px;margin-bottom:16px;box-shadow:0 10px 30px rgba(11,18,32,0.35);border:1px solid rgba(212,175,55,0.25);">
+    <div style="position:absolute;top:-40px;left:-30px;width:150px;height:150px;background:radial-gradient(circle,rgba(212,175,55,0.22),transparent 70%);"></div>
+    <div style="position:relative;display:flex;align-items:center;gap:10px;">
+      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#d4af37,#b8860b);display:flex;align-items:center;justify-content:center;font-size:1.3rem;box-shadow:0 4px 12px rgba(212,175,55,0.4);">💼</div>
+      <div>
+        <div style="color:#fff;font-weight:900;font-size:1.12rem;letter-spacing:0.2px;">مركز الحسابات</div>
+        <div style="color:#c9b981;font-size:0.72rem;margin-top:2px;font-weight:600;">التحصيل · المتاجر · التكاليف · الأرباح</div>
+      </div>
+    </div>
+    <div style="position:relative;height:2px;margin-top:14px;background:linear-gradient(90deg,rgba(212,175,55,0.6),transparent);border-radius:2px;"></div>
   </div>`;
   if(!_opDailySales.length&&!_opDayOrders.length) html+='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:16px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);margin-bottom:12px;">لا يوجد حسابات في هذه الفترة</div>';
   // ===== ملخص التكاليف والأرباح (only if sales exist) =====
@@ -9013,10 +9020,12 @@ function renderOperatorDailyView(){
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
     const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys;
     body.innerHTML+=`
-      <div style="margin-top:16px;">
-        <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
-          <div style="font-size:0.8rem;opacity:0.9;margin-bottom:4px;">💰 التحصيل المتوقع — كم كاش لازم يرجعلك</div>
-          <div style="font-size:1.7rem;font-weight:900;margin-bottom:8px;">${_collNet.toFixed(2)} <span style="font-size:0.85rem;">د.أ</span></div>
+      <div style="order:-1;margin-bottom:16px;">
+        <div style="position:relative;overflow:hidden;background:linear-gradient(135deg,#064e3b 0%,#047857 55%,#0d9488 100%);border-radius:20px;padding:20px;color:#fff;margin-bottom:12px;box-shadow:0 12px 30px rgba(6,78,59,0.35);border:1px solid rgba(255,255,255,0.12);">
+          <div style="position:absolute;top:-50px;right:-30px;width:170px;height:170px;background:radial-gradient(circle,rgba(255,255,255,0.14),transparent 70%);"></div>
+          <div style="position:relative;">
+          <div style="font-size:0.8rem;opacity:0.92;margin-bottom:6px;display:flex;align-items:center;gap:6px;"><span style="font-size:1rem;">💰</span> التحصيل المتوقع — الكاش اللي لازم يرجعلك</div>
+          <div style="font-size:2.5rem;font-weight:900;margin-bottom:10px;letter-spacing:-0.5px;line-height:1;text-shadow:0 2px 10px rgba(0,0,0,0.2);">${_collNet.toFixed(2)} <span style="font-size:1rem;font-weight:700;opacity:0.8;">د.أ</span></div>
           ${_collExcludedCount>0?`<div style="font-size:0.68rem;opacity:0.8;margin-bottom:8px;">🚫 مستثنى ${_collExcludedCount} طلب لمناديب مستبعدين (شركات توصيل)</div>`:''}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
@@ -9049,8 +9058,9 @@ function renderOperatorDailyView(){
             <span style="font-size:0.72rem;opacity:0.9;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
             <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;font-size:0.8rem;color:#fca5a5;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:rgba(220,38,38,0.5);color:#fff;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
           </div>`).join('')}</div>`:''}
+          </div>
         </div>
-        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin-bottom:10px;">📦 طلبات التوصيل (قيد التوصيل + مُسلَّمة) (${_opDayOrders.length})</div>
+        <div style="font-size:0.9rem;font-weight:800;color:#1a3a2a;margin:2px 2px 10px;">🏪 المتاجر · طلبات التوصيل <span style="font-weight:600;color:#9ca3af;font-size:0.78rem;">(${_opDayOrders.length})</span></div>
         ${groupCards}${ungroupedCards}
       </div>`;
     // orphan withdrawals (for stores not in orders) — split by type
@@ -14130,9 +14140,7 @@ async function loadBalanceTab(){
   renderBalanceSummary();
   renderBalancePurchases();
   renderBalancePayments();
-  loadStoreTx();
   if(!_opStoresList.length) await loadOpStores();
-  loadAlkiswaniSection();
   loadRosemaryWallet();
   // تحميل بيانات الكشف وعرض الحسابات الكاملة داخل #opbal_accounting (منقولة من الكشف)
   try{

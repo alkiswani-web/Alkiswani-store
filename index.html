@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v144" as="script">
+<link rel="preload" href="app.js?v145" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -2671,7 +2671,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <div id="optab-balance" style="display:none;">
 
         <!-- ===== الحسابات الكاملة (منقولة من الكشف — التحصيل والمتاجر والأرباح) ===== -->
-        <div id="opbal_accounting" style="margin-bottom:22px;"></div>
+        <div id="opbal_accounting" style="display:flex;flex-direction:column;margin-bottom:22px;"></div>
 
         <!-- ===== رصيد روزميري ===== -->
         <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:2px dashed var(--border);">
@@ -2826,65 +2826,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </button>
         <div id="opbal_payments_list" style="display:none;margin-bottom:8px;"></div>
 
-        <!-- ===== حساب الكسواني ===== -->
-        <div style="margin-top:24px;padding-top:20px;border-top:2px dashed var(--border);">
-          <div style="font-size:1rem;font-weight:700;color:#7c3aed;margin-bottom:12px;">👤 حساب الكسواني</div>
-
-          <!-- Summary card -->
-          <div id="alkiswani_summary" style="margin-bottom:14px;"></div>
-
-          <!-- Per-store breakdown -->
-          <div id="alkiswani_stores_breakdown" style="margin-bottom:14px;"></div>
-
-          <!-- Info note -->
-          <div style="font-size:0.75rem;color:#7c3aed;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:8px 12px;">
-            💡 الدفعات مربوطة تلقائياً من قسم <strong>كشف</strong> — سجّل دفعات المتاجر من هناك
-          </div>
-        </div>
-
-        <!-- ===== رصيد المحل ===== -->
-        <div style="margin-top:24px;padding-top:20px;border-top:2px dashed var(--border);">
-          <div style="font-size:1rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">🏬 رصيد المحل</div>
-
-          <!-- Balance card -->
-          <div id="opstore_bal_card" style="margin-bottom:14px;"></div>
-
-          <!-- Add transaction form -->
-          <div class="form-card" style="margin-bottom:14px;">
-            <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);margin-bottom:12px;">➕ تسجيل حركة</div>
-            <!-- Type toggle -->
-            <div style="display:flex;gap:0;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:12px;">
-              <button id="opstore_type_deposit" onclick="setStoreBalType('deposit')"
-                style="flex:1;padding:10px;border:none;background:var(--green-dark);color:#fff;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">💚 إيداع</button>
-              <button id="opstore_type_withdraw" onclick="setStoreBalType('withdraw')"
-                style="flex:1;padding:10px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-right:1.5px solid var(--border);">🔴 سحب</button>
-            </div>
-            <div class="form-row" style="margin-bottom:10px;">
-              <div class="fg">
-                <label>💵 المبلغ (د.أ)</label>
-                <input type="number" id="opstore_bal_amount" min="0" step="0.5" placeholder="0.00"
-                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-              </div>
-              <div class="fg">
-                <label>📅 التاريخ</label>
-                <input type="date" id="opstore_bal_date"
-                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-              </div>
-            </div>
-            <div class="fg" style="margin-bottom:10px;">
-              <label>📝 ملاحظات</label>
-              <input type="text" id="opstore_bal_notes" placeholder="سبب الحركة..."
-                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-            </div>
-            <button onclick="addStoreTx()" style="width:100%;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
-          </div>
-
-          <!-- Transaction history -->
-          <button onclick="toggleBalSection('opstore_tx_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:var(--text-mid);cursor:pointer;margin-bottom:8px;">
-            <span>📋 سجل الحركات</span><span>▼</span>
-          </button>
-          <div id="opstore_tx_list" style="display:none;"></div>
-        </div>
       </div>
 
       <!-- REPS ACCOUNTING sub-tab -->
@@ -4283,7 +4224,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v144"></script>
+<script src="app.js?v145"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">
