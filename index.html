@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v145" as="script">
+<link rel="preload" href="app.js?v146" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -2667,68 +2667,66 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
       </div>
 
-      <!-- ========== BALANCE TAB (الرصيد) ========== -->
+      <!-- ========== BALANCE TAB (الرصيد) — لوحة القيادة المالية ========== -->
       <div id="optab-balance" style="display:none;">
+      <style>
+        .cc{position:relative;overflow:hidden;background:linear-gradient(160deg,#17110d 0%,#20180f 55%,#241a10 100%);
+          border:1px solid rgba(201,162,75,.22);border-radius:26px;padding:18px 14px 20px;box-shadow:0 18px 44px rgba(0,0,0,.32);color:#f4ecdd;}
+        .cc *{box-sizing:border-box;}
+        .cc-glow{position:absolute;top:-60px;left:-40px;width:200px;height:200px;background:radial-gradient(circle,rgba(201,162,75,.20),transparent 70%);pointer-events:none;}
+        .cc-top{position:relative;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+        .cc-brand{display:flex;align-items:center;gap:10px;}
+        .cc-mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(150deg,#e6cf92,#8a6a24);display:grid;place-items:center;font-size:1.3rem;box-shadow:0 5px 16px rgba(201,162,75,.4);}
+        .cc-brand h3{font-size:1rem;font-weight:900;color:#fff;margin:0;}
+        .cc-brand p{font-size:.66rem;color:#c9b981;margin:1px 0 0;font-weight:700;}
+        .cc-period{display:flex;align-items:center;gap:6px;font-size:.66rem;color:#a99a83;background:rgba(255,255,255,.05);border:1px solid rgba(201,162,75,.18);border-radius:20px;padding:6px 11px;font-weight:700;}
+        .cc-dot{width:7px;height:7px;border-radius:50%;background:#5aa878;box-shadow:0 0 0 3px rgba(90,168,120,.25);}
+        .cc-gauge{position:relative;margin-bottom:16px;}
+        .cc-seg{position:relative;display:flex;gap:7px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none;}
+        .cc-seg::-webkit-scrollbar{display:none;}
+        .cc-chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);border:1px solid rgba(201,162,75,.2);color:#b3a48c;border-radius:14px;padding:9px 14px;font-family:'Tajawal',sans-serif;font-size:.82rem;font-weight:800;cursor:pointer;transition:.22s;white-space:nowrap;}
+        .cc-chip:hover{border-color:#c9a24b;color:#f4ecdd;}
+        .cc-chip.on{background:linear-gradient(145deg,#c9a24b,#8a6a24);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(201,162,75,.36);}
+        .cc-panel{display:none;animation:ccrise .38s ease;}
+        .cc-panel.on{display:block;}
+        @keyframes ccrise{from{opacity:0;transform:translateY(9px);}to{opacity:1;transform:none;}}
+        @media (prefers-reduced-motion:reduce){.cc-panel{animation:none;}}
+        .cc-sheet{background:var(--card-bg,#fff);border-radius:18px;padding:14px;}
+        .cc-empty{text-align:center;color:#a99a83;font-size:.85rem;padding:26px;}
+      </style>
 
-        <!-- ===== الحسابات الكاملة (منقولة من الكشف — التحصيل والمتاجر والأرباح) ===== -->
-        <div id="opbal_accounting" style="display:flex;flex-direction:column;margin-bottom:22px;"></div>
-
-        <!-- ===== رصيد روزميري ===== -->
-        <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:2px dashed var(--border);">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="font-size:1rem;font-weight:800;color:#be185d;">🌿 رصيد روزميري</div>
-            <button onclick="loadRosemaryWallet()" style="padding:5px 12px;background:var(--card-bg);color:var(--text-mid);border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">↻ تحديث</button>
+      <div class="cc">
+        <div class="cc-glow"></div>
+        <div class="cc-top">
+          <div class="cc-brand">
+            <div class="cc-mark">🌿</div>
+            <div><h3>مركز الحسابات</h3><p>الكسواني روزميري</p></div>
           </div>
-
-          <!-- Main balance card -->
-          <div id="rw_balance_card" style="margin-bottom:12px;"></div>
-
-          <!-- Edit initial balance form (hidden) -->
-          <div id="rw_initial_form" style="display:none;background:var(--card-bg);border:1.5px solid #fce7f3;border-radius:12px;padding:14px;margin-bottom:14px;">
-            <div style="font-size:0.85rem;font-weight:700;color:#be185d;margin-bottom:10px;">✏️ تعديل الرصيد الأولي</div>
-            <div style="display:flex;gap:8px;">
-              <input type="number" id="rw_initial_inp" min="0" step="0.5" placeholder="0.00"
-                style="flex:1;padding:10px 12px;border:1.5px solid #fce7f3;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fdf2f8;color:var(--text-dark);">
-              <button onclick="saveRwInitialBalance()" style="padding:10px 16px;background:#be185d;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;">💾 حفظ</button>
-              <button onclick="document.getElementById('rw_initial_form').style.display='none'" style="padding:10px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
-            </div>
-          </div>
-
-          <!-- Add withdrawal form (مصاريف مشغل فقط) -->
-          <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fce7f3;">
-            <div style="font-size:0.88rem;font-weight:700;color:#be185d;margin-bottom:4px;">🔴 تسجيل سحب — مصاريف مشغل</div>
-            <div style="font-size:0.72rem;color:#9ca3af;margin-bottom:12px;">الأرباح والمصاريف تُضاف وتُخصم تلقائياً من الكشف — هنا تسجّل سحب يدوي فقط</div>
-
-            <!-- Amount + Date -->
-            <div class="form-row" style="margin-bottom:10px;">
-              <div class="fg">
-                <label>💵 المبلغ (د.أ)</label>
-                <input type="number" id="rw_amount" min="0" step="0.5" placeholder="0.00"
-                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-              </div>
-              <div class="fg">
-                <label>📅 التاريخ</label>
-                <input type="date" id="rw_date"
-                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-              </div>
-            </div>
-
-            <!-- Notes -->
-            <div class="fg" style="margin-bottom:12px;">
-              <label>📝 ملاحظات</label>
-              <input type="text" id="rw_notes" placeholder="سبب الحركة..."
-                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
-            </div>
-
-            <button onclick="addRwTx()" style="width:100%;padding:12px;background:#be185d;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 تسجيل السحب</button>
-          </div>
-
-          <!-- Transaction history -->
-          <button onclick="toggleBalSection('rw_tx_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid #fce7f3;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#be185d;cursor:pointer;margin-bottom:8px;">
-            <span>📋 سجل الحركات</span><span>▼</span>
-          </button>
-          <div id="rw_tx_list" style="display:none;margin-bottom:8px;"></div>
+          <div class="cc-period"><span class="cc-dot"></span> <span id="cc_period_lbl">كشف مفتوح</span></div>
         </div>
+
+        <!-- HERO GAUGE (rendered by JS) -->
+        <div class="cc-gauge" id="cc-gauge"></div>
+
+        <!-- SEGMENTED NAV -->
+        <div class="cc-seg" role="tablist">
+          <button class="cc-chip on" onclick="ccSeg(this,'coll')">💰 التحصيل</button>
+          <button class="cc-chip" onclick="ccSeg(this,'stores')">🏪 المتاجر</button>
+          <button class="cc-chip" onclick="ccSeg(this,'profit')">📊 الأرباح</button>
+          <button class="cc-chip" onclick="ccSeg(this,'capital')">🏦 رأس المال</button>
+          <button class="cc-chip" onclick="ccSeg(this,'wallet')">🌿 المحفظة</button>
+        </div>
+
+        <!-- PANEL: التحصيل -->
+        <div class="cc-panel on" data-p="coll"><div class="cc-sheet"><div id="cc-coll"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
+        <!-- PANEL: المتاجر -->
+        <div class="cc-panel" data-p="stores"><div class="cc-sheet"><div id="cc-stores"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
+        <!-- PANEL: الأرباح -->
+        <div class="cc-panel" data-p="profit"><div class="cc-sheet"><div id="cc-profit"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
+
+        <!-- PANEL: رأس المال -->
+        <div class="cc-panel" data-p="capital">
+        <div class="cc-sheet">
 
         <!-- Summary Cards -->
         <div id="opbal_summary" style="margin-bottom:16px;"></div>
@@ -2784,19 +2782,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </button>
         <div id="opbal_purchases_list" style="display:none;margin-bottom:8px;"></div>
 
-        <!-- Migration Tool -->
-        <div style="margin-bottom:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;">
-          <div style="font-size:0.78rem;color:#166534;margin-bottom:8px;font-weight:600;">🔧 إصلاح السجلات القديمة (مرة واحدة فقط)</div>
-          <div style="font-size:0.72rem;color:#6b7280;margin-bottom:8px;">السجلات المضافة قبل نظام التسليم ستُعتبر مسلّمة تلقائياً</div>
-          <button id="migrate_sales_btn" onclick="migrateOldSales()" style="width:100%;padding:10px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔧 تصحيح السجلات القديمة</button>
-        </div>
-
-        <div style="margin-bottom:14px;padding:12px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:12px;">
-          <div style="font-size:0.78rem;color:#92400e;margin-bottom:8px;font-weight:600;">💰 تحديث تكاليف المواد من قائمة المنتجات</div>
-          <div style="font-size:0.72rem;color:#6b7280;margin-bottom:8px;">يجدد rawMaterialCost لكل السجلات اللي تكلفتها صفر بناءً على سعر المنتج الحالي</div>
-          <button id="migrate_costs_btn" onclick="migrateRawMaterialCosts()" style="width:100%;padding:10px;background:#92400e;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔄 تحديث تكاليف المواد</button>
-        </div>
-
         <!-- Pay Malik Form -->
         <div class="form-card" style="margin-top:16px;margin-bottom:14px;border:1.5px solid #fde68a;background:#fffbeb;">
           <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:12px;">💸 دفع الى ابو يحيى</div>
@@ -2826,7 +2811,79 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </button>
         <div id="opbal_payments_list" style="display:none;margin-bottom:8px;"></div>
 
-      </div>
+        <!-- Migration Tools -->
+        <div style="margin-bottom:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;">
+          <div style="font-size:0.78rem;color:#166534;margin-bottom:8px;font-weight:600;">🔧 إصلاح السجلات القديمة (مرة واحدة فقط)</div>
+          <button id="migrate_sales_btn" onclick="migrateOldSales()" style="width:100%;padding:10px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔧 تصحيح السجلات القديمة</button>
+        </div>
+        <div style="margin-bottom:4px;padding:12px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:12px;">
+          <div style="font-size:0.78rem;color:#92400e;margin-bottom:8px;font-weight:600;">💰 تحديث تكاليف المواد من قائمة المنتجات</div>
+          <button id="migrate_costs_btn" onclick="migrateRawMaterialCosts()" style="width:100%;padding:10px;background:#92400e;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔄 تحديث تكاليف المواد</button>
+        </div>
+
+        </div></div>
+
+        <!-- PANEL: المحفظة -->
+        <div class="cc-panel" data-p="wallet">
+        <div class="cc-sheet">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="font-size:1rem;font-weight:800;color:#be185d;">🌿 رصيد روزميري</div>
+            <button onclick="loadRosemaryWallet()" style="padding:5px 12px;background:var(--card-bg);color:var(--text-mid);border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">↻ تحديث</button>
+          </div>
+
+          <!-- Main balance card -->
+          <div id="rw_balance_card" style="margin-bottom:12px;"></div>
+
+          <!-- Edit initial balance form (hidden) -->
+          <div id="rw_initial_form" style="display:none;background:var(--card-bg);border:1.5px solid #fce7f3;border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;font-weight:700;color:#be185d;margin-bottom:10px;">✏️ تعديل الرصيد الأولي</div>
+            <div style="display:flex;gap:8px;">
+              <input type="number" id="rw_initial_inp" min="0" step="0.5" placeholder="0.00"
+                style="flex:1;padding:10px 12px;border:1.5px solid #fce7f3;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fdf2f8;color:var(--text-dark);">
+              <button onclick="saveRwInitialBalance()" style="padding:10px 16px;background:#be185d;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;">💾 حفظ</button>
+              <button onclick="document.getElementById('rw_initial_form').style.display='none'" style="padding:10px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
+            </div>
+          </div>
+
+          <!-- Add withdrawal form (مصاريف مشغل فقط) -->
+          <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fce7f3;">
+            <div style="font-size:0.88rem;font-weight:700;color:#be185d;margin-bottom:4px;">🔴 تسجيل سحب — مصاريف مشغل</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-bottom:12px;">الأرباح والمصاريف تُضاف وتُخصم تلقائياً من الكشف — هنا تسجّل سحب يدوي فقط</div>
+
+            <!-- Amount + Date -->
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>💵 المبلغ (د.أ)</label>
+                <input type="number" id="rw_amount" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>📅 التاريخ</label>
+                <input type="date" id="rw_date"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="fg" style="margin-bottom:12px;">
+              <label>📝 ملاحظات</label>
+              <input type="text" id="rw_notes" placeholder="سبب الحركة..."
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+
+            <button onclick="addRwTx()" style="width:100%;padding:12px;background:#be185d;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 تسجيل السحب</button>
+          </div>
+
+          <!-- Transaction history -->
+          <button onclick="toggleBalSection('rw_tx_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid #fce7f3;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#be185d;cursor:pointer;margin-bottom:8px;">
+            <span>📋 سجل الحركات</span><span>▼</span>
+          </button>
+          <div id="rw_tx_list" style="display:none;margin-bottom:8px;"></div>
+        </div><!-- /cc-sheet wallet -->
+        </div><!-- /cc-panel wallet -->
+
+      </div><!-- /cc command center -->
+      </div><!-- /optab-balance -->
 
       <!-- REPS ACCOUNTING sub-tab -->
       <div id="optab-reps" style="display:none;">
@@ -4224,7 +4281,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v145"></script>
+<script src="app.js?v146"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">
