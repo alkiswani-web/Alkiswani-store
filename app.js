@@ -8726,23 +8726,7 @@ function renderOperatorDailyView(){
     html+='<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;margin-bottom:12px;"><div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#166534;margin-bottom:2px;">💰 إجمالي البيع</div><div style="font-weight:800;color:#166534;font-size:1.1rem;">'+totSell.toFixed(2)+' د.أ</div></div>'+expCell+'<div style="background:'+(isPE?'#dcfce7':'#fee2e2')+'";border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:'+(isPE?'#166534':'#dc2626')+';margin-bottom:2px;">'+(isPE?'✅ صافي الربح':'⚠️ الخسارة')+(totExp>0?' (بعد المصاريف)':'')+'</div><div style="font-weight:900;color:'+(isPE?'#166534':'#dc2626')+';font-size:1.2rem;">'+Math.abs(totProfitAfterExp).toFixed(2)+' د.أ</div></div></div>';
   }
   // (أُزيل قسم «دفعات المتاجر» المنفصل — صار «مطلوب» + زر «دفعة للمتجر» داخل كل كرت متجر/مجموعة)
-  // ===== Mashghal wages section =====
-  if(_opMashghalWages&&_opMashghalWages.length){
-    const totW=_opMashghalWages.reduce((s,w)=>s+w.earned,0);
-    const rows=_opMashghalWages.map(w=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #dbeafe;font-size:0.8rem;">
-        <span style="font-weight:700;color:#1e3a5f;">👤 ${w.name}</span>
-        <span style="color:#6b7280;">${w.days} يوم · ${_fmtDuration(w.secs)}</span>
-        <span style="font-weight:900;color:#1d4ed8;">${w.earned>0?w.earned.toFixed(2)+' د.أ':'—'}</span>
-      </div>`).join('');
-    html+=`<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;overflow:hidden;margin-bottom:14px;">
-      <div style="background:#1e40af;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="color:#fff;font-weight:800;font-size:0.85rem;">👥 رواتب موظفين المشغل</span>
-        <span style="color:#bfdbfe;font-weight:900;font-size:0.95rem;">${totW.toFixed(2)} د.أ</span>
-      </div>
-      ${rows}
-    </div>`;
-  }
+  // (أُزيلت «رواتب موظفين المشغل» من لوحة الأرباح — صارت في تبويب «💰 رواتب» المخصّص)
   // ===== Delivered orders + per-store balance =====
   if(_opDayOrders.length){
     const excludedRepNames=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
