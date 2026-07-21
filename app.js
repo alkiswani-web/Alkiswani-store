@@ -8989,10 +8989,12 @@ function renderOperatorDailyView(){
     const _collOrdersNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
     // خصم مسحوبات المتاجر (النوع "مسحوب" مش "دفعة") ومصاريف الكشف الحالي من الكاش المتوقع
     const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').reduce((s,w)=>s+(w.amount||0),0);
+    // دفعات المتاجر (كاش المتجر دفعهولك لتسديد المستحق) — تُضاف للكاش المتوقع
+    const _collStorePayments=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment').reduce((s,w)=>s+(w.amount||0),0);
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
-    const _collNet=_collOrdersNet-_collStoreWd-_collExpenses-_collRawBuys;
+    const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys;
     body.innerHTML+=`
       <div style="margin-top:16px;">
         <div style="background:linear-gradient(135deg,#065f46,#047857);border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;">
@@ -9019,6 +9021,10 @@ function renderOperatorDailyView(){
             <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
               <div style="font-size:0.66rem;opacity:0.85;">🧱 شراء مواد خام (تُخصم)</div>
               <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collRawBuys.toFixed(2)} د.أ</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;grid-column:1/-1;">
+              <div style="font-size:0.66rem;opacity:0.85;">💳 دفعات المتاجر (تُضاف)</div>
+              <div style="font-weight:800;font-size:0.92rem;color:#86efac;">+${_collStorePayments.toFixed(2)} د.أ</div>
             </div>
           </div>
           ${!isClosed?`<button onclick="addRawBuy()" style="width:100%;margin-top:10px;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.45);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ شراء مواد خام (ينخصم من الكاش)</button>`:''}
