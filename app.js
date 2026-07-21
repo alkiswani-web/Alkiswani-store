@@ -9233,6 +9233,16 @@ function ccSeg(btn,panel){
   if(el) el.classList.add('on');
   if(panel==='capital'){ if(typeof renderBalanceSummary==='function') try{renderBalanceSummary();}catch(e){} }
   if(panel==='wallet'){ if(typeof renderRosemaryWallet==='function') try{renderRosemaryWallet();}catch(e){} }
+  if(panel==='wages'){ if(typeof loadEmpWages==='function') try{loadEmpWages();}catch(e){} }
+}
+
+// فتح لوحة الرواتب من أي مكان (زر تبويب الرواتب القديم)
+function ccGoWages(){
+  try{
+    if(typeof switchOpTab==='function') switchOpTab('balance');
+    const chip=document.querySelector('.cc-chip[onclick*="wages"]');
+    if(chip) ccSeg(chip,'wages');
+  }catch(e){}
 }
 
 // ساعة التحصيل — قوس متحرّك بصافي الكاش

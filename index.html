@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v147" as="script">
+<link rel="preload" href="app.js?v148" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -2348,7 +2348,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button id="optab-btn-account" onclick="switchOpTab('account')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 كشف</button>
         <button id="optab-btn-balance" onclick="switchOpTab('balance')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🌿 رصيد روزميري</button>
         <button id="optab-btn-workers" onclick="switchOpTab('workers')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">👥 موظفون</button>
-        <button id="optab-btn-empwages" onclick="switchOpTab('empwages')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رواتب</button>
+        <button id="optab-btn-empwages" onclick="ccGoWages()" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">💰 رواتب</button>
         <button id="optab-btn-expenses" onclick="switchOpTab('expenses')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🧾 مصاريف</button>
         <button id="optab-btn-emppoints" onclick="switchOpTab('emppoints')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏆 نقاط</button>
         <button id="optab-btn-settings" onclick="switchOpTab('settings')" style="flex:0 0 auto;padding:12px 14px;border:none;background:var(--card-bg);color:var(--text-mid);font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;white-space:nowrap;">⚙️ إعدادات</button>
@@ -2713,6 +2713,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <button class="cc-chip on" onclick="ccSeg(this,'coll')">💰 التحصيل</button>
           <button class="cc-chip" onclick="ccSeg(this,'stores')">🏪 المتاجر</button>
           <button class="cc-chip" onclick="ccSeg(this,'profit')">📊 الأرباح</button>
+          <button class="cc-chip" onclick="ccSeg(this,'wages')">👷 الرواتب</button>
           <button class="cc-chip" onclick="ccSeg(this,'capital')">🏦 رأس المال</button>
           <button class="cc-chip" onclick="ccSeg(this,'wallet')">🌿 المحفظة</button>
         </div>
@@ -2723,6 +2724,67 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div class="cc-panel" data-p="stores"><div class="cc-sheet"><div id="cc-stores"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
         <!-- PANEL: الأرباح -->
         <div class="cc-panel" data-p="profit"><div class="cc-sheet"><div id="cc-profit"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
+
+        <!-- PANEL: الرواتب -->
+        <div class="cc-panel" data-p="wages">
+        <div class="cc-sheet">
+          <!-- Screen 1: Store grid -->
+          <div id="ewScreen1">
+            <div style="font-size:1.05rem;font-weight:800;color:var(--green-dark);margin-bottom:16px;">💰 رواتب الموظفين</div>
+            <div id="ewStoreGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
+          </div>
+          <!-- Screen 2: Store employees -->
+          <div id="ewScreen2" style="display:none;">
+            <button onclick="ewBack()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:14px;">← رجوع للمتاجر</button>
+            <div id="ewScreen2Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;"></div>
+            <div id="ewEmpList" style="display:flex;flex-direction:column;gap:10px;"></div>
+          </div>
+          <!-- Screen 3: Employee detail -->
+          <div id="ewScreen3" style="display:none;">
+            <button onclick="ewBackToStore()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:10px;">← <span id="ewBackStoreLabel"></span></button>
+            <div id="ewScreen3Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:12px;"></div>
+            <div id="ewEmpSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:160px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:11px;">
+                <div style="font-size:0.72rem;font-weight:700;color:#92400e;margin-bottom:7px;">⏱ أجر الساعة</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="number" id="ewHourlyRateInput" min="0" step="0.25" placeholder="0.00"
+                    style="width:80px;padding:7px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
+                  <span style="font-size:0.7rem;color:#a16207;">د.أ/س</span>
+                  <button onclick="ewSaveHourlyRate()" style="padding:7px 11px;background:#d97706;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
+                </div>
+              </div>
+              <div id="ewOrderRateSection" style="flex:1;min-width:160px;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:11px;">
+                <div style="font-size:0.72rem;font-weight:700;color:var(--text-dark);margin-bottom:7px;">⚙️ أجر الطلب</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="number" id="ewRateInput" min="0" step="0.25" placeholder="0.00"
+                    style="width:80px;padding:7px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
+                  <span style="font-size:0.7rem;color:#9ca3af;">د.أ/طلب</span>
+                  <button onclick="ewSaveRate()" style="padding:7px 11px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
+                </div>
+              </div>
+            </div>
+            <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:11px;margin-bottom:14px;">
+              <div style="font-size:0.75rem;font-weight:700;color:#166534;margin-bottom:8px;">💵 تسجيل دفعة</div>
+              <div style="display:flex;gap:7px;flex-wrap:wrap;">
+                <input type="number" id="ewPayAmt" placeholder="المبلغ د.أ" min="0" step="0.5"
+                  style="width:110px;padding:8px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+                <input type="text" id="ewPayNotes" placeholder="ملاحظة (اختياري)"
+                  style="flex:1;min-width:100px;padding:8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
+                <button onclick="ewRecordPayment()" style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✅ تسجيل</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:0.85rem;font-weight:800;color:var(--text-dark);">📋 كشف الحساب</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <button onclick="_ewMonth='';document.getElementById('ewMonthPicker').value='';_ewRefreshEmployee()" style="padding:5px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;background:#fff;color:var(--green-dark);cursor:pointer;white-space:nowrap;">📋 كامل</button>
+                <input type="month" id="ewMonthPicker" onchange="_ewMonth=this.value;_ewRefreshEmployee()"
+                  style="padding:5px 9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;background:#fff;cursor:pointer;">
+              </div>
+            </div>
+            <div id="ewKashf" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;"></div>
+          </div>
+        </div></div>
 
         <!-- PANEL: رأس المال -->
         <div class="cc-panel" data-p="capital">
@@ -3076,73 +3138,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
         </div>
 
-        <!-- EMPWAGES sub-tab -->
-        <div id="emp-subtab-empwages" style="display:none;">
-          <!-- Screen 1: Store grid -->
-          <div id="ewScreen1">
-            <div style="font-size:1.05rem;font-weight:800;color:var(--green-dark);margin-bottom:16px;">💰 رواتب الموظفين</div>
-            <div id="ewStoreGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
-          </div>
-          <!-- Screen 2: Store employees -->
-          <div id="ewScreen2" style="display:none;">
-            <button onclick="ewBack()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:14px;">← رجوع للمتاجر</button>
-            <div id="ewScreen2Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:14px;"></div>
-            <div id="ewEmpList" style="display:flex;flex-direction:column;gap:10px;"></div>
-          </div>
-          <!-- Screen 3: Employee detail -->
-          <div id="ewScreen3" style="display:none;">
-            <button onclick="ewBackToStore()" style="display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;color:#6b7280;padding:0;margin-bottom:10px;">← <span id="ewBackStoreLabel"></span></button>
-            <div id="ewScreen3Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:12px;"></div>
-
-            <!-- Summary -->
-            <div id="ewEmpSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
-
-            <!-- Settings row: hourly rate + per-order rate -->
-            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:160px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:11px;">
-                <div style="font-size:0.72rem;font-weight:700;color:#92400e;margin-bottom:7px;">⏱ أجر الساعة</div>
-                <div style="display:flex;gap:6px;align-items:center;">
-                  <input type="number" id="ewHourlyRateInput" min="0" step="0.25" placeholder="0.00"
-                    style="width:80px;padding:7px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
-                  <span style="font-size:0.7rem;color:#a16207;">د.أ/س</span>
-                  <button onclick="ewSaveHourlyRate()" style="padding:7px 11px;background:#d97706;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
-                </div>
-              </div>
-              <div id="ewOrderRateSection" style="flex:1;min-width:160px;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:11px;">
-                <div style="font-size:0.72rem;font-weight:700;color:var(--text-dark);margin-bottom:7px;">⚙️ أجر الطلب</div>
-                <div style="display:flex;gap:6px;align-items:center;">
-                  <input type="number" id="ewRateInput" min="0" step="0.25" placeholder="0.00"
-                    style="width:80px;padding:7px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
-                  <span style="font-size:0.7rem;color:#9ca3af;">د.أ/طلب</span>
-                  <button onclick="ewSaveRate()" style="padding:7px 11px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Add payment -->
-            <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:11px;margin-bottom:14px;">
-              <div style="font-size:0.75rem;font-weight:700;color:#166534;margin-bottom:8px;">💵 تسجيل دفعة</div>
-              <div style="display:flex;gap:7px;flex-wrap:wrap;">
-                <input type="number" id="ewPayAmt" placeholder="المبلغ د.أ" min="0" step="0.5"
-                  style="width:110px;padding:8px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
-                <input type="text" id="ewPayNotes" placeholder="ملاحظة (اختياري)"
-                  style="flex:1;min-width:100px;padding:8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
-                <button onclick="ewRecordPayment()" style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✅ تسجيل</button>
-              </div>
-            </div>
-
-            <!-- Unified account statement -->
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
-              <div style="font-size:0.85rem;font-weight:800;color:var(--text-dark);">📋 كشف الحساب</div>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <button onclick="_ewMonth='';document.getElementById('ewMonthPicker').value='';_ewRefreshEmployee()" style="padding:5px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;background:#fff;color:var(--green-dark);cursor:pointer;white-space:nowrap;">📋 كامل</button>
-                <input type="month" id="ewMonthPicker" onchange="_ewMonth=this.value;_ewRefreshEmployee()"
-                  style="padding:5px 9px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;background:#fff;cursor:pointer;">
-              </div>
-            </div>
-            <div id="ewKashf" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;"></div>
-          </div>
-        </div>
+        <!-- EMPWAGES sub-tab — نُقل إلى مركز الحسابات (شريحة 👷 الرواتب) -->
+        <div id="emp-subtab-empwages" style="display:none;"></div>
 
         <!-- EXPENSES sub-tab -->
         <div id="emp-subtab-expenses" style="display:none;">
@@ -4281,7 +4278,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v147"></script>
+<script src="app.js?v148"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">
