@@ -8874,11 +8874,14 @@ function renderOperatorDailyView(){
         ${eligBlocks}
         ${exclBlocks}
         <div style="padding:12px 15px;border-top:1px solid rgba(231,198,107,.1);">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
-            ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
-            ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
-            ${_ccStat('🧾 المستحق على المتجر',stMatloub,'amber')}
-            ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
+            ${_ccRing(acctOwed>0?acctPaid/acctOwed:(store.eligibleTotal>0?1:0),'محصّل')}
+            <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
+              ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
+              ${_ccStat('🧾 المستحق',stMatloub,'amber')}
+              ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
+            </div>
           </div>
           ${storeWds.length?`<div style="background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${wdRows}</div>`:''}
           ${!isClosed?`<div style="display:flex;gap:8px;">
@@ -8936,11 +8939,14 @@ function renderOperatorDailyView(){
           <div style="color:#f3e0a6;font-weight:900;font-size:0.95rem;font-variant-numeric:tabular-nums;">${grpTotalAmt.toFixed(2)}</div>
         </div>
         <div style="padding:14px 16px;">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${grpWds.length||!isClosed?'12px':'2px'};">
-            ${_ccStat('💰 قابل للسحب',grpEligible,'green')}
-            ${_ccStat('💸 مسحوب',grpWdTotal,'red')}
-            ${_ccStat('🧾 المستحق على المتاجر',grpMatloub,'amber')}
-            ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:${grpWds.length||!isClosed?'12px':'2px'};">
+            ${_ccRing(grpAcctOwed>0?grpAcctPaid/grpAcctOwed:(grpEligible>0?1:0),'محصّل')}
+            <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              ${_ccStat('💰 قابل للسحب',grpEligible,'green')}
+              ${_ccStat('💸 مسحوب',grpWdTotal,'red')}
+              ${_ccStat('🧾 المستحق',grpMatloub,'amber')}
+              ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
+            </div>
           </div>
           ${grpWds.length?`<div style="background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${grpWdRows}</div>`:''}
           ${!isClosed?`<div style="display:flex;gap:8px;">
@@ -9203,6 +9209,21 @@ function _ccStat(label,value,tone){
   return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:14px;padding:11px 8px;text-align:center;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);">
     <div style="font-size:0.63rem;color:#9fc7b4;font-weight:700;margin-bottom:4px;">${label}</div>
     <div style="font-size:1.1rem;font-weight:800;color:${c};font-variant-numeric:tabular-nums;">${(value||0).toFixed(2)}</div>
+  </div>`;
+}
+// حلقة تقدّم صغيرة لكل متجر (% محصّل)
+function _ccRing(pct,label){
+  pct=Math.max(0,Math.min(1,+pct||0));
+  const C=188.5,off=(C*(1-pct)).toFixed(1);
+  return `<div style="position:relative;width:78px;height:78px;flex:0 0 auto;">
+    <svg width="78" height="78" viewBox="0 0 78 78" style="transform:rotate(-90deg);filter:drop-shadow(0 0 6px rgba(231,198,107,.25));">
+      <circle cx="39" cy="39" r="30" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="8"/>
+      <circle cx="39" cy="39" r="30" fill="none" stroke="#e7c66b" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+    </svg>
+    <div style="position:absolute;inset:0;display:grid;place-content:center;text-align:center;">
+      <div style="font-size:0.9rem;font-weight:900;color:#f3e0a6;font-variant-numeric:tabular-nums;">${Math.round(pct*100)}٪</div>
+      <div style="font-size:0.5rem;color:#9fc7b4;font-weight:700;">${label||'محصّل'}</div>
+    </div>
   </div>`;
 }
 // صف حركة كاش (داخل/خارج) — زجاجي بنص فاتح
