@@ -9006,7 +9006,10 @@ function renderOperatorDailyView(){
         </div>
       </div>
       ${_collExcludedCount>0?`<div style="font-size:0.7rem;color:#e7c66b;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:10px;padding:8px 12px;margin-bottom:10px;">🚫 مستثنى ${_collExcludedCount} طلب لمناديب مستبعدين (شركات توصيل)</div>`:''}
-      ${!isClosed?`<button onclick="addRawBuy()" style="width:100%;padding:12px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(184,145,47,.32);">➕ تسجيل شراء مواد خام</button>`:''}
+      ${!isClosed?`<div style="display:flex;gap:8px;">
+        <button onclick="addRawBuy()" style="flex:1;padding:12px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(184,145,47,.32);">🧱 شراء مواد خام</button>
+        <button onclick="addOpExpense()" style="flex:1;padding:12px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">🧾 تسجيل مصروف</button>
+      </div>`:''}
       ${_opRawBuys.length?`<div style="margin-top:10px;background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:14px;overflow:hidden;">${_opRawBuys.map(rb=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.07);">
         <span style="font-size:0.78rem;color:#9fc7b4;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
         <span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:800;font-size:0.85rem;color:#f2a6a0;font-variant-numeric:tabular-nums;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:6px;width:22px;height:22px;font-size:0.78rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
@@ -9480,6 +9483,32 @@ async function addRawBuy(){
     _opRawBuys.unshift({id:ref.id,amount,notes,date,sessionId:_opCurrentSession.id,purchaseId:pRef.id});
     renderOperatorDailyView();
     toast('✅ انخصم من الكاش وانسجّل بـ رأس المال');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// تسجيل مصروف مشغل مباشرة من لوحة التحصيل — يُخصم من الكاش
+async function addOpExpense(){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  const raw=prompt('💵 مبلغ المصروف (د.أ):');
+  if(raw===null)return;
+  const amount=parseFloat(raw);
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  const notes=(prompt('📝 على شو المصروف؟ (قهوة، وقود، أكل...)')||'').trim();
+  const date=jordanDateStr();
+  try{
+    await db.collection('operator_expenses').add({
+      amount, category:notes||'مصاريف مشغل', notes, date,
+      sessionId:_opCurrentSession.id,
+      addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    try{
+      const from=_opCurrentSession.openedDate,to=jordanDateStr();
+      const eSnap=await db.collection('operator_expenses').where('date','>=',from).where('date','<=',to).get();
+      _opDayExpenses=eSnap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){}
+    renderOperatorDailyView();
+    toast('✅ تم تسجيل المصروف — انخصم من الكاش');
   }catch(e){toast('❌ '+e.message);}
 }
 
