@@ -8853,45 +8853,33 @@ function renderOperatorDailyView(){
       const stSafiColor=stSafi>=0?'#4338ca':'#dc2626';
       // When inside a group: compact view — no per-store session balance/withdrawals/account balance
       if(inGroup){
-        return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;">
-          <div style="background:#1a3a2a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
-            <div style="color:#fff;font-weight:700;font-size:0.84rem;">🏪 ${store.name} <span style="font-size:0.7rem;font-weight:400;opacity:0.65;">(${store.orders.length} طلب)</span></div>
-            <div style="color:#86efac;font-weight:900;font-size:0.84rem;">${store.eligibleTotal.toFixed(2)} د.أ</div>
+        return `<div style="background:#fff;border:1px solid #ece3cf;border-radius:14px;overflow:hidden;margin-bottom:8px;box-shadow:0 3px 10px rgba(120,90,30,.05);">
+          <div style="background:linear-gradient(150deg,#173f30,#255f48);padding:9px 13px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="color:#f2e9d3;font-weight:700;font-size:0.84rem;">🏪 ${store.name} <span style="font-size:0.68rem;font-weight:400;color:#bcd8c9;">(${store.orders.length} طلب)</span></div>
+            <div style="color:#e6cf92;font-weight:900;font-size:0.84rem;font-variant-numeric:tabular-nums;">${store.eligibleTotal.toFixed(2)}</div>
           </div>
           ${eligBlocks}
           ${exclBlocks}
         </div>`;
       }
-      return `<div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px;">
-        <div style="background:#1a3a2a;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
-          <div style="color:#fff;font-weight:800;font-size:0.88rem;">🏪 ${store.name} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${store.orders.length} طلب)</span></div>
-          <div style="color:#86efac;font-weight:900;font-size:0.9rem;">${store.total.toFixed(2)} د.أ</div>
+      return `<div style="background:#fff;border:1px solid #ece3cf;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:0 6px 18px rgba(120,90,30,.06);">
+        <div style="background:linear-gradient(150deg,#173f30,#255f48);padding:11px 15px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#f2e9d3;font-weight:800;font-size:0.9rem;">🏪 ${store.name} <span style="font-size:0.7rem;font-weight:400;color:#bcd8c9;">(${store.orders.length} طلب)</span></div>
+          <div style="color:#e6cf92;font-weight:900;font-size:0.92rem;font-variant-numeric:tabular-nums;">${store.total.toFixed(2)}</div>
         </div>
         ${eligBlocks}
         ${exclBlocks}
-        <div style="padding:10px 14px;background:#f9fafb;border-top:1px solid #e5e7eb;">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
-            <div style="text-align:center;background:#f0fdf4;border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:#166534;margin-bottom:1px;">💰 قابل للسحب</div>
-              <div style="font-weight:800;color:#166534;font-size:0.88rem;">${store.eligibleTotal.toFixed(2)}</div>
-            </div>
-            <div style="text-align:center;background:#fff5f5;border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:#dc2626;margin-bottom:1px;">💸 مسحوب</div>
-              <div style="font-weight:800;color:#dc2626;font-size:0.88rem;">${storeWdTotal.toFixed(2)}</div>
-            </div>
-            <div style="text-align:center;background:${stMatBg};border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:${stMatColor};margin-bottom:1px;">🧾 المستحق على المتجر</div>
-              <div style="font-weight:800;color:${stMatColor};font-size:0.88rem;">${stMatloub.toFixed(2)}</div>
-            </div>
-            <div style="text-align:center;background:${stSafiBg};border-radius:8px;padding:7px 4px;">
-              <div style="font-size:0.62rem;color:${stSafiColor};margin-bottom:1px;">✅ الصافي</div>
-              <div style="font-weight:900;color:${stSafiColor};font-size:0.88rem;">${stSafi.toFixed(2)}</div>
-            </div>
+        <div style="padding:12px 15px;border-top:1px solid #f0e8d5;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
+            ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
+            ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
+            ${_ccStat('🧾 المستحق على المتجر',stMatloub,'amber')}
+            ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
           </div>
-          ${storeWds.length?`<div style="margin-bottom:6px;">${wdRows}</div>`:''}
-          ${!isClosed?`<div style="display:flex;gap:6px;">
-            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:8px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💸 مسحوب</button>
-            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:8px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">💳 دفعة للمتجر</button>
+          ${storeWds.length?`<div style="background:#fbf8f0;border:1px solid #f0e8d5;border-radius:12px;padding:2px 12px;margin-bottom:12px;">${wdRows}</div>`:''}
+          ${!isClosed?`<div style="display:flex;gap:8px;">
+            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:10px;background:#fef2f2;color:#b91c1c;border:1px solid #f3d9d9;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
+            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#1c5140,#2a6e52);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر</button>
           </div>`:''}
         </div>
         ${refundBlock}
@@ -8931,54 +8919,38 @@ function renderOperatorDailyView(){
       const grpSafi=grpEligible-grpWdTotal-grpMatloub;
       const grpSafiColor=grpSafi>=0?'#fff':'#fca5a5';
       const grpWdRows=grpWds.map(w=>`
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,0.2);gap:6px;">
-          <div style="flex:1;min-width:0;">
-            ${w.notes?`<span style="font-size:0.72rem;color:rgba(255,255,255,0.75);">${w.notes} — </span>`:''}
-            <span style="font-size:0.7rem;color:rgba(255,255,255,0.55);">${w.date||''}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-            <span style="font-weight:700;color:#fca5a5;font-size:0.82rem;">${(w.amount||0).toFixed(2)} د.أ</span>
-            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:rgba(220,38,38,0.4);color:#fff;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid #f4eede;gap:6px;">
+          <div style="flex:1;min-width:0;font-size:0.72rem;color:#8a7f6c;">${w.notes?w.notes+' — ':''}${w.date||''}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span style="font-weight:800;color:#b91c1c;font-size:0.82rem;font-variant-numeric:tabular-nums;">${(w.amount||0).toFixed(2)}</span>
+            ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
           </div>
         </div>`).join('');
-      return `<div style="border:1px solid rgba(201,162,75,.3);border-radius:16px;overflow:hidden;margin-bottom:14px;box-shadow:0 8px 22px rgba(18,53,40,.14);">
-        <div style="background:linear-gradient(150deg,#123528,#1c5140 60%,#2a6e52);padding:13px 15px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="color:#fff;font-weight:800;font-size:0.92rem;">👥 ${groupName} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${stores.length} متاجر — ${grpTotalOrders} طلب)</span></div>
-            <div style="color:#e9d5ff;font-weight:900;font-size:0.88rem;">${grpTotalAmt.toFixed(2)} د.أ</div>
+      return `<div style="border:1px solid #ece3cf;border-radius:18px;overflow:hidden;margin-bottom:14px;box-shadow:0 8px 22px rgba(18,53,40,.1);background:#fff;">
+        <div style="background:linear-gradient(150deg,#123528,#1c5140 60%,#2a6e52);padding:13px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:#f2e9d3;font-weight:800;font-size:0.95rem;">👥 ${groupName} <span style="font-size:0.66rem;font-weight:500;color:#cbe6d6;">(${stores.length} متاجر · ${grpTotalOrders} طلب)</span></div>
+          <div style="color:#e6cf92;font-weight:900;font-size:0.95rem;font-variant-numeric:tabular-nums;">${grpTotalAmt.toFixed(2)}</div>
+        </div>
+        <div style="padding:14px 16px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${grpWds.length||!isClosed?'12px':'2px'};">
+            ${_ccStat('💰 قابل للسحب',grpEligible,'green')}
+            ${_ccStat('💸 مسحوب',grpWdTotal,'red')}
+            ${_ccStat('🧾 المستحق على المتاجر',grpMatloub,'amber')}
+            ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:${grpWds.length||!isClosed?'10px':'0'};">
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.6rem;color:rgba(255,255,255,0.75);margin-bottom:2px;">💰 قابل للسحب</div>
-              <div style="font-weight:800;color:#fff;font-size:0.9rem;">${grpEligible.toFixed(2)}</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.6rem;color:rgba(255,255,255,0.75);margin-bottom:2px;">💸 مسحوب</div>
-              <div style="font-weight:800;color:#fca5a5;font-size:0.9rem;">${grpWdTotal.toFixed(2)}</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.6rem;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};margin-bottom:2px;">🧾 المستحق على المتاجر</div>
-              <div style="font-weight:800;color:${grpMatloub>0.01?'#fde68a':'#bbf7d0'};font-size:0.9rem;">${grpMatloub.toFixed(2)}</div>
-            </div>
-            <div style="background:${grpSafi>=0?'rgba(255,255,255,0.25)':'rgba(220,38,38,0.4)'};border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.6rem;color:${grpSafiColor};margin-bottom:2px;">✅ الصافي</div>
-              <div style="font-weight:900;color:${grpSafiColor};font-size:0.92rem;">${grpSafi.toFixed(2)}</div>
-            </div>
-          </div>
-          ${grpWdRows?`<div style="margin-bottom:8px;">${grpWdRows}</div>`:''}
-          ${!isClosed?`<div style="display:flex;gap:6px;">
-            <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="flex:1;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.4);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💸 مسحوب</button>
-            <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}','payment')" style="flex:1;padding:9px;background:rgba(255,255,255,0.28);color:#fff;border:1.5px solid rgba(255,255,255,0.5);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💳 دفعة للمتاجر</button>
+          ${grpWds.length?`<div style="background:#fbf8f0;border:1px solid #f0e8d5;border-radius:12px;padding:2px 12px;margin-bottom:12px;">${grpWdRows}</div>`:''}
+          ${!isClosed?`<div style="display:flex;gap:8px;">
+            <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="flex:1;padding:11px;background:#fef2f2;color:#b91c1c;border:1px solid #f3d9d9;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
+            <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}','payment')" style="flex:1;padding:11px;background:linear-gradient(145deg,#1c5140,#2a6e52);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">💳 دفعة للمتاجر</button>
           </div>`:''}
         </div>
-        <div style="padding:8px 12px;background:#faf6ea;border-top:1px solid #ece3cf;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-          <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;">🗂 رصيد الحساب الكلي للمجموعة</div>
-          <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
-            <span style="color:#dc2626;">مبيعات: <strong>${grpAcctOwed.toFixed(2)}</strong></span>
-            <span style="color:#166534;">مدفوع: <strong>${grpAcctPaid.toFixed(2)}</strong></span>
-            ${grpAcctDiscount>0?`<span style="color:#b45309;">🏷 خصومات: <strong>${grpAcctDiscount.toFixed(2)}</strong></span>`:''}
-            ${grpAcctRefund>0?`<span style="color:#9d174d;">مرتجع: <strong>${grpAcctRefund.toFixed(2)}</strong></span>`:''}
-            <span style="color:${grpAcctBal>0?'#92400e':grpAcctBal<0?'#166534':'#6b7280'};font-weight:800;">${grpAcctLabel}: ${Math.abs(grpAcctBal).toFixed(2)} د.أ</span>
+        <div style="padding:9px 16px;background:#faf6ea;border-top:1px solid #f0e8d5;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <div style="font-size:0.72rem;font-weight:700;color:#8a6a24;">🗂 رصيد الحساب الكلي</div>
+          <div style="display:flex;gap:10px;font-size:0.71rem;flex-wrap:wrap;">
+            <span style="color:#b91c1c;">مبيعات <strong>${grpAcctOwed.toFixed(2)}</strong></span>
+            <span style="color:#166534;">مدفوع <strong>${grpAcctPaid.toFixed(2)}</strong></span>
+            ${grpAcctRefund>0?`<span style="color:#9d174d;">مرتجع <strong>${grpAcctRefund.toFixed(2)}</strong></span>`:''}
+            <span style="color:${grpAcctBal>0?'#9a6a12':grpAcctBal<0?'#166534':'#6b7280'};font-weight:800;">${grpAcctLabel} ${Math.abs(grpAcctBal).toFixed(2)}</span>
           </div>
         </div>
         <div style="padding:8px 8px 4px;background:#fbf8f0;">
@@ -9220,6 +9192,14 @@ function ccSeg(btn,panel){
 // ترويسة قسم فاخرة موحّدة داخل لوحات مركز الحسابات
 function _ccHead(icon,label,extra){
   return `<div style="display:flex;align-items:center;gap:9px;margin:2px 2px 12px;font-size:0.95rem;font-weight:800;color:#1a3a2a;"><span style="width:28px;height:28px;border-radius:9px;background:#f3e9cf;display:grid;place-items:center;font-size:0.9rem;">${icon}</span> ${label}${extra?` <span style="font-weight:600;color:#9ca3af;font-size:0.78rem;">${extra}</span>`:''}</div>`;
+}
+// بطاقة إحصاء صغيرة موحّدة (قابل للسحب/مسحوب/مستحق/صافي)
+function _ccStat(label,value,tone){
+  const t={green:['#166534','#f1f9f3','#d6ecdd'],red:['#b91c1c','#fdf3f3','#f3d9d9'],amber:['#9a6a12','#fdf7e8','#efe0b8'],gold:['#8a6a24','#faf4e3','#ecdcb0']}[tone]||['#374151','#f7f4ec','#ece3cf'];
+  return `<div style="background:${t[1]};border:1px solid ${t[2]};border-radius:13px;padding:11px 8px;text-align:center;">
+    <div style="font-size:0.63rem;color:${t[0]};opacity:.9;font-weight:700;margin-bottom:4px;">${label}</div>
+    <div style="font-size:1.1rem;font-weight:900;color:${t[0]};font-variant-numeric:tabular-nums;">${(value||0).toFixed(2)}</div>
+  </div>`;
 }
 // صف حركة كاش (داخل/خارج) بأسلوب موحّد
 function _ccFlow(icon,label,amount,dir){
