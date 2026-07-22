@@ -8344,6 +8344,7 @@ async function loadAcctStoreList(){
 
 // ===== OPERATOR DAILY ACCOUNT (حساب المشغل اليومي) =====
 let _opDailySales=[];
+let _kashfStart=null; // بداية فترة عرض «الكشف» (قابلة للتصفير) — مستقلة عن مركز الحسابات
 let _opSessionRefunds=[];
 let _opDayOrders=[];
 let _opWithdrawals=[];
@@ -8429,12 +8430,14 @@ async function _loadOpSessionData(){
   _opDayRecord={status:_opCurrentSession.status};
   const from=_opCurrentSession.openedDate;
   const to=_opCurrentSession.closedDate||jordanDateStr();
+  // بداية فترة الكشف (قابلة للتصفير) — مستقلة عن الحسابات؛ افتراضياً من بداية الجلسة
+  try{
+    const kd=await db.collection('operator_kashf_view').doc('settings').get();
+    _kashfStart=(kd.exists&&kd.data().start)||from;
+  }catch(e){_kashfStart=from;}
   const infoEl=document.getElementById('op_session_info');
   if(infoEl){
-    const isClosed=_opCurrentSession.status==='closed';
-    infoEl.innerHTML=isClosed
-      ?`<span style="color:#dc2626;font-weight:700;">🔒 مغلق — من ${_fmtDate(from)} إلى ${_fmtDate(to)}</span>`
-      :`<span style="color:#166534;font-weight:700;">🟢 مفتوح منذ ${_fmtDate(from)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
+    infoEl.innerHTML=`<span style="color:#166534;font-weight:700;">🟢 الكشف من ${_fmtDate(_kashfStart)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
     const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
@@ -8679,13 +8682,14 @@ function renderOperatorDailyView(){
     actionsWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الكشف مغلق</div>';
     return;
   }
-  // ===== الكشف: جدول المبيعات المبسّط (منتج/كمية/سعر البيع/الإجمالي) =====
+  // ===== الكشف: جدول المبيعات المبسّط (منتج/كمية/سعر البيع/الإجمالي) — لفترة الكشف القابلة للتصفير فقط =====
+  const kashfSales=(_opDailySales||[]).filter(s=>!_kashfStart||(s.date||'0000')>=_kashfStart);
   let kashfHtml=closedBanner;
-  if(!_opDailySales.length){
+  if(!kashfSales.length){
     kashfHtml+='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:16px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);margin-bottom:12px;">لا يوجد مبيعات في هذه الفترة</div>';
   } else {
     const bp={};
-    _opDailySales.forEach(function(s){const k=s.productName;if(!bp[k])bp[k]={name:k,qty:0,sell:0};bp[k].qty+=s.qty||1;bp[k].sell+=(s.sellPrice||0)*(s.qty||1);});
+    kashfSales.forEach(function(s){const k=s.productName;if(!bp[k])bp[k]={name:k,qty:0,sell:0};bp[k].qty+=s.qty||1;bp[k].sell+=(s.sellPrice||0)*(s.qty||1);});
     const pr=Object.values(bp).sort((a,b)=>b.sell-a.sell);
     const totQty=pr.reduce((s,p)=>s+p.qty,0);
     const totSellK=pr.reduce((s,p)=>s+p.sell,0);
@@ -9177,14 +9181,20 @@ function renderOperatorDailyView(){
   // Action buttons
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
-  if(!isClosed){
-    const editDateBtn=`<button onclick="editSessionStartDate()" style="flex:1;min-width:100px;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📅 تعديل تاريخ البداية</button>`;
-    const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚚 جلب طلبات التوصيل</button>`;
-    const deleteSessionBtn=`<button onclick="deleteCurrentSession()" style="flex:1;min-width:100px;padding:12px;background:#6b7280;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🗑️ حذف الكشف</button>`;
-    actionsWrap.innerHTML=`<button onclick="closeOperatorSession()" style="flex:1;min-width:100px;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔒 غلق الكشف</button>${deliverRepsBtn}${deleteSessionBtn}${editDateBtn}${printBtn}${waBtn}`;
-  } else {
-    actionsWrap.innerHTML=`<button onclick="openNewSession()" style="flex:1;min-width:100px;padding:12px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button>${printBtn}${waBtn}`;
-  }
+  const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚚 جلب طلبات التوصيل</button>`;
+  actionsWrap.innerHTML=`<button onclick="resetKashfPeriod()" style="flex:1;min-width:100px;padding:12px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔄 بدء فترة كشف جديدة</button>${deliverRepsBtn}${printBtn}${waBtn}`;
+}
+
+// تصفير عرض «الكشف» فقط (فترة مبيعات جديدة) — لا يؤثر على مركز الحسابات إطلاقاً
+async function resetKashfPeriod(){
+  const today=jordanDateStr();
+  if(!confirm('بدء فترة كشف جديدة من اليوم؟\n\nهذا يصفّر عرض المبيعات فقط (لتتابع منتجاتك كل فترة) — ولا يؤثر على مركز الحسابات، الأرقام هناك تبقى تراكمية.'))return;
+  try{
+    await db.collection('operator_kashf_view').doc('settings').set({start:today,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    _kashfStart=today;
+    toast('🔄 بدأت فترة كشف جديدة');
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 // تبديل لوحات مركز الحسابات (شرائح)
