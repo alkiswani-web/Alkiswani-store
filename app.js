@@ -8717,7 +8717,7 @@ function renderOperatorDailyView(){
     const totCost=totRaw+totTree+totMachine+totAssembly;
     const totProfit=totSell-totCost;
     const isP=totProfit>=0;
-    html+='<div style="font-size:0.92rem;font-weight:800;color:#1a3a2a;margin:2px 2px 10px;">📊 التكاليف والأرباح</div>';
+    html+=_ccHead('📊','التكاليف والأرباح');
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"><div style="background:#fefce8;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#92400e;margin-bottom:2px;">🧱 مجموع المواد الخام</div><div style="font-weight:800;color:#92400e;font-size:1rem;">'+totRaw.toFixed(2)+' د.أ</div></div><div style="background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#15803d;margin-bottom:2px;">🌳 مجموع تكلفة الشجر</div><div style="font-weight:800;color:#15803d;font-size:1rem;">'+totTree.toFixed(2)+' د.أ</div></div><div style="background:#eff6ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#1e40af;margin-bottom:2px;">⚙️ أجرة عامل الماكينة</div><div style="font-weight:800;color:#1e40af;font-size:1rem;">'+totMachine.toFixed(2)+' د.أ</div></div><div style="background:#f5f3ff;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:0.7rem;color:#7c3aed;margin-bottom:2px;">🔧 أجرة عامل التركيب</div><div style="font-weight:800;color:#7c3aed;font-size:1rem;">'+totAssembly.toFixed(2)+' د.أ</div></div><div style="background:#fef2f2;border-radius:9px;padding:9px;text-align:center;grid-column:1/-1;"><div style="font-size:0.7rem;color:#dc2626;margin-bottom:2px;">💸 إجمالي التكاليف</div><div style="font-weight:800;color:#dc2626;font-size:1rem;">'+totCost.toFixed(2)+' د.أ</div></div></div>';
     const totProfitAfterExp=totProfit-totExp;
     const isPE=totProfitAfterExp>=0;
@@ -9003,48 +9003,26 @@ function renderOperatorDailyView(){
     const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys;
     ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys;
     collHtml+=`
-      <div style="margin-bottom:6px;">
-        <div style="position:relative;overflow:hidden;background:linear-gradient(135deg,#064e3b 0%,#047857 55%,#0d9488 100%);border-radius:20px;padding:20px;color:#fff;margin-bottom:12px;box-shadow:0 12px 30px rgba(6,78,59,0.35);border:1px solid rgba(255,255,255,0.12);">
-          <div style="position:absolute;top:-50px;right:-30px;width:170px;height:170px;background:radial-gradient(circle,rgba(255,255,255,0.14),transparent 70%);"></div>
-          <div style="position:relative;">
-          <div style="font-size:0.8rem;opacity:0.92;margin-bottom:6px;display:flex;align-items:center;gap:6px;"><span style="font-size:1rem;">💰</span> التحصيل المتوقع — الكاش اللي لازم يرجعلك</div>
-          <div style="font-size:2.5rem;font-weight:900;margin-bottom:10px;letter-spacing:-0.5px;line-height:1;text-shadow:0 2px 10px rgba(0,0,0,0.2);">${_collNet.toFixed(2)} <span style="font-size:1rem;font-weight:700;opacity:0.8;">د.أ</span></div>
-          ${_collExcludedCount>0?`<div style="font-size:0.68rem;opacity:0.8;margin-bottom:8px;">🚫 مستثنى ${_collExcludedCount} طلب لمناديب مستبعدين (شركات توصيل)</div>`:''}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.66rem;opacity:0.85;">🧾 قيمة الطلبات للزبون</div>
-              <div style="font-weight:800;font-size:0.92rem;">${_collCustomer.toFixed(2)} د.أ</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.66rem;opacity:0.85;">🚚 أجور التوصيل (تُخصم)</div>
-              <div style="font-weight:800;font-size:0.92rem;">${_collDelivery.toFixed(2)} د.أ</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.66rem;opacity:0.85;">💸 مسحوبات المتاجر (تُخصم)</div>
-              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collStoreWd.toFixed(2)} د.أ</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.66rem;opacity:0.85;">🧾 المصاريف (تُخصم)</div>
-              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collExpenses.toFixed(2)} د.أ</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;">
-              <div style="font-size:0.66rem;opacity:0.85;">🧱 شراء مواد خام (تُخصم)</div>
-              <div style="font-weight:800;font-size:0.92rem;color:#fca5a5;">${_collRawBuys.toFixed(2)} د.أ</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:7px;text-align:center;grid-column:1/-1;">
-              <div style="font-size:0.66rem;opacity:0.85;">💳 دفعات المتاجر (تُضاف)</div>
-              <div style="font-weight:800;font-size:0.92rem;color:#86efac;">+${_collStorePayments.toFixed(2)} د.أ</div>
-            </div>
-          </div>
-          ${!isClosed?`<button onclick="addRawBuy()" style="width:100%;margin-top:10px;padding:9px;background:rgba(255,255,255,0.2);color:#fff;border:1.5px solid rgba(255,255,255,0.45);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">➕ شراء مواد خام (ينخصم من الكاش)</button>`:''}
-          ${_opRawBuys.length?`<div style="margin-top:8px;background:rgba(0,0,0,0.12);border-radius:9px;padding:6px 8px;">${_opRawBuys.map(rb=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,0.12);">
-            <span style="font-size:0.72rem;opacity:0.9;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
-            <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;font-size:0.8rem;color:#fca5a5;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:rgba(220,38,38,0.5);color:#fff;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
-          </div>`).join('')}</div>`:''}
-          </div>
+      ${_ccHead('🔀','حركة الكاش')}
+      <div style="background:#fff;border:1px solid #ece3cf;border-radius:18px;overflow:hidden;box-shadow:0 4px 14px rgba(120,90,30,0.05);margin-bottom:12px;">
+        ${_ccFlow('🧾','قيمة الطلبات للزبون',_collCustomer,'in')}
+        ${_collStorePayments>0?_ccFlow('💳','دفعات المتاجر (كاش)',_collStorePayments,'in'):''}
+        ${_ccFlow('🚚','أجور التوصيل',_collDelivery,'out')}
+        ${_ccFlow('💸','مسحوبات المتاجر',_collStoreWd,'out')}
+        ${_ccFlow('🧾','المصاريف',_collExpenses,'out')}
+        ${_ccFlow('🧱','شراء مواد خام',_collRawBuys,'out')}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(201,162,75,0.15),transparent);">
+          <span style="display:flex;align-items:center;gap:10px;font-weight:900;color:#1a3a2a;font-size:0.92rem;"><span style="width:30px;height:30px;border-radius:9px;background:#e8dcbb;display:grid;place-items:center;">💰</span> صافي التحصيل</span>
+          <span style="font-weight:900;color:#8a6a24;font-size:1.2rem;font-variant-numeric:tabular-nums;">${_collNet.toFixed(2)} <span style="font-size:0.72rem;">د.أ</span></span>
         </div>
-      </div>`;
-    storesHtml+=`<div style="font-size:0.95rem;font-weight:800;color:#1a3a2a;margin:2px 2px 12px;">🏪 المتاجر · طلبات التوصيل <span style="font-weight:600;color:#9ca3af;font-size:0.78rem;">(${_opDayOrders.length})</span></div>${groupCards}${ungroupedCards}`;
+      </div>
+      ${_collExcludedCount>0?`<div style="font-size:0.7rem;color:#9a7b2e;background:#fdf6e3;border:1px solid #efe0b8;border-radius:10px;padding:8px 12px;margin-bottom:10px;">🚫 مستثنى ${_collExcludedCount} طلب لمناديب مستبعدين (شركات توصيل)</div>`:''}
+      ${!isClosed?`<button onclick="addRawBuy()" style="width:100%;padding:12px;background:linear-gradient(145deg,#1a3a2a,#2d6a4f);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(26,58,42,0.18);">➕ تسجيل شراء مواد خام</button>`:''}
+      ${_opRawBuys.length?`<div style="margin-top:10px;background:#fff;border:1px solid #ece3cf;border-radius:14px;overflow:hidden;">${_opRawBuys.map(rb=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #f4eede;">
+        <span style="font-size:0.78rem;color:#6b6152;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
+        <span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:800;font-size:0.85rem;color:#b91c1c;font-variant-numeric:tabular-nums;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:22px;height:22px;font-size:0.78rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
+      </div>`).join('')}</div>`:''}`;
+    storesHtml+=_ccHead('🏪','المتاجر · طلبات التوصيل','('+_opDayOrders.length+')')+`${groupCards}${ungroupedCards}`;
     // orphan withdrawals (for stores not in orders) — split by type
     const orphanWds=_opWithdrawals.filter(w=>!orderStoreNames.has(w.storeName));
     if(orphanWds.length){
@@ -9234,6 +9212,19 @@ function ccSeg(btn,panel){
   if(panel==='capital'){ if(typeof renderBalanceSummary==='function') try{renderBalanceSummary();}catch(e){} }
   if(panel==='wallet'){ if(typeof renderRosemaryWallet==='function') try{renderRosemaryWallet();}catch(e){} }
   if(panel==='wages'){ if(typeof loadEmpWages==='function') try{loadEmpWages();}catch(e){} }
+}
+
+// ترويسة قسم فاخرة موحّدة داخل لوحات مركز الحسابات
+function _ccHead(icon,label,extra){
+  return `<div style="display:flex;align-items:center;gap:9px;margin:2px 2px 12px;font-size:0.95rem;font-weight:800;color:#1a3a2a;"><span style="width:28px;height:28px;border-radius:9px;background:#f3e9cf;display:grid;place-items:center;font-size:0.9rem;">${icon}</span> ${label}${extra?` <span style="font-weight:600;color:#9ca3af;font-size:0.78rem;">${extra}</span>`:''}</div>`;
+}
+// صف حركة كاش (داخل/خارج) بأسلوب موحّد
+function _ccFlow(icon,label,amount,dir){
+  const col=dir==='in'?'#166534':'#b91c1c',sign=dir==='in'?'+ ':'− ';
+  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #f4eede;">
+    <span style="display:flex;align-items:center;gap:10px;font-size:0.83rem;font-weight:600;color:#3f3a30;"><span style="width:30px;height:30px;border-radius:9px;background:#f7f2e6;display:grid;place-items:center;font-size:0.85rem;">${icon}</span> ${label}</span>
+    <span style="font-weight:800;font-size:0.9rem;color:${col};font-variant-numeric:tabular-nums;">${sign}${(amount||0).toFixed(2)}</span>
+  </div>`;
 }
 
 // فتح لوحة الرواتب من أي مكان (زر تبويب الرواتب القديم)
