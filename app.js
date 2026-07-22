@@ -1162,18 +1162,21 @@ async function loadEmpWages(){
     const storesSnap=await db.collection('operator_stores').orderBy('name').get();
     _ewStores=storesSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>!s.archived);
 
-    const mashghalCard=`<div onclick="ewOpenMashghal()" style="background:#f0fdf4;border:2px solid #16a34a;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 2px 8px rgba(22,163,74,0.10);grid-column:1/-1;">
-      <div style="font-size:2rem;margin-bottom:6px;">🏭</div>
-      <div style="font-weight:900;color:#166534;font-size:1rem;margin-bottom:4px;">المشغل</div>
-      <div style="font-size:0.72rem;color:#16a34a;">موظفو الدوام · حساب بالساعة</div>
+    const mashghalCard=`<div onclick="ewOpenMashghal()" style="position:relative;overflow:hidden;background:linear-gradient(150deg,#123528,#1c5140 60%,#2a6e52);border:1px solid rgba(201,162,75,.28);border-radius:18px;padding:16px 14px;cursor:pointer;text-align:center;box-shadow:0 10px 24px rgba(18,53,40,.28);grid-column:1/-1;color:#fff;">
+      <div style="position:absolute;top:-30px;left:-20px;width:120px;height:120px;background:radial-gradient(circle,rgba(230,207,146,.2),transparent 70%);"></div>
+      <div style="position:relative;">
+        <div style="font-size:1.9rem;margin-bottom:4px;">🏭</div>
+        <div style="font-weight:900;color:#f2e9d3;font-size:1.05rem;margin-bottom:3px;">المشغل</div>
+        <div style="font-size:0.7rem;color:#cbe6d6;">موظفو الدوام · حساب بالساعة</div>
+      </div>
     </div>`;
     if(!_ewStores.length){grid.innerHTML=mashghalCard;return;}
 
     grid.innerHTML=mashghalCard+_ewStores.map(store=>{
-      return `<div onclick="ewOpenStore('${store.id}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-        <div style="font-size:2rem;margin-bottom:6px;">🏪</div>
-        <div style="font-weight:800;color:#111;font-size:0.9rem;margin-bottom:8px;">${store.name}</div>
-        <div style="font-size:0.72rem;color:#9ca3af;">اضغط لعرض الحساب</div>
+      return `<div onclick="ewOpenStore('${store.id}')" style="background:#fff;border:1px solid #ece3cf;border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;box-shadow:0 4px 12px rgba(120,90,30,.06);">
+        <div style="width:44px;height:44px;margin:0 auto 8px;border-radius:12px;background:linear-gradient(145deg,#e6cf92,#8a6a24);display:grid;place-items:center;font-size:1.35rem;">🏪</div>
+        <div style="font-weight:800;color:#1a3a2a;font-size:0.9rem;margin-bottom:6px;">${store.name}</div>
+        <div style="font-size:0.7rem;color:#a08b63;font-weight:600;">عرض الحساب ←</div>
       </div>`;
     }).join('');
   }catch(e){grid.innerHTML='<div style="color:#dc2626;font-size:0.82rem;grid-column:1/-1;padding:10px;">❌ '+e.message+'</div>';}
@@ -8938,8 +8941,8 @@ function renderOperatorDailyView(){
             ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:rgba(220,38,38,0.4);color:#fff;border:none;border-radius:5px;width:20px;height:20px;font-size:0.75rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
           </div>
         </div>`).join('');
-      return `<div style="border:2px solid #7c3aed;border-radius:14px;overflow:hidden;margin-bottom:14px;">
-        <div style="background:linear-gradient(135deg,#5b21b6,#7c3aed);padding:12px 14px;">
+      return `<div style="border:1px solid rgba(201,162,75,.3);border-radius:16px;overflow:hidden;margin-bottom:14px;box-shadow:0 8px 22px rgba(18,53,40,.14);">
+        <div style="background:linear-gradient(150deg,#123528,#1c5140 60%,#2a6e52);padding:13px 15px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div style="color:#fff;font-weight:800;font-size:0.92rem;">👥 ${groupName} <span style="font-size:0.72rem;font-weight:400;opacity:0.7;">(${stores.length} متاجر — ${grpTotalOrders} طلب)</span></div>
             <div style="color:#e9d5ff;font-weight:900;font-size:0.88rem;">${grpTotalAmt.toFixed(2)} د.أ</div>
@@ -8968,7 +8971,7 @@ function renderOperatorDailyView(){
             <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}','payment')" style="flex:1;padding:9px;background:rgba(255,255,255,0.28);color:#fff;border:1.5px solid rgba(255,255,255,0.5);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">💳 دفعة للمتاجر</button>
           </div>`:''}
         </div>
-        <div style="padding:8px 12px;background:#f3e8ff;border-top:2px solid #c4b5fd;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <div style="padding:8px 12px;background:#faf6ea;border-top:1px solid #ece3cf;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
           <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;">🗂 رصيد الحساب الكلي للمجموعة</div>
           <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap;">
             <span style="color:#dc2626;">مبيعات: <strong>${grpAcctOwed.toFixed(2)}</strong></span>
@@ -8978,7 +8981,7 @@ function renderOperatorDailyView(){
             <span style="color:${grpAcctBal>0?'#92400e':grpAcctBal<0?'#166534':'#6b7280'};font-weight:800;">${grpAcctLabel}: ${Math.abs(grpAcctBal).toFixed(2)} د.أ</span>
           </div>
         </div>
-        <div style="padding:8px 8px 4px;background:#faf5ff;">
+        <div style="padding:8px 8px 4px;background:#fbf8f0;">
           ${stores.map(s=>_storeCard(s,true,true)).join('')}
         </div>
       </div>`;
@@ -14215,15 +14218,18 @@ function renderBalanceSummary(){
   const milkCash=totalPayments-totalPurchases;    // رصيد كاش معها = مدفوعات − مشتريات
   wrap.innerHTML=`
     <!-- رأس المال الرئيسي — big editable card -->
-    <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff;position:relative;">
-      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
-      <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${totalCapital.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
-      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مدفوعات لابو يحيى ${totalPayments.toFixed(2)}</div>
+    <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#161e2b 0%,#233650 55%,#3d4a2c 100%);border-radius:20px;padding:18px;margin-bottom:12px;color:#fff;box-shadow:0 12px 30px rgba(22,30,43,.3);border:1px solid rgba(201,162,75,.28);">
+      <div style="position:absolute;top:-50px;left:-30px;width:160px;height:160px;background:radial-gradient(circle,rgba(230,207,146,.18),transparent 70%);"></div>
+      <div style="position:relative;">
+      <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
+      <div style="font-size:2.1rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
+      <div style="font-size:0.68rem;color:rgba(255,255,255,.6);">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مدفوعات لابو يحيى ${totalPayments.toFixed(2)}</div>
       <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
-        style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ تعديل</button>
+        style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>
+      </div>
     </div>
     <!-- ملك card -->
-    <div style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;">
+    <div style="background:#fff;border:1px solid #ece3cf;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 4px 14px rgba(120,90,30,.05);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);">👤 ابو يحيى</div>
         <button onclick="document.getElementById('opbal_duties_form').style.display='block';document.getElementById('opbal_duties_inp').value='${totalDuties.toFixed(2)}'"
@@ -14682,27 +14688,30 @@ function renderRosemaryWallet(){
   const noSession=!(_opCurrentSession&&_opCurrentSession.id&&_opCurrentSession.status!=='closed');
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
-    <div style="background:linear-gradient(135deg,#be185d,#9d174d);border-radius:14px;padding:16px;color:#fff;position:relative;">
-      <div style="font-size:0.82rem;opacity:0.85;margin-bottom:6px;">🌿 أرباح المحل — رصيد روزميري</div>
-      <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">${currentBalance.toFixed(2)} <span style="font-size:0.9rem;">د.أ</span></div>
-      <div style="font-size:0.72rem;opacity:0.75;">رصيد أولي ${initialBalance.toFixed(2)} + أرباح مبيعات ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
-      ${noSession?'<div style="font-size:0.72rem;background:rgba(255,255,255,0.18);border-radius:8px;padding:5px 10px;margin-top:6px;">⚠️ لا يوجد كشف مفتوح — الأرباح والمصاريف تُحسب من الكشف المفتوح</div>':''}
+    <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#123528 0%,#1c5140 55%,#2a6e52 100%);border-radius:20px;padding:18px;color:#fff;box-shadow:0 12px 30px rgba(18,53,40,.32);border:1px solid rgba(201,162,75,.28);">
+      <div style="position:absolute;top:-50px;right:-30px;width:170px;height:170px;background:radial-gradient(circle,rgba(230,207,146,.2),transparent 70%);"></div>
+      <div style="position:relative;">
+      <div style="font-size:0.78rem;color:#cbe6d6;font-weight:700;margin-bottom:6px;">🌿 أرباح المحل — رصيد روزميري</div>
+      <div style="font-size:2.1rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${currentBalance.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
+      <div style="font-size:0.68rem;color:rgba(255,255,255,.65);">رصيد أولي ${initialBalance.toFixed(2)} + أرباح ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
+      ${noSession?'<div style="font-size:0.7rem;background:rgba(255,255,255,0.14);border-radius:9px;padding:6px 10px;margin-top:7px;">⚠️ لا يوجد كشف مفتوح — الأرباح والمصاريف تُحسب من الكشف المفتوح</div>':''}
       <button onclick="document.getElementById('rw_initial_form').style.display='block';document.getElementById('rw_initial_inp').value='${initialBalance}'"
-        style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:5px 10px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;cursor:pointer;">✏️ رصيد أولي</button>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">
-        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:0.68rem;opacity:0.85;">💚 أرباح المبيعات</div>
-          <div style="font-weight:800;font-size:0.95rem;">${_rwSalesProfit.toFixed(2)} د.أ</div>
-          <div style="font-size:0.62rem;opacity:0.7;">${_rwSalesCount} مبيعة</div>
+        style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ رصيد أولي</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">💚 أرباح المبيعات</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#a7f3d0;font-variant-numeric:tabular-nums;">${_rwSalesProfit.toFixed(2)}</div>
+          <div style="font-size:0.6rem;color:rgba(255,255,255,.5);">${_rwSalesCount} مبيعة</div>
         </div>
-        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:0.68rem;opacity:0.85;">🧾 المصاريف</div>
-          <div style="font-weight:800;font-size:0.95rem;">${totalExpenses.toFixed(2)} د.أ</div>
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">🧾 المصاريف</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#fde68a;font-variant-numeric:tabular-nums;">${totalExpenses.toFixed(2)}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:0.68rem;opacity:0.85;">🔴 السحوبات</div>
-          <div style="font-weight:800;font-size:0.95rem;">${totalWithdrawals.toFixed(2)} د.أ</div>
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">🔴 السحوبات</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#fca5a5;font-variant-numeric:tabular-nums;">${totalWithdrawals.toFixed(2)}</div>
         </div>
+      </div>
       </div>
     </div>`;
   renderRwTxList();
