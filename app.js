@@ -9229,7 +9229,7 @@ function _renderCcGauge(net,inflow,outflow){
   const off=(C*(1-frac)).toFixed(1);
   const netCol=net>=0?'#e6cf92':'#e08a8a';
   el.innerHTML=`
-  <div style="position:relative;overflow:hidden;background:radial-gradient(120% 90% at 85% 0%,rgba(201,162,75,.14),transparent 55%),linear-gradient(160deg,#2c2118,#20180f);border:1px solid rgba(201,162,75,.22);border-radius:24px;padding:18px 16px 16px;box-shadow:0 12px 30px rgba(0,0,0,.3);">
+  <div style="position:relative;overflow:hidden;background:radial-gradient(120% 90% at 85% 0%,rgba(201,162,75,.16),transparent 55%),linear-gradient(160deg,#123528,#0b2118);border:1px solid rgba(201,162,75,.24);border-radius:24px;padding:18px 16px 16px;box-shadow:0 12px 30px rgba(6,26,18,.35);">
     <div style="text-align:center;font-size:.7rem;color:#c9b981;font-weight:800;letter-spacing:.4px;margin-bottom:6px;">التحصيل المتوقع — الكاش اللي لازم يرجعلك</div>
     <div style="position:relative;width:212px;height:212px;margin:0 auto;">
       <svg width="212" height="212" viewBox="0 0 220 220" style="transform:rotate(-90deg);">
