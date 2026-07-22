@@ -8668,7 +8668,7 @@ function renderOperatorDailyView(){
   const totExp=(_opDayExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const closedBanner=isClosed?'<div style="background:rgba(220,38,38,.14);border:1px solid rgba(220,38,38,.3);border-radius:12px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#e08a8a;font-size:0.85rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>':'';
   const _emptyCC='<div class="cc-empty">لا يوجد بيانات في هذه الفترة</div>';
-  const cpLbl=document.getElementById('cc_period_lbl'); if(cpLbl) cpLbl.textContent=isClosed?'كشف مغلق':'كشف مفتوح';
+  const cpLbl=document.getElementById('cc_period_lbl'); if(cpLbl) cpLbl.textContent='مباشر';
   // Only skip render when closed and truly nothing to show
   if(isClosed&&!_opDailySales.length&&!_opDayOrders.length&&!_opWithdrawals.length){
     kashfBody.innerHTML=closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
@@ -14188,17 +14188,34 @@ async function loadBalanceTab(){
   renderBalancePayments();
   if(!_opStoresList.length) await loadOpStores();
   loadRosemaryWallet();
-  // تحميل بيانات الكشف وعرض الحسابات الكاملة داخل #opbal_accounting (منقولة من الكشف)
+  // مركز الحسابات مفتوح على طول — نضمن وجود جلسة مفتوحة تلقائياً (بدون فكرة كشف)
   try{
-    const acctBox=document.getElementById('opbal_accounting');
-    if(acctBox) acctBox.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل الحسابات...</div>';
-    if(!_opCurrentSession||_opCurrentSession.status==='closed'){
-      const ss=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
-      if(!ss.empty)_opCurrentSession={id:ss.docs[0].id,...ss.docs[0].data()};
-    }
+    await _ensureOpenSession();
     if(_opCurrentSession) await _loadOpSessionData();
-    else if(acctBox) acctBox.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد كشف مفتوح</div>';
   }catch(e){}
+}
+
+// يضمن وجود جلسة مفتوحة دائماً لمركز الحسابات — يفتح واحدة تلقائياً إذا ما في (مع قفل ضد التكرار)
+let _ensureSessionPromise=null;
+async function _ensureOpenSession(){
+  if(_opCurrentSession&&_opCurrentSession.status!=='closed') return _opCurrentSession;
+  if(_ensureSessionPromise) return _ensureSessionPromise;
+  _ensureSessionPromise=(async()=>{
+    try{
+      const ss=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
+      if(!ss.empty){_opCurrentSession={id:ss.docs[0].id,...ss.docs[0].data()};return _opCurrentSession;}
+    }catch(e){}
+    try{
+      const today=jordanDateStr();
+      const ref=await db.collection('operator_sessions').add({
+        status:'open',openedDate:today,closedDate:null,
+        openedAt:firebase.firestore.FieldValue.serverTimestamp(),closedAt:null
+      });
+      _opCurrentSession={id:ref.id,status:'open',openedDate:today,closedDate:null};
+      return _opCurrentSession;
+    }catch(e){return null;}
+  })();
+  try{return await _ensureSessionPromise;}finally{_ensureSessionPromise=null;}
 }
 
 function toggleBalSection(id,btn){
@@ -14636,13 +14653,8 @@ async function loadRosemaryWallet(){
     const doc=await db.collection('rosemary_wallet').doc('settings').get();
     _rwSettings=doc.exists?doc.data():{initialBalance:0};
   }catch(e){_rwSettings={initialBalance:0};}
-  // لو الكشف مش محمّل بالذاكرة (فتح التبويب مباشرة) — جيب الكشف المفتوح من قاعدة البيانات
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){
-    try{
-      const ss=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
-      if(!ss.empty)_opCurrentSession={id:ss.docs[0].id,...ss.docs[0].data()};
-    }catch(e){}
-  }
+  // مركز الحسابات مفتوح على طول — نضمن جلسة مفتوحة تلقائياً
+  if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
   const sessionId=(_opCurrentSession&&_opCurrentSession.status!=='closed')?_opCurrentSession.id:null;
   // السحوبات اليدوية — للكشف الحالي فقط
   try{
