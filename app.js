@@ -14286,10 +14286,20 @@ function renderBalanceSummary(){
   const totalCapital=capitalBase+totalPurchases-soldMaterials;
   // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
   const supRows=_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
-    const buys=_opBalPurchases.filter(p=>p.supplierId===sup.id).reduce((s,p)=>s+(p.amount||0),0);
-    const paid=_opSupplierPayments.filter(p=>p.supplierId===sup.id).reduce((s,p)=>s+(p.amount||0),0);
+    const sBuys=_opBalPurchases.filter(p=>p.supplierId===sup.id);
+    const sPays=_opSupplierPayments.filter(p=>p.supplierId===sup.id);
+    const buys=sBuys.reduce((s,p)=>s+(p.amount||0),0);
+    const paid=sPays.reduce((s,p)=>s+(p.amount||0),0);
     const bal=buys-paid;
     const safe=(sup.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const txs=[...sBuys.map(p=>({t:'buy',id:p.id,date:p.date,notes:p.notes,amount:p.amount})),...sPays.map(p=>({t:'pay',id:p.id,date:p.date,notes:p.notes,amount:p.amount}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const txRows=txs.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
+      <span style="font-size:0.72rem;color:#9fc7b4;">${x.t==='buy'?'🧾 شراء':'💳 دفعة'} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
+      <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <span style="font-weight:800;font-size:0.8rem;color:${x.t==='buy'?'#6ee7a8':'#e7c66b'};font-variant-numeric:tabular-nums;">${x.t==='buy'?'+':'−'}${(x.amount||0).toFixed(2)}</span>
+        <button onclick="${x.t==='buy'?`deleteSupplierPurchase('${x.id}')`:`deleteSupplierPayment('${x.id}')`}" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button>
+      </span>
+    </div>`).join('');
     return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
         <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🏭 ${sup.name||'مورد'}</span>
@@ -14300,6 +14310,8 @@ function renderBalanceSummary(){
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">مدفوع</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${paid.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${bal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${bal.toFixed(2)}</div></div>
       </div>
+      ${txs.length?`<button onclick="toggleBalSection('sup_tx_${sup.id}',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الحركات (${txs.length})</span><span>▼</span></button>
+      <div id="sup_tx_${sup.id}" style="display:none;margin-top:6px;padding:2px 4px;">${txRows}</div>`:''}
     </div>`;
   }).join('');
   wrap.innerHTML=`
@@ -14333,6 +14345,24 @@ async function resetCapital(){
     await db.collection('operator_balance').doc('settings').set({capitalStart:today,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     _opBalSettings.capitalStart=today;
     toast('🔄 بدأ رأس المال من جديد');
+    loadBalanceTab();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteSupplierPayment(id){
+  if(!confirm('حذف هذه الدفعة؟ (بترجع للكاش وباقي المورد)'))return;
+  try{
+    await db.collection('operator_supplier_payments').doc(id).delete();
+    toast('🗑 تم حذف الدفعة');
+    loadBalanceTab();
+    if(typeof _loadOpSessionData==='function'){try{await _loadOpSessionData();}catch(e){}}
+  }catch(e){toast('❌ '+e.message);}
+}
+async function deleteSupplierPurchase(id){
+  if(!confirm('حذف هذا المشترى؟ (بينقص من رأس المال وحساب المورد)'))return;
+  try{
+    await db.collection('operator_purchases').doc(id).delete();
+    toast('🗑 تم حذف المشترى');
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
 }
