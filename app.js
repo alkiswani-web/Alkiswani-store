@@ -14218,10 +14218,11 @@ async function loadBalanceTab(){
     _opSuppliers=supSnap.docs.map(d=>({id:d.id,...d.data()}));
     _opSupplierPayments=paySnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opSuppliers=[];_opSupplierPayments=[];}
-  // Load total raw material + tree costs from all sales (كلاهما مستحقات على المواد)
+  // (مواد خام + شجر) للطلبات المباعة — من تاريخ بداية رأس المال فقط (capitalStart) لدعم البدء من جديد
+  const _capStart=_opBalSettings.capitalStart||'0000-00-00';
   try{
     const snap=await db.collection('operator_sales').get();
-    _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false).reduce((sum,d)=>{
+    _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false&&(d.data().date||'9999')>=_capStart).reduce((sum,d)=>{
       const s=d.data();
       const rawTree=(s.rawMaterialCost||0)+(s.treeCost||0);
       return sum+((rawTree>0?rawTree:(s.sellPrice||0))*(s.qty||1));
@@ -14279,8 +14280,9 @@ function renderBalanceSummary(){
   const wrap=document.getElementById('opbal_summary');
   if(!wrap) return;
   const capitalBase=_opBalSettings.capitalBase||0;
-  const totalPurchases=_opBalPurchases.reduce((s,p)=>s+(p.amount||0),0);
-  const soldMaterials=_opBalSalesRaw; // (مواد خام + شجر) للطلبات المباعة
+  const capStart=_opBalSettings.capitalStart||'0000-00-00';
+  const totalPurchases=_opBalPurchases.filter(p=>(p.date||'9999')>=capStart).reduce((s,p)=>s+(p.amount||0),0);
+  const soldMaterials=_opBalSalesRaw; // (مواد خام + شجر) للطلبات المباعة — مفلترة على capStart
   const totalCapital=capitalBase+totalPurchases-soldMaterials;
   // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
   const supRows=_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
@@ -14307,8 +14309,12 @@ function renderBalanceSummary(){
       <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
       <div style="font-size:2.2rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
       <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مواد الطلبات المباعة ${soldMaterials.toFixed(2)}</div>
-      <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
-        style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ رأس المال المتفق</button>
+      <div style="position:absolute;top:0;left:0;display:flex;gap:6px;">
+        <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
+          style="background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ المتفق</button>
+        <button onclick="resetCapital()" style="background:rgba(242,166,160,.18);color:#ffd7d3;border:1px solid rgba(242,166,160,.35);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">🔄 من جديد</button>
+      </div>
+      ${capStart!=='0000-00-00'?`<div style="position:relative;font-size:0.62rem;color:#c9b981;margin-top:6px;">⏱ يُحسب من ${_fmtDate(capStart)}</div>`:''}
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -14317,6 +14323,18 @@ function renderBalanceSummary(){
     </div>
     ${_ccHead('🏭','الموردين')}
     ${supRows||'<div style="text-align:center;color:#9fc7b4;font-size:0.82rem;padding:16px;">لا يوجد موردين — أضف مورد وسجّل مشترياتك منه</div>'}`;
+}
+
+// بدء رأس المال من جديد — يصفّر عدّاد المشتريات ومواد الطلبات المباعة من اليوم (المتفق يبقى)
+async function resetCapital(){
+  const today=jordanDateStr();
+  if(!confirm('بدء رأس المال من جديد من اليوم؟\n\nيصفّر عدّاد المشتريات ومواد الطلبات المباعة ويبدأ الحساب من اليوم.\nرأس المال المتفق يبقى كما هو. (لا يُحذف أي سجل قديم)'))return;
+  try{
+    await db.collection('operator_balance').doc('settings').set({capitalStart:today,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    _opBalSettings.capitalStart=today;
+    toast('🔄 بدأ رأس المال من جديد');
+    loadBalanceTab();
+  }catch(e){toast('❌ '+e.message);}
 }
 
 // ===== نظام الموردين =====
