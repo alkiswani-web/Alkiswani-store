@@ -8350,6 +8350,7 @@ let _opDayOrders=[];
 let _opWithdrawals=[];
 let _opDayExpenses=[];
 let _opRawBuys=[]; // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
+let _opSessionSupPays=[]; // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
 let _opDayRecord=null;
 let _opAcctOwed={};
 let _opAcctPaid={};
@@ -8459,6 +8460,11 @@ async function _loadOpSessionData(){
     const rbSnap=await db.collection('operator_rawbuys').where('sessionId','==',_opCurrentSession.id).get();
     _opRawBuys=rbSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   }catch(e){_opRawBuys=[];}
+  // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
+  try{
+    const spSnap=await db.collection('operator_supplier_payments').where('sessionId','==',_opCurrentSession.id).get();
+    _opSessionSupPays=spSnap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opSessionSupPays=[];}
   // Mashghal employee wages for this session period
   try{
     const [attSnap,ratesSnap,workersSnap]=await Promise.all([
@@ -8989,7 +8995,9 @@ function renderOperatorDailyView(){
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys;
+    // خصم دفعات الموردين (كاش دفعته لموردينك)
+    const _collSupPays=(_opSessionSupPays||[]).reduce((s,p)=>s+(p.amount||0),0);
+    const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays;
     ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys;
     collHtml+=`
       ${_ccHead('🔀','حركة الكاش')}
@@ -9000,6 +9008,7 @@ function renderOperatorDailyView(){
         ${_ccFlow('💸','مسحوبات المتاجر',_collStoreWd,'out')}
         ${_ccFlow('🧾','المصاريف',_collExpenses,'out')}
         ${_ccFlow('🧱','شراء مواد خام',_collRawBuys,'out')}
+        ${_collSupPays>0?_ccFlow('🏭','دفعات الموردين',_collSupPays,'out'):''}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(231,198,107,0.16),transparent);border-top:1px solid rgba(231,198,107,.14);">
           <span style="display:flex;align-items:center;gap:10px;font-weight:900;color:#eafff4;font-size:0.92rem;"><span style="width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#f3e0a6,#b8912f);display:grid;place-items:center;">💰</span> صافي التحصيل</span>
           <span style="font-weight:900;color:#f3e0a6;font-size:1.25rem;font-variant-numeric:tabular-nums;">${_collNet.toFixed(2)} <span style="font-size:0.72rem;">د.أ</span></span>
@@ -14186,6 +14195,8 @@ let _opBalSettings={capitalBase:0};
 let _opBalPurchases=[];
 let _opBalPayments=[];
 let _opBalSalesRaw=0;
+let _opSuppliers=[];          // الموردين
+let _opSupplierPayments=[];   // دفعاتك للموردين
 
 async function loadBalanceTab(){
   // Load settings
@@ -14198,16 +14209,15 @@ async function loadBalanceTab(){
     const snap=await db.collection('operator_purchases').orderBy('date','desc').get();
     _opBalPurchases=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opBalPurchases=[];}
-  // Load payments to Malik
+  // Load suppliers + supplier payments (النظام الجديد بدل أبو يحيى)
   try{
-    const snap=await db.collection('operator_malik_payments').orderBy('date','desc').get();
-    _opBalPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){
-    try{
-      const snap=await db.collection('operator_malik_payments').get();
-      _opBalPayments=snap.docs.map(d=>({id:d.id,...d.data()}));
-    }catch(e2){_opBalPayments=[];}
-  }
+    const [supSnap,paySnap]=await Promise.all([
+      db.collection('operator_suppliers').get(),
+      db.collection('operator_supplier_payments').get()
+    ]);
+    _opSuppliers=supSnap.docs.map(d=>({id:d.id,...d.data()}));
+    _opSupplierPayments=paySnap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opSuppliers=[];_opSupplierPayments=[];}
   // Load total raw material + tree costs from all sales (كلاهما مستحقات على المواد)
   try{
     const snap=await db.collection('operator_sales').get();
@@ -14224,7 +14234,6 @@ async function loadBalanceTab(){
   });
   renderBalanceSummary();
   renderBalancePurchases();
-  renderBalancePayments();
   if(!_opStoresList.length) await loadOpStores();
   loadRosemaryWallet();
   // مركز الحسابات مفتوح على طول — نضمن وجود جلسة مفتوحة تلقائياً (بدون فكرة كشف)
@@ -14269,46 +14278,132 @@ function toggleBalSection(id,btn){
 function renderBalanceSummary(){
   const wrap=document.getElementById('opbal_summary');
   if(!wrap) return;
-  const totalPurchases=_opBalPurchases.reduce((s,p)=>s+(p.amount||0),0);
-  const totalPayments=_opBalPayments.reduce((s,p)=>s+(p.amount||0),0);
   const capitalBase=_opBalSettings.capitalBase||0;
-  const totalCapital=capitalBase+totalPurchases-totalPayments;
-  const malikDutiesAdj=_opBalSettings.malikDutiesAdj||0;
-  const totalDuties=_opBalSalesRaw+malikDutiesAdj;
-  const milkDebt=totalDuties-totalPayments;       // مستحقات − مدفوعات
-  const milkCash=totalPayments-totalPurchases;    // رصيد كاش معها = مدفوعات − مشتريات
-  wrap.innerHTML=`
-    <!-- رأس المال الرئيسي — big editable card -->
-    <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#161e2b 0%,#233650 55%,#3d4a2c 100%);border-radius:20px;padding:18px;margin-bottom:12px;color:#fff;box-shadow:0 12px 30px rgba(22,30,43,.3);border:1px solid rgba(201,162,75,.28);">
-      <div style="position:absolute;top:-50px;left:-30px;width:160px;height:160px;background:radial-gradient(circle,rgba(230,207,146,.18),transparent 70%);"></div>
-      <div style="position:relative;">
-      <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
-      <div style="font-size:2.1rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
-      <div style="font-size:0.68rem;color:rgba(255,255,255,.6);">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مدفوعات لابو يحيى ${totalPayments.toFixed(2)}</div>
-      <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
-        style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>
+  const totalPurchases=_opBalPurchases.reduce((s,p)=>s+(p.amount||0),0);
+  const soldMaterials=_opBalSalesRaw; // (مواد خام + شجر) للطلبات المباعة
+  const totalCapital=capitalBase+totalPurchases-soldMaterials;
+  // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
+  const supRows=_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
+    const buys=_opBalPurchases.filter(p=>p.supplierId===sup.id).reduce((s,p)=>s+(p.amount||0),0);
+    const paid=_opSupplierPayments.filter(p=>p.supplierId===sup.id).reduce((s,p)=>s+(p.amount||0),0);
+    const bal=buys-paid;
+    const safe=(sup.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
+        <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🏭 ${sup.name||'مورد'}</span>
+        <button onclick="paySupplier('${sup.id}','${safe}')" style="padding:6px 13px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
       </div>
-    </div>
-    <!-- ملك card -->
-    <div style="background:#fff;border:1px solid #ece3cf;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 4px 14px rgba(120,90,30,.05);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div style="font-size:0.88rem;font-weight:700;color:var(--green-dark);">👤 ابو يحيى</div>
-        <button onclick="document.getElementById('opbal_duties_form').style.display='block';document.getElementById('opbal_duties_inp').value='${totalDuties.toFixed(2)}'"
-          style="background:var(--border);border:none;padding:4px 10px;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;color:var(--text-mid);">✏️ تعديل المستحقات</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div style="background:${milkDebt>0?'#fef3c7':milkDebt<0?'#eff6ff':'#f0fdf4'};border:1.5px solid ${milkDebt>0?'#fcd34d':milkDebt<0?'#93c5fd':'#86efac'};border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:0.72rem;font-weight:700;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};margin-bottom:4px;">${milkDebt>0?'🔴 مستحقات عليك':milkDebt<0?'💰 رصيد لك عند ابو يحيى':'✅ مسوي'}</div>
-          <div style="font-size:1.2rem;font-weight:900;color:${milkDebt>0?'#92400e':milkDebt<0?'#1e40af':'#166534'};">${Math.abs(milkDebt).toFixed(2)}</div>
-          <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
-        </div>
-        <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:4px;">💵 رصيد معه</div>
-          <div style="font-size:1.2rem;font-weight:900;color:#1e40af;">${milkCash.toFixed(2)}</div>
-          <div style="font-size:0.65rem;color:#9ca3af;margin-top:2px;">د.أ</div>
-        </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">مشتريات</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${buys.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">مدفوع</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${paid.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${bal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${bal.toFixed(2)}</div></div>
       </div>
     </div>`;
+  }).join('');
+  wrap.innerHTML=`
+    <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#123528 0%,#1c5140 55%,#227a55 100%);border-radius:20px;padding:18px;margin-bottom:14px;color:#fff;box-shadow:0 12px 30px rgba(18,53,40,.32);border:1px solid rgba(231,198,107,.28);">
+      <div style="position:absolute;top:-50px;left:-30px;width:160px;height:160px;background:radial-gradient(circle,rgba(230,207,146,.2),transparent 70%);"></div>
+      <div style="position:relative;">
+      <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
+      <div style="font-size:2.2rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
+      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مواد الطلبات المباعة ${soldMaterials.toFixed(2)}</div>
+      <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
+        style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ رأس المال المتفق</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button onclick="addSupplier()" style="flex:1;padding:11px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">➕ إضافة مورد</button>
+      <button onclick="addSupplierPurchase()" style="flex:1;padding:11px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">🧾 تسجيل مشترى</button>
+    </div>
+    ${_ccHead('🏭','الموردين')}
+    ${supRows||'<div style="text-align:center;color:#9fc7b4;font-size:0.82rem;padding:16px;">لا يوجد موردين — أضف مورد وسجّل مشترياتك منه</div>'}`;
+}
+
+// ===== نظام الموردين =====
+async function addSupplier(){
+  const name=(prompt('🏭 اسم المورد:')||'').trim();
+  if(!name)return;
+  try{
+    await db.collection('operator_suppliers').add({name,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast('✅ تم إضافة المورد');
+    loadBalanceTab();
+  }catch(e){toast('❌ '+e.message);}
+}
+function _supModal(inner){
+  const o=document.createElement('div');
+  o.id='sup_modal';
+  o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  o.innerHTML=`<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;">${inner}</div>`;
+  document.body.appendChild(o);
+  o.addEventListener('click',e=>{if(e.target===o)o.remove();});
+}
+function addSupplierPurchase(){
+  if(!_opSuppliers.length){toast('⚠️ أضف مورد أولاً');return;}
+  const today=jordanDateStr();
+  const opts=_opSuppliers.map(s=>`<option value="${s.id}" data-name="${(s.name||'').replace(/"/g,'&quot;')}">${s.name}</option>`).join('');
+  const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
+  const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
+  _supModal(`
+    <div style="font-weight:800;font-size:1.05rem;color:#166534;margin-bottom:16px;text-align:center;">🧾 تسجيل مشترى من مورد</div>
+    <label style="${L}">المورد</label><select id="sup_pur_sel" style="${F}">${opts}</select>
+    <label style="${L}">المبلغ (د.أ)</label><input id="sup_pur_amt" type="number" min="0" step="0.5" placeholder="0.00" style="${F}">
+    <label style="${L}">تاريخ الاستحقاق (اختياري)</label><input id="sup_pur_due" type="date" style="${F}">
+    <label style="${L}">ملاحظة (اختياري)</label><input id="sup_pur_notes" type="text" placeholder="..." style="${F}">
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveSupplierPurchase()" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 حفظ</button>
+      <button onclick="document.getElementById('sup_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+    </div>`);
+}
+async function saveSupplierPurchase(){
+  const sel=document.getElementById('sup_pur_sel');
+  const supplierId=sel?.value;
+  const supplierName=sel?.options[sel.selectedIndex]?.dataset?.name||'';
+  const amount=parseFloat(document.getElementById('sup_pur_amt')?.value||'0');
+  const dueDate=document.getElementById('sup_pur_due')?.value||'';
+  const notes=(document.getElementById('sup_pur_notes')?.value||'').trim();
+  if(!supplierId){toast('⚠️ اختر المورد');return;}
+  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    await db.collection('operator_purchases').add({supplierId,supplierName,amount,date:jordanDateStr(),dueDate,notes,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('sup_modal')?.remove();
+    toast('✅ تم تسجيل المشترى — أُضيف لرأس المال وحساب المورد');
+    loadBalanceTab();
+  }catch(e){toast('❌ '+e.message);}
+}
+function paySupplier(supplierId,name){
+  const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
+  const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
+  _supModal(`
+    <div style="font-weight:800;font-size:1.05rem;color:#b8912f;margin-bottom:4px;text-align:center;">💳 دفعة للمورد</div>
+    <div style="text-align:center;font-size:0.85rem;color:#6b7280;margin-bottom:16px;">🏭 ${name}</div>
+    <input type="hidden" id="sup_pay_id" value="${supplierId}"><input type="hidden" id="sup_pay_name" value="${name.replace(/"/g,'&quot;')}">
+    <label style="${L}">المبلغ (د.أ)</label><input id="sup_pay_amt" type="number" min="0" step="0.5" placeholder="0.00" style="${F}">
+    <label style="${L}">ملاحظة (اختياري)</label><input id="sup_pay_notes" type="text" placeholder="..." style="${F}">
+    <div style="font-size:0.72rem;color:#9a6a12;background:#fdf7e8;border:1px solid #efe0b8;border-radius:8px;padding:8px 10px;margin-bottom:14px;">ℹ️ الدفعة بتنخصم من الكاش (التحصيل) وبتنقص من باقي حساب المورد.</div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveSupplierPayment()" style="flex:1;padding:12px;background:#b8912f;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💳 تسجيل الدفعة</button>
+      <button onclick="document.getElementById('sup_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+    </div>`);
+}
+async function saveSupplierPayment(){
+  const supplierId=document.getElementById('sup_pay_id')?.value;
+  const supplierName=document.getElementById('sup_pay_name')?.value||'';
+  const amount=parseFloat(document.getElementById('sup_pay_amt')?.value||'0');
+  const notes=(document.getElementById('sup_pay_notes')?.value||'').trim();
+  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  try{
+    if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
+    await db.collection('operator_supplier_payments').add({
+      supplierId,supplierName,amount,notes,date:jordanDateStr(),
+      sessionId:_opCurrentSession?.id||null,
+      addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('sup_modal')?.remove();
+    toast('✅ تم تسجيل الدفعة — انخصمت من الكاش');
+    loadBalanceTab();
+    if(typeof _loadOpSessionData==='function'){try{await _loadOpSessionData();}catch(e){}}
+  }catch(e){toast('❌ '+e.message);}
 }
 
 async function saveMalikDuties(){
