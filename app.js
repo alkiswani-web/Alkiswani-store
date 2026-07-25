@@ -6852,7 +6852,7 @@ function renderOpProductsList(){
     wrap.innerHTML='<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.85rem;">لا يوجد منتجات — أضف منتجاً جديداً</div>';
     return;
   }
-  wrap.innerHTML=_opProductsList.map(p=>{
+  const _card=(p)=>{
     const spEntries=p.storePrices?Object.entries(p.storePrices).filter(([,v])=>v>0):[];
     const storePricesHtml=spEntries.length
       ?`<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
@@ -6918,6 +6918,20 @@ function renderOpProductsList(){
       </div>
       ${storePricesHtml}
       ${priceOptsHtml}
+    </div>`;
+  };
+  // تجميع المنتجات بالأقسام (بترويسات قابلة للطي)
+  const groups={};
+  _opProductsList.forEach(p=>{const c=((p.category||'').trim())||'بدون قسم';(groups[c]=groups[c]||[]).push(p);});
+  const cats=Object.keys(groups).sort((a,b)=>a==='بدون قسم'?1:b==='بدون قسم'?-1:a.localeCompare(b,'ar'));
+  wrap.innerHTML=cats.map((cat,i)=>{
+    const items=groups[cat];
+    const secId='opp_sec_'+i;
+    return `<div style="margin-bottom:14px;">
+      <button onclick="toggleBalSection('${secId}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 15px;background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(26,58,42,.18);">
+        <span>📂 ${cat} <span style="font-weight:400;opacity:0.75;font-size:0.78rem;">(${items.length})</span></span><span style="font-size:0.8rem;">▲</span>
+      </button>
+      <div id="${secId}">${items.map(_card).join('')}</div>
     </div>`;
   }).join('');
 }
