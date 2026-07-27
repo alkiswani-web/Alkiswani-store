@@ -8907,7 +8907,8 @@ function renderOperatorDailyView(){
               ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
             </div>
           </div>
-          ${storeWds.length?`<div style="background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${wdRows}</div>`:''}
+          ${storeWds.length?`<button onclick="toggleBalSection('stwd_${store.storeId||store.name.length}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:11px;color:#f2a6a0;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;margin-bottom:10px;"><span>💸 المسحوبات (${storeWds.length})</span><span style="font-size:0.72rem;">▼</span></button>
+          <div id="stwd_${store.storeId||store.name.length}" style="display:none;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${wdRows}</div>`:''}
           ${!isClosed?`<div style="display:flex;gap:8px;">
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(242,166,160,.14);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر</button>
@@ -8972,7 +8973,8 @@ function renderOperatorDailyView(){
               ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
             </div>
           </div>
-          ${grpWds.length?`<div style="background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${grpWdRows}</div>`:''}
+          ${grpWds.length?`<button onclick="toggleBalSection('grpwd_${safeGrpName.replace(/[^a-z0-9؀-ۿ]/gi,'')}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:11px;color:#f2a6a0;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;margin-bottom:10px;"><span>💸 المسحوبات (${grpWds.length})</span><span style="font-size:0.72rem;">▼</span></button>
+          <div id="grpwd_${safeGrpName.replace(/[^a-z0-9؀-ۿ]/gi,'')}" style="display:none;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${grpWdRows}</div>`:''}
           ${!isClosed?`<div style="display:flex;gap:8px;">
             <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}')" style="flex:1;padding:11px;background:rgba(242,166,160,.14);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
             <button onclick="showAddWithdrawalModalForGroup('${safeGrpName}','payment')" style="flex:1;padding:11px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">💳 دفعة للمتاجر</button>
