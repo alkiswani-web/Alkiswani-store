@@ -9596,7 +9596,10 @@ async function addRawBuy(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     _opRawBuys.unshift({id:ref.id,amount,notes,date,sessionId:_opCurrentSession.id,purchaseId:pRef.id});
+    // تحديث رأس المال فوراً (بدون إعادة تحميل التبويب)
+    if(Array.isArray(_opBalPurchases)) _opBalPurchases.unshift({id:pRef.id,amount,date,notes,fromRawBuy:true});
     renderOperatorDailyView();
+    if(typeof renderBalanceSummary==='function'){try{renderBalanceSummary();}catch(e){}}
     toast('✅ انخصم من الكاش وانسجّل بـ رأس المال');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -9633,9 +9636,11 @@ async function deleteRawBuy(id){
     const rb=_opRawBuys.find(x=>x.id===id);
     await db.collection('operator_rawbuys').doc(id).delete();
     // نحذف نفس الشراء من رأس المال إذا كان مربوطاً
-    if(rb&&rb.purchaseId){try{await db.collection('operator_purchases').doc(rb.purchaseId).delete();}catch(e){}}
+    if(rb&&rb.purchaseId){try{await db.collection('operator_purchases').doc(rb.purchaseId).delete();}catch(e){}
+      if(Array.isArray(_opBalPurchases)) _opBalPurchases=_opBalPurchases.filter(p=>p.id!==rb.purchaseId);}
     _opRawBuys=_opRawBuys.filter(x=>x.id!==id);
     renderOperatorDailyView();
+    if(typeof renderBalanceSummary==='function'){try{renderBalanceSummary();}catch(e){}}
     toast('🗑 تم الحذف من الكاش ورأس المال');
   }catch(e){toast('❌ '+e.message);}
 }
