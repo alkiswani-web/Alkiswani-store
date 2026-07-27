@@ -2425,6 +2425,24 @@ function updateCartItemColor(idx,color){
   renderEmpOrderCart();
 }
 
+// تنسيق أرقام الألوان للعرض: «🎨 لون 5×3، لون 12×2»
+function _fmtCN(cn){
+  if(!Array.isArray(cn)||!cn.length) return '';
+  return '🎨 '+cn.map(c=>`لون ${c.num}×${c.qty}`).join('، ');
+}
+// اختيار/تعديل عدد رقم لون لمنتج بأرقام ألوان — الكمية = مجموع الأعداد
+function empCartCN(idx,num,delta){
+  const item=_empOrderCart[idx];if(!item)return;
+  let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
+  const i=cns.findIndex(c=>c.num===num);
+  if(i>=0){const q=(cns[i].qty||0)+delta;if(q<=0)cns.splice(i,1);else cns[i]={num,qty:q};}
+  else if(delta>0){cns.push({num,qty:1});}
+  cns.sort((a,b)=>a.num-b.num);
+  item.colorNumbers=cns;
+  item.qty=cns.reduce((s,c)=>s+(c.qty||0),0)||1;
+  renderEmpOrderCart();
+}
+
 function updateCartItemWriting(idx,value){
   if(!_empOrderCart[idx])return;
   _empOrderCart[idx].writing=value;
@@ -2617,7 +2635,27 @@ function renderEmpOrderCart(){
     const colors=Array.isArray(prod.colors)?prod.colors:[];
     const priceOpts=_productPriceChoices(prod);
     const req=!!prod.requiresWriting;
-    const showExtras=colors.length||req||priceOpts.length;
+    const hasCN=!!prod.hasColorNumbers;
+    const cnCount=prod.colorNumbersCount||0;
+    const cns=Array.isArray(item.colorNumbers)?item.colorNumbers:[];
+    const showExtras=colors.length||req||priceOpts.length||hasCN;
+    let colorNumbersHtml='';
+    if(hasCN&&cnCount>0){
+      const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
+      const totalCN=cns.reduce((s,c)=>s+(c.qty||0),0);
+      const grid=Array.from({length:cnCount},(_,k)=>k+1).map(n=>{
+        const q=sel[n]||0;const on=q>0;
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <button onclick="empCartCN(${i},${n},1)" style="width:34px;height:34px;border-radius:9px;border:1.5px solid ${on?'#2563eb':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:800;font-size:0.8rem;cursor:pointer;font-family:'Tajawal',sans-serif;">${n}</button>
+          ${on?`<div style="display:flex;align-items:center;gap:3px;">
+            <button onclick="empCartCN(${i},${n},-1)" style="width:18px;height:18px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">−</button>
+            <span style="font-size:0.72rem;font-weight:800;color:#2563eb;min-width:12px;text-align:center;">${q}</span>
+            <button onclick="empCartCN(${i},${n},1)" style="width:18px;height:18px;border:none;background:#dbeafe;color:#1e40af;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">+</button>
+          </div>`:'<div style="height:16px;"></div>'}
+        </div>`;
+      }).join('');
+      colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اختر رقم اللون والعدد ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:7px;max-height:210px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
+    }
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateCartItemPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
     const colorHtml=colors.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#374151;margin-bottom:5px;">🎨 اللون</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${colors.map(c=>`<button onclick="updateCartItemColor(${i},'${c.replace(/'/g,"\\'")}')" style="padding:4px 12px;border:1.5px solid ${item.color===c?'#1a3a2a':'#cbd5e1'};border-radius:20px;background:${item.color===c?'#1a3a2a':'#fff'};color:${item.color===c?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">${c}</button>`).join('')}</div></div>`:'';
     const writingHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:${req?'#92400e':'#374151'};margin-bottom:4px;">✍️ الكتابة${req?' <span style="color:#dc2626;font-weight:800;">* إجباري</span>':' <span style="font-weight:400;color:#9ca3af;">(اختياري)</span>'}</div><input type="text" id="cart_writing_${i}" value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="${req?'اكتب النص هنا... (إجباري)':'اسم الشخص، تاريخ...'}" oninput="updateCartItemWriting(${i},this.value)" style="width:100%;padding:7px 10px;border:1.5px solid ${req&&!item.writing?'#f59e0b':'#e5e7eb'};border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;box-sizing:border-box;background:${req?'#fffbeb':'#fff'};"></div>`;
@@ -2627,15 +2665,15 @@ function renderEmpOrderCart(){
           <div style="font-weight:700;font-size:0.84rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
           <div style="font-size:0.75rem;color:#6b7280;">${item.price.toFixed(2)} د.أ / وحدة</div>
         </div>
-        <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+        ${hasCN?`<div style="flex-shrink:0;font-weight:800;color:#1e40af;font-size:0.85rem;min-width:44px;text-align:center;">🎨 ${item.qty}</div>`:`<div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
           <button onclick="changeEmpQty(${i},-1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">−</button>
           <span style="min-width:24px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty}</span>
           <button onclick="changeEmpQty(${i},1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">+</button>
-        </div>
+        </div>`}
         <div style="font-weight:800;color:#166534;font-size:0.85rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
         <button onclick="removeFromEmpCart(${i})" style="width:22px;height:22px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
       </div>
-      ${showExtras?priceOptsHtml+colorHtml+writingHtml:''}
+      ${showExtras?priceOptsHtml+colorHtml+writingHtml+colorNumbersHtml:''}
     </div>`;
   }).join('');
   const t=document.getElementById('emp_total');
@@ -2761,6 +2799,11 @@ async function submitEmpOrder(){
     return prod?.requiresWriting&&!(item.writing||'').trim();
   });
   if(missingWriting){toast(`⚠️ "${missingWriting.name}" يتطلب كتابة إجبارية`);return;}
+  const missingCN=_empOrderCart.find(item=>{
+    const prod=(_empSharedProducts||[]).find(p=>p.id===item.id);
+    return prod?.hasColorNumbers&&!(Array.isArray(item.colorNumbers)&&item.colorNumbers.length);
+  });
+  if(missingCN){toast(`⚠️ "${missingCN.name}" لازم تختار رقم اللون والعدد`);return;}
   if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   if(!areaInput){toast('⚠️ اختار المحافظة');return;}
@@ -2778,7 +2821,7 @@ async function submitEmpOrder(){
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
       pageId,pageName,
-      products:_empOrderCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(pl?{priceLabel:pl}:{})};}),
+      products:_empOrderCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(Array.isArray(i.colorNumbers)&&i.colorNumbers.length?{colorNumbers:i.colorNumbers}:{}),...(pl?{priceLabel:pl}:{})};}),
       customerPhone:phone,
       ...(customerName?{customerName}:{}),
       address,notes,
@@ -3377,6 +3420,7 @@ function _showOpOrderDetail(o){
             <div style="font-weight:800;font-size:0.88rem;color:#111;">${p.name}</div>
             ${p.priceLabel?`<div style="font-size:0.72rem;color:#854d0e;background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;font-weight:700;">🏷 ${p.priceLabel}</div>`:''}
             ${p.color?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">اللون: ${p.color}</div>`:''}
+            ${p.colorNumbers?`<div style="font-size:0.72rem;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;font-weight:700;">${_fmtCN(p.colorNumbers)}</div>`:''}
             ${p.writing?`<div style="font-size:0.72rem;color:#555;background:#fafafa;border-right:2.5px solid #111;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;">✎ ${p.writing}</div>`:''}
           </div>
           <div style="text-align:left;flex-shrink:0;">
@@ -5313,7 +5357,7 @@ function renderOrdersByStatus(){
         <span style="background:${statusColors[o.status||'جديد']};color:${statusText[o.status||'جديد']};padding:3px 10px;border-radius:8px;font-size:0.75rem;font-weight:600;">${o.status||'جديد'}</span>
       </div>
       <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · <a href="https://wa.me/962${(o.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-weight:700;text-decoration:none;">📱 ${o.phone}</a> · 📍 ${o.area||''}</div>
-      <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
+      <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.colorNumbers?' '+_fmtCN(i.colorNumbers):''}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
       <div style="font-weight:700;color:var(--brown);font-size:0.9rem;">💰 الإجمالي: ${o.total}</div>
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
       ${o.cancelReason?`<div style="font-size:0.78rem;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:6px;">🚫 سبب الإلغاء: ${o.cancelReason}</div>`:''}
@@ -5942,7 +5986,7 @@ function saveCartEdit(){
   toast('✅ تم حفظ التعديل!');
 }
 function notifyAdminWA(order){
-  const items=order.items.map(function(i){return '• '+i.name+' ×'+i.qty+' — '+i.price+' د.أ'+(i.writing?' ✍️ '+i.writing:'');}).join('\n');
+  const items=order.items.map(function(i){return '• '+i.name+' ×'+i.qty+' — '+i.price+' د.أ'+(i.colorNumbers?' '+_fmtCN(i.colorNumbers):'')+(i.writing?' ✍️ '+i.writing:'');}).join('\n');
   const msg='🔔 *طلب جديد - الكسواني روزميري*\n\n'
     +'رقم الطلب: '+order.orderNum+'\n\n'
     +'👤 الاسم: '+order.name+'\n'
@@ -6887,7 +6931,7 @@ function renderOpProductsList(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
           ${prodImg?`<img loading="lazy" decoding="async" src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
-          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}${p.category?` <span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">📂 ${p.category}</span>`:''}</div>
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}${p.hasColorNumbers?` <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🎨 أرقام (${p.colorNumbersCount||0})</span>`:''}${p.category?` <span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">📂 ${p.category}</span>`:''}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
           <button onclick="editOpProduct('${p.id}')" style="background:#eff6ff;color:#1e40af;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✏️</button>
@@ -6977,6 +7021,12 @@ function editOpProduct(id){
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=!!p.isRawMaterial;
+  const hcn=document.getElementById('opp_has_color_numbers');
+  const hcnWrap=document.getElementById('opp_color_numbers_wrap');
+  const hcnCount=document.getElementById('opp_color_numbers_count');
+  if(hcn) hcn.checked=!!p.hasColorNumbers;
+  if(hcnWrap) hcnWrap.style.display=p.hasColorNumbers?'block':'none';
+  if(hcnCount) hcnCount.value=p.colorNumbersCount||'';
   const catEl=document.getElementById('opp_category');
   if(catEl) catEl.value=p.category||'';
   document.getElementById('opp_form_title').textContent='✏️ تعديل المنتج';
@@ -7005,6 +7055,12 @@ function cancelEditProduct(){
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=false;
+  const hcn=document.getElementById('opp_has_color_numbers');
+  if(hcn) hcn.checked=false;
+  const hcnWrap=document.getElementById('opp_color_numbers_wrap');
+  if(hcnWrap) hcnWrap.style.display='none';
+  const hcnCount=document.getElementById('opp_color_numbers_count');
+  if(hcnCount) hcnCount.value='';
   const catEl=document.getElementById('opp_category');
   if(catEl) catEl.value='';
   document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
@@ -7029,6 +7085,8 @@ async function saveOpProduct(){
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
+    const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
+    const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
     const category=(document.getElementById('opp_category')?.value||'').trim();
     // صورة المنتج → التخزين السحابي (رابط خفيف بدل base64 داخل الوثيقة)، مع fallback آمن
     if(_oppCurrentImageUrl&&_oppCurrentImageUrl.startsWith('data:')){
@@ -7039,14 +7097,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
