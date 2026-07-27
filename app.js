@@ -3672,25 +3672,57 @@ function renderEmpEditCart(){
   if(!wrap)return;
   if(!_empEditCart.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;text-align:center;">لا يوجد منتجات</div>';updateEmpEditNet();return;}
   wrap.innerHTML=`<div style="font-size:0.8rem;font-weight:700;color:#1a3a2a;margin-bottom:6px;">📦 المنتجات</div>`+
-    _empEditCart.map((item,i)=>`
-      <div style="padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:${item.color!==undefined||item.writing!==undefined?'7px':'0'};">
-          <div style="flex:1;font-size:0.85rem;font-weight:600;color:#1a3a2a;">${item.name}</div>
-          <div style="font-size:0.78rem;color:#6b7280;">${parseFloat(item.price||0).toFixed(2)} د.أ</div>
-          <div style="display:flex;align-items:center;gap:4px;">
+    _empEditCart.map((item,i)=>{
+      const pr=(_opProductsList||[]).find(p=>p.id===item.id)||(_empSharedProducts||[]).find(p=>p.id===item.id)||{};
+      const hasCN=!!pr.hasColorNumbers;const cnCount=pr.colorNumbersCount||0;
+      const cns=Array.isArray(item.colorNumbers)?item.colorNumbers:[];
+      const po=_productPriceChoices(pr);
+      const poHtml=po.length?`<div style="margin-bottom:7px;"><div style="font-size:0.72rem;font-weight:700;color:#854d0e;margin-bottom:4px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${po.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateEmpEditPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 11px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:18px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
+      let cnHtml='';
+      if(hasCN&&cnCount>0){
+        const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
+        const total=cns.reduce((s,c)=>s+(c.qty||0),0);
+        const grid=Array.from({length:cnCount},(_,k)=>k+1).map(n=>{
+          const q=sel[n]||0;const on=q>0;
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <button onclick="empEditCN(${i},${n},1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid ${on?'#2563eb':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:800;font-size:0.78rem;cursor:pointer;font-family:'Tajawal',sans-serif;">${n}</button>
+            ${on?`<div style="display:flex;align-items:center;gap:2px;"><button onclick="empEditCN(${i},${n},-1)" style="width:16px;height:16px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.66rem;line-height:1;">−</button><span style="font-size:0.68rem;font-weight:800;color:#2563eb;min-width:10px;text-align:center;">${q}</span><button onclick="empEditCN(${i},${n},1)" style="width:16px;height:16px;border:none;background:#dbeafe;color:#1e40af;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.66rem;line-height:1;">+</button></div>`:'<div style="height:14px;"></div>'}
+          </div>`;
+        }).join('');
+        cnHtml=`<div><div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 رقم اللون والعدد ${total?`<span style="color:#166534;">(${total})</span>`:'<span style="color:#dc2626;font-weight:800;">*</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:6px;max-height:190px;overflow-y:auto;padding:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">${grid}</div></div>`;
+      }
+      const qtyCtl=hasCN?`<div style="font-weight:800;color:#1e40af;font-size:0.85rem;min-width:40px;text-align:center;">🎨 ${item.qty||1}</div>`:`<div style="display:flex;align-items:center;gap:4px;">
             <button onclick="changeEmpEditQty(${i},-1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
             <span style="min-width:22px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty||1}</span>
             <button onclick="changeEmpEditQty(${i},1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
-          </div>
+          </div>`;
+      return `
+      <div style="padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+          <div style="flex:1;font-size:0.85rem;font-weight:600;color:#1a3a2a;">${item.name}</div>
+          <div style="font-size:0.78rem;color:#6b7280;">${parseFloat(item.price||0).toFixed(2)} د.أ</div>
+          ${qtyCtl}
           <button onclick="removeEmpEditItem(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
         </div>
-        ${(()=>{const pr=(_opProductsList||[]).find(p=>p.id===item.id)||(_empSharedProducts||[]).find(p=>p.id===item.id)||{};const po=_productPriceChoices(pr);return po.length?`<div style="margin-bottom:7px;"><div style="font-size:0.72rem;font-weight:700;color:#854d0e;margin-bottom:4px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${po.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateEmpEditPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 11px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:18px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';})()}
-        <div style="display:flex;gap:6px;">
+        ${poHtml}
+        ${hasCN?cnHtml:`<div style="display:flex;gap:6px;">
           <input value="${(item.color||'').replace(/"/g,'&quot;')}" placeholder="🎨 اللون" oninput="_empEditCart[${i}].color=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
           <input value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="✍️ الكتابة" oninput="_empEditCart[${i}].writing=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
-        </div>
-      </div>`).join('');
+        </div>`}
+      </div>`;}).join('');
   updateEmpEditNet();
+}
+
+function empEditCN(i,num,delta){
+  const item=_empEditCart[i];if(!item)return;
+  let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
+  const j=cns.findIndex(c=>c.num===num);
+  if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
+  else if(delta>0){cns.push({num,qty:1});}
+  cns.sort((a,b)=>a.num-b.num);
+  item.colorNumbers=cns;
+  item.qty=cns.reduce((s,c)=>s+(c.qty||0),0)||1;
+  renderEmpEditCart();
 }
 
 function updateEmpEditPrice(i,price,label){
@@ -3813,7 +3845,7 @@ async function saveEmpOrderEdit(){
     const newPageName=selectedPageOpt?(selectedPageOpt.dataset.name||selectedPageOpt.textContent):'';
     const urgent=document.getElementById('empEdit_urgent')?.checked||false;
     const updateData={
-      products:_empEditCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(pl?{priceLabel:pl}:{})};}),
+      products:_empEditCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(Array.isArray(i.colorNumbers)&&i.colorNumbers.length?{colorNumbers:i.colorNumbers}:{}),...(pl?{priceLabel:pl}:{})};}),
       customerPhone:phone,address,notes,area,
       urgent,
       ...(newPageName?{pageName:newPageName}:{}),
