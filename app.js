@@ -14312,6 +14312,8 @@ let _opSuppliers=[];          // الموردين
 let _opSupplierPayments=[];   // دفعاتك للموردين
 
 async function loadBalanceTab(){
+  // نضمن الجلسة المفتوحة أولاً — لأنّ حساب مواد الطلبات المباعة (شجر/خام) يعتمد على فترة الكشف
+  if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
   // Load settings
   try{
     const doc=await db.collection('operator_balance').doc('settings').get();
@@ -14331,12 +14333,13 @@ async function loadBalanceTab(){
     _opSuppliers=supSnap.docs.map(d=>({id:d.id,...d.data()}));
     _opSupplierPayments=paySnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opSuppliers=[];_opSupplierPayments=[];}
-  // مواد خام وشجر للطلبات المباعة — منفصلين — من تاريخ بداية رأس المال (capitalStart)
-  const _capStart=_opBalSettings.capitalStart||'0000-00-00';
+  // مواد خام وشجر للطلبات المباعة — منفصلين — من تاريخ فتح الكشف (نفس فترة الأرباح) ليتطابقا
+  const _matStart=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
+  const _matSid=(_opCurrentSession&&_opCurrentSession.id)||null;
   try{
     const snap=await db.collection('operator_sales').get();
     let rawSold=0,treeSold=0;
-    snap.docs.filter(d=>d.data().delivered!==false&&(d.data().date||'9999')>=_capStart).forEach(d=>{
+    snap.docs.filter(d=>{const s=d.data();return s.delivered!==false&&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
       const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
