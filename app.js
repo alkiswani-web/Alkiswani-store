@@ -14400,10 +14400,10 @@ function renderBalanceSummary(){
   const capitalBase=_opBalSettings.capitalBase||0;
   const capStart=_opBalSettings.capitalStart||'0000-00-00';
   const totalPurchases=_opBalPurchases.filter(p=>(p.date||'9999')>=capStart).reduce((s,p)=>s+(p.amount||0),0);
-  const treeSold=_opBalTreeSold;   // تكلفة الشجر — تُضاف لرأس المال (مورد شجر)
+  const treeSold=_opBalTreeSold;   // تكلفة الشجر (مورد شجر) — تُضاف كشراء وتُطرح كمباع = تلغي حالها
   const rawSold=_opBalRawSold;     // المواد الخام — تُطرح من رأس المال (مستهلكة)
-  // رأس المال = المتفق + مشتريات الموردين + تكلفة الشجر − المواد الخام المباعة
-  const totalCapital=capitalBase+totalPurchases+treeSold-rawSold;
+  // رأس المال = المتفق + مشتريات الموردين + شجر(شراء) − شجر(مباع) − مواد خام مباعة  → الشجر يلغي حاله
+  const totalCapital=capitalBase+totalPurchases-rawSold;
   // مورد «شجر» الافتراضي — مستحقاته = تكلفة الشجر − مدفوعاتك له
   const treePaid=_opSupplierPayments.filter(p=>p.supplierId==='__tree__').reduce((s,p)=>s+(p.amount||0),0);
   const treeBal=treeSold-treePaid;
@@ -14461,7 +14461,7 @@ function renderBalanceSummary(){
       <div style="position:relative;">
       <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
       <div style="font-size:2.2rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
-      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} + شجر ${treeSold.toFixed(2)} − مواد خام مباعة ${rawSold.toFixed(2)}</div>
+      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مواد خام مباعة ${rawSold.toFixed(2)} <span style="opacity:.65;">(الشجر ${treeSold.toFixed(2)} يلغي حاله: شراء−بيع)</span></div>
       <div style="position:absolute;top:0;left:0;display:flex;gap:6px;">
         <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
           style="background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ المتفق</button>
