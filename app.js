@@ -14306,6 +14306,8 @@ let _opBalSettings={capitalBase:0};
 let _opBalPurchases=[];
 let _opBalPayments=[];
 let _opBalSalesRaw=0;
+let _opBalRawSold=0;          // تكلفة المواد الخام للطلبات المباعة
+let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المباعة (مورد شجر)
 let _opSuppliers=[];          // الموردين
 let _opSupplierPayments=[];   // دفعاتك للموردين
 
@@ -14329,16 +14331,18 @@ async function loadBalanceTab(){
     _opSuppliers=supSnap.docs.map(d=>({id:d.id,...d.data()}));
     _opSupplierPayments=paySnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opSuppliers=[];_opSupplierPayments=[];}
-  // (مواد خام + شجر) للطلبات المباعة — من تاريخ بداية رأس المال فقط (capitalStart) لدعم البدء من جديد
+  // مواد خام وشجر للطلبات المباعة — منفصلين — من تاريخ بداية رأس المال (capitalStart)
   const _capStart=_opBalSettings.capitalStart||'0000-00-00';
   try{
     const snap=await db.collection('operator_sales').get();
-    _opBalSalesRaw=snap.docs.filter(d=>d.data().delivered!==false&&(d.data().date||'9999')>=_capStart).reduce((sum,d)=>{
-      const s=d.data();
-      const rawTree=(s.rawMaterialCost||0)+(s.treeCost||0);
-      return sum+((rawTree>0?rawTree:(s.sellPrice||0))*(s.qty||1));
-    },0);
-  }catch(e){_opBalSalesRaw=0;}
+    let rawSold=0,treeSold=0;
+    snap.docs.filter(d=>d.data().delivered!==false&&(d.data().date||'9999')>=_capStart).forEach(d=>{
+      const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
+      if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
+      else{rawSold+=r*q;treeSold+=t*q;}
+    });
+    _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
+  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;}
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
@@ -14393,10 +14397,33 @@ function renderBalanceSummary(){
   const capitalBase=_opBalSettings.capitalBase||0;
   const capStart=_opBalSettings.capitalStart||'0000-00-00';
   const totalPurchases=_opBalPurchases.filter(p=>(p.date||'9999')>=capStart).reduce((s,p)=>s+(p.amount||0),0);
-  const soldMaterials=_opBalSalesRaw; // (مواد خام + شجر) للطلبات المباعة — مفلترة على capStart
-  const totalCapital=capitalBase+totalPurchases-soldMaterials;
+  const treeSold=_opBalTreeSold;   // تكلفة الشجر — تُضاف لرأس المال (مورد شجر)
+  const rawSold=_opBalRawSold;     // المواد الخام — تُطرح من رأس المال (مستهلكة)
+  // رأس المال = المتفق + مشتريات الموردين + تكلفة الشجر − المواد الخام المباعة
+  const totalCapital=capitalBase+totalPurchases+treeSold-rawSold;
+  // مورد «شجر» الافتراضي — مستحقاته = تكلفة الشجر − مدفوعاتك له
+  const treePaid=_opSupplierPayments.filter(p=>p.supplierId==='__tree__').reduce((s,p)=>s+(p.amount||0),0);
+  const treeBal=treeSold-treePaid;
+  const treePays=_opSupplierPayments.filter(p=>p.supplierId==='__tree__').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const treeTxRows=treePays.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
+      <span style="font-size:0.72rem;color:#9fc7b4;">💳 دفعة · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
+      <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span style="font-weight:800;font-size:0.8rem;color:#e7c66b;font-variant-numeric:tabular-nums;">−${(x.amount||0).toFixed(2)}</span><button onclick="deleteSupplierPayment('${x.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button></span>
+    </div>`).join('');
+  const treeRow=`<div style="background:rgba(90,168,120,.08);border:1px solid rgba(110,231,168,.28);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
+        <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🌳 شجر <span style="font-size:0.62rem;font-weight:600;color:#9fc7b4;">(تلقائي)</span></span>
+        <button onclick="paySupplier('__tree__','شجر')" style="padding:6px 13px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">تكلفة الشجر</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${treeSold.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">مدفوع</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${treePaid.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${treeBal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${treeBal.toFixed(2)}</div></div>
+      </div>
+      ${treePays.length?`<button onclick="toggleBalSection('sup_tx___tree__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الدفعات (${treePays.length})</span><span>▼</span></button>
+      <div id="sup_tx___tree__" style="display:none;margin-top:6px;padding:2px 4px;">${treeTxRows}</div>`:''}
+    </div>`;
   // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
-  const supRows=_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
+  const supRows=treeRow+_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
     const sBuys=_opBalPurchases.filter(p=>p.supplierId===sup.id);
     const sPays=_opSupplierPayments.filter(p=>p.supplierId===sup.id);
     const buys=sBuys.reduce((s,p)=>s+(p.amount||0),0);
@@ -14431,7 +14458,7 @@ function renderBalanceSummary(){
       <div style="position:relative;">
       <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
       <div style="font-size:2.2rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
-      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">رصيد أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مواد الطلبات المباعة ${soldMaterials.toFixed(2)}</div>
+      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} + شجر ${treeSold.toFixed(2)} − مواد خام مباعة ${rawSold.toFixed(2)}</div>
       <div style="position:absolute;top:0;left:0;display:flex;gap:6px;">
         <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
           style="background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ المتفق</button>
