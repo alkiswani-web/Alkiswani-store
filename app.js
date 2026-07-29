@@ -1302,6 +1302,13 @@ async function ewOpenEmployee(workerId,workerName){
   await _ewRefreshEmployee();
 }
 
+// مدة العمل بالثواني لسجل حضور — مع احتساب الفرق بين الدخول والخروج إذا المدة غير مسجّلة
+function _ewSecs(r){
+  if(r.secondsWorked!=null) return r.secondsWorked;
+  if(r.hoursWorked) return Math.round(r.hoursWorked*3600);
+  if(r.checkIn&&r.checkOut){const s=Math.round((new Date(r.checkOut).getTime()-new Date(r.checkIn).getTime())/1000);return s>0?s:0;}
+  return 0;
+}
 async function _ewRefreshEmployee(){
   if(!_ewWorker||!_ewStore)return;
   const isMashghal=_ewStore.id==='__mashghal__';
@@ -1346,7 +1353,7 @@ async function _ewRefreshEmployee(){
     // المستحق = مجموع أجر كل يوم على حدة (نفس اللي يظهر بكشف الحساب) — عشان الملخّص يطابق تفاصيل الكشف
     let totalAttSecs=0,attEarned=0;
     attDocs.forEach(r=>{
-      const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);
+      const secs=_ewSecs(r);
       totalAttSecs+=secs;
       attEarned+=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
     });
@@ -1384,7 +1391,7 @@ async function _ewRefreshEmployee(){
     const entries=[];
     // attendance days
     attDocs.forEach(r=>{
-      const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);
+      const secs=_ewSecs(r);
       const dayEarned=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'';
       const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';

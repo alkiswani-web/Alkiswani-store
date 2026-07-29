@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v169';
+const CACHE = 'alkiswani-v170';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.0';
 
 const PRECACHE = [
