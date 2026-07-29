@@ -1343,9 +1343,14 @@ async function _ewRefreshEmployee(){
 
     // Attendance entries — filter by month in JS (avoids composite index)
     const attDocs=attSnap.docs.map(d=>d.data()).filter(r=>r.date>=dateFrom&&r.date<=dateTo).sort((a,b)=>a.date.localeCompare(b.date));
-    let totalAttSecs=0;
-    attDocs.forEach(r=>{totalAttSecs+=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);});
-    const attEarned=hourlyRate?Math.round(_secsToDecimalHrs(totalAttSecs)*hourlyRate*100)/100:0;
+    // المستحق = مجموع أجر كل يوم على حدة (نفس اللي يظهر بكشف الحساب) — عشان الملخّص يطابق تفاصيل الكشف
+    let totalAttSecs=0,attEarned=0;
+    attDocs.forEach(r=>{
+      const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);
+      totalAttSecs+=secs;
+      attEarned+=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
+    });
+    attEarned=Math.round(attEarned*100)/100;
 
     // Order entries
     const deliveredOrders=ordersSnap.docs.filter(d=>d.data().status==='delivered');
