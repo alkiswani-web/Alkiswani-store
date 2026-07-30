@@ -9192,6 +9192,39 @@ function renderOperatorDailyView(){
     }
   }
 
+  // ===== متاجر لها حساب مبيعات (مواد خام) بدون طلبات توصيل — تظهر بحسابها فقط =====
+  try{
+    const _orderStoreIds=new Set((_opDayOrders||[]).map(o=>{
+      const sn=o.pageName||o.storeName||o.source||'';
+      const so=(_opStoresList||[]).find(s=>s.name===sn);
+      return so?so.id:null;
+    }).filter(Boolean));
+    const _salesOnly=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:(_opStoresList||[])).filter(s=>{
+      if(_orderStoreIds.has(s.id))return false;
+      const owed=_opAcctOwed[s.id]||0,paid=_opAcctPaid[s.id]||0,ref=_opAcctRefund[s.id]||0;
+      return (owed-paid-ref)>0.01;
+    }).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'));
+    if(_salesOnly.length){
+      storesHtml+=_ccHead('🧾','متاجر مبيعات (بدون توصيل)','('+_salesOnly.length+')')+_salesOnly.map(st=>{
+        const owed=_opAcctOwed[st.id]||0,paid=_opAcctPaid[st.id]||0,ref=_opAcctRefund[st.id]||0,bal=owed-paid-ref;
+        const safeN=(st.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.2);border-radius:18px;overflow:hidden;margin-bottom:12px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 12px 30px rgba(0,0,0,.26);">
+          <div style="background:linear-gradient(150deg,#0f3b2a,#1f6b4d);padding:11px 15px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(231,198,107,.14);">
+            <div style="color:#f2e9d3;font-weight:800;font-size:0.9rem;">🏪 ${st.name} <span style="font-size:0.66rem;font-weight:500;color:#bcd8c9;">(مبيعات)</span></div>
+          </div>
+          <div style="padding:12px 15px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${!isClosed?'12px':'2px'};">
+              ${_ccStat('🧾 المبيعات',owed,'green')}
+              ${_ccStat('💵 مدفوع',paid,'amber')}
+              ${_ccStat('🔴 الباقي عليه',bal,bal>0.01?'red':'gold')}
+            </div>
+            ${!isClosed?`<button onclick="showAddWithdrawalModalForStore('${st.id}','${safeN}','payment')" style="width:100%;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة من المتجر</button>`:''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }catch(e){}
+
   // ===== Withdrawals section (no orders at all) =====
   if(!_opDayOrders.length&&(_opWithdrawals.length||!isClosed)){
     const storeWds=_opWithdrawals.filter(w=>w.storeId);
