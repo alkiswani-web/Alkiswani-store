@@ -1395,12 +1395,16 @@ async function _ewRefreshEmployee(){
       const dayEarned=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'';
       const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
-      entries.push({type:'att',date:r.date,secs,dayEarned,inT,outT});
+      const ts=r.checkIn?new Date(r.checkIn).getTime():new Date((r.date||'1970-01-01')+'T12:00:00').getTime();
+      entries.push({type:'att',date:r.date,secs,dayEarned,inT,outT,ts});
     });
     // payments
-    paymentsArr.forEach(p=>{entries.push({type:'pay',date:p.date||'',amount:parseFloat(p.amount||0),notes:p.notes||'',id:p.id,addedBy:p.addedBy||''});});
-    // sort newest first
-    entries.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    paymentsArr.forEach(p=>{
+      const ts=(p.createdAt&&typeof p.createdAt.toMillis==='function')?p.createdAt.toMillis():(p.createdAt&&p.createdAt.seconds?p.createdAt.seconds*1000:new Date((p.date||'1970-01-01')+'T12:00:00').getTime());
+      entries.push({type:'pay',date:p.date||'',amount:parseFloat(p.amount||0),notes:p.notes||'',id:p.id,addedBy:p.addedBy||'',ts});
+    });
+    // sort newest first — بالوقت الفعلي (عشان الدخول والدفعة بنفس اليوم يظهروا بترتيبهم الصح)
+    entries.sort((a,b)=>(b.ts||0)-(a.ts||0)||(b.date||'').localeCompare(a.date||''));
 
     const kashf=document.getElementById('ewKashf');
     if(!kashf)return;
