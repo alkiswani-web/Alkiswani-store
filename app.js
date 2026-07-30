@@ -1348,8 +1348,8 @@ async function _ewRefreshEmployee(){
     const hrInput=document.getElementById('ewHourlyRateInput');
     if(hrInput)hrInput.value=hourlyRate?hourlyRate.toFixed(2):'';
 
-    // Attendance entries — filter by month in JS (avoids composite index)
-    const attDocs=attSnap.docs.map(d=>d.data()).filter(r=>r.date>=dateFrom&&r.date<=dateTo).sort((a,b)=>a.date.localeCompare(b.date));
+    // Attendance entries — filter by month in JS. بالعرض الكامل نحسب كل السجلات (حتى بدون تاريخ) عشان ما يضيع أي دوام
+    const attDocs=attSnap.docs.map(d=>d.data()).filter(r=>!hasMonth||((r.date||'')>=dateFrom&&(r.date||'')<=dateTo)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
     // المستحق = مجموع أجر كل يوم على حدة (نفس اللي يظهر بكشف الحساب) — عشان الملخّص يطابق تفاصيل الكشف
     let totalAttSecs=0,attEarned=0;
     attDocs.forEach(r=>{
@@ -1366,7 +1366,7 @@ async function _ewRefreshEmployee(){
 
     const totalEarned=attEarned+orderEarned;
     // الدفعات مفلترة حسب الشهر المختار (مثل الدوام) — عشان كل شهر يكون حسابه مستقل
-    const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>{const dt=p.date||'';return dt>=dateFrom&&dt<=dateTo;});
+    const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>{if(!hasMonth)return true;const dt=p.date||'';return dt>=dateFrom&&dt<=dateTo;});
     const paid=paymentsArr.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const bal=totalEarned-paid;
     const balColor=bal>0.01?'#ef4444':bal<-0.01?'#f59e0b':'#22c55e';
@@ -1400,7 +1400,7 @@ async function _ewRefreshEmployee(){
     // payments
     paymentsArr.forEach(p=>{entries.push({type:'pay',date:p.date||'',amount:parseFloat(p.amount||0),notes:p.notes||'',id:p.id,addedBy:p.addedBy||''});});
     // sort newest first
-    entries.sort((a,b)=>b.date.localeCompare(a.date));
+    entries.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
     const kashf=document.getElementById('ewKashf');
     if(!kashf)return;
@@ -1419,7 +1419,7 @@ async function _ewRefreshEmployee(){
       if(e.type==='att'){
         const hasOut=e.outT&&e.outT!=='—';
         html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;${border}">
-          <span style="font-size:0.78rem;color:#374151;font-weight:700;">${e.date.slice(5)}</span>
+          <span style="font-size:0.78rem;color:#374151;font-weight:700;">${(e.date||'—').slice(5)||'—'}</span>
           <div style="font-size:0.78rem;color:#374151;">
             <span style="color:#166534;">⏱ ${_fmtDuration(e.secs)}</span>
             <span style="color:#9ca3af;font-size:0.7rem;margin-right:6px;">${e.inT}${hasOut?' ← '+e.outT:' (جاري)'}</span>
