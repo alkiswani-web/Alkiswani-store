@@ -7230,6 +7230,7 @@ function renderOpStoresList(allStores){
                 </div>`
               :`<button onclick="promptLinkStore('${s.id}')" style="background:#f1f5f9;border:1px dashed #94a3b8;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#64748b;cursor:pointer;">+ ربط بصفحة</button>`
             }
+            <button onclick="toggleSalesMerchant('${s.id}',${!!s.salesMerchant})" style="background:${s.salesMerchant?'#eff6ff':'#f8fafc'};border:1px ${s.salesMerchant?'solid #93c5fd':'dashed #cbd5e1'};border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:${s.salesMerchant?'#1e40af':'#64748b'};cursor:pointer;">${s.salesMerchant?'🧾 مواد خام ✓':'🧾 متجر مواد خام'}</button>
           </div>`:''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -7286,6 +7287,14 @@ async function setStoreGroup(id,currentGroup){
   try{
     await db.collection('operator_stores').doc(id).update({group:g.trim()||firebase.firestore.FieldValue.delete()});
     toast(g.trim()?`✅ تم تعيين المجموعة "${g.trim()}"`:'✅ تم إزالة المجموعة');
+    loadOpStores();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function toggleSalesMerchant(id,current){
+  try{
+    await db.collection('operator_stores').doc(id).update({salesMerchant: current?firebase.firestore.FieldValue.delete():true});
+    toast(current?'✅ أُلغي تصنيف «مواد خام»':'✅ صار متجر مواد خام — رح يظهر بحسابه برصيد روزميري');
     loadOpStores();
   }catch(e){toast('❌ '+e.message);}
 }
@@ -9200,6 +9209,7 @@ function renderOperatorDailyView(){
       return so?so.id:null;
     }).filter(Boolean));
     const _salesOnly=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:(_opStoresList||[])).filter(s=>{
+      if(!s.salesMerchant)return false; // فقط المتاجر المعلّمة «متجر مواد خام»
       if(_orderStoreIds.has(s.id))return false;
       const owed=_opAcctOwed[s.id]||0,paid=_opAcctPaid[s.id]||0,ref=_opAcctRefund[s.id]||0;
       return (owed-paid-ref)>0.01;
