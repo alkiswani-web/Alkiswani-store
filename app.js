@@ -9127,7 +9127,7 @@ function renderOperatorDailyView(){
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
     // خصم دفعات الموردين (كاش دفعته لموردينك)
-    const _collSupPays=(_opSessionSupPays||[]).reduce((s,p)=>s+(p.amount||0),0);
+    const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash).reduce((s,p)=>s+(p.amount||0),0);
     const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays;
     ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys;
     collHtml+=`
@@ -14468,7 +14468,7 @@ function renderBalanceSummary(){
   const treeBal=treeSold-treePaid;
   const treePays=_opSupplierPayments.filter(p=>p.supplierId==='__tree__').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const treeTxRows=treePays.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
-      <span style="font-size:0.72rem;color:#9fc7b4;">💳 دفعة · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
+      <span style="font-size:0.72rem;color:#9fc7b4;">💳 دفعة${x.noCash?' <span style="color:#e7c66b;">(بدون كاش)</span>':''} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
       <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span style="font-weight:800;font-size:0.8rem;color:#e7c66b;font-variant-numeric:tabular-nums;">−${(x.amount||0).toFixed(2)}</span><button onclick="deleteSupplierPayment('${x.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button></span>
     </div>`).join('');
   const treeRow=`<div style="background:rgba(90,168,120,.08);border:1px solid rgba(110,231,168,.28);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
@@ -14492,9 +14492,9 @@ function renderBalanceSummary(){
     const paid=sPays.reduce((s,p)=>s+(p.amount||0),0);
     const bal=buys-paid;
     const safe=(sup.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const txs=[...sBuys.map(p=>({t:'buy',id:p.id,date:p.date,notes:p.notes,amount:p.amount})),...sPays.map(p=>({t:'pay',id:p.id,date:p.date,notes:p.notes,amount:p.amount}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const txs=[...sBuys.map(p=>({t:'buy',id:p.id,date:p.date,notes:p.notes,amount:p.amount})),...sPays.map(p=>({t:'pay',id:p.id,date:p.date,notes:p.notes,amount:p.amount,noCash:p.noCash}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     const txRows=txs.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
-      <span style="font-size:0.72rem;color:#9fc7b4;">${x.t==='buy'?'🧾 شراء':'💳 دفعة'} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
+      <span style="font-size:0.72rem;color:#9fc7b4;">${x.t==='buy'?'🧾 شراء':'💳 دفعة'}${x.noCash?' <span style="color:#e7c66b;">(بدون كاش)</span>':''} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
       <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <span style="font-weight:800;font-size:0.8rem;color:${x.t==='buy'?'#6ee7a8':'#e7c66b'};font-variant-numeric:tabular-nums;">${x.t==='buy'?'+':'−'}${(x.amount||0).toFixed(2)}</span>
         <button onclick="${x.t==='buy'?`deleteSupplierPurchase('${x.id}')`:`deleteSupplierPayment('${x.id}')`}" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button>
@@ -14627,7 +14627,10 @@ function paySupplier(supplierId,name){
     <input type="hidden" id="sup_pay_id" value="${supplierId}"><input type="hidden" id="sup_pay_name" value="${name.replace(/"/g,'&quot;')}">
     <label style="${L}">المبلغ (د.أ)</label><input id="sup_pay_amt" type="number" min="0" step="0.5" placeholder="0.00" style="${F}">
     <label style="${L}">ملاحظة (اختياري)</label><input id="sup_pay_notes" type="text" placeholder="..." style="${F}">
-    <div style="font-size:0.72rem;color:#9a6a12;background:#fdf7e8;border:1px solid #efe0b8;border-radius:8px;padding:8px 10px;margin-bottom:14px;">ℹ️ الدفعة بتنخصم من الكاش (التحصيل) وبتنقص من باقي حساب المورد.</div>
+    <label style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;cursor:pointer;margin-bottom:14px;">
+      <input type="checkbox" id="sup_pay_cash" checked style="width:18px;height:18px;accent-color:#166534;cursor:pointer;flex-shrink:0;">
+      <div><div style="font-size:0.84rem;font-weight:700;color:#166534;">💵 تُخصم من الكاش (التحصيل)</div><div style="font-size:0.72rem;color:#15803d;margin-top:2px;">شيل الصح لو دفعت من مصدر ثاني (مش من كاش التحصيل)</div></div>
+    </label>
     <div style="display:flex;gap:10px;">
       <button onclick="saveSupplierPayment()" style="flex:1;padding:12px;background:#b8912f;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💳 تسجيل الدفعة</button>
       <button onclick="document.getElementById('sup_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
@@ -14638,17 +14641,19 @@ async function saveSupplierPayment(){
   const supplierName=document.getElementById('sup_pay_name')?.value||'';
   const amount=parseFloat(document.getElementById('sup_pay_amt')?.value||'0');
   const notes=(document.getElementById('sup_pay_notes')?.value||'').trim();
+  const fromCash=document.getElementById('sup_pay_cash')?.checked!==false;
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
     if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
     await db.collection('operator_supplier_payments').add({
       supplierId,supplierName,amount,notes,date:jordanDateStr(),
+      noCash:!fromCash,
       sessionId:_opCurrentSession?.id||null,
       addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     document.getElementById('sup_modal')?.remove();
-    toast('✅ تم تسجيل الدفعة — انخصمت من الكاش');
+    toast(fromCash?'✅ تم تسجيل الدفعة — انخصمت من الكاش':'✅ تم تسجيل الدفعة — بدون خصم من الكاش');
     loadBalanceTab();
     if(typeof _loadOpSessionData==='function'){try{await _loadOpSessionData();}catch(e){}}
   }catch(e){toast('❌ '+e.message);}
