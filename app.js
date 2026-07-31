@@ -11791,7 +11791,7 @@ async function _loadAttendanceData(date){
   try{
     const snap=await db.collection('attendance').where('date','==',date).get();
     if(snap.empty){container.innerHTML='<div style="text-align:center;padding:24px;color:rgba(255,255,255,0.4);">لا يوجد سجلات لهذا اليوم</div>';return;}
-    const records=snap.docs.map(d=>d.data()).sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
+    const records=snap.docs.map(d=>({_id:d.id,...d.data()})).sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
     // Fetch hourly rates for all employees
     const empIds=[...new Set(records.map(r=>r.employeeId))];
     const rateMap={};
@@ -11809,7 +11809,8 @@ async function _loadAttendanceData(date){
       </tr></thead><tbody>`;
     records.forEach(r=>{
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
-      const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
+      const isOpen=!!(r.checkIn&&!r.checkOut);
+      const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):(isOpen?`<button onclick="manualCheckout('${r._id}')" style="background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb;border-radius:7px;padding:4px 9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;">🚪 خروج يدوي</button>`:'—');
       const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked!=null?Math.round(r.hoursWorked*3600):null);
       const hrRate=rateMap[r.employeeId]||0;
       const earned=secs!=null&&hrRate?Math.round(_secsToDecimalHrs(secs)*hrRate*100)/100:null;
@@ -11835,6 +11836,58 @@ async function _loadAttendanceData(date){
   }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
 }
 
+// تسجيل خروج يدوي لجلسة نسي الموظف يطلع منها
+async function manualCheckout(docId){
+  try{
+    const doc=await db.collection('attendance').doc(docId).get();
+    if(!doc.exists){toast('❌ السجل غير موجود');return;}
+    const d=doc.data();
+    const ci=d.checkIn?new Date(d.checkIn):new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const def=`${ci.getFullYear()}-${pad(ci.getMonth()+1)}-${pad(ci.getDate())}T${pad(ci.getHours())}:${pad(ci.getMinutes())}`;
+    const inLbl=d.checkIn?new Date(d.checkIn).toLocaleString('ar-SA',{dateStyle:'short',timeStyle:'short'}):'—';
+    const o=document.createElement('div');
+    o.id='att_out_modal';
+    o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    o.innerHTML=`<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:380px;font-family:'Tajawal',sans-serif;">
+      <div style="font-weight:800;font-size:1.05rem;color:#1e40af;margin-bottom:4px;text-align:center;">🚪 تسجيل خروج يدوي</div>
+      <div style="text-align:center;font-size:0.82rem;color:#6b7280;margin-bottom:6px;">${d.employeeName||''}</div>
+      <div style="text-align:center;font-size:0.75rem;color:#166534;margin-bottom:16px;">🟢 الدخول: ${inLbl}</div>
+      <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:5px;">وقت الخروج</label>
+      <input type="datetime-local" id="att_out_dt" value="${def}" style="width:100%;padding:11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:16px;box-sizing:border-box;">
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveManualCheckout('${docId}')" style="flex:1;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">✅ تسجيل الخروج</button>
+        <button onclick="document.getElementById('att_out_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+      </div>
+    </div>`;
+    document.body.appendChild(o);
+    o.addEventListener('click',e=>{if(e.target===o)o.remove();});
+  }catch(e){toast('❌ '+e.message);}
+}
+async function saveManualCheckout(docId){
+  const val=document.getElementById('att_out_dt')?.value;
+  if(!val){toast('⚠️ اختر وقت الخروج');return;}
+  const outIso=new Date(val).toISOString();
+  try{
+    const doc=await db.collection('attendance').doc(docId).get();
+    if(!doc.exists){toast('❌ السجل غير موجود');return;}
+    const d=doc.data();
+    let sessions=Array.isArray(d.sessions)?d.sessions.map(s=>({...s})):[];
+    if(!sessions.length&&d.checkIn) sessions=[{in:d.checkIn,out:d.checkOut||null}];
+    const openIdxs=sessions.map((s,i)=>!s.out?i:-1).filter(i=>i>=0);
+    if(!openIdxs.length){toast('⚠️ لا توجد جلسة مفتوحة');return;}
+    const li=openIdxs[openIdxs.length-1];
+    if(new Date(outIso).getTime()<=new Date(sessions[li].in).getTime()){toast('⚠️ وقت الخروج لازم يكون بعد الدخول');return;}
+    sessions[li].out=outIso;
+    const total=sessions.reduce((t,s)=>t+(s.out?Math.max(0,Math.floor((new Date(s.out).getTime()-new Date(s.in).getTime())/1000)):0),0);
+    await db.collection('attendance').doc(docId).update({sessions,checkOut:outIso,secondsWorked:total});
+    document.getElementById('att_out_modal')?.remove();
+    toast('✅ تم تسجيل الخروج يدوياً');
+    const df=document.getElementById('attDateFilter');
+    if(df&&typeof _loadAttendanceData==='function') _loadAttendanceData(df.value);
+  }catch(e){toast('❌ '+e.message);}
+}
+window.manualCheckout=manualCheckout; window.saveManualCheckout=saveManualCheckout;
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenMashghal=ewOpenMashghal; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.openAttendanceScan=openAttendanceScan; window.openAttendanceModal=openAttendanceModal; window.closeAttendanceModal=closeAttendanceModal; window._loadAttendanceData=_loadAttendanceData; window._printAttQR=_printAttQR;
 window.ewSaveHourlyRate=ewSaveHourlyRate;
