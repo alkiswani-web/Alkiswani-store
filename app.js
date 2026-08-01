@@ -3901,96 +3901,146 @@ function _repeatBadge(phone,customerHist,size){
   return `<span onclick="event.stopPropagation();viewCustomerHistory('${safe}')" style="display:inline-flex;align-items:center;gap:3px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;border-radius:7px;padding:2px 8px;font-size:0.7rem;font-weight:700;cursor:pointer;font-family:'Tajawal',sans-serif;margin:4px 0;">🔁 زبون سابق · ${n} طلبات</span>`;
 }
 
+// ═════════ ROSEMARY ORDERS — درجات لون واحد ═════════
+const RO_C={
+  pending:'#9bf7bb', preparing:'#5ee39c', prepared:'#31c87e', waiting_rep:'#31c87e',
+  queued:'#1da765', delivering:'#1da765', delivered:'#14784a',
+  onhold:'#ff5470', postponed:'#ff5470', cancelled:'#ff5470',
+  returned:'#526458', refused:'#ff5470'
+};
+function _roC(s){return RO_C[s]||'#526458';}
+// موقع الطلب على مسار المراحل الأربع
+const _RO_STEP={pending:1,preparing:2,prepared:3,waiting_rep:3,queued:4,delivering:4,delivered:4};
+function _roStep(s){return _RO_STEP[s]||0;}
+// عمر الطلب بصيغة بشرية
+function _roAge(o){
+  const t=o.createdAt&&o.createdAt.toDate?o.createdAt.toDate():(o.createdAt?new Date(o.createdAt):null);
+  if(!t)return '';
+  const m=Math.floor((Date.now()-t.getTime())/60000);
+  if(m<1)return 'الآن';
+  if(m<60)return 'قبل '+m+' د';
+  const h=Math.floor(m/60);
+  if(h<24)return 'قبل '+h+' س';
+  const d=Math.floor(h/24);
+  return d===1?'من امبارح':'من '+d+' أيام';
+}
+// صورة المنتج من قائمة المنتجات المشتركة
+function _roImg(p){
+  if(!p)return '';
+  if(p.imageDataUrl)return p.imageDataUrl;
+  const pd=p.id?(_empSharedProducts||[]).find(x=>x.id===p.id):null;
+  if(!pd)return '';
+  return pd.imageDataUrl||(pd.images&&pd.images[0])||pd.img||'';
+}
+function _roEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
 function _renderAdminOrderCard(o,isOperator,customerHist){
   const st=_empSt(o.status);
-  const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
-  const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
-  const dlv=o.deliveryFee||0;
-  const net=o.netPrice!=null?o.netPrice:total+dlv;
+  const col=_roC(o.status);
+  const prods=(o.products&&o.products.length)?o.products:[{name:o.productName||'—',price:o.price||0,qty:1}];
+  const total=o.totalPrice||prods.reduce((s,p)=>s+((p.price||0)*(p.qty||1)),0);
+  const net=o.netPrice!=null?o.netPrice:total+(o.deliveryFee||0);
   const nextSt=EMP_STATUS_NEXT[o.status];
   const isClosed=['cancelled','returned','refused','delivered'].includes(o.status);
   const isHold=o.status==='onhold';
-  const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
+  const label=o.orderNum?('#'+o.orderNum):('#'+(o.id||'').slice(-5).toUpperCase());
   const phone=(o.customerPhone||'').trim();
+  const step=_roStep(o.status);
 
-  // Product image: look up from shared products list
-  const firstProdImg=(()=>{
-    const pid=prods[0]?.id;
-    const pd=pid?(_empSharedProducts||[]).find(p=>p.id===pid):null;
-    return pd?(pd.imageDataUrl||(pd.images&&pd.images[0])||pd.img||''):'';
-  })();
+  // ── سلّم التقدّم على الحافة ──
+  const ladder=[1,2,3,4].map(i=>`<i${i<=step?` style="background:${col};"`:''}></i>`).join('');
+  const arrows=[1,2,3,4].map(i=>`<i${i<=step?` style="color:${col};"`:''}>▸</i>`).join('');
 
-  // Main next-action button (one primary action per card)
-  let nextBtn='';
+  // ── الصورة الرئيسية ──
+  const mainImg=_roImg(prods[0]);
+  const thumb=`<span class="ro-thumb"${mainImg?` onclick="event.stopPropagation();openEmpOrderImage('${mainImg}')"`:''}>${
+    mainImg?`<img loading="lazy" decoding="async" src="${mainImg}" alt="">`:'🪵'
+  }${prods.length>1?`<span class="cnt">+${prods.length-1}</span>`:''}</span>`;
+
+  // ── شرائح المنتجات ──
+  const chips=prods.map(p=>{
+    const im=_roImg(p);
+    const qty=p.qty||p.quantity||1;
+    const cn=(p.colorNumbers&&p.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(p.colorNumbers):'';
+    return `<span class="ro-chip"><span class="th">${im?`<img loading="lazy" decoding="async" src="${im}" alt="">`:'🪵'}</span>`
+      +`<b>${_roEsc(p.name||'—')}</b>`
+      +(p.color?`<span class="at">${_roEsc(p.color)}</span>`:'')
+      +(cn?`<span class="at">${_roEsc(cn)}</span>`:'')
+      +(p.writing?`<span class="wr">✍ ${_roEsc(p.writing)}</span>`:'')
+      +`<span class="qt">×${qty}</span></span>`;
+  }).join('');
+
+  // ── زر الإجراء الأساسي ──
+  let go='';
   if(isHold){
-    nextBtn=`<button class="lux-next plain" onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','pending')">▶ استئناف</button>`;
-  }else if(o.status==='waiting_rep'){
-    nextBtn=`<button class="lux-next go" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">تعيين مندوب <span class="arr">←</span></button>`;
-  }else if(nextSt==='delivering'){
-    nextBtn=`<button class="lux-next go" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">اختر مندوب <span class="arr">←</span></button>`;
+    go=`<button class="ro-go q" onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','pending')">استئناف <span class="a">▶</span></button>`;
+  }else if(o.status==='waiting_rep'||nextSt==='delivering'){
+    go=`<button class="ro-go" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">${o.status==='waiting_rep'?'تعيين مندوب':'اختر مندوب'} <span class="a">←</span></button>`;
   }else if(nextSt){
-    nextBtn=`<button class="lux-next primary" onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','${nextSt}')">${EMP_STATUSES[nextSt].label} <span class="arr">←</span></button>`;
+    go=`<button class="ro-go" onclick="event.stopPropagation();updateEmpOrderStatus('${o.id}','${nextSt}')">${EMP_STATUSES[nextSt].label} <span class="a">←</span></button>`;
   }
-  // ⚡ quick-skip to rep for early stages (operator only)
-  const quickBtn=(isOperator&&!isHold&&(o.status==='pending'||o.status==='preparing'))
-    ?`<button class="lux-more" title="إرسال مباشر للمندوب" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">⚡</button>`:'';
+  // إرسال مباشر للمندوب (المشغل فقط)
+  const quick=(isOperator&&!isHold&&(o.status==='pending'||o.status==='preparing'))
+    ?`<button class="ro-dots" title="إرسال مباشر للمندوب" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">⚡</button>`:'';
+  // الموظف: قائمة تغيير الحالة
+  const workerSel=!isOperator
+    ?`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" onclick="event.stopPropagation();" style="padding:5px 8px;border:1px solid rgba(140,240,185,.12);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700;outline:none;background:#020805;color:#cfe3d7;">${
+        Object.entries(EMP_STATUSES).map(([k,v])=>`<option value="${k}"${o.status===k?' selected':''}>${v.label}</option>`).join('')
+      }</select>`:'';
 
-  // Worker view: status select instead of single button
-  const workerSelect=!isOperator
-    ?`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" onclick="event.stopPropagation();" style="padding:6px 9px;border:1px solid #ebebeb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;outline:none;background:#fafafa;color:#222;margin:6px 8px 6px 0;">
-      ${Object.entries(EMP_STATUSES).map(([k,v])=>`<option value="${k}"${o.status===k?' selected':''}>${v.label}</option>`).join('')}
-    </select>`:'';
+  const stepTxt=isClosed?(o.status==='delivered'?'مكتمل':st.label):(isHold?'معلّق':`0${step} / 04`);
+  const picked=_opSelectMode&&isOperator&&_opSelectedIds.has(o.id);
+  const openAct=(_opSelectMode&&isOperator)?`opToggleSelect('${o.id}')`:`openOpOrderDetail('${o.id}')`;
 
-  // Journey progress steps: pending→preparing→prepared→delivering→delivered
-  const _stageIdx={pending:0,preparing:1,prepared:2,waiting_rep:2,queued:3,delivering:3,delivered:4}[o.status];
-  const steps=_stageIdx!==undefined
-    ?`<span class="lux-steps">${[0,1,2,3].map(i=>`<span class="lux-step ${i<_stageIdx?'done':i===_stageIdx?'now':''}"></span>`).join('')}</span>`:'';
-  const dotLive=!isClosed&&!isHold&&o.status!=='waiting_rep';
-
-  const imgPanel=firstProdImg
-    ?`<div style="flex-shrink:0;width:78px;align-self:stretch;overflow:hidden;border-left:1px solid #f3f4f6;position:relative;">
-        <img loading="lazy" decoding="async" src="${firstProdImg}" onclick="event.stopPropagation();openEmpOrderImage('${firstProdImg}')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;min-height:80px;">
-        ${prods.length>1?`<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.55);color:#fff;border-radius:5px;font-size:0.65rem;padding:1px 5px;font-family:'Tajawal',sans-serif;">+${prods.length-1}</div>`:''}
-      </div>`
-    :'';
-
-  const _selectChecked=_opSelectMode&&isOperator&&_opSelectedIds.has(o.id);
-  return `<div id="opcard_${o.id}" data-order-id="${o.id}" class="lux-card" style="${o.urgent?'border-color:#fca5a5;':''}${_selectChecked?'outline:2.5px solid #111;':''}">${_opSelectMode&&isOperator?`<div onclick="opToggleSelect('${o.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fafafa;border-bottom:1px solid #ebebeb;cursor:pointer;"><input id="opchk_${o.id}" type="checkbox" ${_selectChecked?'checked':''} onclick="event.stopPropagation();opToggleSelect('${o.id}')" style="width:18px;height:18px;cursor:pointer;accent-color:#111;"><span style="font-size:0.82rem;font-weight:800;color:#111;">${label}</span><span style="font-size:0.75rem;color:#999;">${(o.pageName||o.storeName||'')}</span></div>`:''}
-    ${o.urgent?`<div style="background:#dc2626;color:#fff;padding:4px 14px;font-size:0.7rem;font-weight:800;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;animation:urgentPulse 1.4s infinite;">🔥 طلب مستعجل</div>`:''}
-    <div onclick="${_opSelectMode&&isOperator?`opToggleSelect('${o.id}')`:`openOpOrderDetail('${o.id}')`}" style="display:flex;cursor:pointer;direction:ltr;min-height:80px;">
-      ${imgPanel}
-      <div style="flex:1;min-width:0;padding:13px 15px 11px;direction:rtl;">
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:7px;">
-          <span style="font-weight:800;color:#111;font-size:0.92rem;white-space:nowrap;">${o.workerName||o.pageName||'—'}</span>
-          <span style="font-size:0.65rem;font-weight:600;color:#999;letter-spacing:0.6px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}${o.pageName?' · '+o.pageName:''}</span>
-          <span style="font-weight:900;color:#111;font-size:1.02rem;flex-shrink:0;white-space:nowrap;letter-spacing:-0.3px;font-variant-numeric:tabular-nums;">${net.toFixed(2)} <span style="font-size:0.6rem;font-weight:500;color:#999;">د.أ</span></span>
+  return `<article id="opcard_${o.id}" data-order-id="${o.id}" class="ro-plate${o.urgent&&!isClosed?' urg':''}${isClosed?' done':''}${picked?' sel':''}">
+    <div class="ro-in">
+      <span class="ro-ladder">${ladder}</span>
+      <div class="ro-core">
+        ${(_opSelectMode&&isOperator)?`<label class="ro-pick" onclick="event.stopPropagation();opToggleSelect('${o.id}')"><input id="opchk_${o.id}" type="checkbox" ${picked?'checked':''} onclick="event.stopPropagation();opToggleSelect('${o.id}')"><span>${label} — ${_roEsc(o.pageName||o.storeName||'')}</span></label>`:''}
+        <div class="ro-band">
+          <span class="st" style="color:${col};"><i style="background:${col};"></i>${o.urgent&&!isClosed?'مستعجل · ':''}${st.label}</span>
+          <span class="sn">${label}</span>
+          <span class="age">${_roAge(o)}</span>
         </div>
-        <div style="font-size:0.74rem;color:#555;line-height:1.85;">
-          ${phone||'—'}${o.area?` <span style="color:#d8d8d8;">·</span> ${o.area}`:''}
-          ${_repeatBadge(phone,customerHist,'sm')}
-          ${o.needsReview?`<span style="background:#fafafa;border:1px solid #ebebeb;color:#854d0e;border-radius:6px;padding:1px 7px;font-size:0.68rem;font-weight:700;">✏️ معدَّل</span>`:''}
-          <br>${prods.map(p=>`<b style="color:#111;">${p.name}</b>${p.color?` · <span style="color:#0369a1;">${p.color}</span>`:''}${p.writing?` · <span style="color:#7c3aed;">✍️${p.writing}</span>`:''} ×${p.qty||1}`).join(' <span style="color:#d8d8d8;">·</span> ')}
+        <div class="ro-pad" onclick="${openAct}">
+          <div class="ro-idrow">
+            ${thumb}
+            <div class="ro-who">
+              <b>${_roEsc(o.customerName||o.workerName||o.pageName||'—')}</b>
+              <span>${_roEsc(o.pageName||o.storeName||'')}</span>
+            </div>
+            <div class="ro-readout"><b>${net.toFixed(2)}</b><span>JD</span></div>
+          </div>
+          <div class="ro-strip">
+            <div><em>الهاتف</em>${_roEsc(phone||'—')}</div>
+            <div><em>المنطقة</em>${_roEsc(o.area||o.address||'—')}</div>
+          </div>
+          <div class="ro-chips">${chips}</div>
+          ${(o.urgent&&!isClosed)||o.needsReview||_repeatBadge(phone,customerHist,'sm')?`<div class="ro-flags">
+            ${o.urgent&&!isClosed?'<span class="ro-fl alert">طلب مستعجل</span>':''}
+            ${o.needsReview?'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>':''}
+            ${_repeatBadge(phone,customerHist,'sm')?'<span class="ro-fl n">زبون متكرر</span>':''}
+          </div>`:''}
+          ${o.address&&o.area?`<div class="ro-rep">📍 ${_roEsc(o.address)}</div>`:''}
+          ${o.notes?`<div class="ro-rep">📝 ${_roEsc(o.notes)}</div>`:''}
+          ${o.deliveryRepName?`<div class="ro-rep">🛵 المندوب <b>${_roEsc(o.deliveryRepName)}</b></div>`:''}
+          ${o.holdReason?`<div class="ro-memo">⏸ ${_roEsc(o.holdReason)}</div>`:''}
+          ${o.cancelReason?`<div class="ro-memo">🚫 ${_roEsc(o.cancelReason)}</div>`:''}
+          ${isOperator&&o.internalNote?`<div class="ro-memo n">🔒 ${_roEsc(o.internalNote)}</div>`:''}
         </div>
-        ${o.address?`<div style="font-size:0.71rem;color:#999;margin-top:2px;">📍 ${o.address}${o.notes?' · '+o.notes:''}</div>`:''}
-        ${o.deliveryRepName?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">المندوب: <b style="color:#111;">${o.deliveryRepName}</b></div>`:''}
-        ${o.holdReason?`<div class="lux-note" style="border-right-color:#d97706;">⏸ ${o.holdReason}</div>`:''}
-        ${o.cancelReason?`<div class="lux-note" style="border-right-color:#dc2626;">🚫 ${o.cancelReason}</div>`:''}
-        ${isOperator&&o.internalNote?`<div class="lux-note">🔒 ${o.internalNote}</div>`:''}
+        <div class="ro-act">
+          <span class="ro-step">${stepTxt}</span>
+          <span class="ro-arrows">${arrows}</span>
+          ${workerSel}
+          ${quick}
+          <button class="ro-dots" onclick="event.stopPropagation();openOpCardMenu('${o.id}',${isOperator})">⋯</button>
+          ${go}
+        </div>
       </div>
     </div>
-    <div class="lux-foot">
-      <div class="lux-stage">
-        <span class="lux-dot ${dotLive?'live':''}" style="background:${dotLive?'#16a34a':'#bbb'};"></span>
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${st.label}</span>
-        ${steps}
-      </div>
-      ${workerSelect}
-      ${quickBtn}
-      <button class="lux-more" onclick="event.stopPropagation();openOpCardMenu('${o.id}',${isOperator})">⋯</button>
-      ${nextBtn}
-    </div>
-  </div>`;
+  </article>`;
 }
+
 
 // Action sheet with secondary order actions (⋯)
 function openOpCardMenu(id,isOperator){
@@ -4057,12 +4107,13 @@ function _renderKanban(orders, isOperator, filterStatus, customerHist){
     const grp=groups[status];
     if(!grp.length)return '';
     const st=_empSt(status);
+    const col=_roC(status);
     return `<div style="margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;padding:0 2px;">
-        <div style="width:10px;height:10px;border-radius:50%;background:${st.color};flex-shrink:0;"></div>
-        <span style="font-weight:800;color:${st.color};font-size:0.82rem;">${st.label}</span>
-        <span style="background:${st.color};color:#fff;border-radius:20px;padding:1px 8px;font-size:0.7rem;font-weight:700;">${grp.length}</span>
-        <div style="flex:1;height:1px;background:${st.border};"></div>
+      <div class="ro-sec" style="color:${col};">
+        <span class="dia" style="background:${col};"></span>
+        <span class="lb">${st.label}</span>
+        <span class="ct">${String(grp.length).padStart(2,'0')}</span>
+        <span class="ln"></span>
       </div>
       ${grp.map(o=>_renderAdminOrderCard(o,isOperator,customerHist)).join('')}
     </div>`;
@@ -4127,9 +4178,91 @@ function _playNewOrderSound(){
 }
 
 function _ordersLoadingSkeleton(){
-  const c=`<div style="background:#f9fafb;border:1px solid #f3f4f6;border-radius:10px;padding:12px;margin-bottom:8px;animation:_skelPulse 1.2s ease-in-out infinite;"><div style="height:13px;background:#e5e7eb;border-radius:4px;width:55%;margin-bottom:8px;"></div><div style="height:10px;background:#e5e7eb;border-radius:4px;width:38%;"></div></div>`;
-  return `<style>@keyframes _skelPulse{0%,100%{opacity:1}50%{opacity:.35}}</style>${c.repeat(6)}`;
+  const c=`<div class="ro-skel"><i style="width:55%;margin-bottom:9px;"></i><i style="width:38%;height:9px;"></i></div>`;
+  return c.repeat(6);
 }
+
+// ═══ ترويسة القسم: النبض + توزيع المراحل ═══
+// مسار النبض مبني من عدد الطلبات الفعلي بآخر 12 ساعة
+function _roFlowPath(orders){
+  const now=new Date(), buckets=new Array(12).fill(0);
+  orders.forEach(o=>{
+    const t=o.createdAt&&o.createdAt.toDate?o.createdAt.toDate():null;
+    if(!t)return;
+    const hrs=(now.getTime()-t.getTime())/3600000;
+    if(hrs<0||hrs>=12)return;
+    buckets[11-Math.floor(hrs)]++;
+  });
+  const max=Math.max(1,...buckets);
+  // كل ساعة = نبضة: خط أساس ثم قفزة بارتفاع يعادل عدد الطلبات
+  let d='M0,60';
+  for(let i=0;i<12;i++){
+    const x=i*33+8, amp=(buckets[i]/max)*30;
+    d+=` L${x},60`;
+    if(buckets[i]>0) d+=` L${x+7},${60-amp} L${x+14},${60+amp*0.75} L${x+21},60`;
+  }
+  return d+' L400,60';
+}
+function _roHeader(data,isOperator){
+  const active=data.filter(o=>!['delivered','cancelled','returned','refused'].includes(o.status));
+  const today=new Date(); today.setHours(0,0,0,0);
+  const isToday=o=>{const t=o.createdAt&&o.createdAt.toDate?o.createdAt.toDate():null;return t&&t>=today;};
+  const doneToday=data.filter(o=>o.status==='delivered'&&isToday(o));
+  const revenue=doneToday.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
+  const cnt=s=>data.filter(o=>o.status===s).length;
+  const stages=[
+    {k:'pending',   lb:'جديد',  n:cnt('pending'),                        c:'#9bf7bb'},
+    {k:'preparing', lb:'تجهيز', n:cnt('preparing'),                      c:'#5ee39c'},
+    {k:'prepared',  lb:'جاهز',  n:cnt('prepared')+cnt('waiting_rep'),    c:'#31c87e'},
+    {k:'delivering',lb:'توصيل', n:cnt('delivering')+cnt('queued'),       c:'#1da765'},
+    {k:'delivered', lb:'تم',    n:cnt('delivered'),                      c:'#14784a'},
+    {k:'onhold',    lb:'عالق',  n:cnt('onhold'),                         c:'#ff5470'}
+  ];
+  const peak=Math.max(1,...stages.map(s=>s.n));
+  const cur=isOperator?_opOrdersFilter:_empOrdersFilter;
+  const fn=isOperator?'setOpOrderFilter':'setEmpOrderFilter';
+  const rods=stages.map(s=>`<button class="ro-rod${cur===s.k?' on':''}" onclick="_roPick('${s.k}','${fn}')">
+      <span class="n" style="color:${s.c};">${s.n}</span>
+      <span class="col"><span class="fill" style="height:${Math.round((s.n/peak)*100)}%;background:linear-gradient(180deg,${s.c},transparent);"></span></span>
+      <span class="lb">${s.lb}</span>
+    </button>`).join('');
+  const now=new Date();
+  const hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const path=_roFlowPath(data);
+  return `<div class="ro-head">
+    <div class="ro-ghost" aria-hidden="true">${active.length}</div>
+    <div class="ro-head-in">
+      <div>
+        <h2 class="ro-h1">الطلبات</h2>
+        <div class="ro-sub">${active.length} ACTIVE · ${hhmm}</div>
+      </div>
+      <div class="ro-rev"><b>${revenue.toFixed(2)}</b><span>مبيعات اليوم</span></div>
+    </div>
+  </div>
+  <div class="ro-mon">
+    <span class="ro-mon-tag">ORDER FLOW · 12H</span>
+    <span class="ro-mon-val">${doneToday.length} ✓</span>
+    <span class="ro-sweep"></span>
+    <svg class="ro-ekg" viewBox="0 0 400 88" preserveAspectRatio="none" aria-hidden="true">
+      <path class="b" d="${path}"></path>
+      <path class="h" d="${path}"></path>
+    </svg>
+    <div class="ro-mon-foot"><span>-12س</span><span>-8س</span><span>-4س</span><span>الآن</span></div>
+  </div>
+  <div class="ro-rct">
+    <div class="ro-rct-h"><span>توزيع المراحل</span><span>اضغط للتصفية</span></div>
+    <div class="ro-eq">${rods}</div>
+  </div>`;
+}
+// تصفية من أعمدة المراحل مع مزامنة شرائح التبويب
+function _roPick(status,fnName){
+  const wrapId=fnName==='setOpOrderFilter'?'opOrdersChips':'empOrdersChips';
+  const chips=document.getElementById(wrapId);
+  let btn=null;
+  if(chips) btn=[...chips.querySelectorAll('.order-stab')].find(b=>(b.getAttribute('onclick')||'').indexOf("'"+status+"'")>-1)||null;
+  if(btn) btn.click(); else window[fnName](status,null);
+}
+window._roPick=_roPick;
 function _ordersDateCutoff(){
   const d=new Date();d.setDate(d.getDate()-30);
   return firebase.firestore.Timestamp.fromDate(d);
@@ -4165,12 +4298,13 @@ function _renderEmpOrdersView(){
   if(!wrap)return;
   _updateEmpChipCounts(_empOrdersAllData,'eoc-');
   const customerHist=_buildCustomerHistoryMap(_empOrdersAllData);
+  const head=_roHeader(_empOrdersAllData,false);
   if(_empKanbanBoardView){
     let orders=_empOrdersAllData;
     if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
     if(_empAdvFilter) orders=_applyAdvFilter(orders,_empAdvFilter);
-    if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_empOrdersSearch||_empAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
-    wrap.innerHTML=_renderKanbanBoard(orders,false,customerHist);
+    if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_empOrdersSearch||_empAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
+    wrap.innerHTML=head+_renderKanbanBoard(orders,false,customerHist);
     return;
   }
   let orders;
@@ -4181,10 +4315,10 @@ function _renderEmpOrdersView(){
   else orders=_empOrdersAllData.filter(o=>o.status===_empOrdersFilter);
   if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
   if(_empAdvFilter) orders=_applyAdvFilter(orders,_empAdvFilter);
-  if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_empOrdersSearch||_empAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
-  wrap.innerHTML=_empGroupByArea
+  if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_empOrdersSearch||_empAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
+  wrap.innerHTML=head+(_empGroupByArea
     ?_renderGroupedByArea(orders,false,customerHist)
-    :_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter,customerHist);
+    :_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter,customerHist));
 }
 
 function setEmpOrderFilter(filter,btn){
@@ -4232,18 +4366,19 @@ function _renderOpOrdersView(){
   if(!wrap)return;
   _updateEmpChipCounts(_opOrdersAllData,'ooc-');
   const customerHist=_buildCustomerHistoryMap(_opOrdersAllData);
+  const head=_roHeader(_opOrdersAllData,true);
   if(_opKanbanBoardView){
     let orders=_opOrdersAllData;
     if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
     if(_opAdvFilter) orders=_applyAdvFilter(orders,_opAdvFilter);
-    if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
-    wrap.innerHTML=_renderKanbanBoard(orders,true,customerHist);
+    if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
+    wrap.innerHTML=head+_renderKanbanBoard(orders,true,customerHist);
     return;
   }
   // Special combined view for delivering/queued/waiting_rep tabs
   if(_opOrdersFilter==='delivering'||_opOrdersFilter==='queued'||_opOrdersFilter==='waiting_rep'){
     const combined=_opOrdersAllData.filter(o=>o.status==='queued'||o.status==='delivering'||o.status==='waiting_rep');
-    wrap.innerHTML=_renderDeliveryQueue(combined);
+    wrap.innerHTML=head+'<div class="ro-sheet">'+_renderDeliveryQueue(combined)+'</div>';
     const repWrap=document.getElementById('opCancelReport');
     if(repWrap)repWrap.style.display='none';
     return;
@@ -4255,10 +4390,10 @@ function _renderOpOrdersView(){
   else orders=_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
   if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
   if(_opAdvFilter) orders=_applyAdvFilter(orders,_opAdvFilter);
-  if(!orders.length){wrap.innerHTML=`<div style="color:#9ca3af;font-size:0.82rem;padding:16px;text-align:center;">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
-  wrap.innerHTML=_opGroupByArea
+  if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
+  wrap.innerHTML=head+(_opGroupByArea
     ?_renderGroupedByArea(orders,true,customerHist)
-    :_renderKanban(orders,true,(_opOrdersFilter==='edited'||_opOrdersFilter==='urgent')?'all':_opOrdersFilter,customerHist);
+    :_renderKanban(orders,true,(_opOrdersFilter==='edited'||_opOrdersFilter==='urgent')?'all':_opOrdersFilter,customerHist));
   // Show reports after render
   if(_opOrdersFilter==='cancelled'){
     setTimeout(renderCancelReport,10);
@@ -4277,8 +4412,9 @@ function _renderOpOrdersView(){
           ${sorted.map(([reason,count])=>{const pct=Math.round((count/total)*100);return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;"><span style="font-size:0.82rem;color:#374151;">${reason}</span><span style="font-size:0.78rem;font-weight:700;color:#ef4444;">${count} (${pct}%)</span></div><div style="background:#f3f4f6;border-radius:4px;height:6px;overflow:hidden;"><div style="height:100%;background:#ef4444;border-radius:4px;width:${pct}%;"></div></div></div>`;}).join('')}
         </div>`;
       })();
-      repWrap.innerHTML=cancelHtml+renderRepReport();
-      repWrap.style.display=repWrap.innerHTML?'block':'none';
+      const inner=cancelHtml+renderRepReport();
+      repWrap.innerHTML=inner?'<div class="ro-sheet">'+inner+'</div>':'';
+      repWrap.style.display=inner?'block':'none';
     }
   } else {
     const repWrap=document.getElementById('opCancelReport');
@@ -4302,7 +4438,7 @@ function opToggleSelect(id){
   const cb=document.getElementById('opchk_'+id);
   if(cb){cb.checked=_opSelectedIds.has(id);}
   const card=document.getElementById('opcard_'+id);
-  if(card){card.style.outline=_opSelectedIds.has(id)?'2.5px solid #1a3a2a':'';}
+  if(card){card.classList.toggle('sel',_opSelectedIds.has(id));}
 }
 function opSelectAll(){
   const wrap=document.getElementById('opOrdersWrap');
@@ -4312,7 +4448,7 @@ function opSelectAll(){
   wrap.querySelectorAll('[data-order-id]').forEach(el=>{
     const cb=el.querySelector('input[type=checkbox]');
     if(cb)cb.checked=true;
-    el.style.outline='2.5px solid #1a3a2a';
+    el.classList.add('sel');
   });
 }
 function opClearSelect(){
@@ -4321,7 +4457,7 @@ function opClearSelect(){
   document.querySelectorAll('[data-order-id]').forEach(el=>{
     const cb=el.querySelector('input[type=checkbox]');
     if(cb)cb.checked=false;
-    el.style.outline='';
+    el.classList.remove('sel');
   });
 }
 function _updateBulkBar(){
@@ -12319,20 +12455,20 @@ function _renderGroupedByArea(orders,isOperator,customerHist){
       const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
       const net=o.netPrice!=null?o.netPrice:(o.totalPrice||0);
       const prodsStr=(o.products||[]).map(p=>`${p.name} × ${p.qty||1}`).join(' · ');
-      return `<label for="chk_${o.id}" style="display:flex;gap:10px;align-items:flex-start;background:#fff;border:1.5px solid #d1fae5;border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#25D366'" onmouseout="this.style.borderColor='#d1fae5'">
-        <input type="checkbox" id="chk_${o.id}" value="${o.id}" onchange="updateBatchBar()" style="width:19px;height:19px;margin-top:2px;accent-color:#25D366;flex-shrink:0;cursor:pointer;">
+      return `<label for="chk_${o.id}" style="display:flex;gap:10px;align-items:flex-start;background:#0a1c13;border:1px solid rgba(140,240,185,.1);border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#5ee39c'" onmouseout="this.style.borderColor='rgba(140,240,185,.1)'">
+        <input type="checkbox" id="chk_${o.id}" value="${o.id}" onchange="updateBatchBar()" style="width:19px;height:19px;margin-top:2px;accent-color:#5ee39c;flex-shrink:0;cursor:pointer;">
         <div style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
             <div>
-              <div style="font-weight:700;color:#1a3a2a;font-size:0.85rem;">${label} — ${o.pageName||''}</div>
-              <div style="font-size:0.75rem;color:#6b7280;margin-top:1px;">📞 ${o.customerPhone||''}</div>
+              <div style="font-weight:700;color:#fff;font-size:0.85rem;">${label} — ${o.pageName||''}</div>
+              <div style="font-size:0.75rem;color:#88a294;margin-top:1px;">📞 ${o.customerPhone||''}</div>
               ${_repeatBadge(o.customerPhone,customerHist,'sm')}
-              <div style="font-size:0.75rem;color:#6b7280;">📍 ${o.address||''}</div>
+              <div style="font-size:0.75rem;color:#88a294;">📍 ${o.address||''}</div>
             </div>
-            <div style="font-weight:800;color:#166534;font-size:0.9rem;flex-shrink:0;">${net.toFixed(2)} د.أ</div>
+            <div style="font-weight:800;color:#5ee39c;font-size:0.9rem;flex-shrink:0;">${net.toFixed(2)} د.أ</div>
           </div>
-          <div style="font-size:0.77rem;color:#374151;margin-top:4px;">${prodsStr}</div>
-          ${o.notes?`<div style="font-size:0.72rem;color:#9ca3af;margin-top:2px;">📝 ${o.notes}</div>`:''}
+          <div style="font-size:0.77rem;color:#cfe3d7;margin-top:4px;">${prodsStr}</div>
+          ${o.notes?`<div style="font-size:0.72rem;color:#526458;margin-top:2px;">📝 ${o.notes}</div>`:''}
         </div>
       </label>`;
     }).join('');
@@ -12823,7 +12959,7 @@ function renderCancelReport(){
   const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   const total=cancelled.length;
   wrap.style.display='block';
-  wrap.innerHTML=`<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px;margin-top:8px;">
+  wrap.innerHTML=`<div class="ro-sheet" style="margin-top:8px;">
     <div style="font-weight:800;color:#374151;font-size:0.9rem;margin-bottom:10px;">📊 تحليل أسباب الإلغاء (${total} طلب)</div>
     ${sorted.map(([reason,count])=>{
       const pct=Math.round((count/total)*100);
