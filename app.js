@@ -3924,14 +3924,25 @@ function _roAge(o){
   const d=Math.floor(h/24);
   return d===1?'من امبارح':'من '+d+' أيام';
 }
-// صورة المنتج من قائمة المنتجات المشتركة
+// صورة المنتج: من سطر الطلب نفسه، وإلا من سجل المنتج بالمعرّف، وإلا بالاسم
+// (طلبات قديمة قد تحمل معرّف منتج لم يعد موجوداً)
 function _roImg(p){
   if(!p)return '';
   if(p.imageDataUrl)return p.imageDataUrl;
-  const pd=p.id?(_empSharedProducts||[]).find(x=>x.id===p.id):null;
+  const list=_empSharedProducts||[];
+  let pd=p.id?list.find(x=>x.id===p.id):null;
+  if(!pd&&p.name){
+    const n=String(p.name).trim();
+    pd=list.find(x=>String(x.name||'').trim()===n);
+  }
   if(!pd)return '';
-  return pd.imageDataUrl||(pd.images&&pd.images[0])||pd.img||'';
+  // نفس ترتيب المتجر: images[0] ثم img — حقل imageDataUrl قد يبقى قيمة
+  // قديمة بعد ترحيل الصور إلى Storage فيعطي رابطاً ميتاً
+  const src=(pd.images&&pd.images[0])||pd.img||pd.imageDataUrl||'';
+  return typeof src==='string'?src:'';
 }
+// بديل يظهر مكان الصورة إذا فشل تحميلها (رابط ميت/منتهي) بدل أيقونة الصورة المكسورة
+const _RO_IMGERR="this.onerror=null;this.replaceWith('🪵')";
 function _roEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function _renderAdminOrderCard(o,isOperator,customerHist){
@@ -3954,7 +3965,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
   // ── الصورة الرئيسية ──
   const mainImg=_roImg(prods[0]);
   const thumb=`<span class="ro-thumb"${mainImg?` onclick="event.stopPropagation();openEmpOrderImage('${mainImg}')"`:''}>${
-    mainImg?`<img loading="lazy" decoding="async" src="${mainImg}" alt="">`:'🪵'
+    mainImg?`<img loading="lazy" decoding="async" src="${mainImg}" alt="" onerror="${_RO_IMGERR}">`:'🪵'
   }${prods.length>1?`<span class="cnt">+${prods.length-1}</span>`:''}</span>`;
 
   // ── شرائح المنتجات ──
@@ -3962,7 +3973,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     const im=_roImg(p);
     const qty=p.qty||p.quantity||1;
     const cn=(p.colorNumbers&&p.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(p.colorNumbers):'';
-    return `<span class="ro-chip"><span class="th">${im?`<img loading="lazy" decoding="async" src="${im}" alt="">`:'🪵'}</span>`
+    return `<span class="ro-chip"><span class="th">${im?`<img loading="lazy" decoding="async" src="${im}" alt="" onerror="${_RO_IMGERR}">`:'🪵'}</span>`
       +`<b>${_roEsc(p.name||'—')}</b>`
       +(p.color?`<span class="at">${_roEsc(p.color)}</span>`:'')
       +(cn?`<span class="at">${_roEsc(cn)}</span>`:'')
@@ -4275,7 +4286,10 @@ function loadEmpOrders(){
   wrap.innerHTML=_ordersLoadingSkeleton();
   if(!_empSharedProducts){
     db.collection('operator_products').get()
-      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);})
+      .then(s=>{
+        _empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);
+        if(_empOrdersAllData.length)_renderEmpOrdersView();
+      })
       .catch(()=>{});
   }
   _empOrdersUnsub=db.collection('employee_orders')
@@ -4336,7 +4350,10 @@ function loadOperatorOrders(){
   wrap.innerHTML=_ordersLoadingSkeleton();
   if(!_empSharedProducts){
     db.collection('operator_products').get()
-      .then(s=>{_empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);})
+      .then(s=>{
+        _empSharedProducts=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);
+        if(_opOrdersAllData.length)_renderOpOrdersView();
+      })
       .catch(()=>{});
   }
   _opOrdersUnsub=db.collection('employee_orders')
