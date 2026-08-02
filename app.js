@@ -8638,6 +8638,10 @@ let _opAcctOwed={};
 let _opAcctPaid={};
 let _opAcctRefund={};
 let _opAcctDiscount={};
+// أرقام تراكمية (كل التاريخ) لمربّعات كرت المتجر — لتوحيد الفترة مع «المستحق»
+let _opAcctCollected={};   // الكاش المحصّل من طلبات مسلّمة، مفتاحه اسم المتجر المطبّع
+let _opAcctCollByRep={};   // نفس السابق مفصولاً حسب المندوب (لاستبعاد المناديب المستثناة)
+let _opAllWithdrawals=[];  // كل المسحوبات/الدفعات عبر كل الجلسات
 let _opViewDate=null;
 let _opCurrentSession=null;
 let _opMashghalWages=[];
@@ -8703,31 +8707,33 @@ async function openOperatorDailyAccount(sessionId){
 // يختفي تماماً وتظهر كل المتاجر بمسحوب 0. نوحّد المنطق مع المبيعات:
 // المدى الزمني للجلسة (مع تسامح للسجلات بلا sessionId) ⋃ سجلات الجلسة الحالية.
 async function _loadOpWithdrawals(){
+  try{
+    const snap=await db.collection('operator_withdrawals').get();
+    _opAllWithdrawals=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){_opAllWithdrawals=[];}
   if(!_opCurrentSession){_opWithdrawals=[];return;}
   const sid=_opCurrentSession.id;
   const from=_opCurrentSession.openedDate;
   const to=_opCurrentSession.closedDate||jordanDateStr();
-  const map=new Map();
-  try{
-    const snap=await db.collection('operator_withdrawals').where('sessionId','==',sid).get();
-    snap.docs.forEach(d=>map.set(d.id,{id:d.id,...d.data()}));
-  }catch(e){}
-  if(from){
-    try{
-      const snap=await db.collection('operator_withdrawals').where('date','>=',from).where('date','<=',to).get();
-      snap.docs.forEach(d=>{
-        const w={id:d.id,...d.data()};
-        if(!w.sessionId||w.sessionId===sid) map.set(d.id,w);
-      });
-    }catch(e){}
-  }
-  _opWithdrawals=[...map.values()];
+  // مسحوبات الكشف الحالي: ما يحمل معرّف الجلسة، أو سجلات قديمة بلا معرّف تقع ضمن مدى الجلسة
+  _opWithdrawals=_opAllWithdrawals.filter(w=>
+    w.sessionId===sid||(!w.sessionId&&from&&w.date>=from&&w.date<=to));
 }
 
 // مطابقة المسحوب بالمتجر: بالمعرّف إن توفّر، وإلا بالاسم بعد التطبيع.
 // اسم كرت المتجر يأتي من الطلب (pageName) بينما اسم المسحوب يأتي من سجل
 // المتجر — فاختلاف مسافة أو حالة أحرف كان يكسر المطابقة.
 function _normStoreName(s){return String(s==null?'':s).replace(/\s+/g,' ').trim().toLowerCase();}
+// الكاش المحصّل التراكمي لمتجر — يُستبعد منه ما حصّله مندوب معلَّم «خارج الرصيد»
+function _ccCollected(storeName){
+  const k=_normStoreName(storeName);
+  const total=_opAcctCollected[k]||0;
+  const byRep=_opAcctCollByRep[k]||{};
+  const excl=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
+  let drop=0;
+  Object.keys(byRep).forEach(rep=>{if(excl.has(rep))drop+=byRep[rep];});
+  return Math.max(0,total-drop);
+}
 function _wdForStore(w,storeName,storeId){
   if(w.storeId&&storeId&&w.storeId===storeId) return true;
   return _normStoreName(w.storeName)===_normStoreName(storeName);
@@ -8807,13 +8813,27 @@ async function _loadOpSessionData(){
   try{ await _loadDeliveryReps(); }catch(e){}
   // Load cumulative account balances for all stores
   try{
-    const [sSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
+    const [sSnap,pSnap,rSnap,rSessionSnap,oAllSnap]=await Promise.all([
       db.collection('operator_sales').get(),
       db.collection('operator_store_payments').get(),
       db.collection('page_refunds').get(),
-      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
+      db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get(),
+      db.collection('employee_orders').where('status','==','delivered').get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};
+    // تراكمي: الكاش المحصّل لكل متجر من كل الطلبات المسلّمة، مفصولاً حسب المندوب
+    _opAcctCollected={};_opAcctCollByRep={};
+    oAllSnap.docs.forEach(d=>{
+      const o=d.data();
+      const k=_normStoreName(o.pageName||o.storeName||o.source||'الموقع الإلكتروني');
+      const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+      _opAcctCollected[k]=(_opAcctCollected[k]||0)+amt;
+      const rep=o.deliveryRepName||'';
+      if(rep){
+        if(!_opAcctCollByRep[k])_opAcctCollByRep[k]={};
+        _opAcctCollByRep[k][rep]=(_opAcctCollByRep[k][rep]||0)+amt;
+      }
+    });
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
       const qty=s.qty||1;
       // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
@@ -8824,11 +8844,19 @@ async function _loadOpSessionData(){
       const disc=Math.max(0,official-sold)*qty;
       if(disc>0.0001) _opAcctDiscount[s.storeId]=(_opAcctDiscount[s.storeId]||0)+disc;
     }});
-    pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId&&p.withdrawalType!=='withdrawal'){_opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);}});
+    pSnap.docs.forEach(d=>{
+      const p=d.data();
+      if(!p.storeId)return;
+      // مرآة المسحوب ليست دفعة للمتجر. السجلات القديمة كُتبت بلا withdrawalType،
+      // فنتعرّف عليها بوجود sourceWithdrawalId ما لم تكن دفعة صريحة.
+      const isWdMirror=p.withdrawalType==='withdrawal'||(p.sourceWithdrawalId&&p.withdrawalType!=='payment');
+      if(isWdMirror)return;
+      _opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);
+    });
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
     // Session-specific refunds: those within the session date range (for display in store cards)
     _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_opSessionRefunds=[];}
+  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_opSessionRefunds=[];_opAcctCollected={};_opAcctCollByRep={};_opAllWithdrawals=[];}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -9095,9 +9123,11 @@ function renderOperatorDailyView(){
           eligibleReps[k].orders.push(o);eligibleReps[k].total+=o.collectAmt;
         }
       });
-      const storeWds=_opWithdrawals.filter(w=>_wdForStore(w,store.name,store.storeId)&&w.withdrawalType!=='payment');
+      // المربّعات الأربعة تراكمية جميعها (نفس فترة «المستحق»)
+      const storeWds=_opAllWithdrawals.filter(w=>_wdForStore(w,store.name,store.storeId)&&w.withdrawalType!=='payment');
       const storeWdTotal=storeWds.reduce((s,w)=>s+(w.amount||0),0);
-      const storeBalance=store.eligibleTotal-storeWdTotal;
+      const storeCollected=_ccCollected(store.name);
+      const storeBalance=storeCollected-storeWdTotal;
       const balColor=storeBalance>=0?'#166534':'#dc2626';
       const balBg=storeBalance>=0?'#dcfce7':'#fee2e2';
       const eligBlocks=Object.values(eligibleReps).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(rep=>{
@@ -9174,7 +9204,7 @@ function renderOperatorDailyView(){
         </div>`:'';
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
-      const stSafi=store.eligibleTotal-storeWdTotal-stMatloub;
+      const stSafi=storeCollected-storeWdTotal-stMatloub;
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
       const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
@@ -9199,9 +9229,9 @@ function renderOperatorDailyView(){
         ${exclBlocks}
         <div style="padding:12px 15px;border-top:1px solid rgba(231,198,107,.1);">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
-            ${_ccRing(acctOwed>0?acctPaid/acctOwed:(store.eligibleTotal>0?1:0),'محصّل')}
+            ${_ccRing(acctOwed>0?acctPaid/acctOwed:(storeCollected>0?1:0),'محصّل')}
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
+              ${_ccStat('💰 قابل للسحب',storeCollected,'green')}
               ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
               ${_ccStat('🧾 المستحق',stMatloub,'amber')}
               ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
@@ -9230,9 +9260,10 @@ function renderOperatorDailyView(){
     const groupCards=Object.entries(storeGroups).sort((a,b)=>a[0].localeCompare(b[0],'ar')).map(([groupName,stores])=>{
       const grpEligible=stores.reduce((s,st)=>s+st.eligibleTotal,0);
       // group-level withdrawals: those tagged with groupName OR any per-store withdrawal for stores in this group
-      const grpWds=_opWithdrawals.filter(w=>(w.groupName===groupName||stores.some(st=>_wdForStore(w,st.name,st.storeId)))&&w.withdrawalType!=='payment');
+      const grpWds=_opAllWithdrawals.filter(w=>(w.groupName===groupName||stores.some(st=>_wdForStore(w,st.name,st.storeId)))&&w.withdrawalType!=='payment');
       const grpWdTotal=grpWds.reduce((s,w)=>s+(w.amount||0),0);
-      const grpBalance=grpEligible-grpWdTotal;
+      const grpCollected=stores.reduce((t,st)=>t+_ccCollected(st.name),0);
+      const grpBalance=grpCollected-grpWdTotal;
       const grpBalColor=grpBalance>=0?'#fff':'#fca5a5';
       const grpTotalOrders=stores.reduce((s,st)=>s+st.orders.length,0);
       const grpTotalAmt=stores.reduce((s,st)=>s+st.total,0);
@@ -9248,7 +9279,7 @@ function renderOperatorDailyView(){
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
       // المربعات الأربعة للمجموعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const grpMatloub=grpAcctBal; // المطلوب للمجموعة (تراكمي)
-      const grpSafi=grpEligible-grpWdTotal-grpMatloub;
+      const grpSafi=grpCollected-grpWdTotal-grpMatloub;
       const grpSafiColor=grpSafi>=0?'#fff':'#fca5a5';
       const grpWdRows=grpWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:6px;">
@@ -9267,7 +9298,7 @@ function renderOperatorDailyView(){
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:${grpWds.length||!isClosed?'12px':'2px'};">
             ${_ccRing(grpAcctOwed>0?grpAcctPaid/grpAcctOwed:(grpEligible>0?1:0),'محصّل')}
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              ${_ccStat('💰 قابل للسحب',grpEligible,'green')}
+              ${_ccStat('💰 قابل للسحب',grpCollected,'green')}
               ${_ccStat('💸 مسحوب',grpWdTotal,'red')}
               ${_ccStat('🧾 المستحق',grpMatloub,'amber')}
               ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
@@ -9775,18 +9806,19 @@ async function saveOperatorWithdrawal(){
     batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
+      withdrawalType:'withdrawal',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef2=db.collection('operator_store_payments').doc();
     batch.set(pmtRef2,{
       storeId,storeName,amount,date,
+      withdrawalType:'withdrawal',
       notes:(notes||''),
       sourceWithdrawalId:wRef.id,
       sessionId:_opCurrentSession.id,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     await batch.commit();
-    _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
     toast('✅ تم تسجيل المسحوب في الكشف ورصيد المحل');
     await _loadOpWithdrawals();
