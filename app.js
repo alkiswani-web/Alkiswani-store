@@ -8807,6 +8807,16 @@ async function _loadOpSessionData(){
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
+      const qty=s.qty||1;
+      // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
+      const official=(s.sellPrice||0);
+      const sold=(s.soldPrice!=null?s.soldPrice:official);
+      _opAcctOwed[s.storeId]=(_opAcctOwed[s.storeId]||0)+official*qty;
+      // الخصم = الرسمي − الفعلي (لما الفعلي أقل) — تتحمّله الصفحة
+      const disc=Math.max(0,official-sold)*qty;
+      if(disc>0.0001) _opAcctDiscount[s.storeId]=(_opAcctDiscount[s.storeId]||0)+disc;
+    }});
     pSnap.docs.forEach(d=>{
       const p=d.data();
       if(!p.storeId)return;
