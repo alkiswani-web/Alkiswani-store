@@ -3984,7 +3984,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
     ?`<button class="ro-dots" title="إرسال مباشر للمندوب" onclick="event.stopPropagation();_openRepPickerFromDetail('${o.id}')">⚡</button>`:'';
   // الموظف: قائمة تغيير الحالة
   const workerSel=!isOperator
-    ?`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" onclick="event.stopPropagation();" style="padding:5px 8px;border:1px solid rgba(140,240,185,.12);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700;outline:none;background:#020805;color:#cfe3d7;">${
+    ?`<select onchange="updateEmpOrderStatus('${o.id}',this.value)" onclick="event.stopPropagation();" style="padding:5px 8px;border:1px solid rgba(16,42,31,.13);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:.72rem;font-weight:700;outline:none;background:#f4f8f6;color:#23392f;">${
         Object.entries(EMP_STATUSES).map(([k,v])=>`<option value="${k}"${o.status===k?' selected':''}>${v.label}</option>`).join('')
       }</select>`:'';
 
@@ -12484,20 +12484,20 @@ function _renderGroupedByArea(orders,isOperator,customerHist){
       const label=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
       const net=o.netPrice!=null?o.netPrice:(o.totalPrice||0);
       const prodsStr=(o.products||[]).map(p=>`${p.name} × ${p.qty||1}`).join(' · ');
-      return `<label for="chk_${o.id}" style="display:flex;gap:10px;align-items:flex-start;background:#0a1c13;border:1px solid rgba(140,240,185,.1);border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#5ee39c'" onmouseout="this.style.borderColor='rgba(140,240,185,.1)'">
-        <input type="checkbox" id="chk_${o.id}" value="${o.id}" onchange="updateBatchBar()" style="width:19px;height:19px;margin-top:2px;accent-color:#5ee39c;flex-shrink:0;cursor:pointer;">
+      return `<label for="chk_${o.id}" style="display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid rgba(16,42,31,.13);border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#11945a'" onmouseout="this.style.borderColor='rgba(16,42,31,.13)'">
+        <input type="checkbox" id="chk_${o.id}" value="${o.id}" onchange="updateBatchBar()" style="width:19px;height:19px;margin-top:2px;accent-color:#11945a;flex-shrink:0;cursor:pointer;">
         <div style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
             <div>
-              <div style="font-weight:700;color:#fff;font-size:0.85rem;">${label} — ${o.pageName||''}</div>
-              <div style="font-size:0.75rem;color:#88a294;margin-top:1px;">📞 ${o.customerPhone||''}</div>
+              <div style="font-weight:700;color:#0b1f16;font-size:0.85rem;">${label} — ${o.pageName||''}</div>
+              <div style="font-size:0.75rem;color:#4d675a;margin-top:1px;">📞 ${o.customerPhone||''}</div>
               ${_repeatBadge(o.customerPhone,customerHist,'sm')}
-              <div style="font-size:0.75rem;color:#88a294;">📍 ${o.address||''}</div>
+              <div style="font-size:0.75rem;color:#4d675a;">📍 ${o.address||''}</div>
             </div>
-            <div style="font-weight:800;color:#5ee39c;font-size:0.9rem;flex-shrink:0;">${net.toFixed(2)} د.أ</div>
+            <div style="font-weight:800;color:#11945a;font-size:0.9rem;flex-shrink:0;">${net.toFixed(2)} د.أ</div>
           </div>
-          <div style="font-size:0.77rem;color:#cfe3d7;margin-top:4px;">${prodsStr}</div>
-          ${o.notes?`<div style="font-size:0.72rem;color:#526458;margin-top:2px;">📝 ${o.notes}</div>`:''}
+          <div style="font-size:0.77rem;color:#23392f;margin-top:4px;">${prodsStr}</div>
+          ${o.notes?`<div style="font-size:0.72rem;color:#7b9187;margin-top:2px;">📝 ${o.notes}</div>`:''}
         </div>
       </label>`;
     }).join('');
