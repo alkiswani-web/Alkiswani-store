@@ -2562,8 +2562,40 @@ async function runSmartPaste(){
 
 // اقتراح الزباين (autocomplete) + ملف الزبون
 let _empPhoneTimer=null;
+// ═══ تطبيع رقم الهاتف ═══
+// أرقام عربية/فارسية → إنجليزية، و +962 / 00962 / 962 → 0، وحذف أي رمز غير رقمي
+function normalizePhone(v){
+  let s=String(v==null?'':v);
+  s=s.replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660))   // ٠-٩
+     .replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0));  // ۰-۹ (فارسية)
+  s=s.replace(/[^\d+]/g,'');                                          // مسافات/شرطات/أقواس
+  s=s.replace(/^00962/,'0').replace(/^\+962/,'0').replace(/^962/,'0');
+  return s.replace(/\+/g,'');
+}
+const PHONE_LEN=10;
+// يرجع رسالة الخطأ، أو '' إذا الرقم سليم
+function phoneError(p){
+  if(!p) return '⚠️ أدخل رقم الزبون';
+  if(p.length<PHONE_LEN) return `⚠️ الرقم ناقص — ${p.length} من ${PHONE_LEN} أرقام`;
+  if(p.length>PHONE_LEN) return `⚠️ الرقم زايد — ${p.length} من ${PHONE_LEN} أرقام`;
+  return '';
+}
+// يطبّع محتوى حقل الهاتف مباشرة أثناء الكتابة
+function normalizePhoneField(el){
+  if(!el) return '';
+  const norm=normalizePhone(el.value);
+  if(el.value!==norm){
+    const atEnd=el.selectionStart===el.value.length;
+    el.value=norm;
+    if(atEnd){try{el.setSelectionRange(norm.length,norm.length);}catch(e){}}
+  }
+  return norm;
+}
+window.normalizePhone=normalizePhone;
+window.normalizePhoneField=normalizePhoneField;
+
 function onEmpPhoneInput(val){
-  const phone=(val||'').replace(/\s+/g,'');
+  const phone=normalizePhoneField(document.getElementById('emp_phone'))||normalizePhone(val);
   clearTimeout(_empPhoneTimer);
   const box=document.getElementById('emp_phone_suggest');
   if(phone.length>=10){_empShowCRM(phone);}else{const b=document.getElementById('emp_crm_banner');if(b)b.style.display='none';}
@@ -2802,7 +2834,7 @@ async function submitEmpOrder(){
   const pageSel=document.getElementById('emp_page');
   const pageId=pageSel.value;
   const pageName=pageSel.selectedOptions[0]?.text||'';
-  const phone=document.getElementById('emp_phone').value.trim();
+  const phone=normalizePhone(document.getElementById('emp_phone').value);
   const customerName=(document.getElementById('emp_customer_name')?.value||'').trim();
   const address=document.getElementById('emp_address').value.trim();
   const notes=document.getElementById('emp_notes').value.trim();
@@ -2820,7 +2852,7 @@ async function submitEmpOrder(){
     return prod?.hasColorNumbers&&!(Array.isArray(item.colorNumbers)&&item.colorNumbers.length);
   });
   if(missingCN){toast(`⚠️ "${missingCN.name}" لازم تختار رقم اللون والعدد`);return;}
-  if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
+  {const e=phoneError(phone);if(e){toast(e);return;}}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   if(!areaInput){toast('⚠️ اختار المحافظة');return;}
   const prodsTotal=parseFloat(document.getElementById('emp_total')?.value)||0;
@@ -3835,10 +3867,10 @@ function updateEmpEditNet(){
 async function saveEmpOrderEdit(){
   if(!_empEditOrderId){toast('⚠️ خطأ: لا يوجد طلب');return;}
   if(!_empEditCart.length){toast('⚠️ يجب أن يكون هناك منتج واحد على الأقل');return;}
-  const phone=document.getElementById('empEdit_phone').value.trim();
+  const phone=normalizePhone(document.getElementById('empEdit_phone').value);
   const address=document.getElementById('empEdit_address').value.trim();
   const area=(document.getElementById('empEdit_area')?.value||'').trim();
-  if(!phone){toast('⚠️ أدخل رقم الزبون');return;}
+  {const e=phoneError(phone);if(e){toast(e);return;}}
   if(!area){toast('⚠️ اختار المحافظة');return;}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   const notes=document.getElementById('empEdit_notes').value.trim();
