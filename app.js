@@ -8676,6 +8676,7 @@ let _opViewDate=null;
 let _opCurrentSession=null;
 let _opMashghalWages=[];
 let _opSessionWagePays=[]; // رواتب المشغل المدفوعة ضمن الكشف — تُخصم من الكاش والربح
+let _opCashAdjust=[];    // تسويات الكاش اليدوية — تُضاف لصافي التحصيل
 function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
 const _opToday=()=>jordanDateStr();
 
@@ -8806,6 +8807,11 @@ async function _loadOpSessionData(){
     const spSnap=await db.collection('operator_supplier_payments').where('sessionId','==',_opCurrentSession.id).get();
     _opSessionSupPays=spSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opSessionSupPays=[];}
+  // تسويات الكاش اليدوية للكشف الحالي
+  try{
+    const caSnap=await db.collection('operator_cash_adjust').where('sessionId','==',_opCurrentSession.id).get();
+    _opCashAdjust=caSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }catch(e){_opCashAdjust=[];}
   // دفعات رواتب موظفي المشغل المدفوعة فعلياً ضمن فترة الكشف — كاش خرج من الصندوق
   try{
     const wpSnap=await db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',to).get();
@@ -9357,8 +9363,13 @@ function renderOperatorDailyView(){
     const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash).reduce((s,p)=>s+(p.amount||0),0);
     // رواتب المشغل المدفوعة فعلياً — كاش خرج من نفس الصندوق
     const _collWages=(_opSessionWagePays||[]).reduce((s,w)=>s+(w.amount||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages;
-    ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages;
+    // تسويات يدوية (رصيد كاش أولي / فروقات) — بالموجب أو بالسالب
+    const _collAdjust=(_opCashAdjust||[]).reduce((s,a)=>s+(a.amount||0),0);
+    const _collNet=_collOrdersNet+_collStorePayments+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages;
+    ccNet=_collNet;
+    ccIn=_collOrdersNet+_collStorePayments+Math.max(0,_collAdjust);
+    ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+Math.max(0,-_collAdjust);
+    window._ccCurrentNet=_collNet;
     collHtml+=`
       ${_ccHead('🔀','حركة الكاش')}
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.18);border-radius:18px;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 26px rgba(0,0,0,.2);margin-bottom:12px;">
@@ -9370,6 +9381,7 @@ function renderOperatorDailyView(){
         ${_ccFlow('🧱','شراء مواد خام',_collRawBuys,'out')}
         ${_collSupPays>0?_ccFlow('🏭','دفعات الموردين',_collSupPays,'out'):''}
         ${_collWages>0?_ccFlow('👷','رواتب المشغل',_collWages,'out'):''}
+        ${_collAdjust!==0?_ccFlow('⚖️','تسوية الكاش',Math.abs(_collAdjust),_collAdjust>0?'in':'out'):''}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(231,198,107,0.16),transparent);border-top:1px solid rgba(231,198,107,.14);">
           <span style="display:flex;align-items:center;gap:10px;font-weight:900;color:#eafff4;font-size:0.92rem;"><span style="width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#f3e0a6,#b8912f);display:grid;place-items:center;">💰</span> صافي التحصيل</span>
           <span style="font-weight:900;color:#f3e0a6;font-size:1.25rem;font-variant-numeric:tabular-nums;">${_collNet.toFixed(2)} <span style="font-size:0.72rem;">د.أ</span></span>
@@ -9379,7 +9391,12 @@ function renderOperatorDailyView(){
       ${!isClosed?`<div style="display:flex;gap:8px;">
         <button onclick="addRawBuy()" style="flex:1;padding:12px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(184,145,47,.32);">🧱 شراء مواد خام</button>
         <button onclick="addOpExpense()" style="flex:1;padding:12px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">🧾 تسجيل مصروف</button>
-      </div>`:''}
+      </div>
+      <button onclick="adjustCashToActual()" style="width:100%;margin-top:8px;padding:12px;background:rgba(255,255,255,.06);color:#9fc7b4;border:1px solid rgba(159,199,180,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;">⚖️ ضبط الكاش على الموجود فعلياً</button>`:''}
+      ${(_opCashAdjust||[]).length?`<div style="margin-top:10px;background:rgba(255,255,255,.05);border:1px solid rgba(159,199,180,.18);border-radius:14px;overflow:hidden;">${_opCashAdjust.map(ca=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.07);">
+        <span style="font-size:0.78rem;color:#9fc7b4;">⚖️ ${ca.date||''}${ca.notes?' — '+ca.notes:''}</span>
+        <span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:800;font-size:0.85rem;color:${(ca.amount||0)>=0?'#6ee7a8':'#f2a6a0'};font-variant-numeric:tabular-nums;">${(ca.amount||0)>=0?'+':''}${(ca.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteCashAdjust('${ca.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:6px;width:22px;height:22px;font-size:0.78rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
+      </div>`).join('')}</div>`:''}
       ${_opRawBuys.length?`<div style="margin-top:10px;background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:14px;overflow:hidden;">${_opRawBuys.map(rb=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.07);">
         <span style="font-size:0.78rem;color:#9fc7b4;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
         <span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:800;font-size:0.85rem;color:#f2a6a0;font-variant-numeric:tabular-nums;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:6px;width:22px;height:22px;font-size:0.78rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
@@ -9859,6 +9876,44 @@ async function deleteOperatorWithdrawal(wid){
     toast('✅ تم حذف المسحوب');
   }catch(e){toast('❌ '+e.message);}
 }
+
+// ضبط صافي التحصيل على الكاش الموجود فعلياً — يسجّل الفرق كتسوية موثّقة
+// (المعادلة تبدأ من صفر ولا تعرف الكاش الذي كان معك قبل فتح الكشف)
+async function adjustCashToActual(){
+  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  const cur=Number(window._ccCurrentNet||0);
+  const raw=prompt(`💵 كم الكاش الموجود معك فعلياً الآن؟\n\nالنظام يحسب: ${cur.toFixed(2)} د.أ`);
+  if(raw===null)return;
+  const actual=parseFloat(String(raw).replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[^\d.\-]/g,''));
+  if(isNaN(actual)){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  const diff=Math.round((actual-cur)*100)/100;
+  if(Math.abs(diff)<0.005){toast('✅ الرقم مضبوط أصلاً');return;}
+  const notes=(prompt('📝 سبب الفرق (اختياري) — مثلاً: رصيد كاش أولي')||'').trim();
+  try{
+    await db.collection('operator_cash_adjust').add({
+      amount:diff, date:jordanDateStr(), notes,
+      computedBefore:cur, actualEntered:actual,
+      sessionId:_opCurrentSession.id,
+      addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const caSnap=await db.collection('operator_cash_adjust').where('sessionId','==',_opCurrentSession.id).get();
+    _opCashAdjust=caSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    renderOperatorDailyView();
+    toast(`⚖️ تمت التسوية ${diff>0?'+':''}${diff.toFixed(2)} — الكاش صار ${actual.toFixed(2)}`);
+  }catch(e){toast('❌ '+e.message);}
+}
+async function deleteCashAdjust(id){
+  if(!confirm('حذف هذه التسوية؟ سيرجع صافي التحصيل كما كان قبلها.'))return;
+  try{
+    await db.collection('operator_cash_adjust').doc(id).delete();
+    _opCashAdjust=(_opCashAdjust||[]).filter(a=>a.id!==id);
+    renderOperatorDailyView();
+    toast('🗑 تم حذف التسوية');
+  }catch(e){toast('❌ '+e.message);}
+}
+window.adjustCashToActual=adjustCashToActual;
+window.deleteCashAdjust=deleteCashAdjust;
 
 // شراء مواد خام يدوي — ينخصم من الكاش (التحصيل المتوقع) فقط، مش من الأرباح ولا مربوط بأبو يحيى
 async function addRawBuy(){
