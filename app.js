@@ -15336,6 +15336,7 @@ async function migrateRawMaterialCosts(){
 // ===== رصيد روزميري — محفظة أرباح المحل =====
 // الرصيد = رصيد أولي (يدوي) + أرباح مبيعات الكشف الحالي − مصاريف الكشف الحالي − سحوبات يدوية (مصاريف مشغل)
 let _rwSettings={initialBalance:0};
+let _rwWages=[]; // رواتب المشغل المدفوعة ضمن الكشف — تُخصم من رصيد روزميري
 let _rwTxList=[];       // سحوبات يدوية للكشف الحالي فقط
 let _rwExpenses=[];     // مصاريف الكشف الحالي (تلقائي)
 let _rwSalesProfit=0;   // أرباح مبيعات الكشف الحالي (تلقائي)
@@ -15356,16 +15357,39 @@ async function loadRosemaryWallet(){
       .filter(t=>t.type==='withdraw'&&sessionId&&t.sessionId===sessionId)
       .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   }catch(e){_rwTxList=[];}
-  // مصاريف الكشف الحالي
+  // مصاريف الكشف الحالي — بنفس منطق الأرباح تماماً: سجلات الجلسة ⋃ سجلات
+  // المدى الزمني غير الموسومة. الاستعلام الصارم السابق كان يُسقط أي مصروف
+  // سُجّل بلا sessionId فيظهر الرصيد أعلى من الحقيقي.
+  _rwExpenses=[];
   try{
-    let expSnap;
     if(sessionId){
-      expSnap=await db.collection('operator_expenses').where('sessionId','==',sessionId).get();
-    }else{
-      expSnap={docs:[]};
+      const _from=_opCurrentSession.openedDate||jordanDateStr();
+      const _to=_opCurrentSession.closedDate||jordanDateStr();
+      const seen=new Map();
+      const byId=await db.collection('operator_expenses').where('sessionId','==',sessionId).get();
+      byId.docs.forEach(d=>seen.set(d.id,{id:d.id,...d.data(),_fromExpenses:true}));
+      try{
+        const byDate=await db.collection('operator_expenses').where('date','>=',_from).where('date','<=',_to).get();
+        byDate.docs.forEach(d=>{
+          if(seen.has(d.id))return;
+          const e=d.data();
+          if(e.sessionId&&e.sessionId!==sessionId)return;
+          seen.set(d.id,{id:d.id,...e,_fromExpenses:true});
+        });
+      }catch(e2){}
+      _rwExpenses=[...seen.values()];
     }
-    _rwExpenses=expSnap.docs.map(d=>({id:d.id,...d.data(),_fromExpenses:true}));
   }catch(e){_rwExpenses=[];}
+  // رواتب المشغل المدفوعة ضمن الفترة — كاش خرج فعلياً ويقلّل الرصيد
+  _rwWages=[];
+  try{
+    if(sessionId){
+      const _from=_opCurrentSession.openedDate||jordanDateStr();
+      const _to=_opCurrentSession.closedDate||jordanDateStr();
+      const wSnap=await db.collection('emp_wage_payments').where('date','>=',_from).where('date','<=',_to).get();
+      _rwWages=wSnap.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.storeId==='__mashghal__');
+    }
+  }catch(e){_rwWages=[];}
   // أرباح مبيعات الكشف الحالي = Σ (سعر البيع − التكاليف) × الكمية للمبيعات المُسلّمة
   _rwSalesProfit=0;_rwSalesCount=0;
   try{
@@ -15393,8 +15417,9 @@ async function loadRosemaryWallet(){
 function renderRosemaryWallet(){
   const totalWithdrawals=_rwTxList.reduce((s,t)=>s+(t.amount||0),0);
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
+  const totalWages=(_rwWages||[]).reduce((s,w)=>s+(w.amount||0),0);
   const initialBalance=_rwSettings.initialBalance||0;
-  const currentBalance=initialBalance+_rwSalesProfit-totalExpenses-totalWithdrawals;
+  const currentBalance=initialBalance+_rwSalesProfit-totalExpenses-totalWages-totalWithdrawals;
   const noSession=!(_opCurrentSession&&_opCurrentSession.id&&_opCurrentSession.status!=='closed');
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
@@ -15403,7 +15428,7 @@ function renderRosemaryWallet(){
       <div style="position:relative;">
       <div style="font-size:0.78rem;color:#cbe6d6;font-weight:700;margin-bottom:6px;">🌿 أرباح المحل — رصيد روزميري</div>
       <div style="font-size:2.1rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${currentBalance.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
-      <div style="font-size:0.68rem;color:rgba(255,255,255,.65);">رصيد أولي ${initialBalance.toFixed(2)} + أرباح ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
+      <div style="font-size:0.68rem;color:rgba(255,255,255,.65);">رصيد أولي ${initialBalance.toFixed(2)} + أرباح ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)}${totalWages>0?' − رواتب '+totalWages.toFixed(2):''} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
       ${noSession?'<div style="font-size:0.7rem;background:rgba(255,255,255,0.14);border-radius:9px;padding:6px 10px;margin-top:7px;">⚠️ لا يوجد كشف مفتوح — الأرباح والمصاريف تُحسب من الكشف المفتوح</div>':''}
       <button onclick="document.getElementById('rw_initial_form').style.display='block';document.getElementById('rw_initial_inp').value='${initialBalance}'"
         style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ رصيد أولي</button>
