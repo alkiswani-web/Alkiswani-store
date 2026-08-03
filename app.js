@@ -2053,6 +2053,7 @@ async function addExpense(){
       category,
       notes,
       date,
+      sessionId:_opCurrentSession?.id||null,
       addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -8674,6 +8675,7 @@ let _opAllWithdrawals=[];  // كل المسحوبات — يُشتق منها م
 let _opViewDate=null;
 let _opCurrentSession=null;
 let _opMashghalWages=[];
+let _opSessionWagePays=[]; // رواتب المشغل المدفوعة ضمن الكشف — تُخصم من الكاش والربح
 function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
 const _opToday=()=>jordanDateStr();
 
@@ -8804,6 +8806,11 @@ async function _loadOpSessionData(){
     const spSnap=await db.collection('operator_supplier_payments').where('sessionId','==',_opCurrentSession.id).get();
     _opSessionSupPays=spSnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opSessionSupPays=[];}
+  // دفعات رواتب موظفي المشغل المدفوعة فعلياً ضمن فترة الكشف — كاش خرج من الصندوق
+  try{
+    const wpSnap=await db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',to).get();
+    _opSessionWagePays=wpSnap.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.storeId==='__mashghal__');
+  }catch(e){_opSessionWagePays=[];}
   // Mashghal employee wages for this session period
   try{
     const [attSnap,ratesSnap,workersSnap]=await Promise.all([
@@ -9022,6 +9029,7 @@ function renderOperatorDailyView(){
   if(!kashfBody||!actionsWrap) return;
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
   const totExp=(_opDayExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totWages=(_opSessionWagePays||[]).reduce((s,w)=>s+parseFloat(w.amount||0),0);
   const closedBanner=isClosed?'<div style="background:rgba(220,38,38,.14);border:1px solid rgba(220,38,38,.3);border-radius:12px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#e08a8a;font-size:0.85rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>':'';
   const _emptyCC='<div class="cc-empty">لا يوجد بيانات في هذه الفترة</div>';
   const cpLbl=document.getElementById('cc_period_lbl'); if(cpLbl) cpLbl.textContent='مباشر';
@@ -9085,13 +9093,14 @@ function renderOperatorDailyView(){
       +_ccStat('🔧 أجرة التركيب',totAssembly,'gold')
       +'<div style="grid-column:1/-1;">'+_ccStat('💸 إجمالي التكاليف',totCost,'red')+'</div>'
       +'</div>';
-    const totProfitAfterExp=totProfit-totExp;
+    const totProfitAfterExp=totProfit-totExp-totWages;
     const isPE=totProfitAfterExp>=0;
-    const gridCols=totExp>0?'1fr 1fr 1fr':'1fr 1fr';
+    const gridCols=(totExp>0&&totWages>0)?'1fr 1fr':(totExp>0||totWages>0)?'1fr 1fr 1fr':'1fr 1fr';
     html+='<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;margin-bottom:14px;">'
       +_ccStat('💰 إجمالي البيع',totSell,'green')
       +(totExp>0?_ccStat('🧾 مصاريف',totExp,'amber'):'')
-      +_ccStat((isPE?'✅ صافي الربح':'⚠️ الخسارة')+(totExp>0?' (بعد المصاريف)':''),Math.abs(totProfitAfterExp),isPE?'green':'red')
+      +(totWages>0?_ccStat('👷 رواتب المشغل',totWages,'amber'):'')
+      +_ccStat((isPE?'✅ صافي الربح':'⚠️ الخسارة')+((totExp>0||totWages>0)?' (بعد المصاريف والرواتب)':''),Math.abs(totProfitAfterExp),isPE?'green':'red')
       +'</div>';
   }
   // (أُزيل قسم «دفعات المتاجر» المنفصل — صار «مطلوب» + زر «دفعة للمتجر» داخل كل كرت متجر/مجموعة)
@@ -9346,8 +9355,10 @@ function renderOperatorDailyView(){
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
     // خصم دفعات الموردين (كاش دفعته لموردينك)
     const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash).reduce((s,p)=>s+(p.amount||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays;
-    ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys;
+    // رواتب المشغل المدفوعة فعلياً — كاش خرج من نفس الصندوق
+    const _collWages=(_opSessionWagePays||[]).reduce((s,w)=>s+(w.amount||0),0);
+    const _collNet=_collOrdersNet+_collStorePayments-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages;
+    ccNet=_collNet; ccIn=_collOrdersNet+_collStorePayments; ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages;
     collHtml+=`
       ${_ccHead('🔀','حركة الكاش')}
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.18);border-radius:18px;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 26px rgba(0,0,0,.2);margin-bottom:12px;">
@@ -9358,6 +9369,7 @@ function renderOperatorDailyView(){
         ${_ccFlow('🧾','المصاريف',_collExpenses,'out')}
         ${_ccFlow('🧱','شراء مواد خام',_collRawBuys,'out')}
         ${_collSupPays>0?_ccFlow('🏭','دفعات الموردين',_collSupPays,'out'):''}
+        ${_collWages>0?_ccFlow('👷','رواتب المشغل',_collWages,'out'):''}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(231,198,107,0.16),transparent);border-top:1px solid rgba(231,198,107,.14);">
           <span style="display:flex;align-items:center;gap:10px;font-weight:900;color:#eafff4;font-size:0.92rem;"><span style="width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#f3e0a6,#b8912f);display:grid;place-items:center;">💰</span> صافي التحصيل</span>
           <span style="font-weight:900;color:#f3e0a6;font-size:1.25rem;font-variant-numeric:tabular-nums;">${_collNet.toFixed(2)} <span style="font-size:0.72rem;">د.أ</span></span>
@@ -10073,20 +10085,45 @@ async function _rwCarryOverOnClose(session,toDate){
       const cost=(s.rawMaterialCost||0)+(s.treeCost||0)+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0);
       profit+=((s.sellPrice||0)-cost)*(s.qty||1);
     });
-    // مصاريف الكشف
+    // مصاريف الكشف — نفس منطق الأرباح تماماً: بالمدى الزمني مع تسامح مع السجلات
+    // بلا sessionId. الاستعلام الصارم السابق كان يُسقط أي مصروف غير موسوم،
+    // فيُرحَّل رصيد أعلى من الحقيقي ويتضخّم رأس المال بشكل تراكمي.
     let expenses=0;
-    const eSnap=await db.collection('operator_expenses').where('sessionId','==',sid).get();
-    eSnap.docs.forEach(d=>{expenses+=(d.data().amount||0);});
+    const eSeen=new Set();
+    const eById=await db.collection('operator_expenses').where('sessionId','==',sid).get();
+    eById.docs.forEach(d=>{eSeen.add(d.id);expenses+=(d.data().amount||0);});
+    try{
+      const eByDate=await db.collection('operator_expenses').where('date','>=',from).where('date','<=',toDate).get();
+      eByDate.docs.forEach(d=>{
+        if(eSeen.has(d.id))return;
+        const e=d.data();
+        if(e.sessionId&&e.sessionId!==sid)return;
+        eSeen.add(d.id);expenses+=(e.amount||0);
+      });
+    }catch(e){}
+    // رواتب المشغل المدفوعة ضمن الفترة — كاش خرج فعلياً
+    let wages=0;
+    try{
+      const wSnap2=await db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',toDate).get();
+      wSnap2.docs.forEach(d=>{const w=d.data();if(w.storeId==='__mashghal__')wages+=(w.amount||0);});
+    }catch(e){}
     // سحوبات روزميري اليدوية للكشف
     let withdrawals=0;
     const wSnap=await db.collection('rosemary_transactions').where('sessionId','==',sid).get();
     wSnap.docs.forEach(d=>{const t=d.data();if(t.type==='withdraw')withdrawals+=(t.amount||0);});
-    const newInitial=Math.round((initial+profit-expenses-withdrawals)*100)/100;
+    const newInitial=Math.round((initial+profit-expenses-wages-withdrawals)*100)/100;
     await db.collection('rosemary_wallet').doc('settings').set({
       initialBalance:newInitial,
-      lastCarryOver:{sessionId:sid,from,to:toDate,prevInitial:initial,profit,expenses,withdrawals,at:new Date().toISOString()},
+      lastCarryOver:{sessionId:sid,from,to:toDate,prevInitial:initial,profit,expenses,wages,withdrawals,at:new Date().toISOString()},
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     },{merge:true});
+    // ٣) حفظ ملخّص الكشف على الجلسة نفسها — سجل ربح ثابت لكل فترة
+    try{
+      await db.collection('operator_sessions').doc(sid).set({
+        summary:{profit,expenses,wages,withdrawals,net:Math.round((profit-expenses-wages-withdrawals)*100)/100,
+                 prevInitial:initial,newInitial,from,to:toDate,at:new Date().toISOString()}
+      },{merge:true});
+    }catch(e){}
     toast(`🌿 تم ترحيل رصيد روزميري: ${newInitial.toFixed(2)} د.أ`);
   }catch(e){toast('⚠️ تعذّر ترحيل رصيد روزميري: '+e.message);}
 }
