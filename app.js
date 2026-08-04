@@ -15866,24 +15866,27 @@ async function openQRScanner(){
   if('BarcodeDetector' in window){
     try{_qrBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}
   }
-  // Lazy-load jsQR only when BarcodeDetector is unavailable
+  // تحميل jsQR بالتوازي مع طلب الكاميرا بدل الانتظار قبلها — يوفّر ثانية عند الفتح
+  let _jsqrReady=Promise.resolve();
   if(!_qrBarcodeDetector && typeof jsQR==='undefined'){
-    await new Promise((res,rej)=>{
+    _jsqrReady=new Promise((res)=>{
       const s=document.createElement('script');
       s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-      s.onload=res; s.onerror=rej;
+      s.onload=res; s.onerror=res;
       document.head.appendChild(s);
-    }).catch(()=>{});
+    });
   }
   try{
-    const c={video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
+    // 1280 مبالغ فيها لفكّ QR ويثقل الرسم على iPad — 960 كافية تماماً
+    const c={video:{facingMode:'environment',width:{ideal:960},height:{ideal:720}}};
     try{_qrScanStream=await navigator.mediaDevices.getUserMedia(c);}
     catch(e){_qrScanStream=await navigator.mediaDevices.getUserMedia({video:true});}
     const video=document.getElementById('qrVideo');
     video.srcObject=_qrScanStream;
-    video.onloadedmetadata=()=>{video.play().catch(()=>{});if(_qrScanActive&&!_qrLoopRunning)_qrRunLoop();};
+    const _start=async()=>{await _jsqrReady;if(_qrScanActive&&!_qrLoopRunning)_qrRunLoop();};
+    video.onloadedmetadata=()=>{video.play().catch(()=>{});_start();};
     await video.play().catch(()=>{});
-    if(video.readyState>=2&&!_qrLoopRunning)_qrRunLoop();
+    if(video.readyState>=2&&!_qrLoopRunning)_start();
   }catch(e){
     document.getElementById('qrScanStatus').textContent='❌ تعذّر الوصول للكاميرا: '+e.message;
   }
@@ -15893,7 +15896,7 @@ async function _qrRunLoop(){
   _qrLoopRunning=true;
   const video=document.getElementById('qrVideo');
   const canvas=document.getElementById('qrCanvas');
-  let ctx=null;
+  let ctx=null, frame=0;
   while(_qrScanActive){
     if(video&&video.readyState>=2&&video.videoWidth){
       try{
@@ -15902,23 +15905,34 @@ async function _qrRunLoop(){
           // Native hardware API — much faster & more reliable than jsQR
           const codes=await _qrBarcodeDetector.detect(video);
           if(codes.length)raw=codes[0].rawValue;
-        }else{
-          // jsQR fallback — use higher res (960px) for reliable decode
-          const MAX=960;
-          const sc=Math.min(1,MAX/Math.max(video.videoWidth,video.videoHeight));
-          canvas.width=Math.round(video.videoWidth*sc);
-          canvas.height=Math.round(video.videoHeight*sc);
+        }else if(typeof jsQR!=='undefined'){
+          // مسار jsQR (سفاري/iPad — لا يدعم BarcodeDetector).
+          // كان يفكّ الإطار كاملاً بـ960px مع attemptBoth = بطء شديد.
+          // الآن: قصّ مربّع المركز فقط (حيث يوجّه المستخدم الكود) بدقة أصغر،
+          // وبلا محاولة العكس في كل إطار.
+          frame++;
           if(!ctx)ctx=canvas.getContext('2d',{willReadFrequently:true});
-          ctx.drawImage(video,0,0,canvas.width,canvas.height);
+          const vw=video.videoWidth, vh=video.videoHeight;
+          const wide=(frame%5===0); // كل 5 إطارات: مسحة للإطار الكامل احتياطاً
+          if(wide){
+            const sc=Math.min(1,420/Math.max(vw,vh));
+            canvas.width=Math.round(vw*sc); canvas.height=Math.round(vh*sc);
+            ctx.drawImage(video,0,0,canvas.width,canvas.height);
+          }else{
+            const side=Math.min(vw,vh)*0.72, sx=(vw-side)/2, sy=(vh-side)/2;
+            canvas.width=360; canvas.height=360;
+            ctx.drawImage(video,sx,sy,side,side,0,0,360,360);
+          }
           const id=ctx.getImageData(0,0,canvas.width,canvas.height);
-          const code=jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
+          // dontInvert أسرع مرتين؛ نجرّب المعكوس كل 3 إطارات فقط
+          const code=jsQR(id.data,id.width,id.height,{inversionAttempts:(frame%3===0)?'onlyInvert':'dontInvert'});
           if(code&&code.data)raw=code.data.trim();
         }
         if(raw&&_qrScanActive){_qrOnDetected(raw);return;}
       }catch(e){}
     }
-    // BarcodeDetector: 40ms loop (25fps) | jsQR at 960px: 100ms loop (10fps, decode takes ~80ms)
-    await new Promise(r=>setTimeout(r,_qrBarcodeDetector?40:100));
+    // بعد القصّ صار الفكّ رخيصاً — نرفع معدّل المحاولات بدل 10 إطارات/ث
+    await new Promise(r=>setTimeout(r,_qrBarcodeDetector?40:25));
   }
   _qrLoopRunning=false;
 }
@@ -15931,28 +15945,6 @@ function closeQRScanner(){
   if(overlay)overlay.style.display='none';
 }
 
-let _qrLastDecode=0;
-function _qrScanLoop(){
-  if(!_qrScanActive)return;
-  _qrScanRaf=requestAnimationFrame(_qrScanLoop);
-  const now=Date.now();
-  if(now-_qrLastDecode<50)return;
-  _qrLastDecode=now;
-  const video=document.getElementById('qrVideo');
-  const canvas=document.getElementById('qrCanvas');
-  if(!video||!canvas||video.readyState<2||!video.videoWidth)return;
-  const MAX=640;
-  const sc=Math.min(1,MAX/Math.max(video.videoWidth,video.videoHeight));
-  canvas.width=Math.round(video.videoWidth*sc);
-  canvas.height=Math.round(video.videoHeight*sc);
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-  const code=jsQR(imageData.data,imageData.width,imageData.height,{inversionAttempts:'dontInvert'});
-  if(code&&code.data){
-    _qrOnDetected(code.data.trim());
-  }
-}
 
 function _qrOnDetected(raw){
   _qrScanActive=false;
