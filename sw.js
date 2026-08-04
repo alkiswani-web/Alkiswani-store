@@ -20,11 +20,13 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v189';
+const CACHE = 'alkiswani-v190';
+// كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
+// اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
+const STATIC = 'alkiswani-static-1';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.0';
 
-const PRECACHE = [
-  '/app.js',
+const PRECACHE_STATIC = [
   `${FB}/firebase-app-compat.js`,
   `${FB}/firebase-auth-compat.js`,
   `${FB}/firebase-firestore-compat.js`,
@@ -35,7 +37,7 @@ const PRECACHE = [
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE)).catch(() => {})
+    caches.open(STATIC).then(cache => cache.addAll(PRECACHE_STATIC)).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -43,7 +45,8 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      // نحذف كاش النسخ القديمة فقط — الكاش الثابت يبقى
+      Promise.all(keys.filter(k => k !== CACHE && k !== STATIC).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -68,18 +71,25 @@ function networkFirstWithTimeout(req, timeoutMs) {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // app.js: network-first with timeout fallback to cache
+  // app.js?vNNN: الرابط يحمل رقم النسخة، فمحتواه ثابت لهذا الرابط ⇒ cache-first.
+  // كان network-first بمهلة 2.5 ثانية: كل فتحة تنتظر الشبكة لملف ~1MB بلا داعٍ.
   if(url.endsWith('/app.js') || url.includes('/app.js?')) {
-    e.respondWith(networkFirstWithTimeout(e.request, 2500));
-    return;
-  }
-
-  // Firebase SDK (gstatic): cache-first — versioned, never changes
-  if(url.includes('gstatic.com/firebasejs/')) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
         if(res && res.status === 200)
           caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+        return res;
+      }))
+    );
+    return;
+  }
+
+  // Firebase SDK (gstatic): cache-first في الكاش الثابت — لا يُعاد تنزيله مع رفع النسخة
+  if(url.includes('gstatic.com/firebasejs/')) {
+    e.respondWith(
+      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+        if(res && res.status === 200)
+          caches.open(STATIC).then(c => c.put(e.request, res.clone()));
         return res;
       }))
     );

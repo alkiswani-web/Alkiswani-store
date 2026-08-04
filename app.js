@@ -8739,14 +8739,24 @@ async function openOperatorDailyAccount(sessionId){
 // يختفي تماماً وتظهر كل المتاجر بمسحوب 0. نوحّد المنطق مع المبيعات:
 // المدى الزمني للجلسة (مع تسامح للسجلات بلا sessionId) ⋃ سجلات الجلسة الحالية.
 async function _loadOpWithdrawals(){
-  try{
-    const snap=await db.collection('operator_withdrawals').get();
-    _opAllWithdrawals=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opAllWithdrawals=[];}
-  if(!_opCurrentSession){_opWithdrawals=[];return;}
+  if(!_opCurrentSession){_opAllWithdrawals=[];_opWithdrawals=[];return;}
   const sid=_opCurrentSession.id;
   const from=_opCurrentSession.openedDate;
   const to=_opCurrentSession.closedDate||jordanDateStr();
+  // جلب محدود بالجلسة ومداها الزمني بدل المجموعة كاملة — كان يقرأ كل
+  // المسحوبات عبر كل التاريخ في كل تحميل للوحة الحسابات
+  const map=new Map();
+  try{
+    const byId=await db.collection('operator_withdrawals').where('sessionId','==',sid).get();
+    byId.docs.forEach(d=>map.set(d.id,{id:d.id,...d.data()}));
+  }catch(e){}
+  if(from){
+    try{
+      const byDate=await db.collection('operator_withdrawals').where('date','>=',from).where('date','<=',to).get();
+      byDate.docs.forEach(d=>{if(!map.has(d.id))map.set(d.id,{id:d.id,...d.data()});});
+    }catch(e){}
+  }
+  _opAllWithdrawals=[...map.values()];
   // مسحوبات الكشف الحالي: ما يحمل معرّف الجلسة، أو سجلات قديمة بلا معرّف تقع ضمن مدى الجلسة
   _opWithdrawals=_opAllWithdrawals.filter(w=>
     w.sessionId===sid||(!w.sessionId&&from&&w.date>=from&&w.date<=to));
