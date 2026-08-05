@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v191" as="script">
+<link rel="preload" href="app.js?v192" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -207,7 +207,6 @@ body.dark-mode .cats-section{background:#1f2937!important;}
 }
 @keyframes bannerShimmer{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
 @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
-@keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:0.75}}
 #eidBanner.show{display:block;}
 .eid-banner-text{color:#fff;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;}
 .eid-banner-close{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
@@ -771,9 +770,6 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 @keyframes roNudge{0%,100%{transform:translateX(0);}50%{transform:translateX(-3px);}}
 .ro-go.q{background:var(--ro-track);color:var(--ro-w);}
 .ro-go.q .a{animation:none;}
-.ro-plate.urg{background:var(--ro-alert);}
-.ro-plate.urg .ro-in::after{content:'';position:absolute;top:0;right:0;left:0;height:1.5px;z-index:6;background:linear-gradient(90deg,transparent,var(--ro-alert),transparent);animation:roScan 2.4s linear infinite;}
-@keyframes roScan{0%{transform:translateX(100%);}100%{transform:translateX(-100%);}}
 .ro-plate.done{opacity:.46;}
 .ro-plate.sel{background:var(--ro-acc);}
 .ro-pick{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--ro-sunk);border-bottom:1px solid var(--ro-hair2);cursor:pointer;}
@@ -786,7 +782,7 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .ro-skel{background:var(--ro-tint);border:1px solid var(--ro-hair2);border-radius:12px;padding:14px;margin-bottom:9px;animation:roSkel 1.2s ease-in-out infinite;}
 .ro-skel i{display:block;height:12px;background:var(--ro-track);border-radius:4px;}
 @keyframes roSkel{0%,100%{opacity:1;}50%{opacity:.35;}}
-@media (prefers-reduced-motion:reduce){.ro-ekg .h,.ro-sweep,.ro-go .a,.ro-plate.urg .ro-in::after,.ro-skel{animation:none!important;}}
+@media (prefers-reduced-motion:reduce){.ro-ekg .h,.ro-sweep,.ro-go .a,.ro-skel{animation:none!important;}}
 .lux-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center;animation:luxFadeIn .2s;}
 @keyframes luxFadeIn{from{opacity:0;}}
 .lux-menu-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:430px;padding:10px 14px 24px;animation:luxSheetUp .3s cubic-bezier(.2,.8,.2,1);}
@@ -3147,7 +3143,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <div id="opOrdersChips" style="display:flex;gap:0;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
             <button class="order-stab active" onclick="setOpOrderFilter('all',this)">الكل <span id="ooc-all" style="background:#6b7280;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
-            <button class="order-stab" onclick="setOpOrderFilter('urgent',this)" style="color:#dc2626;font-weight:700;">🔥 مستعجل <span id="ooc-urgent" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('pending',this)">جديد <span id="ooc-pending" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('preparing',this)">تجهيز <span id="ooc-preparing" style="background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
             <button class="order-stab" onclick="setOpOrderFilter('prepared',this)">تم التجهيز <span id="ooc-prepared" style="background:#3b82f6;color:#fff;border-radius:10px;padding:1px 7px;font-size:0.72rem;margin-right:4px;">0</span></button>
@@ -3836,7 +3831,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         </div>
       </div>
 
-      <button id="empUrgentBtn" onclick="toggleEmpUrgent()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:8px;transition:all 0.2s;">🔥 طلب مستعجل</button>
       <button id="empReadyBtn" onclick="toggleEmpReady()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all 0.2s;">📦 جاهز للتوصيل</button>
 
       <button onclick="submitEmpOrder()" style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسجيل الطلب</button>
@@ -4006,10 +4000,6 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <option value="">— اختار الصفحة —</option>
         </select>
       </div>
-      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;cursor:pointer;margin-bottom:10px;">
-        <input type="checkbox" id="empEdit_urgent" style="width:18px;height:18px;accent-color:#dc2626;cursor:pointer;">
-        <span style="font-size:0.86rem;font-weight:700;color:#dc2626;">🔥 طلب مستعجل</span>
-      </label>
       <div style="margin-bottom:12px;">
         <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">صورة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -4391,7 +4381,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v191"></script>
+<script src="app.js?v192"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">

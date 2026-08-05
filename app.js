@@ -2170,7 +2170,6 @@ function closeEmpLogin(){
 let _empPagesCache=[];
 let _empSharedProducts=null;
 let _empOrderCart=[];
-let _empOrderUrgent=false;
 let _empReadyToDeliver=false;
 function toggleEmpReady(){
   _empReadyToDeliver=!_empReadyToDeliver;
@@ -2191,25 +2190,6 @@ function toggleEmpReady(){
   }
 }
 function _resetEmpReadyBtn(){_empReadyToDeliver=false;const b=document.getElementById('empReadyBtn');if(b){b.style.background='#fff';b.style.color='#374151';b.style.border='1.5px dashed #d1d5db';b.textContent='📦 جاهز للتوصيل';b.style.boxShadow='none';}}
-function toggleEmpUrgent(){
-  _empOrderUrgent=!_empOrderUrgent;
-  const btn=document.getElementById('empUrgentBtn');
-  if(!btn)return;
-  if(_empOrderUrgent){
-    btn.style.background='linear-gradient(135deg,#dc2626,#ef4444)';
-    btn.style.color='#fff';
-    btn.style.border='1.5px solid #dc2626';
-    btn.textContent='🔥 مستعجل · مفعّل';
-    btn.style.boxShadow='0 0 0 4px rgba(220,38,38,0.15)';
-  }else{
-    btn.style.background='#fff';
-    btn.style.color='#374151';
-    btn.style.border='1.5px dashed #d1d5db';
-    btn.textContent='🔥 طلب مستعجل';
-    btn.style.boxShadow='none';
-  }
-}
-function resetEmpUrgentBtn(){_empOrderUrgent=false;const b=document.getElementById('empUrgentBtn');if(b){b.style.background='#fff';b.style.color='#374151';b.style.border='1.5px dashed #d1d5db';b.textContent='🔥 طلب مستعجل';b.style.boxShadow='none';}}
 let _empDeliveryFee=2;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
@@ -2879,16 +2859,15 @@ async function submitEmpOrder(){
       ...(_empCurrentImages.length?{imageDataUrls:_empCurrentImages,imageDataUrl:_empCurrentImages[0]}:{}),
       ...(_empCurrentImages.length&&_empOrderCart.some(i=>(i.name||'').includes('برواز'))?{isFrameOrder:true}:{}),
       status:_empReadyToDeliver?'prepared':'pending',
-      ...(_empOrderUrgent?{urgent:true}:{}),
       totalPrice,deliveryFee,netPrice,
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
-    toast(_empOrderUrgent?'🔥 تم تسجيل الطلب المستعجل':'✅ تم تسجيل الطلب بنجاح');
+    toast('✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=2;_empCurrentImages=[];
-    resetEmpUrgentBtn();_resetEmpReadyBtn();
+    _resetEmpReadyBtn();
     renderEmpOrderCart();
     document.getElementById('emp_phone').value='';
     const nameEl=document.getElementById('emp_customer_name');if(nameEl)nameEl.value='';
@@ -3451,7 +3430,6 @@ function _showOpOrderDetail(o){
       </div>
       <span style="background:rgba(255,255,255,0.1);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.72rem;font-weight:800;border:1px solid rgba(255,255,255,0.15);">${st.label}</span>
     </div>
-    ${o.urgent?`<div style="background:#dc2626;color:#fff;padding:9px 16px;font-weight:800;text-align:center;font-size:0.88rem;letter-spacing:0.5px;">🔥 طلب مستعجل</div>`:''}
     <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:#fafafa;">
       <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
         <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">معلومات الزبون</div>
@@ -3639,8 +3617,6 @@ function _fillEmpEditForm(o){
         .catch(()=>{addProdSel.innerHTML='<option value="">اختر منتج...</option>';});
     }
   }
-  const urgEl=document.getElementById('empEdit_urgent');
-  if(urgEl) urgEl.checked=!!o.urgent;
   const totalEl=document.getElementById('empEditTotalInput');
   if(totalEl)totalEl.value=(o.totalPrice!=null?o.totalPrice-(_empEditDeliveryFee||0):_empEditCart.reduce((s,p)=>s+(parseFloat(p.price||0)*(p.qty||1)),0)).toFixed(2);
   try{
@@ -3892,11 +3868,9 @@ async function saveEmpOrderEdit(){
     const selectedPageOpt=pageEl&&pageEl.options[pageEl.selectedIndex];
     const newPageId=pageEl?pageEl.value:'';
     const newPageName=selectedPageOpt?(selectedPageOpt.dataset.name||selectedPageOpt.textContent):'';
-    const urgent=document.getElementById('empEdit_urgent')?.checked||false;
     const updateData={
       products:_empEditCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id||'',name:i.name,price:parseFloat(i.price||0),qty:i.qty||1,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(Array.isArray(i.colorNumbers)&&i.colorNumbers.length?{colorNumbers:i.colorNumbers}:{}),...(pl?{priceLabel:pl}:{})};}),
       customerPhone:phone,address,notes,area,
-      urgent,
       ...(newPageName?{pageName:newPageName}:{}),
       ...(newPageId?{pageId:newPageId}:{}),
       totalPrice:prodsTotal+deliveryFee,deliveryFee,netPrice,
@@ -4036,13 +4010,13 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
   const picked=_opSelectMode&&isOperator&&_opSelectedIds.has(o.id);
   const openAct=(_opSelectMode&&isOperator)?`opToggleSelect('${o.id}')`:`openOpOrderDetail('${o.id}')`;
 
-  return `<article id="opcard_${o.id}" data-order-id="${o.id}" class="ro-plate${o.urgent&&!isClosed?' urg':''}${isClosed?' done':''}${picked?' sel':''}">
+  return `<article id="opcard_${o.id}" data-order-id="${o.id}" class="ro-plate${isClosed?' done':''}${picked?' sel':''}">
     <div class="ro-in">
       <span class="ro-ladder">${ladder}</span>
       <div class="ro-core">
         ${(_opSelectMode&&isOperator)?`<label class="ro-pick" onclick="event.stopPropagation();opToggleSelect('${o.id}')"><input id="opchk_${o.id}" type="checkbox" ${picked?'checked':''} onclick="event.stopPropagation();opToggleSelect('${o.id}')"><span>${label} — ${_roEsc(o.pageName||o.storeName||'')}</span></label>`:''}
         <div class="ro-band">
-          <span class="st" style="color:${col};"><i style="background:${col};"></i>${o.urgent&&!isClosed?'مستعجل · ':''}${st.label}</span>
+          <span class="st" style="color:${col};"><i style="background:${col};"></i>${st.label}</span>
           <span class="sn">${label}</span>
           <span class="age">${_roAge(o)}</span>
         </div>
@@ -4060,8 +4034,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
             <div><em>المنطقة</em>${_roEsc(o.area||o.address||'—')}</div>
           </div>
           <div class="ro-chips">${chips}</div>
-          ${(o.urgent&&!isClosed)||o.needsReview||_repeatBadge(phone,customerHist,'sm')?`<div class="ro-flags">
-            ${o.urgent&&!isClosed?'<span class="ro-fl alert">طلب مستعجل</span>':''}
+          ${o.needsReview||_repeatBadge(phone,customerHist,'sm')?`<div class="ro-flags">
             ${o.needsReview?'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>':''}
             ${_repeatBadge(phone,customerHist,'sm')?'<span class="ro-fl n">زبون متكرر</span>':''}
           </div>`:''}
@@ -4140,7 +4113,6 @@ function _renderKanban(orders, isOperator, filterStatus, customerHist){
   STATUS_ORDER.forEach(s=>groups[s]=[]);
   orders.forEach(o=>{ if(groups[o.status])groups[o.status].push(o); else groups['pending'].push(o); });
   // Urgent orders pinned to top of each group
-  Object.keys(groups).forEach(s=>groups[s].sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0)));
   if(filterStatus&&filterStatus!=='all'){
     const grp=groups[filterStatus]||[];
     return grp.length
@@ -4191,12 +4163,11 @@ function _renderKanbanCard(o,isOperator,customerHist){
 }
 
 function _updateEmpChipCounts(data, prefix){
-  const counts={all:data.length,edited:0,urgent:0};
+  const counts={all:data.length,edited:0};
   Object.keys(EMP_STATUSES).forEach(s=>counts[s]=0);
   data.forEach(o=>{
     if(counts[o.status]!==undefined)counts[o.status]++;
     if(o.needsReview)counts.edited++;
-    if(o.urgent&&!['delivered','cancelled','returned','refused'].includes(o.status))counts.urgent++;
   });
   // delivering chip shows queued+delivering combined count
   counts.delivering=(counts.delivering||0)+(counts.queued||0);
@@ -4399,8 +4370,7 @@ function loadOperatorOrders(){
         if(fresh.length){
           _playNewOrderSound();
           const fo=fresh[0];
-          const title=fo.urgent?'🔥 طلب مستعجل جديد!':'طلب جديد 🛒';
-          sendPushNotification(title,(fo.pageName||'')+(fo.customerPhone?' — '+fo.customerPhone:''),{tag:fo.urgent?'urgent-order':'new-order',orderId:fo.id||''});
+          sendPushNotification('طلب جديد 🛒',(fo.pageName||'')+(fo.customerPhone?' — '+fo.customerPhone:''),{tag:'new-order',orderId:fo.id||''});
         }
       }
       newData.forEach(o=>_seenOpOrderIds.add(o.id));
@@ -4436,14 +4406,13 @@ function _renderOpOrdersView(){
   let orders;
   if(_opOrdersFilter==='all') orders=_opOrdersAllData;
   else if(_opOrdersFilter==='edited') orders=_opOrdersAllData.filter(o=>o.needsReview);
-  else if(_opOrdersFilter==='urgent') orders=_opOrdersAllData.filter(o=>o.urgent&&!['delivered','cancelled','returned','refused'].includes(o.status));
   else orders=_opOrdersAllData.filter(o=>o.status===_opOrdersFilter);
   if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
   if(_opAdvFilter) orders=_applyAdvFilter(orders,_opAdvFilter);
   if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
   wrap.innerHTML=head+(_opGroupByArea
     ?_renderGroupedByArea(orders,true,customerHist)
-    :_renderKanban(orders,true,(_opOrdersFilter==='edited'||_opOrdersFilter==='urgent')?'all':_opOrdersFilter,customerHist));
+    :_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter,customerHist));
   // Show reports after render
   if(_opOrdersFilter==='cancelled'){
     setTimeout(renderCancelReport,10);
@@ -4971,7 +4940,6 @@ body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:
 .foot{text-align:center;margin-top:20px;font-size:0.72rem;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px;}
 @media print{.no-print{display:none;}}
 </style></head><body>
-${o.urgent?`<div style="background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;padding:8px 16px;font-weight:800;text-align:center;font-size:1rem;border-radius:8px;margin-bottom:14px;letter-spacing:1px;">🔥 طلب مستعجل 🔥</div>`:''}
 <div class="hd"><div class="hd-title">الكسواني روزميري</div><div class="hd-sub">فاتورة طلب &nbsp;·&nbsp; ${jordanDisplayDate()}</div></div>
 <div class="row"><span class="lbl">رقم الطلب</span><span class="val">${o.orderNum||('#'+o.id.slice(-6).toUpperCase())}</span></div>
 <div class="row"><span class="lbl">الصفحة</span><span class="val">${o.pageName}</span></div>
@@ -12308,7 +12276,7 @@ window.selectEmpProduct=selectEmpProduct; window.renderEmpProductPicker=renderEm
 window.selectEmpColor=selectEmpColor;
 window.addOppColor=addOppColor; window.removeOppColor=removeOppColor;
 window.addOppPriceOption=addOppPriceOption; window.removeOppPriceOption=removeOppPriceOption;
-window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory; window.toggleEmpUrgent=toggleEmpUrgent;
+window.filterEmpProductGrid=filterEmpProductGrid; window.clearEmpProductSearch=clearEmpProductSearch; window.filterEmpProductCategory=filterEmpProductCategory;
 window.runSmartPaste=runSmartPaste; window.onEmpPhoneInput=onEmpPhoneInput; window.applyEmpCustomer=applyEmpCustomer;
 window.onOppImageChange=onOppImageChange; window.clearOppImage=clearOppImage;
 window.loadEmpPagesAdmin=loadEmpPagesAdmin; window.addEmpPage=addEmpPage; window.deleteEmpPage=deleteEmpPage; window.editEmpPage=editEmpPage; window.toggleEmpPageVisibility=toggleEmpPageVisibility;
@@ -16104,7 +16072,6 @@ function _showQRViewerResult(o){
       </div>
       <span style="background:rgba(255,255,255,0.1);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.72rem;font-weight:800;border:1px solid rgba(255,255,255,0.15);">${st.label}</span>
     </div>
-    ${o.urgent?`<div style="background:#dc2626;color:#fff;padding:9px 16px;font-weight:800;text-align:center;font-size:0.88rem;">🔥 طلب مستعجل</div>`:''}
     <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:#fafafa;">
       <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
         <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">معلومات الزبون</div>
