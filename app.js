@@ -12154,6 +12154,95 @@ async function _loadAttendanceData(date){
   }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
 }
 
+// تسجيل دخول يدوي لموظف نسي يمسح كود الدوام
+async function manualCheckin(){
+  try{
+    const df=document.getElementById('attDateFilter');
+    const date=(df&&df.value)||new Date().toLocaleDateString('en-CA');
+    let workers=[];
+    try{
+      const snap=await db.collection('employee_workers').get();
+      workers=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(w=>w.active!==false)
+        .sort((a,b)=>String(a.name||a.username||'').localeCompare(String(b.name||b.username||''),'ar'));
+    }catch(e){}
+    if(!workers.length){toast('⚠️ لا يوجد موظفون مسجّلون');return;}
+    // الوقت الافتراضي: بداية اليوم المختار الساعة 9 صباحاً
+    const def=`${date}T09:00`;
+    const o=document.createElement('div');
+    o.id='att_in_modal';
+    o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    o.innerHTML=`<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:380px;font-family:'Tajawal',sans-serif;">
+      <div style="font-weight:800;font-size:1.05rem;color:#166534;margin-bottom:4px;text-align:center;">🟢 تسجيل دخول يدوي</div>
+      <div style="text-align:center;font-size:0.78rem;color:#6b7280;margin-bottom:16px;">لموظف نسي يمسح كود الدوام</div>
+      <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:5px;">الموظف</label>
+      <select id="att_in_emp" style="width:100%;padding:11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;background:#fff;">
+        ${workers.map(w=>`<option value="${w.id}" data-name="${(w.name||w.username||w.id).replace(/"/g,'&quot;')}">${w.name||w.username||w.id}</option>`).join('')}
+      </select>
+      <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:5px;">وقت الدخول</label>
+      <input type="datetime-local" id="att_in_dt" value="${def}" style="width:100%;padding:11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:8px;box-sizing:border-box;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:#374151;margin-bottom:8px;cursor:pointer;">
+        <input type="checkbox" id="att_in_hasout" onchange="document.getElementById('att_in_outwrap').style.display=this.checked?'block':'none'" style="width:17px;height:17px;accent-color:#166534;cursor:pointer;">
+        <span>أسجّل الخروج كمان</span>
+      </label>
+      <div id="att_in_outwrap" style="display:none;margin-bottom:8px;">
+        <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:5px;">وقت الخروج</label>
+        <input type="datetime-local" id="att_in_outdt" value="${date}T17:00" style="width:100%;padding:11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;box-sizing:border-box;">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <button onclick="saveManualCheckin()" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">✅ تسجيل</button>
+        <button onclick="document.getElementById('att_in_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+      </div>
+    </div>`;
+    document.body.appendChild(o);
+    o.addEventListener('click',e=>{if(e.target===o)o.remove();});
+  }catch(e){toast('❌ '+e.message);}
+}
+async function saveManualCheckin(){
+  const sel=document.getElementById('att_in_emp');
+  const inVal=document.getElementById('att_in_dt')?.value;
+  const wantOut=document.getElementById('att_in_hasout')?.checked;
+  const outVal=document.getElementById('att_in_outdt')?.value;
+  if(!sel||!sel.value){toast('⚠️ اختر الموظف');return;}
+  if(!inVal){toast('⚠️ اختر وقت الدخول');return;}
+  const empId=sel.value;
+  const empName=sel.options[sel.selectedIndex]?.dataset?.name||empId;
+  const inIso=new Date(inVal).toISOString();
+  let outIso=null;
+  if(wantOut){
+    if(!outVal){toast('⚠️ اختر وقت الخروج');return;}
+    outIso=new Date(outVal).toISOString();
+    if(new Date(outIso).getTime()<=new Date(inIso).getTime()){toast('⚠️ وقت الخروج لازم يكون بعد الدخول');return;}
+  }
+  // السجل مفتاحه معرّف الموظف + تاريخ الدخول (نفس مفتاح المسح)
+  const date=new Date(inVal).toLocaleDateString('en-CA');
+  const docId=empId+'_'+date;
+  try{
+    const ref=db.collection('attendance').doc(docId);
+    const snap=await ref.get();
+    const d=snap.exists?snap.data():null;
+    let sessions=(d&&Array.isArray(d.sessions))?d.sessions.map(s=>({...s})):[];
+    if(!sessions.length&&d&&d.checkIn) sessions=[{in:d.checkIn,out:d.checkOut||null}];
+    const openIdx=sessions.findIndex(s=>!s.out);
+    if(openIdx>=0&&!outIso){toast('⚠️ في جلسة مفتوحة أصلاً لهذا الموظف — سجّل خروجها أولاً');return;}
+    sessions.push({in:inIso,out:outIso});
+    sessions.sort((a,b)=>String(a.in||'').localeCompare(String(b.in||'')));
+    const total=sessions.reduce((t,s)=>t+(s.out?Math.max(0,Math.floor((new Date(s.out).getTime()-new Date(s.in).getTime())/1000)):0),0);
+    const last=sessions[sessions.length-1];
+    await ref.set({
+      employeeId:empId, employeeName:empName, date, sessions,
+      checkIn:sessions[0].in, checkOut:last.out||null,
+      secondsWorked:total, manualEntry:true,
+      addedBy:_currentAdminUser||'أدمن'
+    },{merge:true});
+    document.getElementById('att_in_modal')?.remove();
+    toast(outIso?'✅ تم تسجيل الدخول والخروج':'✅ تم تسجيل الدخول يدوياً');
+    const df=document.getElementById('attDateFilter');
+    if(df){ if(df.value!==date) df.value=date; _loadAttendanceData(date); }
+  }catch(e){toast('❌ '+e.message);}
+}
+window.manualCheckin=manualCheckin; window.saveManualCheckin=saveManualCheckin;
+
 // تسجيل خروج يدوي لجلسة نسي الموظف يطلع منها
 async function manualCheckout(docId){
   try{
