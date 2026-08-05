@@ -2201,6 +2201,17 @@ let _empEditCart=[];
 let _empEditDeliveryFee=0;
 let _empOrdersAllData=[];
 let _empOrdersFilter='all';
+// رسم مئات الكروت يجمّد الواجهة (568 طلب ≈ 159ms و28 ألف عنصر DOM).
+// نرسم دفعة ونزيدها بالطلب.
+const ORDERS_PAGE=60;
+let _opRenderCap=ORDERS_PAGE, _empRenderCap=ORDERS_PAGE;
+function _moreBtn(total,shown,fn){
+  if(total<=shown)return '';
+  return `<button onclick="${fn}()" style="width:100%;margin:6px 0 4px;padding:13px;background:var(--ro-panel,#fff);color:var(--ro-acc,#11945a);border:1px solid var(--ro-hair,rgba(16,42,31,.13));border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:800;cursor:pointer;">⌄ عرض المزيد — ${shown} من ${total}</button>`;
+}
+function opShowMore(){_opRenderCap+=ORDERS_PAGE;_renderOpOrdersView();}
+function empShowMore(){_empRenderCap+=ORDERS_PAGE;_renderEmpOrdersView();}
+window.opShowMore=opShowMore; window.empShowMore=empShowMore;
 let _opOrdersAllData=[];
 let _opOrdersFilter='all';
 let _opSelectMode=false;
@@ -4334,13 +4345,16 @@ function _renderEmpOrdersView(){
   if(_empOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_empOrdersSearch));
   if(_empAdvFilter) orders=_applyAdvFilter(orders,_empAdvFilter);
   if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_empOrdersSearch||_empAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
+  const _empShown=orders.slice(0,_empRenderCap);
   wrap.innerHTML=head+(_empGroupByArea
     ?_renderGroupedByArea(orders,false,customerHist)
-    :_renderKanban(orders,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter,customerHist));
+    :_renderKanban(_empShown,false,_empOrdersFilter==='edited'?'all':_empOrdersFilter,customerHist)
+      +_moreBtn(orders.length,_empShown.length,'empShowMore'));
 }
 
 function setEmpOrderFilter(filter,btn){
   _empOrdersFilter=filter;
+  _empRenderCap=ORDERS_PAGE;
   document.querySelectorAll('#empOrdersChips .order-stab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
   _renderEmpOrdersView();
@@ -4410,9 +4424,11 @@ function _renderOpOrdersView(){
   if(_opOrdersSearch) orders=orders.filter(o=>_matchesSearch(o,_opOrdersSearch));
   if(_opAdvFilter) orders=_applyAdvFilter(orders,_opAdvFilter);
   if(!orders.length){wrap.innerHTML=head+`<div class="ro-empty">${_opOrdersSearch||_opAdvFilter?'لا توجد نتائج':'لا يوجد طلبات'}</div>`;return;}
+  const _opShown=orders.slice(0,_opRenderCap);
   wrap.innerHTML=head+(_opGroupByArea
     ?_renderGroupedByArea(orders,true,customerHist)
-    :_renderKanban(orders,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter,customerHist));
+    :_renderKanban(_opShown,true,_opOrdersFilter==='edited'?'all':_opOrdersFilter,customerHist)
+      +_moreBtn(orders.length,_opShown.length,'opShowMore'));
   // Show reports after render
   if(_opOrdersFilter==='cancelled'){
     setTimeout(renderCancelReport,10);
@@ -4597,6 +4613,7 @@ ${labelsHtml}
 
 function setOpOrderFilter(filter,btn){
   _opOrdersFilter=filter;
+  _opRenderCap=ORDERS_PAGE;
   document.querySelectorAll('#opOrdersChips .order-stab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
   _renderOpOrdersView();
@@ -14577,11 +14594,14 @@ function _matchesSearch(o, q){
     ||(o.products||[]).some(p=>(p.name||'').toLowerCase().includes(s));
 }
 
+let _empSearchTimer=null;
 function setEmpSearch(val){
   _empOrdersSearch=val.trim();
   const clr=document.getElementById('empSearchClear');
   if(clr)clr.style.display=_empOrdersSearch?'block':'none';
-  _renderEmpOrdersView();
+  _empRenderCap=ORDERS_PAGE;
+  clearTimeout(_empSearchTimer);
+  _empSearchTimer=setTimeout(()=>_renderEmpOrdersView(),250);
 }
 function clearEmpSearch(){
   _empOrdersSearch='';
@@ -14591,11 +14611,15 @@ function clearEmpSearch(){
   if(clr)clr.style.display='none';
   _renderEmpOrdersView();
 }
+let _opSearchTimer=null;
 function setOpSearch(val){
   _opOrdersSearch=val.trim();
   const clr=document.getElementById('opSearchClear');
   if(clr)clr.style.display=_opOrdersSearch?'block':'none';
-  _renderOpOrdersView();
+  _opRenderCap=ORDERS_PAGE;
+  // إعادة الرسم مكلفة مع مئات الطلبات — ننتظر توقّف الكتابة بدل الرسم بكل حرف
+  clearTimeout(_opSearchTimer);
+  _opSearchTimer=setTimeout(()=>_renderOpOrdersView(),250);
 }
 function clearOpSearch(){
   _opOrdersSearch='';
