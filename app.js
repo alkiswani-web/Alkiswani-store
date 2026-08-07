@@ -4590,8 +4590,8 @@ async function printSelectedLabels(){
       for(let k=0;k<qty;k++){
         idx++;
         pieceLabels.push({url,phone,addr,page,divId:'qrl_'+(seq++),
-          sortKey:(pr.name||'').trim(),
-          badge:`قطعة ${idx} من ${total}`, line:(pr.name||'').trim(), extra});
+          sortKey:(pr.name||'').trim(), ordNum:o.orderNum?('#'+o.orderNum):('#'+(o.id||'').slice(-5).toUpperCase()),
+          idx, total, line:(pr.name||'').trim(), extra});
       }
     });
     if(carton.length){
@@ -4599,7 +4599,8 @@ async function printSelectedLabels(){
       const line=carton.map(pr=>{const q=pr.qty||pr.quantity||1;return (pr.name||'')+(q>1?' × '+q:'');}).filter(Boolean).join('، ');
       cartonLabels.push({url,phone,addr,page,divId:'qrl_'+(seq++),
         sortKey:carton.map(pr=>(pr.name||'').trim()).sort((a,b)=>a.localeCompare(b,'ar')).join(' | '),
-        badge:`كرتونة ${idx} من ${total}`, line, extra:''});
+        ordNum:o.orderNum?('#'+o.orderNum):('#'+(o.id||'').slice(-5).toUpperCase()),
+        idx, total, line, extra:'', carton:true});
     }
   });
   // الترتيب: القطع حسب اسم المنتج، ثم الكراتين حسب محتواها — ثابت ولا يعتمد على ترتيب الإضافة للسلة
@@ -4607,17 +4608,28 @@ async function printSelectedLabels(){
   pieceLabels.sort(byKey); cartonLabels.sort(byKey);
   const labels=[...pieceLabels,...cartonLabels];
   if(!labels.length){toast('⚠️ لا يوجد منتجات في الطلبات المحددة');return;}
+  // صناديق التأشير — تُعرض حتى 6؛ أكثر من ذلك يكتفي بالرقم حتى لا تتكدّس
+  const _boxes=(idx,total)=>total<=1||total>6?'':
+    `<span class="boxes">${Array.from({length:total},(_,k)=>`<i class="bx${k<idx?' t':''}"></i>`).join('')}</span>`;
   const labelsHtml=labels.map((l,i)=>`
     <div class="label-wrap${i<labels.length-1?' pg-break':''}">
-      <div class="label-header">${l.page||''}</div>
-      <div class="label-body">
-        <div class="qr-col" id="${l.divId}"></div>
-        <div class="vline"></div>
-        <div class="info-col">
-          ${l.phone?`<div class="info-phone">${l.phone}</div>`:''}
-          <div class="info-row"><span class="badge">${l.badge}</span> ${l.line}</div>
-          ${l.extra?`<div class="info-row extra">${l.extra}</div>`:''}
-          ${l.addr?`<div class="info-row addr">📍 ${l.addr}</div>`:''}
+      <div class="stub">
+        <span class="snum">${l.idx}</span>
+        <span class="sof">من ${l.total}</span>
+        ${_boxes(l.idx,l.total)}
+      </div>
+      <div class="lbody">
+        <div class="lhd"><span class="pg">${l.page||''}</span><span class="ordn">${l.ordNum||''}</span></div>
+        <div class="lhero">
+          <div class="pnm">${l.line}</div>
+          ${l.extra?`<div class="pat">${l.extra}</div>`:''}
+        </div>
+        <div class="lft">
+          <div class="qr-col" id="${l.divId}"></div>
+          <div class="info-col">
+            ${l.phone?`<div class="info-phone">${l.phone}</div>`:''}
+            ${l.addr?`<div class="info-row addr">${l.addr}</div>`:''}
+          </div>
         </div>
       </div>
     </div>`).join('');
@@ -4628,21 +4640,30 @@ async function printSelectedLabels(){
 @page{size:auto;margin:0;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#fff;font-family:Arial,sans-serif;}
-.label-wrap{width:100%;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+/* التذكرة المثقّبة — أسود صريح على أبيض فقط (الطابعة حرارية: أي تعبئة رمادية تطلع مبقّعة) */
+.label-wrap{width:100%;height:100vh;display:flex;overflow:hidden;border:3pt solid #000;}
 .pg-break{break-after:page;page-break-after:always;}
-.label-header{background:#1a1a2e;color:#fff;text-align:center;font-size:13pt;font-weight:900;padding:3mm 2mm;flex-shrink:0;}
-.label-body{flex:1;display:flex;flex-direction:row;align-items:stretch;overflow:hidden;min-height:0;}
-.qr-col{flex-shrink:0;width:42%;display:flex;align-items:center;justify-content:center;padding:3mm;background:#f5f5f5;}
+.stub{width:20%;flex-shrink:0;border-left:3pt dashed #000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2mm 0;}
+.snum{font-size:34pt;font-weight:900;line-height:.8;}
+.sof{font-size:9pt;font-weight:900;border-top:2pt solid #000;padding-top:1mm;margin-top:1mm;}
+.boxes{display:flex;flex-direction:column;gap:1.2mm;margin-top:2mm;}
+.bx{width:3.4mm;height:3.4mm;border:1.6pt solid #000;position:relative;flex-shrink:0;}
+.bx.t::after{content:"";position:absolute;top:.5mm;right:.5mm;bottom:.5mm;left:.5mm;background:#000;}
+.lbody{flex:1;display:flex;flex-direction:column;min-width:0;}
+.lhd{display:flex;justify-content:space-between;align-items:baseline;gap:2mm;padding:1.5mm 2.5mm;border-bottom:2pt solid #000;}
+.pg{font-size:9.5pt;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ordn{font-size:8pt;font-weight:700;font-family:monospace;flex-shrink:0;}
+.lhero{flex:1;padding:2mm 2.5mm 1mm;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+.pnm{font-size:15pt;font-weight:900;line-height:1.1;word-break:break-word;}
+.pat{font-size:9pt;font-weight:700;margin-top:1mm;word-break:break-word;}
+.lft{display:flex;border-top:2pt solid #000;align-items:stretch;}
+.qr-col{width:26%;flex-shrink:0;padding:1.5mm;display:flex;align-items:center;justify-content:center;border-left:1pt solid #000;}
 .qr-col img,.qr-col canvas{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;}
-.vline{width:1px;background:#ccc;flex-shrink:0;}
-.info-col{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2.5mm;padding:3mm 4mm;overflow:hidden;}
-.info-phone{font-size:13pt;font-weight:900;direction:ltr;color:#111;word-break:break-all;line-height:1.2;}
-.info-row{font-size:9pt;font-weight:700;color:#1a3a2a;word-break:break-word;line-height:1.35;}
-.info-row.addr{color:#444;font-weight:600;font-size:8.5pt;}
-.info-row.extra{color:#0a6ea0;font-size:8.5pt;}
-.badge{background:#166534;color:#fff;border-radius:3pt;padding:0.5pt 3pt;font-size:7.5pt;font-weight:900;}
+.info-col{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1mm;padding:1.5mm 2.5mm;overflow:hidden;}
+.info-phone{font-size:14pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;}
+.info-row.addr{font-size:8pt;line-height:1.3;word-break:break-word;}
 .no-print{text-align:center;padding:12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
-@media screen{.label-wrap{height:auto;min-height:50vw;max-height:none;margin-bottom:6mm;border:1px dashed #ccc;}}
+@media screen{.label-wrap{height:auto;min-height:44vw;margin-bottom:6mm;}}
 @media print{.no-print{display:none!important;}}
 </style></head><body>
 <div class="no-print"><button onclick="window.print()" style="padding:10px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;">🏷️ طباعة ${labels.length} ليبل (${orders.length} طلب)</button></div>
