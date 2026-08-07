@@ -4558,9 +4558,15 @@ async function printSelectedLabels(){
   await _moveToPreparing(orders);
   const pw=window.open('','_blank','width=900,height=800');
   // ── بناء الليبلات على مستوى المنتج ──
-  // منتج معلَّم separateLabel ⇒ ليبل مستقل لكل قطعة (حسب الكمية).
+  // منتج من قسم مُعلَّم في الإعدادات ⇒ ليبل مستقل لكل قطعة (حسب الكمية).
   // الباقي (المنتجات الصغيرة) ⇒ ليبل «كرتونة» واحد للطلب يجمعها.
   const _prodOf=id=>id?((_empSharedProducts||[]).find(x=>x.id===id)||(_opProductsList||[]).find(x=>x.id===id)):null;
+  await _loadLabelCategories();
+  const _isSeparate=pr=>{
+    const pd=_prodOf(pr.id);
+    const cat=((pd&&pd.category)||'').trim()||'بدون قسم';
+    return _labelSepCats.includes(cat);
+  };
   const pieceLabels=[], cartonLabels=[];
   let seq=0;
   orders.forEach(o=>{
@@ -4571,8 +4577,7 @@ async function printSelectedLabels(){
     const prods=(o.products&&o.products.length?o.products:[{name:o.productName||'',qty:1}]);
     const pieces=[], carton=[];
     prods.forEach(pr=>{
-      const pd=_prodOf(pr.id);
-      (pd&&pd.separateLabel?pieces:carton).push(pr);
+      (_isSeparate(pr)?pieces:carton).push(pr);
     });
     // إجمالي ليبلات هذا الطلب — للعدّاد «١ من ٣»
     const pieceCount=pieces.reduce((t,pr)=>t+Math.max(1,parseInt(pr.qty||pr.quantity||1)||1),0);
@@ -5181,7 +5186,7 @@ function switchEmpSubTab(tab){
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
   if(tab==='workers')loadEmpWorkers();
   if(tab==='emppoints')loadAdminEmpPoints();
-  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
+  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();renderLabelCategories();}
 }
 
 // ===== DAILY PAGE ACCOUNT SHEET (كشف الحساب اليومي) =====
@@ -6574,7 +6579,7 @@ function switchOpTab(tab){
   if(tab==='empwages')loadEmpWages();
   if(tab==='expenses'){const d=document.getElementById('expDate');if(d&&!d.value)d.value=jordanDateStr();loadExpenses();}
   if(tab==='emppoints')loadAdminEmpPoints();
-  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();}
+  if(tab==='settings'){loadEmpPagesAdmin();_initAreaFeesUI();loadFCMSettings();renderLabelCategories();}
   if(tab==='reps'){loadPointValueSetting();loadRepAccounting();}
 }
 
@@ -7277,8 +7282,6 @@ function editOpProduct(id){
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=!!p.isRawMaterial;
-  const sl=document.getElementById('opp_separate_label');
-  if(sl) sl.checked=!!p.separateLabel;
   const hcn=document.getElementById('opp_has_color_numbers');
   const hcnWrap=document.getElementById('opp_color_numbers_wrap');
   const hcnCount=document.getElementById('opp_color_numbers_count');
@@ -7313,8 +7316,6 @@ function cancelEditProduct(){
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=false;
-  const sl=document.getElementById('opp_separate_label');
-  if(sl) sl.checked=false;
   const hcn=document.getElementById('opp_has_color_numbers');
   if(hcn) hcn.checked=false;
   const hcnWrap=document.getElementById('opp_color_numbers_wrap');
@@ -7345,7 +7346,6 @@ async function saveOpProduct(){
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
-    const separateLabel=document.getElementById('opp_separate_label')?.checked||false;
     const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
     const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
     const category=(document.getElementById('opp_category')?.value||'').trim();
@@ -7358,14 +7358,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,separateLabel,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,separateLabel,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
@@ -12185,6 +12185,61 @@ async function _loadAttendanceData(date){
     }
   }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
 }
+
+// ═══ ليبلات الطباعة حسب القسم ═══
+// بدل تعليم كل منتج على حدة، نختار الأقسام التي منتجاتها تأخذ ليبلاً مستقلاً
+let _labelSepCats=[];
+async function _loadLabelCategories(){
+  try{
+    const d=await db.collection('operator_balance').doc('labelSettings').get();
+    _labelSepCats=(d.exists&&Array.isArray(d.data().separateCategories))?d.data().separateCategories:[];
+  }catch(e){_labelSepCats=[];}
+  return _labelSepCats;
+}
+async function renderLabelCategories(){
+  const wrap=document.getElementById('labelCatsWrap');
+  if(!wrap)return;
+  try{
+    if(!_opProductsList||!_opProductsList.length){
+      const snap=await db.collection('operator_products').get();
+      _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }
+    await _loadLabelCategories();
+    const counts={};
+    (_opProductsList||[]).forEach(p=>{
+      if(p.isRawMaterial)return;
+      const c=(p.category||'').trim()||'بدون قسم';
+      counts[c]=(counts[c]||0)+1;
+    });
+    const cats=Object.keys(counts).sort((a,b)=>a.localeCompare(b,'ar'));
+    if(!cats.length){wrap.innerHTML='<div style="color:#15803d;font-size:0.8rem;">لا يوجد أقسام منتجات بعد</div>';return;}
+    wrap.innerHTML=cats.map(c=>{
+      const on=_labelSepCats.includes(c);
+      const safe=c.replace(/"/g,'&quot;');
+      return `<label style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:#fff;border:1.5px solid ${on?'#166534':'#d1fae5'};border-radius:10px;margin-bottom:7px;cursor:pointer;">
+        <input type="checkbox" class="lblcat" data-cat="${safe}" ${on?'checked':''} onchange="this.closest('label').style.borderColor=this.checked?'#166534':'#d1fae5'" style="width:18px;height:18px;accent-color:#166534;cursor:pointer;flex-shrink:0;">
+        <span style="flex:1;font-size:0.86rem;font-weight:700;color:#14532d;">${c}</span>
+        <span style="font-size:0.72rem;color:#6b7280;">${counts[c]} منتج</span>
+        <span style="font-size:0.7rem;font-weight:800;padding:2px 8px;border-radius:6px;background:${on?'#dcfce7':'#f3f4f6'};color:${on?'#166534':'#6b7280'};">${on?'ليبل مستقل':'كرتونة'}</span>
+      </label>`;
+    }).join('');
+  }catch(e){wrap.innerHTML=`<div style="color:#dc2626;font-size:0.8rem;">❌ ${e.message}</div>`;}
+}
+async function saveLabelCategories(btn){
+  const cats=[...document.querySelectorAll('#labelCatsWrap .lblcat:checked')].map(c=>c.dataset.cat);
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
+  try{
+    await db.collection('operator_balance').doc('labelSettings').set({
+      separateCategories:cats,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    _labelSepCats=cats;
+    toast(`✅ تم الحفظ — ${cats.length} قسم بليبل مستقل`);
+    renderLabelCategories();
+  }catch(e){toast('❌ '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent='💾 حفظ';}}
+}
+window.renderLabelCategories=renderLabelCategories; window.saveLabelCategories=saveLabelCategories;
 
 // ═══ كشف دوام لفترة: تفاصيل كل موظف وأجره المستحق ═══
 let _attRangeData=null;
