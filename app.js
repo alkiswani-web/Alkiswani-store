@@ -4555,19 +4555,53 @@ async function printSelectedLabels(){
   const ids=[..._opSelectedIds];
   const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
   if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
-  orders.sort((a,b)=>{const pa=(a.products?.[0]?.name||a.productName||'').trim();const pb=(b.products?.[0]?.name||b.productName||'').trim();return pa.localeCompare(pb,'ar');});
   await _moveToPreparing(orders);
   const pw=window.open('','_blank','width=900,height=800');
-  const labels=orders.map(o=>{
+  // ── بناء الليبلات على مستوى المنتج ──
+  // منتج معلَّم separateLabel ⇒ ليبل مستقل لكل قطعة (حسب الكمية).
+  // الباقي (المنتجات الصغيرة) ⇒ ليبل «كرتونة» واحد للطلب يجمعها.
+  const _prodOf=id=>id?((_empSharedProducts||[]).find(x=>x.id===id)||(_opProductsList||[]).find(x=>x.id===id)):null;
+  const pieceLabels=[], cartonLabels=[];
+  let seq=0;
+  orders.forEach(o=>{
     const url=window.location.origin+window.location.pathname+'?order='+o.id;
     const phone=(o.customerPhone||'').replace(/\s+/g,'');
     const addr=(o.address||'').trim();
     const page=(o.pageName||'').trim();
     const prods=(o.products&&o.products.length?o.products:[{name:o.productName||'',qty:1}]);
-    const prodLines=prods.map(p=>{const qty=p.qty||p.quantity||1;return p.name+(qty>1?' × '+qty:'');}).filter(Boolean).join('، ');
-    const divId='qrl_'+o.id;
-    return {url,phone,addr,page,prodLines,divId,id:o.id};
+    const pieces=[], carton=[];
+    prods.forEach(pr=>{
+      const pd=_prodOf(pr.id);
+      (pd&&pd.separateLabel?pieces:carton).push(pr);
+    });
+    // إجمالي ليبلات هذا الطلب — للعدّاد «١ من ٣»
+    const pieceCount=pieces.reduce((t,pr)=>t+Math.max(1,parseInt(pr.qty||pr.quantity||1)||1),0);
+    const total=pieceCount+(carton.length?1:0);
+    let idx=0;
+    pieces.forEach(pr=>{
+      const qty=Math.max(1,parseInt(pr.qty||pr.quantity||1)||1);
+      const cn=(pr.colorNumbers&&pr.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(pr.colorNumbers):'';
+      const extra=[pr.color?'اللون: '+pr.color:'',pr.writing?'✍ '+pr.writing:'',cn].filter(Boolean).join(' · ');
+      for(let k=0;k<qty;k++){
+        idx++;
+        pieceLabels.push({url,phone,addr,page,divId:'qrl_'+(seq++),
+          sortKey:(pr.name||'').trim(),
+          badge:`قطعة ${idx} من ${total}`, line:(pr.name||'').trim(), extra});
+      }
+    });
+    if(carton.length){
+      idx++;
+      const line=carton.map(pr=>{const q=pr.qty||pr.quantity||1;return (pr.name||'')+(q>1?' × '+q:'');}).filter(Boolean).join('، ');
+      cartonLabels.push({url,phone,addr,page,divId:'qrl_'+(seq++),
+        sortKey:carton.map(pr=>(pr.name||'').trim()).sort((a,b)=>a.localeCompare(b,'ar')).join(' | '),
+        badge:`كرتونة ${idx} من ${total}`, line, extra:''});
+    }
   });
+  // الترتيب: القطع حسب اسم المنتج، ثم الكراتين حسب محتواها — ثابت ولا يعتمد على ترتيب الإضافة للسلة
+  const byKey=(a,b)=>a.sortKey.localeCompare(b.sortKey,'ar');
+  pieceLabels.sort(byKey); cartonLabels.sort(byKey);
+  const labels=[...pieceLabels,...cartonLabels];
+  if(!labels.length){toast('⚠️ لا يوجد منتجات في الطلبات المحددة');return;}
   const labelsHtml=labels.map((l,i)=>`
     <div class="label-wrap${i<labels.length-1?' pg-break':''}">
       <div class="label-header">${l.page||''}</div>
@@ -4576,14 +4610,15 @@ async function printSelectedLabels(){
         <div class="vline"></div>
         <div class="info-col">
           ${l.phone?`<div class="info-phone">${l.phone}</div>`:''}
-          ${l.prodLines?`<div class="info-row">📦 ${l.prodLines}</div>`:''}
+          <div class="info-row"><span class="badge">${l.badge}</span> ${l.line}</div>
+          ${l.extra?`<div class="info-row extra">${l.extra}</div>`:''}
           ${l.addr?`<div class="info-row addr">📍 ${l.addr}</div>`:''}
         </div>
       </div>
     </div>`).join('');
   const qrScripts=labels.map(l=>`new QRCode(document.getElementById('${l.divId}'),{text:'${l.url}',width:160,height:160,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});`).join('');
   pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-<title>ليبلات ${orders.length} طلب</title>
+<title>ليبلات ${labels.length} — ${orders.length} طلب</title>
 <style>
 @page{size:auto;margin:0;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -4599,11 +4634,13 @@ body{background:#fff;font-family:Arial,sans-serif;}
 .info-phone{font-size:13pt;font-weight:900;direction:ltr;color:#111;word-break:break-all;line-height:1.2;}
 .info-row{font-size:9pt;font-weight:700;color:#1a3a2a;word-break:break-word;line-height:1.35;}
 .info-row.addr{color:#444;font-weight:600;font-size:8.5pt;}
+.info-row.extra{color:#0a6ea0;font-size:8.5pt;}
+.badge{background:#166534;color:#fff;border-radius:3pt;padding:0.5pt 3pt;font-size:7.5pt;font-weight:900;}
 .no-print{text-align:center;padding:12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
 @media screen{.label-wrap{height:auto;min-height:50vw;max-height:none;margin-bottom:6mm;border:1px dashed #ccc;}}
 @media print{.no-print{display:none!important;}}
 </style></head><body>
-<div class="no-print"><button onclick="window.print()" style="padding:10px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;">🏷️ طباعة ${orders.length} ليبل</button></div>
+<div class="no-print"><button onclick="window.print()" style="padding:10px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;">🏷️ طباعة ${labels.length} ليبل (${orders.length} طلب)</button></div>
 ${labelsHtml}
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
 <script>${qrScripts}<\/script>
@@ -7240,6 +7277,8 @@ function editOpProduct(id){
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=!!p.isRawMaterial;
+  const sl=document.getElementById('opp_separate_label');
+  if(sl) sl.checked=!!p.separateLabel;
   const hcn=document.getElementById('opp_has_color_numbers');
   const hcnWrap=document.getElementById('opp_color_numbers_wrap');
   const hcnCount=document.getElementById('opp_color_numbers_count');
@@ -7274,6 +7313,8 @@ function cancelEditProduct(){
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=false;
+  const sl=document.getElementById('opp_separate_label');
+  if(sl) sl.checked=false;
   const hcn=document.getElementById('opp_has_color_numbers');
   if(hcn) hcn.checked=false;
   const hcnWrap=document.getElementById('opp_color_numbers_wrap');
@@ -7304,6 +7345,7 @@ async function saveOpProduct(){
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
+    const separateLabel=document.getElementById('opp_separate_label')?.checked||false;
     const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
     const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
     const category=(document.getElementById('opp_category')?.value||'').trim();
@@ -7316,14 +7358,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,separateLabel,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,separateLabel,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
