@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v193" as="script">
+<link rel="preload" href="app.js?v194" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -4035,6 +4035,17 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <button onclick="_loadAttendanceData(document.getElementById('attDateFilter').value)" style="padding:9px 16px;background:#c9a84c;color:#000;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;">🔍</button>
         <button onclick="manualCheckin()" style="padding:9px 14px;background:#166534;color:#4ade80;border:1px solid #22c55e;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;">🟢 دخول يدوي</button>
       </div>
+      <!-- كشف دوام لفترة -->
+      <div style="background:#141414;border:1px solid #222;border-radius:12px;padding:11px 12px;margin-bottom:12px;">
+        <div style="color:#c9a84c;font-size:0.8rem;font-weight:800;margin-bottom:8px;">📋 كشف دوام لفترة</div>
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+          <input type="date" id="attRangeFrom" style="flex:1;min-width:130px;padding:9px 11px;background:#1a1a1a;border:1.5px solid #333;border-radius:9px;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;">
+          <span style="color:#666;font-size:0.8rem;">إلى</span>
+          <input type="date" id="attRangeTo" style="flex:1;min-width:130px;padding:9px 11px;background:#1a1a1a;border:1.5px solid #333;border-radius:9px;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;">
+          <button onclick="attRangeReport()" style="padding:9px 18px;background:#c9a84c;color:#000;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;">عرض</button>
+        </div>
+      </div>
+      <div id="attRangeResult"></div>
       <!-- Records -->
       <div id="attRecordsContainer" style="background:#161616;border-radius:14px;overflow:hidden;border:1px solid #222;"></div>
       <!-- Total -->
@@ -4381,7 +4392,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v193"></script>
+<script src="app.js?v194"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">

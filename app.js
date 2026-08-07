@@ -12050,6 +12050,11 @@ async function openAttendanceModal(){
   document.body.style.overflow='hidden';
   const today=new Date().toLocaleDateString('en-CA');
   document.getElementById('attDateFilter').value=today;
+  // كشف الفترة: افتراضياً من بداية الشهر الحالي إلى اليوم
+  const rf=document.getElementById('attRangeFrom'), rt=document.getElementById('attRangeTo');
+  if(rf&&!rf.value) rf.value=today.slice(0,8)+'01';
+  if(rt&&!rt.value) rt.value=today;
+  const rr=document.getElementById('attRangeResult'); if(rr) rr.innerHTML='';
   await _loadAttQR();
   await _loadAttendanceData(today);
 }
@@ -12138,6 +12143,113 @@ async function _loadAttendanceData(date){
     }
   }catch(e){container.innerHTML=`<div style="color:#f87171;padding:20px;text-align:center;">❌ ${e.message}</div>`;}
 }
+
+// ═══ كشف دوام لفترة: تفاصيل كل موظف وأجره المستحق ═══
+let _attRangeData=null;
+async function attRangeReport(){
+  const from=document.getElementById('attRangeFrom')?.value;
+  const to=document.getElementById('attRangeTo')?.value;
+  const box=document.getElementById('attRangeResult');
+  if(!box)return;
+  if(!from||!to){toast('⚠️ اختر تاريخ البداية والنهاية');return;}
+  if(from>to){toast('⚠️ تاريخ البداية بعد النهاية');return;}
+  box.innerHTML='<div style="text-align:center;padding:20px;color:rgba(255,255,255,.4);">⏳ تحميل...</div>';
+  try{
+    const snap=await db.collection('attendance').where('date','>=',from).where('date','<=',to).get();
+    const recs=snap.docs.map(d=>({_id:d.id,...d.data()}));
+    if(!recs.length){box.innerHTML='<div style="text-align:center;padding:20px;color:rgba(255,255,255,.4);">لا يوجد دوام في هذه الفترة</div>';return;}
+    // أجور الساعة
+    const ids=[...new Set(recs.map(r=>r.employeeId))];
+    const rates={};
+    await Promise.all(ids.map(async id=>{
+      try{const d=await db.collection('emp_wage_rates').doc(id).get();rates[id]=parseFloat(d.exists?d.data().hourlyRate||0:0);}catch(e){rates[id]=0;}
+    }));
+    // تجميع حسب الموظف ثم اليوم
+    const byEmp={};
+    recs.forEach(r=>{
+      const id=r.employeeId||'—';
+      if(!byEmp[id])byEmp[id]={id,name:r.employeeName||id,days:{},secs:0};
+      const secs=_ewSecs(r);
+      byEmp[id].secs+=secs;
+      let sessions=Array.isArray(r.sessions)&&r.sessions.length?r.sessions:(r.checkIn?[{in:r.checkIn,out:r.checkOut||null}]:[]);
+      byEmp[id].days[r.date]={secs,sessions,manual:!!r.manualEntry};
+    });
+    const emps=Object.values(byEmp).map(e=>{
+      const rate=rates[e.id]||0;
+      const hrs=_secsToDecimalHrs(e.secs);
+      return {...e,rate,hrs,earned:rate?Math.round(hrs*rate*100)/100:0,dayCount:Object.keys(e.days).length};
+    }).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar'));
+    _attRangeData={from,to,emps};
+    const tSecs=emps.reduce((t,e)=>t+e.secs,0);
+    const tEarned=emps.reduce((t,e)=>t+e.earned,0);
+    const hm=iso=>{try{return new Date(iso).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});}catch(e){return '—';}};
+    box.innerHTML=`
+      <div style="background:#161616;border:1px solid #222;border-radius:14px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#1a2e1a;">
+          <span style="color:#4ade80;font-weight:800;font-size:0.85rem;">📋 ${_fmtDate(from)} → ${_fmtDate(to)}</span>
+          <button onclick="printAttRange()" style="padding:6px 13px;background:#c9a84c;color:#000;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🖨 طباعة</button>
+        </div>
+        ${emps.map(e=>`
+          <div style="border-bottom:1px solid #222;">
+            <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;cursor:pointer;">
+              <div style="min-width:0;">
+                <div style="color:#fff;font-weight:800;font-size:0.9rem;">${e.name}</div>
+                <div style="color:#888;font-size:0.73rem;margin-top:2px;">${e.dayCount} يوم · ${_fmtDuration(e.secs)}${e.rate?` · ${e.rate} د.أ/ساعة`:' · لم يُحدد الأجر'}</div>
+              </div>
+              <div style="text-align:left;flex-shrink:0;">
+                <div style="color:#f97316;font-weight:900;font-size:1.02rem;font-variant-numeric:tabular-nums;">${e.earned.toFixed(2)}</div>
+                <div style="color:#666;font-size:0.66rem;">د.أ</div>
+              </div>
+            </div>
+            <div style="display:none;background:#101010;padding:4px 14px 10px;">
+              ${Object.keys(e.days).sort().map(d=>{
+                const v=e.days[d];
+                const parts=v.sessions.map(x=>`${hm(x.in)}${x.out?' → '+hm(x.out):' → <span style="color:#fbbf24;">مفتوح</span>'}`).join(' ، ');
+                return `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #1c1c1c;font-size:0.76rem;">
+                  <span style="color:#9ca3af;">${_fmtDate(d)}${v.manual?' <span style="color:#c9a84c;font-size:0.68rem;">يدوي</span>':''}</span>
+                  <span style="color:#6b7280;flex:1;text-align:center;">${parts||'—'}</span>
+                  <span style="color:#c9a84c;font-weight:700;white-space:nowrap;">${_fmtDuration(v.secs)}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;padding:13px 14px;background:#1a1a1a;">
+          <span style="color:#fff;font-weight:800;font-size:0.88rem;">الإجمالي · ${emps.length} موظف</span>
+          <span style="color:#4ade80;font-weight:900;font-size:0.9rem;">${_fmtDuration(tSecs)} · <span style="color:#f97316;">${tEarned.toFixed(2)} د.أ</span></span>
+        </div>
+      </div>`;
+  }catch(e){box.innerHTML=`<div style="color:#f87171;padding:16px;text-align:center;">❌ ${e.message}</div>`;}
+}
+function printAttRange(){
+  if(!_attRangeData){toast('⚠️ اعرض الكشف أولاً');return;}
+  const {from,to,emps}=_attRangeData;
+  const hm=iso=>{try{return new Date(iso).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});}catch(e){return '—';}};
+  const tSecs=emps.reduce((t,e)=>t+e.secs,0), tEarned=emps.reduce((t,e)=>t+e.earned,0);
+  const w=window.open('','_blank','width=800,height=900');
+  w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>كشف دوام ${from} → ${to}</title>
+  <style>body{font-family:Tajawal,Arial,sans-serif;direction:rtl;padding:18px;max-width:760px;margin:0 auto;color:#111;}
+  h2{margin:0 0 2px;font-size:1.2rem;}.sub{color:#666;font-size:.8rem;margin-bottom:16px;}
+  .emp{border:1px solid #ddd;border-radius:10px;padding:12px 14px;margin-bottom:12px;page-break-inside:avoid;}
+  .eh{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #eee;padding-bottom:7px;margin-bottom:7px;}
+  .nm{font-weight:800;font-size:1rem;}.er{font-weight:900;font-size:1.05rem;color:#b45309;}
+  table{width:100%;border-collapse:collapse;font-size:.8rem;}td{padding:4px 2px;border-bottom:1px solid #f2f2f2;}
+  .tot{background:#f6f6f6;border:1px solid #ddd;border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;font-weight:900;}
+  .np{text-align:center;margin-bottom:14px;}@media print{.np{display:none;}}</style></head><body>
+  <div class="np"><button onclick="window.print()" style="padding:10px 26px;background:#166534;color:#fff;border:none;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;">🖨 طباعة</button></div>
+  <h2>كشف دوام موظفي المشغل</h2>
+  <div class="sub">من ${_fmtDate(from)} إلى ${_fmtDate(to)}</div>
+  ${emps.map(e=>`<div class="emp">
+    <div class="eh"><span class="nm">${e.name}</span><span class="er">${e.earned.toFixed(2)} د.أ</span></div>
+    <div style="font-size:.78rem;color:#666;margin-bottom:6px;">${e.dayCount} يوم · ${_fmtDuration(e.secs)}${e.rate?` · ${e.rate} د.أ/ساعة`:' · لم يُحدد الأجر'}</div>
+    <table>${Object.keys(e.days).sort().map(d=>{const v=e.days[d];
+      const parts=v.sessions.map(x=>`${hm(x.in)} → ${x.out?hm(x.out):'مفتوح'}`).join(' ، ');
+      return `<tr><td>${_fmtDate(d)}${v.manual?' (يدوي)':''}</td><td style="text-align:center;color:#555;">${parts||'—'}</td><td style="text-align:left;font-weight:700;">${_fmtDuration(v.secs)}</td></tr>`;}).join('')}</table>
+  </div>`).join('')}
+  <div class="tot"><span>الإجمالي · ${emps.length} موظف</span><span>${_fmtDuration(tSecs)} — ${tEarned.toFixed(2)} د.أ</span></div>
+  </body></html>`);
+  w.document.close();
+}
+window.attRangeReport=attRangeReport; window.printAttRange=printAttRange;
 
 // تسجيل دخول يدوي لموظف نسي يمسح كود الدوام
 async function manualCheckin(){
