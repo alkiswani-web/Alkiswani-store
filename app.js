@@ -4550,12 +4550,9 @@ async function printSelectedOrders(){
   pw.document.close();
 }
 
-async function printSelectedLabels(){
-  if(!_opSelectedIds.size){toast('⚠️ لم تحدد أي طلب');return;}
-  const ids=[..._opSelectedIds];
-  const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
-  if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
-  await _moveToPreparing(orders);
+// بناء وطباعة ليبلات مجموعة طلبات — تستدعيها الطباعة المجمّعة
+// وطباعة الطلب المفرد معاً، فيبقى الشكل واحداً في الحالتين.
+async function _printOrderLabels(orders){
   const pw=window.open('','_blank','width=900,height=800');
   // ── بناء الليبلات على مستوى المنتج ──
   // منتج من قسم مُعلَّم في الإعدادات ⇒ ليبل مستقل لكل قطعة (حسب الكمية).
@@ -4672,6 +4669,15 @@ ${labelsHtml}
 <script>${qrScripts}<\/script>
 </body></html>`);
   pw.document.close();
+}
+
+async function printSelectedLabels(){
+  if(!_opSelectedIds.size){toast('⚠️ لم تحدد أي طلب');return;}
+  const ids=[..._opSelectedIds];
+  const orders=ids.map(id=>_opOrdersAllData.find(o=>o.id===id)).filter(Boolean);
+  if(!orders.length){toast('⚠️ لم يتم العثور على الطلبات');return;}
+  await _moveToPreparing(orders);
+  await _printOrderLabels(orders);
 }
 
 function setOpOrderFilter(filter,btn){
@@ -4937,56 +4943,14 @@ function openEmpOrderImage(src){
   document.body.appendChild(ov);
 }
 
-function printOrderQR(orderId) {
+// ليبل طلب مفرد — يستخدم نفس بناء الطباعة المجمّعة تماماً
+function printOrderQR(orderId){
   db.collection('employee_orders').doc(orderId).get().then(snap=>{
-    const o=snap.exists?{id:snap.id,...snap.data()}:{id:orderId,customerPhone:'',address:''};
+    const o=snap.exists?{id:snap.id,...snap.data()}:null;
+    if(!o){toast('❌ الطلب غير موجود');return;}
     if(o.status==='pending'){updateEmpOrderStatus(orderId,'preparing');o.status='preparing';}
-    const url=window.location.origin+window.location.pathname+'?order='+orderId;
-    const phone=(o.customerPhone||'').replace(/\s+/g,'');
-    const addr=(o.address||'').trim();
-    const page=(o.pageName||'').trim();
-    const prods=o.products&&o.products.length?o.products:[{name:o.productName||''}];
-    const prodLines=prods.map(p=>{const qty=p.qty||p.quantity||1;return p.name+(qty>1?' × '+qty:'');}).filter(Boolean).join('، ');
-    const pw=window.open('','_blank','width=420,height=320');
-    pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-<title>QR #${orderId.slice(-6).toUpperCase()}</title>
-<style>
-@page{size:80mm 55mm;margin:0;}
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:80mm;height:55mm;background:#fff;overflow:hidden;font-family:Arial,sans-serif;}
-.label{width:80mm;height:55mm;display:flex;flex-direction:row;align-items:stretch;}
-.qr-side{flex-shrink:0;width:55mm;display:flex;align-items:center;justify-content:center;padding:2mm;}
-.divider{width:0.4mm;background:#222;flex-shrink:0;margin:2mm 0;}
-.info{flex:1;padding:2.5mm 3mm;display:flex;flex-direction:column;justify-content:center;gap:2.5mm;overflow:hidden;}
-.row{display:flex;align-items:flex-start;gap:1.5mm;line-height:1.3;}
-.icon{font-size:8pt;flex-shrink:0;margin-top:0.5pt;}
-.txt{word-break:break-word;font-weight:700;font-size:8pt;}
-.txt.phone{font-size:9pt;direction:ltr;}
-.txt.page{color:#6b21a8;}
-.txt.prod{color:#1a3a2a;}
-.sep{border-top:0.4mm dashed #bbb;margin:1mm 0;}
-.no-print{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);}
-@media print{.no-print{display:none!important;}}
-</style></head><body>
-<div class="label">
-  <div class="qr-side" id="qrl"></div>
-  <div class="divider"></div>
-  <div class="info">
-    ${page?`<div class="row"><span class="icon">🏪</span><span class="txt page">${page}</span></div>`:''}
-    ${prodLines?`<div class="row"><span class="icon">📦</span><span class="txt prod">${prodLines}</span></div>`:''}
-    ${(page||prodLines)?`<div class="sep"></div>`:''}
-    ${phone?`<div class="row"><span class="icon">📞</span><span class="txt phone">${phone}</span></div>`:''}
-    ${addr?`<div class="row"><span class="icon">📍</span><span class="txt">${addr}</span></div>`:''}
-  </div>
-</div>
-<button class="no-print" onclick="window.print()" style="padding:7px 20px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:sans-serif;font-size:0.82rem;cursor:pointer;">🖨 طباعة</button>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-<script>new QRCode(document.getElementById('qrl'),{text:'${url}',width:194,height:194,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});<\/script>
-</body></html>`);
-    pw.document.close();
-  }).catch(()=>{
-    toast('❌ تعذّر جلب بيانات الطلب');
-  });
+    _printOrderLabels([o]);
+  }).catch(e=>toast('❌ '+e.message));
 }
 
 function printEmpOrder(orderId,withPhoto){
