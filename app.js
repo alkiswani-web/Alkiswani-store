@@ -4624,10 +4624,10 @@ async function printSelectedLabels(){
           <div class="pnm">${l.line}</div>
           ${l.extra?`<div class="pat">${l.extra}</div>`:''}
         </div>
+        ${l.phone?`<div class="lphone">${l.phone}</div>`:''}
         <div class="lft">
           <div class="qr-col" id="${l.divId}"></div>
           <div class="info-col">
-            ${l.phone?`<div class="info-phone">${l.phone}</div>`:''}
             ${l.addr?`<div class="info-row addr">${l.addr}</div>`:''}
           </div>
         </div>
@@ -4664,13 +4664,13 @@ body{background:#fff;font-family:Arial,sans-serif;}
 .lhero{flex:1;padding:1.5mm 2.5mm 1mm;display:flex;flex-direction:column;justify-content:center;min-height:0;}
 .pnm{font-size:15pt;font-weight:900;line-height:1.1;word-break:break-word;}
 .pat{font-size:9pt;font-weight:700;margin-top:1mm;word-break:break-word;}
-.lft{flex:0 0 60%;display:flex;border-top:2pt solid #000;align-items:stretch;min-height:0;}
+.lphone{border-top:1.5pt solid #000;padding:.8mm 2.5mm;font-size:16pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;white-space:nowrap;overflow:hidden;flex-shrink:0;}
+.lft{flex:0 0 50%;display:flex;border-top:2pt solid #000;align-items:stretch;min-height:0;}
 .qr-col{width:46%;flex-shrink:0;padding:.8mm;display:flex;align-items:center;justify-content:center;border-left:1pt solid #000;}
 .qr-col svg{width:100%;height:auto;display:block;shape-rendering:crispEdges;}
 .qr-col img,.qr-col canvas{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;image-rendering:pixelated;}
-.info-col{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1mm;padding:1.5mm 2.5mm;overflow:hidden;}
-.info-phone{font-size:17pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;}
-.info-row.addr{font-size:8pt;line-height:1.3;word-break:break-word;}
+.info-col{flex:1;display:flex;flex-direction:column;justify-content:center;padding:1.5mm 2.5mm;overflow:hidden;}
+.info-row.addr{font-size:10pt;font-weight:700;line-height:1.35;word-break:break-word;}
 .no-print{text-align:center;padding:12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
 @media screen{.label-wrap{height:auto;min-height:44vw;margin-bottom:6mm;}}
 @media print{.no-print{display:none!important;}}
