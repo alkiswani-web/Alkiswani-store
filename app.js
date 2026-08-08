@@ -7412,7 +7412,7 @@ function renderOpStoresList(allStores){
     <div style="background:${s.archived?'#f9fafb':'var(--card-bg)'};border:1px solid ${s.archived?'#e5e7eb':'var(--border)'};border-radius:12px;padding:14px;margin-bottom:8px;opacity:${s.archived?'0.7':'1'};">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;color:${s.archived?'#9ca3af':'var(--green-dark)'};font-size:1rem;">${s.archived?'🗂️':'🏪'} ${s.name}${s.archived?' <span style="font-size:0.68rem;color:#9ca3af;font-weight:400;">(مؤرشف)</span>':''}</div>
+          <div style="font-weight:700;color:${s.archived?'#9ca3af':'var(--green-dark)'};font-size:1rem;display:flex;align-items:center;gap:6px;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${s.archived?'🗂️':'🏪'} ${s.name}${s.archived?' <span style="font-size:0.68rem;color:#9ca3af;font-weight:400;">(مؤرشف)</span>':''}</span><button onclick="renameOpStore('${s.id}','${(s.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="تعديل الاسم" style="background:none;border:none;color:#6d28d9;cursor:pointer;font-size:0.82rem;padding:0;flex-shrink:0;">✏️</button></div>
           ${!s.archived?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">
             ${s.group
               ?`<div style="display:inline-flex;align-items:center;gap:4px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:20px;padding:2px 8px;">
@@ -7478,6 +7478,60 @@ async function addOpStore(){
     loadOpStores();
   }catch(e){toast('❌ خطأ في الإضافة');}
 }
+
+// تعديل اسم المتجر — الاسم مستخدم كمفتاح نصّي في مجموعات أخرى،
+// فلا يكفي تغييره في مستند المتجر وإلا انفصلت السجلات القديمة عنه.
+async function renameOpStore(id,currentName){
+  const raw=prompt('الاسم الجديد للمتجر:',currentName||'');
+  if(raw===null)return;
+  const name=raw.trim();
+  if(!name){toast('⚠️ الاسم فارغ');return;}
+  if(name===currentName){toast('الاسم نفسه — لا تغيير');return;}
+  // منع التكرار
+  try{
+    const dup=await db.collection('operator_stores').where('name','==',name).limit(1).get();
+    if(!dup.empty&&dup.docs[0].id!==id){toast('⚠️ في متجر ثاني بنفس الاسم');return;}
+  }catch(e){}
+  if(!confirm(`تغيير الاسم من «${currentName}» إلى «${name}»؟\n\nسيُحدَّث الاسم في المبيعات والدفعات والمسحوبات وحسابات المتجر المرتبطة به، حتى لا تنفصل السجلات القديمة.`))return;
+  try{
+    toast('⏳ جاري التحديث...');
+    await db.collection('operator_stores').doc(id).update({name});
+    // ترحيل الاسم في المجموعات التي تخزّنه نصّاً
+    const cols=['operator_sales','operator_store_payments','operator_withdrawals','operator_store_orders','page_refunds'];
+    let moved=0;
+    for(const c of cols){
+      try{
+        const snap=await db.collection(c).where('storeId','==',id).get();
+        for(let i=0;i<snap.docs.length;i+=400){
+          const batch=db.batch();
+          snap.docs.slice(i,i+400).forEach(d=>{if((d.data().storeName||'')!==name){batch.update(d.ref,{storeName:name});moved++;}});
+          await batch.commit();
+        }
+      }catch(e){}
+    }
+    // سجلات قديمة بلا storeId — تُطابَق بالاسم القديم
+    for(const c of cols){
+      try{
+        const snap=await db.collection(c).where('storeName','==',currentName).get();
+        for(let i=0;i<snap.docs.length;i+=400){
+          const batch=db.batch();
+          snap.docs.slice(i,i+400).forEach(d=>{batch.update(d.ref,{storeName:name});moved++;});
+          await batch.commit();
+        }
+      }catch(e){}
+    }
+    // تحديث النسخ المحفوظة بالذاكرة حتى لا تظهر باسم قديم قبل إعادة التحميل
+    const _patch=arr=>{(arr||[]).forEach(x=>{if(x&&(x.storeId===id||x.storeName===currentName))x.storeName=name;});};
+    _patch(_opAllWithdrawals);_patch(_opWithdrawals);
+    _patch(_acctCurrentSales);_patch(_acctCurrentPayments);_patch(_acctCurrentRefunds);
+    const _st=_opStoresList.find(x=>x.id===id);if(_st)_st.name=name;
+    if(_acctCurrentStore&&_acctCurrentStore.id===id)_acctCurrentStore.name=name;
+    toast(`✅ تم تغيير الاسم — حُدِّث ${moved} سجل`);
+    loadOpStores();
+    if(typeof renderOperatorDailyView==='function'){try{renderOperatorDailyView();}catch(e){}}
+  }catch(e){toast('❌ '+e.message);}
+}
+window.renameOpStore=renameOpStore;
 
 async function setStoreGroup(id,currentGroup){
   const g=prompt('اسم المجموعة (اتركه فارغاً للإزالة):',currentGroup||'');
