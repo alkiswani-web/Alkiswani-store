@@ -4633,7 +4633,9 @@ async function printSelectedLabels(){
         </div>
       </div>
     </div>`).join('');
-  const qrScripts=labels.map(l=>`new QRCode(document.getElementById('${l.divId}'),{text:'${l.url}',width:160,height:160,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});`).join('');
+  // مستوى M بدل H: الرابط نفسه يحتاج نسخة أصغر (37 وحدة بدل 49) فتكبر
+  // الوحدة 32% عند نفس الحجم المطبوع — فرق حاسم على الطابعة الحرارية.
+  const qrScripts=labels.map(l=>`new QRCode(document.getElementById('${l.divId}'),{text:'${l.url}',width:320,height:320,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});`).join('');
   pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>ليبلات ${labels.length} — ${orders.length} طلب</title>
 <style>
@@ -4653,11 +4655,11 @@ body{background:#fff;font-family:Arial,sans-serif;}
 .lhd{display:flex;justify-content:space-between;align-items:baseline;gap:2mm;padding:1.5mm 2.5mm;border-bottom:2pt solid #000;}
 .pg{font-size:9.5pt;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ordn{font-size:8pt;font-weight:700;font-family:monospace;flex-shrink:0;}
-.lhero{flex:1;padding:2mm 2.5mm 1mm;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+.lhero{flex:1;padding:1.5mm 2.5mm 1mm;display:flex;flex-direction:column;justify-content:center;min-height:0;}
 .pnm{font-size:15pt;font-weight:900;line-height:1.1;word-break:break-word;}
 .pat{font-size:9pt;font-weight:700;margin-top:1mm;word-break:break-word;}
-.lft{display:flex;border-top:2pt solid #000;align-items:stretch;}
-.qr-col{width:26%;flex-shrink:0;padding:1.5mm;display:flex;align-items:center;justify-content:center;border-left:1pt solid #000;}
+.lft{flex:0 0 60%;display:flex;border-top:2pt solid #000;align-items:stretch;min-height:0;}
+.qr-col{width:46%;flex-shrink:0;padding:.8mm;display:flex;align-items:center;justify-content:center;border-left:1pt solid #000;}
 .qr-col img,.qr-col canvas{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;}
 .info-col{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1mm;padding:1.5mm 2.5mm;overflow:hidden;}
 .info-phone{font-size:14pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;}
