@@ -4613,30 +4613,23 @@ async function printSelectedLabels(){
     `<span class="boxes">${Array.from({length:total},(_,k)=>`<i class="bx${k<idx?' t':''}"></i>`).join('')}</span>`;
   const labelsHtml=labels.map((l,i)=>`
     <div class="label-wrap${i<labels.length-1?' pg-break':''}">
-      <div class="stub">
-        <span class="snum">${l.idx}</span>
-        <span class="sof">من ${l.total}</span>
+      <div class="lnum">
+        <span class="n">${l.idx}</span>
+        <span class="of">من ${l.total}</span>
         ${_boxes(l.idx,l.total)}
       </div>
-      <div class="lbody">
-        <div class="lhd"><span class="pg">${l.page||''}</span><span class="ordn">${l.ordNum||''}</span></div>
-        <div class="lhero">
-          <div class="pnm">${l.line}</div>
-          ${l.extra?`<div class="pat">${l.extra}</div>`:''}
-        </div>
-        ${l.phone?`<div class="lphone">${l.phone}</div>`:''}
-        <div class="lft">
-          <div class="qr-col" id="${l.divId}"></div>
-          <div class="info-col">
-            ${l.addr?`<div class="info-row addr">${l.addr}</div>`:''}
-          </div>
+      <div class="lmain">
+        <div class="ltop"><span>${l.page||''}</span><span class="o">${l.ordNum||''}</span></div>
+        <div class="lnm">${l.line}</div>
+        ${l.extra?`<div class="lat">${l.extra}</div>`:''}
+        <div class="lsp"></div>
+        ${l.phone?`<div class="lph">${l.phone}</div>`:''}
+        <div class="lbot">
+          <div class="lqr" id="${l.divId}"></div>
+          ${l.addr?`<div class="lad">${l.addr}</div>`:''}
         </div>
       </div>
     </div>`).join('');
-  // رسم متجهي (SVG) بدل نقطي (canvas): المكتبة السابقة ترسم صورة بأبعاد
-  // ثابتة ثم يمدّها المتصفح للطباعة، فتتشوّه حواف الوحدات ويخرج الرمز
-  // مهترئاً على الورق الحراري. الـSVG يُرسَم بدقة الطابعة الأصلية.
-  // ومستوى M بدل H: 37 وحدة بدل 49 ⇒ الوحدة أكبر 32% بنفس الحجم.
   const qrScripts=labels.map(l=>
     `(function(){var el=document.getElementById('${l.divId}');var u=${JSON.stringify(l.url)};`
     +`try{var q=qrcode(0,'M');q.addData(u);q.make();el.innerHTML=q.createSvgTag({cellSize:8,margin:0,scalable:true});return;}catch(e){}`
@@ -4648,29 +4641,28 @@ async function printSelectedLabels(){
 @page{size:auto;margin:0;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#fff;font-family:Arial,sans-serif;}
-/* التذكرة المثقّبة — أسود صريح على أبيض فقط (الطابعة حرارية: أي تعبئة رمادية تطلع مبقّعة) */
-.label-wrap{width:100%;height:100vh;display:flex;overflow:hidden;border:3pt solid #000;}
+/* بلا أي خطوط أو إطارات: الفراغ وتباين الأحجام هما الفاصل.
+   الطابعة حرارية — كل شيء أسود صريح على أبيض، ولا مساحات مملوءة. */
+.label-wrap{width:100%;height:100vh;display:flex;padding:2.5mm 3mm;gap:2.5mm;overflow:hidden;}
 .pg-break{break-after:page;page-break-after:always;}
-.stub{width:20%;flex-shrink:0;border-left:3pt dashed #000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2mm 0;}
-.snum{font-size:34pt;font-weight:900;line-height:.8;}
-.sof{font-size:9pt;font-weight:900;border-top:2pt solid #000;padding-top:1mm;margin-top:1mm;}
-.boxes{display:flex;flex-direction:column;gap:1.2mm;margin-top:2mm;}
-.bx{width:3.4mm;height:3.4mm;border:1.6pt solid #000;position:relative;flex-shrink:0;}
-.bx.t::after{content:"";position:absolute;top:.5mm;right:.5mm;bottom:.5mm;left:.5mm;background:#000;}
-.lbody{flex:1;display:flex;flex-direction:column;min-width:0;}
-.lhd{display:flex;justify-content:space-between;align-items:baseline;gap:2mm;padding:1.5mm 2.5mm;border-bottom:2pt solid #000;}
-.pg{font-size:9.5pt;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.ordn{font-size:8pt;font-weight:700;font-family:monospace;flex-shrink:0;}
-.lhero{flex:1;padding:1.5mm 2.5mm 1mm;display:flex;flex-direction:column;justify-content:center;min-height:0;}
-.pnm{font-size:15pt;font-weight:900;line-height:1.1;word-break:break-word;}
-.pat{font-size:9pt;font-weight:700;margin-top:1mm;word-break:break-word;}
-.lphone{border-top:1.5pt solid #000;padding:.8mm 2.5mm;font-size:16pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;white-space:nowrap;overflow:hidden;flex-shrink:0;}
-.lft{flex:0 0 50%;display:flex;border-top:2pt solid #000;align-items:stretch;min-height:0;}
-.qr-col{width:46%;flex-shrink:0;padding:.8mm;display:flex;align-items:center;justify-content:center;border-left:1pt solid #000;}
-.qr-col svg{width:100%;height:auto;display:block;shape-rendering:crispEdges;}
-.qr-col img,.qr-col canvas{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;image-rendering:pixelated;}
-.info-col{flex:1;display:flex;flex-direction:column;justify-content:center;padding:1.5mm 2.5mm;overflow:hidden;}
-.info-row.addr{font-size:10pt;font-weight:700;line-height:1.35;word-break:break-word;}
+.lnum{width:15%;flex-shrink:0;display:flex;flex-direction:column;align-items:center;}
+.lnum .n{font-size:34pt;font-weight:900;line-height:.78;}
+.lnum .of{font-size:9pt;font-weight:900;margin-top:.6mm;white-space:nowrap;}
+.boxes{display:flex;gap:1.2mm;margin-top:2mm;}
+.bx{width:3mm;height:3mm;border:1.4pt solid #000;position:relative;flex-shrink:0;}
+.bx.t::after{content:"";position:absolute;top:.45mm;right:.45mm;bottom:.45mm;left:.45mm;background:#000;}
+.lmain{flex:1;min-width:0;display:flex;flex-direction:column;}
+.ltop{display:flex;justify-content:space-between;gap:2mm;font-size:9pt;font-weight:900;}
+.ltop .o{font-family:monospace;font-weight:700;flex-shrink:0;}
+.lnm{font-size:15pt;font-weight:900;line-height:1.12;margin-top:2mm;word-break:break-word;}
+.lat{font-size:9.5pt;font-weight:700;margin-top:.8mm;word-break:break-word;}
+.lsp{flex:1;min-height:1mm;}
+.lph{font-size:16pt;font-weight:900;direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;letter-spacing:-.3pt;margin-bottom:1mm;}
+.lbot{display:flex;align-items:flex-end;gap:2.5mm;}
+.lqr{width:46%;flex-shrink:0;}
+.lqr svg{width:100%;height:auto;display:block;shape-rendering:crispEdges;}
+.lqr img,.lqr canvas{width:100%!important;height:auto!important;display:block;image-rendering:pixelated;}
+.lad{flex:1;min-width:0;font-size:9.5pt;font-weight:700;line-height:1.35;word-break:break-word;padding-bottom:.5mm;}
 .no-print{text-align:center;padding:12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
 @media screen{.label-wrap{height:auto;min-height:44vw;margin-bottom:6mm;}}
 @media print{.no-print{display:none!important;}}
