@@ -3371,11 +3371,23 @@ async function editEmpWorker(id){
 }
 
 async function editEmpPage(id,currentName){
-  const name=prompt('اسم الصفحة:',currentName);
-  if(name===null||!name.trim())return;
+  const raw=prompt('اسم الصفحة:',currentName);
+  if(raw===null)return;
+  const name=raw.trim();
+  if(!name){toast('⚠️ الاسم فارغ');return;}
+  if(name===currentName){toast('الاسم نفسه — لا تغيير');return;}
   try{
-    await db.collection('employee_pages').doc(id).update({name:name.trim()});
-    toast('✅ تم التعديل');loadEmpPagesAdmin();
+    const dup=await db.collection('employee_pages').where('name','==',name).limit(1).get();
+    if(!dup.empty&&dup.docs[0].id!==id){toast('⚠️ في صفحة ثانية بنفس الاسم');return;}
+  }catch(e){}
+  if(!confirm(`تغيير اسم الصفحة من «${currentName}» إلى «${name}»؟\n\nسيُحدَّث الاسم على الطلبات القديمة والمتاجر المربوطة، حتى ما يضل الاسم القديم ظاهر عليها.`))return;
+  try{
+    toast('⏳ جاري التحديث...');
+    const moved=await _renamePageEverywhere(id,currentName,name);
+    toast(`✅ تم التعديل — حُدِّث ${moved} سجل`);
+    loadEmpPagesAdmin();
+    if(typeof _renderOpOrdersView==='function'){try{_renderOpOrdersView();}catch(e){}}
+    if(typeof loadOpStores==='function'){try{loadOpStores();}catch(e){}}
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -7479,6 +7491,39 @@ async function addOpStore(){
   }catch(e){toast('❌ خطأ في الإضافة');}
 }
 
+// الأسماء (متجر / صفحة) مخزّنة نصّاً داخل السجلات وقت إنشائها، فتغيير المستند
+// وحده يترك الاسم القديم ظاهراً على كل السجلات السابقة. هذا المساعد يرحّل الاسم:
+// أولاً بالمعرّف (السجلات الحديثة) ثم بالاسم القديم (سجلات قديمة بلا معرّف).
+async function _migrateNameRefs(cols,idField,idVal,nameField,oldName,newName){
+  let moved=0;
+  const bump=async snap=>{
+    for(let i=0;i<snap.docs.length;i+=400){
+      const batch=db.batch();let n=0;
+      snap.docs.slice(i,i+400).forEach(d=>{
+        if((d.data()[nameField]||'')===newName)return;
+        batch.update(d.ref,{[nameField]:newName});n++;
+      });
+      if(n){await batch.commit();moved+=n;}
+    }
+  };
+  for(const c of cols){
+    if(idVal){try{await bump(await db.collection(c).where(idField,'==',idVal).get());}catch(e){}}
+    if(oldName){try{await bump(await db.collection(c).where(nameField,'==',oldName).get());}catch(e){}}
+  }
+  return moved;
+}
+
+// اسم الصفحة هو الاسم الظاهر على كروت الطلبات، ومنسوخ داخل كل طلب.
+async function _renamePageEverywhere(pageId,oldName,newName){
+  await db.collection('employee_pages').doc(pageId).update({name:newName});
+  const moved=await _migrateNameRefs(['employee_orders','operator_stores','page_refunds'],'pageId',pageId,'pageName',oldName,newName);
+  // تحديث النسخ بالذاكرة حتى لا يظهر الاسم القديم قبل إعادة التحميل
+  const patch=arr=>{(arr||[]).forEach(x=>{if(x&&(x.pageId===pageId||x.pageName===oldName))x.pageName=newName;});};
+  patch(_empOrdersAllData);patch(_opOrdersAllData);patch(_opStoresList);
+  const pg=(_empPagesCache||[]).find(p=>p.id===pageId);if(pg)pg.name=newName;
+  return moved;
+}
+
 // تعديل اسم المتجر — الاسم مستخدم كمفتاح نصّي في مجموعات أخرى،
 // فلا يكفي تغييره في مستند المتجر وإلا انفصلت السجلات القديمة عنه.
 async function renameOpStore(id,currentName){
@@ -7496,36 +7541,24 @@ async function renameOpStore(id,currentName){
   try{
     toast('⏳ جاري التحديث...');
     await db.collection('operator_stores').doc(id).update({name});
-    // ترحيل الاسم في المجموعات التي تخزّنه نصّاً
-    const cols=['operator_sales','operator_store_payments','operator_withdrawals','operator_store_orders','page_refunds'];
-    let moved=0;
-    for(const c of cols){
-      try{
-        const snap=await db.collection(c).where('storeId','==',id).get();
-        for(let i=0;i<snap.docs.length;i+=400){
-          const batch=db.batch();
-          snap.docs.slice(i,i+400).forEach(d=>{if((d.data().storeName||'')!==name){batch.update(d.ref,{storeName:name});moved++;}});
-          await batch.commit();
-        }
-      }catch(e){}
-    }
-    // سجلات قديمة بلا storeId — تُطابَق بالاسم القديم
-    for(const c of cols){
-      try{
-        const snap=await db.collection(c).where('storeName','==',currentName).get();
-        for(let i=0;i<snap.docs.length;i+=400){
-          const batch=db.batch();
-          snap.docs.slice(i,i+400).forEach(d=>{batch.update(d.ref,{storeName:name});moved++;});
-          await batch.commit();
-        }
-      }catch(e){}
-    }
+    let moved=await _migrateNameRefs(
+      ['operator_sales','operator_store_payments','operator_withdrawals','operator_store_orders','page_refunds'],
+      'storeId',id,'storeName',currentName,name);
     // تحديث النسخ المحفوظة بالذاكرة حتى لا تظهر باسم قديم قبل إعادة التحميل
     const _patch=arr=>{(arr||[]).forEach(x=>{if(x&&(x.storeId===id||x.storeName===currentName))x.storeName=name;});};
     _patch(_opAllWithdrawals);_patch(_opWithdrawals);
     _patch(_acctCurrentSales);_patch(_acctCurrentPayments);_patch(_acctCurrentRefunds);
     const _st=_opStoresList.find(x=>x.id===id);if(_st)_st.name=name;
     if(_acctCurrentStore&&_acctCurrentStore.id===id)_acctCurrentStore.name=name;
+    // الاسم الظاهر على كروت الطلبات هو اسم الصفحة المربوطة، وهو كيان منفصل
+    // عن المتجر — فلا يتغيّر إلا إذا طلبه المستخدم صراحة.
+    if(_st&&_st.pageId&&_st.pageName&&_st.pageName!==name&&
+       confirm(`المتجر مربوط بصفحة اسمها «${_st.pageName}».\n\nالاسم اللي بيظهر على كروت الطلبات هو اسم الصفحة مش اسم المتجر.\n\nبدك نغيّر اسم الصفحة كمان إلى «${name}»؟`)){
+      const oldPage=_st.pageName;
+      moved+=await _renamePageEverywhere(_st.pageId,oldPage,name);
+      _st.pageName=name;
+      if(typeof _renderOpOrdersView==='function'){try{_renderOpOrdersView();}catch(e){}}
+    }
     toast(`✅ تم تغيير الاسم — حُدِّث ${moved} سجل`);
     loadOpStores();
     if(typeof renderOperatorDailyView==='function'){try{renderOperatorDailyView();}catch(e){}}
