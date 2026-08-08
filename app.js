@@ -4633,9 +4633,15 @@ async function printSelectedLabels(){
         </div>
       </div>
     </div>`).join('');
-  // مستوى M بدل H: الرابط نفسه يحتاج نسخة أصغر (37 وحدة بدل 49) فتكبر
-  // الوحدة 32% عند نفس الحجم المطبوع — فرق حاسم على الطابعة الحرارية.
-  const qrScripts=labels.map(l=>`new QRCode(document.getElementById('${l.divId}'),{text:'${l.url}',width:320,height:320,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});`).join('');
+  // رسم متجهي (SVG) بدل نقطي (canvas): المكتبة السابقة ترسم صورة بأبعاد
+  // ثابتة ثم يمدّها المتصفح للطباعة، فتتشوّه حواف الوحدات ويخرج الرمز
+  // مهترئاً على الورق الحراري. الـSVG يُرسَم بدقة الطابعة الأصلية.
+  // ومستوى M بدل H: 37 وحدة بدل 49 ⇒ الوحدة أكبر 32% بنفس الحجم.
+  const qrScripts=labels.map(l=>
+    `(function(){var el=document.getElementById('${l.divId}');var u=${JSON.stringify(l.url)};`
+    +`try{var q=qrcode(0,'M');q.addData(u);q.make();el.innerHTML=q.createSvgTag({cellSize:8,margin:0,scalable:true});return;}catch(e){}`
+    +`try{new QRCode(el,{text:u,width:320,height:320,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}})();`
+  ).join('');
   pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>ليبلات ${labels.length} — ${orders.length} طلب</title>
 <style>
@@ -4660,9 +4666,10 @@ body{background:#fff;font-family:Arial,sans-serif;}
 .pat{font-size:9pt;font-weight:700;margin-top:1mm;word-break:break-word;}
 .lft{flex:0 0 60%;display:flex;border-top:2pt solid #000;align-items:stretch;min-height:0;}
 .qr-col{width:46%;flex-shrink:0;padding:.8mm;display:flex;align-items:center;justify-content:center;border-left:1pt solid #000;}
-.qr-col img,.qr-col canvas{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;}
+.qr-col svg{width:100%;height:auto;display:block;shape-rendering:crispEdges;}
+.qr-col img,.qr-col canvas{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;image-rendering:pixelated;}
 .info-col{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1mm;padding:1.5mm 2.5mm;overflow:hidden;}
-.info-phone{font-size:14pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;}
+.info-phone{font-size:17pt;font-weight:900;direction:ltr;text-align:right;letter-spacing:-.3pt;}
 .info-row.addr{font-size:8pt;line-height:1.3;word-break:break-word;}
 .no-print{text-align:center;padding:12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
 @media screen{.label-wrap{height:auto;min-height:44vw;margin-bottom:6mm;}}
@@ -4670,6 +4677,7 @@ body{background:#fff;font-family:Arial,sans-serif;}
 </style></head><body>
 <div class="no-print"><button onclick="window.print()" style="padding:10px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;">🏷️ طباعة ${labels.length} ليبل (${orders.length} طلب)</button></div>
 ${labelsHtml}
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"><\/script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
 <script>${qrScripts}<\/script>
 </body></html>`);
