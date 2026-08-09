@@ -4647,7 +4647,7 @@ async function printSelectedOrders(){
     </div>`;
   }).join('');
   pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>طباعة ${orders.length} طلب</title>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
   <style>body{font-family:'Tajawal',Arial,sans-serif;padding:16px;max-width:680px;margin:0 auto;direction:rtl;}
   .no-print{text-align:center;margin-bottom:16px;}@media print{.no-print{display:none;}}</style></head>
   <body>
@@ -4656,10 +4656,51 @@ async function printSelectedOrders(){
   pw.document.close();
 }
 
+// ── مولّد الـQR ──
+// نافذة الطباعة تُفتح على about:blank، أي خارج نطاق الـservice worker، فلا
+// يُخزَّن لها شيء. وأي <script src> داخلها يمنع المستند من إنهاء التحميل،
+// ومعاينة الطباعة في المتصفّح تنتظر اكتمال التحميل — فتعلق على «تحميل
+// المعاينة» إن كان الـCDN بطيئاً أو محجوباً. لذلك نحمّل المكتبة مرّة واحدة
+// هنا في نافذة التطبيق، ونضع أكواد الـQR جاهزة (SVG) داخل صفحة الطباعة.
+let _qrLibPromise=null;
+function _ensureQRLib(timeoutMs){
+  if(window.qrcode)return Promise.resolve(true);
+  if(_qrLibPromise)return _qrLibPromise;
+  _qrLibPromise=new Promise(resolve=>{
+    let done=false;
+    const finish=ok=>{if(done)return;done=true;resolve(!!(ok&&window.qrcode));};
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js';
+    s.onload=()=>finish(true);
+    s.onerror=()=>finish(false);
+    setTimeout(()=>finish(false),timeoutMs||8000);
+    document.head.appendChild(s);
+  }).then(ok=>{if(!ok)_qrLibPromise=null;return ok;}); // اسمح بإعادة المحاولة لاحقاً
+  return _qrLibPromise;
+}
+function _qrSvg(text,cellSize){
+  try{
+    const q=qrcode(0,'M');q.addData(String(text));q.make();
+    return q.createSvgTag({cellSize:cellSize||8,margin:0,scalable:true});
+  }catch(e){return '';}
+}
+// صفحة انتظار داخل نافذة الطباعة ريثما تجهز الأكواد
+function _pwWait(pw,msg){
+  if(!pw)return;
+  try{
+    pw.document.open();
+    pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>جاري التجهيز…</title></head>
+<body style="font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#374151;">
+<div style="text-align:center;"><div style="font-size:2rem;margin-bottom:10px;">🏷️</div><div>${msg}</div></div></body></html>`);
+    pw.document.close();
+  }catch(e){}
+}
+
 // بناء وطباعة ليبلات مجموعة طلبات — تستدعيها الطباعة المجمّعة
 // وطباعة الطلب المفرد معاً، فيبقى الشكل واحداً في الحالتين.
 async function _printOrderLabels(orders){
   const pw=window.open('','_blank','width=900,height=800');
+  _pwWait(pw,'جاري تجهيز الليبلات…');
   // ── بناء الليبلات على مستوى المنتج ──
   // منتج من قسم مُعلَّم في الإعدادات ⇒ ليبل مستقل لكل قطعة (حسب الكمية).
   // الباقي (المنتجات الصغيرة) ⇒ ليبل «كرتونة» واحد للطلب يجمعها.
@@ -4710,10 +4751,14 @@ async function _printOrderLabels(orders){
   const byKey=(a,b)=>a.sortKey.localeCompare(b.sortKey,'ar');
   pieceLabels.sort(byKey); cartonLabels.sort(byKey);
   const labels=[...pieceLabels,...cartonLabels];
-  if(!labels.length){toast('⚠️ لا يوجد منتجات في الطلبات المحددة');return;}
+  if(!labels.length){toast('⚠️ لا يوجد منتجات في الطلبات المحددة');try{pw.close();}catch(e){}return;}
   // صناديق التأشير — تُعرض حتى 6؛ أكثر من ذلك يكتفي بالرقم حتى لا تتكدّس
   const _boxes=(idx,total)=>total<=1||total>6?'':
     `<span class="boxes">${Array.from({length:total},(_,k)=>`<i class="bx${k<idx?' t':''}"></i>`).join('')}</span>`;
+  // الأكواد تُرسم هنا (نافذة التطبيق) وتُحقن جاهزة، فصفحة الطباعة بلا موارد خارجية
+  const hasQR=await _ensureQRLib();
+  labels.forEach(l=>{l.svg=hasQR?_qrSvg(l.url):'';});
+  if(!hasQR)toast('⚠️ تعذّر تحميل مولّد الـQR — الليبلات ستُطبع بدون كود');
   const labelsHtml=labels.map((l,i)=>`
     <div class="label-wrap${i<labels.length-1?' pg-break':''}">
       <div class="lnum">
@@ -4727,16 +4772,12 @@ async function _printOrderLabels(orders){
         ${l.extra?`<div class="lat">${l.extra}</div>`:''}
         ${l.phone?`<div class="lph">${l.phone}</div>`:''}
         <div class="lbot">
-          <div class="lqr" id="${l.divId}"></div>
+          ${l.svg?`<div class="lqr">${l.svg}</div>`:''}
           ${l.addr?`<div class="lad">${l.addr}</div>`:''}
         </div>
       </div>
     </div>`).join('');
-  const qrScripts=labels.map(l=>
-    `(function(){var el=document.getElementById('${l.divId}');var u=${JSON.stringify(l.url)};`
-    +`try{var q=qrcode(0,'M');q.addData(u);q.make();el.innerHTML=q.createSvgTag({cellSize:8,margin:0,scalable:true});return;}catch(e){}`
-    +`try{new QRCode(el,{text:u,width:320,height:320,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}})();`
-  ).join('');
+  pw.document.open(); // استبدال صفحة الانتظار
   pw.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>ليبلات ${labels.length} — ${orders.length} طلب</title>
 <style>
@@ -4770,9 +4811,6 @@ body{background:#fff;font-family:Arial,sans-serif;}
 </style></head><body>
 <div class="no-print"><button onclick="window.print()" style="padding:10px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;">🏷️ طباعة ${labels.length} ليبل (${orders.length} طلب)</button></div>
 ${labelsHtml}
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"><\/script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-<script>${qrScripts}<\/script>
 </body></html>`);
   pw.document.close();
 }
@@ -5060,9 +5098,11 @@ function printOrderQR(orderId){
 }
 
 function printEmpOrder(orderId,withPhoto){
-  db.collection('employee_orders').doc(orderId).get().then(snap=>{
+  db.collection('employee_orders').doc(orderId).get().then(async snap=>{
     if(!snap.exists){toast('❌ الطلب غير موجود');return;}
     const o={id:snap.id,...snap.data()};
+    // الكود يُرسم هنا ويُحقن جاهزاً — لا سكربت خارجي داخل نافذة الطباعة
+    const qrHtml=(await _ensureQRLib())?_qrSvg(orderId,4):'';
     if(o.status==='pending'){
       updateEmpOrderStatus(orderId,'preparing');
       o.status='preparing';
@@ -5073,8 +5113,11 @@ function printEmpOrder(orderId,withPhoto){
     const dlv=o.deliveryFee||0;
     const net=o.netPrice!=null?o.netPrice:total+dlv;
     const pw=window.open('','_blank','width=620,height=750');
+    // الخط يُحمَّل بلا حجب: رابط stylesheet عادي يمنع اكتمال تحميل المستند إن
+    // تعذّر الوصول للخطوط، ومعاينة الطباعة تنتظر الاكتمال فتعلق. مع preload
+    // يكتمل المستند فوراً ويُطبع بخط Arial إن لم يصل Tajawal.
     pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>فاتورة #${o.id.slice(-6).toUpperCase()}</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <style>
 body{font-family:'Tajawal',Arial,sans-serif;padding:24px;max-width:520px;margin:0 auto;color:#111;direction:rtl;}
 .hd{text-align:center;border-bottom:2px solid #1a3a2a;padding-bottom:14px;margin-bottom:16px;}
@@ -5106,13 +5149,11 @@ ${withPhoto?(()=>{const imgs=o.imageDataUrls&&o.imageDataUrls.length?o.imageData
 ${o.editHistory&&o.editHistory.length?`<div style="margin-top:10px;font-size:0.72rem;color:#f97316;">✏️ ${o.editHistory.map(e=>e.note+' ('+e.by+')').join(' | ')}</div>`:''}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px dashed #e5e7eb;">
   <div style="font-size:0.72rem;color:#9ca3af;">امسح الكود لتحديث الطلب</div>
-  <div id="qr-print" style="width:90px;height:90px;"></div>
+  <div id="qr-print" style="width:90px;height:90px;">${qrHtml}</div>
 </div>
 <div class="foot">
 <button class="no-print" onclick="window.print()" style="padding:10px 28px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:0.9rem;cursor:pointer;margin-bottom:12px;">🖨 طباعة</button>
 <div>الكسواني روزميري © ${new Date().getFullYear()}</div></div>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-<script>window.addEventListener('load',function(){try{new QRCode(document.getElementById('qr-print'),{text:'${orderId}',width:90,height:90,colorDark:'#000',colorLight:'#fff'});}catch(e){}});<\/script>
 </body></html>`);
     pw.document.close();
   }).catch(e=>toast('❌ '+e.message));
@@ -5593,9 +5634,9 @@ function _printDaySheetWindow(orders,date){
 
   const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
 <title>كشف يومي — ${date}</title>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <style>
-*{font-family:'Tajawal',sans-serif;box-sizing:border-box;}
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+*{font-family:'Tajawal',Arial,sans-serif;box-sizing:border-box;}
 body{margin:0;padding:20px;color:#1a1a1a;font-size:0.88rem;background:#fff;}
 h1{text-align:center;font-size:1.1rem;color:#1a3a2a;margin:0 0 4px;}
 .subtitle{text-align:center;color:#6b7280;font-size:0.78rem;margin-bottom:16px;}
@@ -8027,7 +8068,7 @@ function printStoreOrder(){
     </tr>`).join('');
   const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>كشف حساب — ${_currentStoreName}</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
@@ -8709,7 +8750,7 @@ function printAcctStatement(){
     </tr>`).join('');
   const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>كشف حساب — ${_acctCurrentStore.name}</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
 h1{font-size:1.4rem;color:#1a3a2a;margin-bottom:4px;}h2{font-size:1rem;color:#374151;margin:18px 0 8px;}
 .meta{font-size:0.82rem;color:#6b7280;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #1a3a2a;}
@@ -10512,7 +10553,7 @@ function printOperatorDay(){
   const d=_buildOpDayHTML(true);
   const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
 <title>حساب المشغل — ${d.today}</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Tajawal',sans-serif;padding:30px;color:#1a1a1a;direction:rtl;}
