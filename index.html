@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v205" as="script">
+<link rel="preload" href="app.js?v206" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -755,6 +755,9 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .ro-fl.alert{color:var(--ro-alert-ink);border-color:var(--ro-alert);background:var(--ro-alert-bg);}
 .ro-fl.acc{color:var(--ro-acc);border-color:var(--ro-acc);background:var(--ro-tint);}
 .ro-fl.n{color:var(--ro-t2);border-color:var(--ro-hair);background:var(--ro-tint);}
+/* شارة قابلة للنقر — هدف لمس أكبر حتى لا تُفتح بطاقة الطلب بالخطأ */
+.ro-fl.tap{cursor:pointer;-webkit-appearance:none;appearance:none;line-height:1;min-height:26px;padding:6px 10px;color:var(--ro-acc);border-color:var(--ro-acc);background:var(--ro-tint);transition:background .12s,transform .12s;}
+.ro-fl.tap:active{transform:scale(.96);background:rgba(17,148,90,.18);}
 .ro-memo{margin-top:11px;font-size:.84rem;padding:8px 10px;border-radius:7px;line-height:1.55;background:var(--ro-alert-bg);border-right:2px solid var(--ro-alert);color:var(--ro-alert-ink);}
 .ro-memo.n{background:var(--ro-tint);border-right-color:var(--ro-acc);color:var(--ro-t1);}
 .ro-rep{margin-top:9px;font-size:.85rem;font-weight:600;color:var(--ro-t1);line-height:1.65;}
@@ -4399,7 +4402,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v205"></script>
+<script src="app.js?v206"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">
