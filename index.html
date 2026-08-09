@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v206" as="script">
+<link rel="preload" href="app.js?v207" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -3846,8 +3846,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <button onclick="submitEmpOrder()" style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسجيل الطلب</button>
     </div>
 
-    <!-- Today's orders -->
-    <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;margin-bottom:10px;">📦 طلباتي</div>
+    <!-- My orders — كل الطلبات من «جديد» حتى «تم التوصيل» -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">📦 طلباتي</div>
+      <div id="empMyCount" style="font-size:0.72rem;color:#9ca3af;font-weight:700;"></div>
+    </div>
+    <input id="empMySearch" type="search" inputmode="search" placeholder="🔎 ابحث برقم الزبون أو الاسم أو رقم الطلب" oninput="setEmpMySearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;margin-bottom:8px;" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e5e7eb'">
+    <div id="empMyChips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;"></div>
     <div id="empOrdersList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div></div>
     </div><!-- end empNormalOrderSection -->
 
@@ -4402,7 +4407,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v206"></script>
+<script src="app.js?v207"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">

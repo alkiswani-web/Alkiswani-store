@@ -2904,20 +2904,98 @@ async function submitEmpOrder(){
   if(btn){btn.disabled=false;btn.textContent='✅ تسجيل الطلب';}
 }
 
+// ═════════ طلباتي — رحلة الطلب من «جديد» حتى «تم التوصيل» ═════════
+// مراحل مجمّعة: الموظف يهمّه أين وصل الطلب، لا الحالة الداخلية الدقيقة.
+const EMP_MY_GROUPS=[
+  {k:'all',      label:'الكل',        st:null},
+  {k:'pending',  label:'جديد',        st:['pending']},
+  {k:'preparing',label:'قيد التجهيز', st:['preparing']},
+  {k:'prepared', label:'تم التجهيز',  st:['prepared']},
+  {k:'onway',    label:'مع المندوب',  st:['queued','waiting_rep','delivering','onhold','postponed']},
+  {k:'delivered',label:'تم التوصيل',  st:['delivered']},
+  {k:'problem',  label:'ملغي/مرتجع',  st:['cancelled','returned','refused']},
+];
+// مسار المراحل الأربع لشريط التقدّم على كل بطاقة
+const _EMP_MY_STEP={pending:1,preparing:2,prepared:3,queued:3,waiting_rep:3,onhold:3,postponed:3,delivering:4,delivered:4};
+let _empMyFilter='all';
+let _empMySearch='';
+let _empMyCap=25;
+const EMP_MY_PAGE=25;
+
+function setEmpMyFilter(k){
+  _empMyFilter=k;_empMyCap=EMP_MY_PAGE;
+  _renderEmpMyOrders();
+}
+let _empMySearchTimer=null;
+function setEmpMySearch(v){
+  _empMySearch=String(v||'').trim().toLowerCase();
+  _empMyCap=EMP_MY_PAGE;
+  clearTimeout(_empMySearchTimer);
+  _empMySearchTimer=setTimeout(()=>_renderEmpMyOrders(),220);
+}
+function empMyShowMore(){_empMyCap+=EMP_MY_PAGE;_renderEmpMyOrders();}
+window.setEmpMyFilter=setEmpMyFilter;
+window.setEmpMySearch=setEmpMySearch;
+window.empMyShowMore=empMyShowMore;
+
+function _empMyMatches(o,s){
+  if(!s)return true;
+  return (o.customerPhone||'').toLowerCase().includes(s)
+    ||(o.customerName||'').toLowerCase().includes(s)
+    ||(o.orderNum||'').toString().toLowerCase().includes(s)
+    ||(o.id||'').toLowerCase().includes(s)
+    ||(o.address||'').toLowerCase().includes(s)
+    ||(o.products||[]).some(p=>(p.name||'').toLowerCase().includes(s));
+}
+
 function loadEmpTodayOrders(){
   const wrap=document.getElementById('empOrdersList');
   if(!wrap||!_empCurrentUser)return;
   if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">⏳</div>';
-  _empTodayUnsub=db.collection('employee_orders')
-    .where('workerId','==',_empCurrentUser.id)
-    .limit(150)
-    .onSnapshot(snap=>{
-      const orders=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-      window._empMyOrdersCache=orders; // للتعبئة الفورية بنافذة التعديل
-      if(!orders.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div>';return;}
-      wrap.innerHTML=orders.map(o=>{
+  const base=db.collection('employee_orders').where('workerId','==',_empCurrentUser.id);
+  const onData=snap=>{
+    window._empMyOrdersCache=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    _renderEmpMyOrders();
+  };
+  // الترتيب بالتاريخ يحتاج فهرساً مركّباً (workerId + createdAt)؛ إن لم يكن
+  // موجوداً نرجع لاستعلام المساواة وحده ونرتّب في المتصفّح — فلا تنقطع القائمة.
+  const subscribeFallback=()=>{
+    if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
+    _empTodayUnsub=base.onSnapshot(onData,
+      e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ خطأ في التحميل — '+(e.message||'')+'</div>';});
+  };
+  _empTodayUnsub=base.orderBy('createdAt','desc').limit(500).onSnapshot(onData,()=>subscribeFallback());
+}
+
+function _renderEmpMyOrders(){
+  const wrap=document.getElementById('empOrdersList');
+  if(!wrap)return;
+  const all=window._empMyOrdersCache||[];
+
+  // شرائح المراحل مع العدّاد
+  const chipsEl=document.getElementById('empMyChips');
+  if(chipsEl){
+    chipsEl.innerHTML=EMP_MY_GROUPS.map(g=>{
+      const n=g.st?all.filter(o=>g.st.includes(o.status)).length:all.length;
+      const on=_empMyFilter===g.k;
+      return `<button type="button" onclick="setEmpMyFilter('${g.k}')" style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:1.5px solid ${on?'#166534':'#e5e7eb'};background:${on?'#166534':'#fff'};color:${on?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;white-space:nowrap;">${g.label}${n?` <span style="opacity:.75;">${n}</span>`:''}</button>`;
+    }).join('');
+  }
+
+  const grp=EMP_MY_GROUPS.find(g=>g.k===_empMyFilter)||EMP_MY_GROUPS[0];
+  let orders=grp.st?all.filter(o=>grp.st.includes(o.status)):all;
+  if(_empMySearch)orders=orders.filter(o=>_empMyMatches(o,_empMySearch));
+
+  const cntEl=document.getElementById('empMyCount');
+  if(cntEl)cntEl.textContent=all.length?`${orders.length} من ${all.length}`:'';
+
+  if(!all.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div>';return;}
+  if(!orders.length){wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا توجد نتائج</div>';return;}
+
+  const shown=orders.slice(0,_empMyCap);
+  wrap.innerHTML=shown.map(o=>{
         const st=_empSt(o.status);
         const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
         const prodsTotal=prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
@@ -2928,6 +3006,17 @@ function loadEmpTodayOrders(){
         const orderLabel=o.orderNum?`#${o.orderNum}`:'#'+o.id.slice(-6).toUpperCase();
         const canEdit=!['delivered','cancelled','returned','refused'].includes(o.status);
         const canCancel=!['cancelled','returned','refused','delivered'].includes(o.status);
+        // شريط الرحلة: جديد ← تجهيز ← جاهز ← تسليم (يختفي على الطلبات الملغاة)
+        const dead=['cancelled','returned','refused'].includes(o.status);
+        const step=_EMP_MY_STEP[o.status]||0;
+        const track=dead?'':`<div style="display:flex;align-items:center;gap:3px;padding:9px 12px 0;">${
+          ['جديد','تجهيز','جاهز','تسليم'].map((t,i)=>{
+            const on=i+1<=step;
+            return `<div style="flex:1;text-align:center;">
+              <div style="height:4px;border-radius:3px;background:${on?st.color:'#e5e7eb'};"></div>
+              <div style="font-size:0.6rem;margin-top:3px;font-weight:700;color:${on?st.color:'#c9cfd6'};">${t}</div>
+            </div>`;
+          }).join('')}</div>`;
         return `<div style="background:#fff;border:1.5px solid ${st.border};border-radius:14px;overflow:hidden;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
           <!-- Header bar -->
           <div style="background:${st.bg};padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${st.border};">
@@ -2938,6 +3027,7 @@ function loadEmpTodayOrders(){
             </div>
           </div>
           ${o.needsReview?`<div style="background:#fff7ed;padding:6px 12px;font-size:0.75rem;color:#c2410c;font-weight:700;border-bottom:1px solid #fed7aa;">✏️ تعديل من الموظف – يحتاج مراجعة</div>`:''}
+          ${track}
           <!-- Body -->
           <div style="padding:12px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -2971,8 +3061,10 @@ function loadEmpTodayOrders(){
             </div>
           </div>
         </div>`;
-      }).join('');
-    },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ خطأ في التحميل</div>';});
+  }).join('')
+  +(orders.length>shown.length
+    ?`<button type="button" onclick="empMyShowMore()" style="width:100%;padding:11px;background:#f8fafc;color:#374151;border:1.5px dashed #cbd5e1;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">⌄ عرض المزيد — ${shown.length} من ${orders.length}</button>`
+    :'');
 }
 
 async function cancelEmpOrder(id){
