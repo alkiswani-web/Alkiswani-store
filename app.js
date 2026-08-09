@@ -3053,8 +3053,7 @@ function _renderEmpMyOrders(){
             ${o.imageDataUrl?`<img loading="lazy" decoding="async" src="${o.imageDataUrl}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:8px;" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'160px':'none'>"` :''}
             <!-- Edit history -->
             ${o.editHistory?.length?`<div style="font-size:0.7rem;color:#f97316;margin-bottom:6px;">✏️ تم التعديل ${o.editHistory.length} مرة</div>`:''}
-            <!-- Action buttons -->
-            ${['pending','preparing'].includes(o.status)?`<div style="margin-bottom:8px;"><button onclick="updateEmpOrderStatus('${o.id}','prepared')" style="width:100%;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">✅ تم التجهيز</button></div>`:''}
+            <!-- Action buttons — موظف تسجيل الطلبات لا يغيّر حالة الطلب، فقط تعديل أو إلغاء -->
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${canEdit?`<button onclick="openEmpOrderEdit('${o.id}')" style="flex:1;padding:7px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>`:''}
               ${canCancel?`<button onclick="cancelEmpOrder('${o.id}')" style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>`:''}
