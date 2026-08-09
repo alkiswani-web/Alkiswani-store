@@ -3986,6 +3986,9 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
   const isHold=o.status==='onhold';
   const label=o.orderNum?('#'+o.orderNum):('#'+(o.id||'').slice(-5).toUpperCase());
   const phone=(o.customerPhone||'').trim();
+  // عدد طلبات هذا الرقم — يُستعمل لشارة «زبون متكرر» القابلة للنقر
+  const repeatN=(customerHist&&customerHist.get)?(customerHist.get(phone)||0):0;
+  const _roPhoneArg=phone.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const step=_roStep(o.status);
 
   // ── سلّم التقدّم على الحافة ──
@@ -4057,9 +4060,9 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
             <div><em>المنطقة</em>${_roEsc(o.area||o.address||'—')}</div>
           </div>
           <div class="ro-chips">${chips}</div>
-          ${o.needsReview||_repeatBadge(phone,customerHist,'sm')?`<div class="ro-flags">
+          ${o.needsReview||repeatN>1?`<div class="ro-flags">
             ${o.needsReview?'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>':''}
-            ${_repeatBadge(phone,customerHist,'sm')?'<span class="ro-fl n">زبون متكرر</span>':''}
+            ${repeatN>1?`<button type="button" class="ro-fl n tap" title="عرض طلبات الزبون السابقة" onclick="event.stopPropagation();viewCustomerHistory('${_roPhoneArg}')">زبون متكرر · ${repeatN} ←</button>`:''}
           </div>`:''}
           ${o.address&&o.area?`<div class="ro-rep">📍 ${_roEsc(o.address)}</div>`:''}
           ${o.notes?`<div class="ro-rep">📝 ${_roEsc(o.notes)}</div>`:''}
