@@ -15269,37 +15269,31 @@ async function loadBalanceTab(){
   const _matStart=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
   const _matSid=(_opCurrentSession&&_opCurrentSession.id)||null;
   try{
-    if(!_opProductsList.length){try{await loadOpProducts();}catch(e){}}
+    // ── الطلبات الراجعة تُستثنى من المستهلك ──
+    // طلب من كشف سابق تبقى مبيعته في operator_sales (حفاظاً على الكشف القديم)
+    // ويُسجَّل الإرجاع في page_refunds. ونستثني كذلك أي طلب حالته الآن
+    // ملغي/مرتجع/رفض ولم يُسجَّل له إرجاع — كالطلبات التي أُلغيت قبل إصلاح
+    // «ملغي». الاستثناء يتم على مستوى المبيعة نفسها، فتُطرح تكلفتها المسجّلة
+    // وقت البيع بالضبط، لا تكلفة المنتج الحالية التي قد تكون تغيّرت.
+    const cancelledOrders=new Set();
+    try{
+      const rsnap=await db.collection('page_refunds').get();
+      rsnap.docs.forEach(d=>{const r=d.data();if(r.orderId)cancelledOrders.add(r.orderId);});
+    }catch(e){}
+    try{
+      const osnap=await db.collection('employee_orders').where('status','in',['cancelled','returned','refused']).get();
+      osnap.docs.forEach(d=>cancelledOrders.add(d.id));
+    }catch(e){}
     const snap=await db.collection('operator_sales').get();
     let rawSold=0,treeSold=0;
-    snap.docs.filter(d=>{const s=d.data();return s.delivered!==false&&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
+    snap.docs.filter(d=>{const s=d.data();
+      return s.delivered!==false
+        &&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId))
+        &&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
       const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
     });
-    // المرتجعات: طلب من كشف سابق يُرجَع لا تُحذف مبيعته (حفاظاً على الكشف
-    // القديم) بل يُسجَّل في page_refunds — فلو لم نطرحه هنا بقيت تكلفته
-    // (شجر/مواد خام) محسوبة كأنها مباعة رغم رجوع البضاعة.
-    try{
-      const rsnap=await db.collection('page_refunds').get();
-      rsnap.docs.forEach(d=>{
-        const r=d.data();
-        if((r.date||'9999')<_matStart)return;
-        if(r.sessionId&&_matSid&&r.sessionId!==_matSid)return;
-        (r.items||[]).forEach(it=>{
-          const q=it.qty||1;
-          let raw=it.unitRaw,tree=it.unitTree;
-          if(raw==null||tree==null){
-            // سجلات قديمة تحفظ التكلفة مجمّعة — نفكّها من بطاقة المنتج
-            const op=_opProductsList.find(x=>x.name===it.name);
-            if(op){raw=op.rawMaterialCost||0;tree=op.treeCost||0;}
-            else{raw=it.unitCost||0;tree=0;}
-          }
-          rawSold-=raw*q;treeSold-=tree*q;
-        });
-      });
-    }catch(e){}
-    rawSold=Math.max(0,rawSold);treeSold=Math.max(0,treeSold);
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
   }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;}
   // Set today's date in forms
