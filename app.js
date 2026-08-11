@@ -15239,7 +15239,8 @@ let _opBalPurchases=[];
 let _opBalPayments=[];
 let _opBalSalesRaw=0;
 let _opBalRawSold=0;          // تكلفة المواد الخام للطلبات المباعة
-let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المباعة (مورد شجر)
+let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المباعة ضمن فترة الكشف
+let _opBalTreeAll=0;          // تكلفة الشجر التراكمية — حساب مورّد الشجر الجاري
 let _opSuppliers=[];          // الموردين
 let _opSupplierPayments=[];   // دفعاتك للموردين
 
@@ -15285,17 +15286,22 @@ async function loadBalanceTab(){
       osnap.docs.forEach(d=>cancelledOrders.add(d.id));
     }catch(e){}
     const snap=await db.collection('operator_sales').get();
-    let rawSold=0,treeSold=0;
-    snap.docs.filter(d=>{const s=d.data();
-      return s.delivered!==false
-        &&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId))
-        &&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
+    let rawSold=0,treeSold=0,treeAll=0;
+    const _live=d=>{const s=d.data();
+      return s.delivered!==false&&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId));};
+    snap.docs.filter(_live).forEach(d=>{
       const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
+      // حساب مورّد الشجر جارٍ تراكمي — مثل باقي الموردين ومثل دفعاته له،
+      // فلا يُحصر بفترة الكشف وإلا قوبلت تكلفة فترة بدفعات العمر كلّه.
+      treeAll+=t*q;
+      if((s.date||'9999')<_matStart)return;
+      if(s.sessionId&&_matSid&&s.sessionId!==_matSid)return;
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
     });
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
-  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;}
+    _opBalTreeAll=treeAll;
+  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeAll=0;}
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
@@ -15354,9 +15360,11 @@ function renderBalanceSummary(){
   const rawSold=_opBalRawSold;     // المواد الخام — تُطرح من رأس المال (مستهلكة)
   // رأس المال = المتفق + مشتريات الموردين + شجر(شراء) − شجر(مباع) − مواد خام مباعة  → الشجر يلغي حاله
   const totalCapital=capitalBase+totalPurchases-rawSold;
-  // مورد «شجر» الافتراضي — مستحقاته = تكلفة الشجر − مدفوعاتك له
+  // مورد «شجر» الافتراضي — حساب جارٍ: تكلفة الشجر التراكمية − مدفوعاتك له
+  // (الطرفان من البداية؛ treeSold أعلاه يخصّ فترة الكشف ويُستعمل للأرباح فقط)
+  const treeCostAll=_opBalTreeAll;
   const treePaid=_opSupplierPayments.filter(p=>p.supplierId==='__tree__').reduce((s,p)=>s+(p.amount||0),0);
-  const treeBal=treeSold-treePaid;
+  const treeBal=treeCostAll-treePaid;
   const treePays=_opSupplierPayments.filter(p=>p.supplierId==='__tree__').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const treeTxRows=treePays.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
       <span style="font-size:0.72rem;color:#9fc7b4;">💳 دفعة${x.noCash?' <span style="color:#e7c66b;">(بدون كاش)</span>':''} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
@@ -15368,7 +15376,7 @@ function renderBalanceSummary(){
         <button onclick="paySupplier('__tree__','شجر')" style="padding:6px 13px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💳 دفعة</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
-        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">تكلفة الشجر</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${treeSold.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">تكلفة الشجر</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${treeCostAll.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">مدفوع</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${treePaid.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${treeBal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${treeBal.toFixed(2)}</div></div>
       </div>
