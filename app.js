@@ -4968,7 +4968,12 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
     });
     await batch.commit();
     if(!silent) toast(`✅ تم تسجيل الطلب في حساب "${store.name}"`);
-  }catch(e){console.error('syncOrderToAccounting error:',e);}
+  }catch(e){
+    // فشل التسجيل هنا يعني طلباً مُسلَّماً لا يظهر على حساب المتجر — خسارة
+    // صامتة في المستحق. كان يُكتب في console فقط، فلا يعلم به أحد.
+    console.error('syncOrderToAccounting error:',e);
+    toast(`⚠️ لم يُسجَّل الطلب في حساب "${store.name}" — أعد المحاولة`);
+  }
 }
 
 async function unsyncOrderFromAccounting(orderId){
@@ -8950,8 +8955,11 @@ async function loadSessionArchive(){
   const el=document.getElementById('op_sessions_archive');
   if(!el)return;
   try{
-    const snap=await db.collection('operator_sessions').where('status','==','closed').limit(20).get();
-    const docs=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+    // بلا ترتيب كان يُرجع 20 كشفاً بترتيب المعرّف — أي عيّنة عشوائية لا الأحدث
+    let snap;
+    try{snap=await db.collection('operator_sessions').where('status','==','closed').orderBy('closedDate','desc').limit(20).get();}
+    catch(e){snap=await db.collection('operator_sessions').where('status','==','closed').get();}
+    const docs=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||'')).slice(0,20);
     if(!docs.length){el.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.8rem;padding:12px;">لا توجد كشوفات مغلقة بعد</div>';return;}
     el.innerHTML=docs.map(s=>{
       return `<div onclick="openOperatorDailyAccount('${s.id}')" style="background:var(--card-bg);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
@@ -13981,23 +13989,28 @@ function loadRepOrders(){
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     _renderRepOrders(all);
   }
+  // limit(80) بلا ترتيب كان يُرجع 80 مستنداً بترتيب المعرّف لا التاريخ، ثم
+  // تُصفّى الطلبات المنتهية بعد ذلك — فمندوب له طلبات كثيرة قديمة قد لا يرى
+  // طلباته النشطة إطلاقاً. نرتّب بالتاريخ، ومع تعذّر الفهرس المركّب نرجع
+  // للاستعلام المجرّد كي لا تنقطع القائمة.
+  // الطلبات المنتهية تُصفّى بعد الجلب، فأي سقف صغير قد يُستهلك كلّه بطلبات
+  // قديمة مسلَّمة ولا يبقى للنشطة مكان. المسار المرتّب يأخذ الأحدث 200،
+  // والمسار الاحتياطي (بلا فهرس) يجلب طلبات المندوب كلها ويرتّب في المتصفّح.
+  const _subRep=(field,value,set,onErr)=>{
+    const base=db.collection('employee_orders').where(field,'==',value);
+    const box={fn:null};
+    const apply=snap=>{set(snap.docs.map(d=>({id:d.id,...d.data()})));_mergeAndRender();};
+    const fallback=()=>{if(box.fn)box.fn();box.fn=base.onSnapshot(apply,onErr||(()=>{}));};
+    box.fn=base.orderBy('createdAt','desc').limit(200).onSnapshot(apply,()=>fallback());
+    return ()=>{if(box.fn)box.fn();};
+  };
   // Query 1: by phone
-  _repMyOrdersUnsub=db.collection('employee_orders')
-    .where('deliveryRepPhone','==',phone).limit(80)
-    .onSnapshot(snap=>{_byPhone=snap.docs.map(d=>({id:d.id,...d.data()}));_mergeAndRender();},
+  _repMyOrdersUnsub=_subRep('deliveryRepPhone',phone,v=>{_byPhone=v;},
     e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:12px;text-align:center;">❌ '+e.message+'</div>';});
   // Query 2: by exact name
-  if(name){
-    _repMyOrdersUnsub2=db.collection('employee_orders')
-      .where('deliveryRepName','==',name).limit(80)
-      .onSnapshot(snap=>{_byExact=snap.docs.map(d=>({id:d.id,...d.data()}));_mergeAndRender();},()=>{});
-  }
+  if(name) _repMyOrdersUnsub2=_subRep('deliveryRepName',name,v=>{_byExact=v;});
   // Query 3: by normalized name (أ/إ/آ → ا) — only if different from exact
-  if(name&&normName!==name){
-    _repMyOrdersUnsub3=db.collection('employee_orders')
-      .where('deliveryRepName','==',normName).limit(80)
-      .onSnapshot(snap=>{_byNorm=snap.docs.map(d=>({id:d.id,...d.data()}));_mergeAndRender();},()=>{});
-  }
+  if(name&&normName!==name) _repMyOrdersUnsub3=_subRep('deliveryRepName',normName,v=>{_byNorm=v;});
 }
 
 function _renderRepOrders(orders){
@@ -17088,13 +17101,15 @@ async function bulkDeliverSelected(){
   const ids=[..._delivSelectedIds];
   if(!ids.length){toast('⚠️ ما في طلبات محددة');return;}
   if(!confirm(`تسليم ${ids.length} طلب؟`))return;
-  let done=0;
+  let done=0;const failed=[];
   for(const id of ids){
-    try{await updateEmpOrderStatus(id,'delivered');done++;}catch(e){}
+    try{await updateEmpOrderStatus(id,'delivered');done++;}
+    catch(e){failed.push(id);}   // كان يُبتلع بصمت فتبدو العملية ناجحة كلّها
   }
   _delivSelectedIds.clear();
   _delivSelectMode=false;
-  toast(`✅ تم تسليم ${done} طلب`);
+  if(failed.length)toast(`⚠️ سُلِّم ${done} وفشل ${failed.length} — أعد المحاولة عليها`);
+  else toast(`✅ تم تسليم ${done} طلب`);
   _renderOpOrdersView();
 }
 
