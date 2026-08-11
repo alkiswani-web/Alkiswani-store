@@ -15517,16 +15517,36 @@ async function cleanDuplicateSales(){
       });
     }
     if(!extras.length){toast('✅ لا يوجد صفوف مكرّرة');return;}
-    const treeSum=extras.reduce((s,r)=>s+((r.treeCost||0)*(r.qty||1)),0);
-    const rawSum=extras.reduce((s,r)=>s+((r.rawMaterialCost||0)*(r.qty||1)),0);
-    const lines=extras.slice(0,12).map(r=>`• ${r.productName||'—'} — ${r.date||''} — شجر ${((r.treeCost||0)*(r.qty||1)).toFixed(2)}`).join('\n');
-    if(!confirm(`وُجد ${extras.length} صفّ مكرّر:\n\n${lines}${extras.length>12?`\n… و${extras.length-12} غيرها`:''}\n\nبحذفها تنقص تكلفة الشجر ${treeSum.toFixed(2)} والمواد الخام ${rawSum.toFixed(2)}.\n\nمتابعة الحذف؟`))return;
-    for(let i=0;i<extras.length;i+=400){
+    // صفّ المبيعة لا يحمل التكلفة فقط — يحمل أيضاً السعر الرسمي الذي يبني
+    // «المستحق على المتجر». فحذف صفّ من فترة قديمة يغيّر حساب متجر ربما
+    // سُوّي ودُفع سلفاً. لذلك نقصر الحذف على فترة الكشف المباشر، ونكتفي
+    // بعرض عدد ما قبلها دون المساس به.
+    const _from=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
+    const older=extras.filter(r=>(r.date||'9999')<_from);
+    const target=extras.filter(r=>(r.date||'9999')>=_from);
+    if(!target.length){
+      alert(`كل الصفوف المكرّرة (${older.length}) أقدم من الكشف المباشر (${_from}).\n\nلن تُحذف: حذفها يغيّر حسابات متاجر عن فترات سابقة قد تكون سُوّيت.`);
+      return;
+    }
+    const sum=(arr,f)=>arr.reduce((s,r)=>s+(f(r)*(r.qty||1)),0);
+    const treeSum=sum(target,r=>r.treeCost||0);
+    const rawSum=sum(target,r=>r.rawMaterialCost||0);
+    const oweSum=sum(target,r=>r.sellPrice||0);
+    const lines=target.slice(0,10).map(r=>`• ${r.productName||'—'} — ${r.date||''} — مستحق ${(((r.sellPrice||0))*(r.qty||1)).toFixed(2)} · شجر ${((r.treeCost||0)*(r.qty||1)).toFixed(2)}`).join('\n');
+    if(!confirm(
+      `${target.length} صفّ مكرّر ضمن الكشف المباشر (من ${_from}):\n\n${lines}${target.length>10?`\n… و${target.length-10} غيرها`:''}\n\n`
+      +`أثر الحذف:\n`
+      +`• المستحق على المتاجر −${oweSum.toFixed(2)}\n`
+      +`• تكلفة الشجر −${treeSum.toFixed(2)}\n`
+      +`• المواد الخام −${rawSum.toFixed(2)}\n\n`
+      +(older.length?`(${older.length} صفّ أقدم من الكشف المباشر لن يُمَسّ)\n\n`:'')
+      +`متابعة الحذف؟`))return;
+    for(let i=0;i<target.length;i+=400){
       const batch=db.batch();
-      extras.slice(i,i+400).forEach(r=>batch.delete(r.ref));
+      target.slice(i,i+400).forEach(r=>batch.delete(r.ref));
       await batch.commit();
     }
-    toast(`✅ حُذف ${extras.length} صفّ مكرّر`);
+    toast(`✅ حُذف ${target.length} صفّ مكرّر`);
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
 }
