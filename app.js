@@ -4837,11 +4837,13 @@ async function deleteEmpOrder(id){
   try{
     const snap=await db.collection('employee_orders').doc(id).get();
     const data=snap.exists?snap.data():null;
+    // المبيعة تُسجَّل عند «قيد التوصيل» أيضاً لا «تم التوصيل» وحدها، وكان
+    // الحذف يزيلها في الحالة الثانية فقط — فيبقى صفّ مبيعة بلا طلب يقابله،
+    // تُحتسب تكلفته للأبد ولا يمكن مطابقته لاحقاً لأن الطلب اختفى.
+    // الاستدعاء بلا شرط آمن: لا يفعل شيئاً إن لم تكن هناك صفوف.
     await db.collection('employee_orders').doc(id).delete();
-    if(data?.status==='delivered'){
-      unsyncOrderFromAccounting(id);
-      addPageRefundEntry(id,data,'deleted');
-    }
+    await unsyncOrderFromAccounting(id);
+    if(data?.status==='delivered') addPageRefundEntry(id,data,'deleted');
     toast('🗑 تم حذف الطلب');
   }catch(e){toast('❌ '+e.message);}
 }
