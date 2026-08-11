@@ -4895,8 +4895,9 @@ async function updateEmpOrderStatus(id,newStatus){
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivering'){
       unsyncOrderFromAccounting(id);
     }
-    // Only 'returned' and 'refused' trigger accounting refund — 'cancelled' is a no-op
-    if(['returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
+    // طلب مُسلَّم يُلغى أو يُرجَع ⇒ عكس المبيعة. «ملغي» كان مستثنى، فكانت
+    // تكلفته (شجر/مواد خام) تبقى محسوبة كأنها مباعة رغم رجوع البضاعة.
+    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
       _handleDeliveredCancel(id,data,newStatus);
     }
     if(!['cancelled','returned','refused','delivered'].includes(newStatus)){
@@ -5036,7 +5037,11 @@ async function addPageRefundEntry(orderId, orderData, reason){
       const unitCost=op?((op.rawMaterialCost||0)+(op.treeCost||0)+(op.machineWorkerWage||0)+(op.assemblyWorkerWage||0)):0;
       const qty=p.qty||1;
       totalCost+=unitCost*qty;
-      return {name:p.name||'',qty,unitCost};
+      // نحفظ الشجر والمواد الخام منفصلين ليُخصما من المستهلك لاحقاً
+      // بتكلفة وقت الإرجاع، لا بتكلفة المنتج الحالية إن تغيّرت
+      return {name:p.name||'',qty,unitCost,
+        unitRaw:op?(op.rawMaterialCost||0):0,
+        unitTree:op?(op.treeCost||0):0};
     });
     if(totalCost<=0) return;
     await db.collection('page_refunds').add({
@@ -15264,6 +15269,7 @@ async function loadBalanceTab(){
   const _matStart=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
   const _matSid=(_opCurrentSession&&_opCurrentSession.id)||null;
   try{
+    if(!_opProductsList.length){try{await loadOpProducts();}catch(e){}}
     const snap=await db.collection('operator_sales').get();
     let rawSold=0,treeSold=0;
     snap.docs.filter(d=>{const s=d.data();return s.delivered!==false&&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
@@ -15271,6 +15277,29 @@ async function loadBalanceTab(){
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
     });
+    // المرتجعات: طلب من كشف سابق يُرجَع لا تُحذف مبيعته (حفاظاً على الكشف
+    // القديم) بل يُسجَّل في page_refunds — فلو لم نطرحه هنا بقيت تكلفته
+    // (شجر/مواد خام) محسوبة كأنها مباعة رغم رجوع البضاعة.
+    try{
+      const rsnap=await db.collection('page_refunds').get();
+      rsnap.docs.forEach(d=>{
+        const r=d.data();
+        if((r.date||'9999')<_matStart)return;
+        if(r.sessionId&&_matSid&&r.sessionId!==_matSid)return;
+        (r.items||[]).forEach(it=>{
+          const q=it.qty||1;
+          let raw=it.unitRaw,tree=it.unitTree;
+          if(raw==null||tree==null){
+            // سجلات قديمة تحفظ التكلفة مجمّعة — نفكّها من بطاقة المنتج
+            const op=_opProductsList.find(x=>x.name===it.name);
+            if(op){raw=op.rawMaterialCost||0;tree=op.treeCost||0;}
+            else{raw=it.unitCost||0;tree=0;}
+          }
+          rawSold-=raw*q;treeSold-=tree*q;
+        });
+      });
+    }catch(e){}
+    rawSold=Math.max(0,rawSold);treeSold=Math.max(0,treeSold);
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
   }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;}
   // Set today's date in forms
