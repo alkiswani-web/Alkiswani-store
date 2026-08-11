@@ -15245,6 +15245,7 @@ let _opBalSalesRaw=0;
 let _opBalRawSold=0;          // تكلفة المواد الخام للطلبات المباعة
 let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المباعة (مورد شجر)
 let _opBalTreeRows=[];        // تفصيل تكلفة الشجر — كل مبيعة ساهمت فيها
+let _opBalDupIds=new Set();   // معرّفات صفوف المبيعات الزائدة عن الطلب الأصلي
 let _treeScanWarn='';         // تحذير إن تعذّر استبعاد الطلبات الملغاة
 let _opSuppliers=[];          // الموردين
 let _opSupplierPayments=[];   // دفعاتك للموردين
@@ -15306,6 +15307,13 @@ async function loadBalanceTab(){
     });
     treeRows.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     _opBalTreeRows=treeRows;
+    // الصفوف الزائدة فعلاً — بنفس تعريف أداة التنظيف، فما يُعلَّم هو ما يُحذف.
+    // نفحص مبيعات الفترة فقط (وهي المعروضة) تفادياً لجلب طلبات لا تُعرض.
+    try{
+      const inWindow=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>
+        s.delivered!==false&&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid));
+      _opBalDupIds=new Set((await _findExtraSaleRows(inWindow)).map(r=>r.id));
+    }catch(e){_opBalDupIds=new Set();}
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
   }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeRows=[];}
   // Set today's date in forms
@@ -15376,10 +15384,11 @@ function renderBalanceSummary(){
     </div>`).join('');
   // تفصيل التكلفة مجمّعاً باليوم — يجيب على «من وين جاء هذا الرقم؟»
   const treeCostRows=_opBalTreeRows||[];
-  // كشف الصفوف المكرّرة (نفس الطلب ونفس المنتج) — أثر ثغرة تكرار قديمة
-  const _dupSeen={};
-  treeCostRows.forEach(x=>{const k=(x.ord||x.id)+'|'+x.name;_dupSeen[k]=(_dupSeen[k]||0)+1;});
-  const _dupCount=Object.values(_dupSeen).filter(n=>n>1).length;
+  // الصفوف الزائدة فعلاً (محسوبة مقابل الطلب الأصلي) — هي نفسها ما ستحذفه الأداة
+  const _dupIds=_opBalDupIds||new Set();
+  const _dupRows=treeCostRows.filter(x=>_dupIds.has(x.id));
+  const _dupCount=_dupRows.length;
+  const _dupTree=_dupRows.reduce((s,x)=>s+x.total,0);
   const treeByDay=[];
   treeCostRows.forEach(x=>{
     let g=treeByDay.find(y=>y.date===x.date);
@@ -15391,7 +15400,7 @@ function renderBalanceSummary(){
         <span style="font-size:0.72rem;font-weight:800;color:#d7ebe0;">📅 ${g.date||'—'}</span>
         <span style="font-weight:800;font-size:0.78rem;color:#6ee7a8;font-variant-numeric:tabular-nums;">+${g.total.toFixed(2)}</span>
       </div>
-      ${g.items.map(it=>{const dup=_dupSeen[(it.ord||it.id)+'|'+it.name]>1;
+      ${g.items.map(it=>{const dup=_dupIds.has(it.id);
         return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0 2px 10px;">
         <span style="font-size:0.67rem;color:${dup?'#f2a6a0':'#9fc7b4'};">${dup?'⚠️ ':''}${it.name}${it.store?' · '+it.store:''}${it.ord?` <span style="opacity:.6;">#${String(it.ord).slice(-5).toUpperCase()}</span>`:''}</span>
         <span style="font-size:0.67rem;color:${dup?'#f2a6a0':'#9fc7b4'};font-variant-numeric:tabular-nums;flex-shrink:0;">${it.qty} × ${it.unit.toFixed(2)} = ${it.total.toFixed(2)}</span>
@@ -15409,7 +15418,7 @@ function renderBalanceSummary(){
       </div>
       ${_treeScanWarn?`<div style="margin-top:8px;padding:7px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">⚠️ ${_treeScanWarn}</div>`:''}
       ${_dupCount?`<div style="margin-top:8px;padding:8px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">
-        ⚠️ ${_dupCount} منتج مسجَّل أكثر من مرّة لنفس الطلب — مُعلَّم بـ⚠️ في التفصيل
+        ⚠️ ${_dupCount} صفّ شجر زائد عمّا يذكره الطلب (${_dupTree.toFixed(2)} د.أ) — مُعلَّم بـ⚠️ في التفصيل
         <button onclick="cleanDuplicateSales()" style="display:block;width:100%;margin-top:7px;padding:7px;background:rgba(242,166,160,.22);color:#ffd9d5;border:1px solid rgba(242,166,160,.45);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:800;cursor:pointer;">🧹 فحص وتنظيف المكرّر</button>
       </div>`:''}
       ${treeCostRows.length?`<button onclick="toggleBalSection('sup_cost___tree__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌳 من وين التكلفة؟ (${treeCostRows.length})</span><span>▼</span></button>
@@ -15486,36 +15495,40 @@ async function resetCapital(){
 // لا نحذف بالتخمين: نقارن عدد صفوف كل منتج بعدد مرّات وروده في الطلب
 // الأصلي، فما زاد عن ذلك هو نسخة مكرّرة. طلب فيه المنتج نفسه مرّتين
 // عن قصد يبقى كما هو، والطلب المحذوف لا يُمَسّ.
+// تحديد صفوف المبيعات الزائدة عن ما يذكره الطلب الأصلي.
+// تعريف واحد يستعمله التنبيه على البطاقة وأداة التنظيف معاً — وإلا اختلف
+// ما يُعلَّم عمّا يُحذف: تكرار اسم المنتج في صفوف طلب واحد ليس دليلاً، فقد
+// يكون الطلب نفسه يذكره مرّتين عن قصد.
+async function _findExtraSaleRows(rows){
+  const byOrder={};
+  rows.forEach(r=>{if(r.fromOrderId)(byOrder[r.fromOrderId]=byOrder[r.fromOrderId]||[]).push(r);});
+  const key=r=>(r.productId||'')+'|'+(r.productName||'');
+  const extras=[];
+  for(const [oid,list] of Object.entries(byOrder)){
+    const counts={};list.forEach(r=>{counts[key(r)]=(counts[key(r)]||0)+1;});
+    if(!Object.values(counts).some(n=>n>1))continue;   // لا تكرار محتمل أصلاً
+    let order=null;
+    try{const os=await db.collection('employee_orders').doc(oid).get();if(os.exists)order=os.data();}catch(e){}
+    if(!order)continue;                                 // الطلب محذوف — لا نجازف
+    const want={};
+    (order.products||[]).forEach(p=>{const k=(p.id||'')+'|'+(p.name||'');want[k]=(want[k]||0)+1;});
+    Object.keys(counts).forEach(k=>{
+      const expected=want[k]||0;
+      if(counts[k]<=expected)return;
+      // نُبقي الصفوف ذات المعرّف الثابت أولاً (هي الأصل بعد الإصلاح)
+      const grp=list.filter(r=>key(r)===k)
+        .sort((a,b)=>(String(b.id).startsWith(oid+'_')?1:0)-(String(a.id).startsWith(oid+'_')?1:0));
+      grp.slice(Math.max(expected,1)).forEach(r=>extras.push(r));
+    });
+  }
+  return extras;
+}
+
 async function cleanDuplicateSales(){
   try{
     toast('⏳ جاري الفحص...');
     const snap=await db.collection('operator_sales').get();
-    const byOrder={};
-    snap.docs.forEach(d=>{
-      const s=d.data();
-      if(!s.fromOrderId)return;
-      (byOrder[s.fromOrderId]=byOrder[s.fromOrderId]||[]).push({id:d.id,ref:d.ref,...s});
-    });
-    const extras=[];
-    for(const [oid,rows] of Object.entries(byOrder)){
-      // لا يوجد تكرار محتمل أصلاً
-      const key=r=>(r.productId||'')+'|'+(r.productName||'');
-      const counts={};rows.forEach(r=>{counts[key(r)]=(counts[key(r)]||0)+1;});
-      if(!Object.values(counts).some(n=>n>1))continue;
-      let order=null;
-      try{const os=await db.collection('employee_orders').doc(oid).get();if(os.exists)order=os.data();}catch(e){}
-      if(!order)continue;                       // الطلب محذوف — لا نجازف
-      const want={};
-      (order.products||[]).forEach(p=>{const k=(p.id||'')+'|'+(p.name||'');want[k]=(want[k]||0)+1;});
-      Object.keys(counts).forEach(k=>{
-        const expected=want[k]||0;
-        if(counts[k]<=expected)return;
-        // نُبقي الصفوف ذات المعرّف الثابت أولاً (هي الأصل بعد الإصلاح)
-        const grp=rows.filter(r=>key(r)===k)
-          .sort((a,b)=>(b.id.startsWith(oid+'_')?1:0)-(a.id.startsWith(oid+'_')?1:0));
-        grp.slice(Math.max(expected,1)).forEach(r=>extras.push(r));
-      });
-    }
+    const extras=await _findExtraSaleRows(snap.docs.map(d=>({id:d.id,ref:d.ref,...d.data()})));
     if(!extras.length){toast('✅ لا يوجد صفوف مكرّرة');return;}
     // صفّ المبيعة لا يحمل التكلفة فقط — يحمل أيضاً السعر الرسمي الذي يبني
     // «المستحق على المتجر». فحذف صفّ من فترة قديمة يغيّر حساب متجر ربما
