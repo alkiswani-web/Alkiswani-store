@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v219';
+const CACHE = 'alkiswani-v220';
 // كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
 // اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
 const STATIC = 'alkiswani-static-1';
