@@ -4930,7 +4930,7 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
 
   try{
     const batch=db.batch();
-    products.forEach(product=>{
+    products.forEach((product,pi)=>{
       // بحث بالـ ID أولاً، فإذا ما لاقى يبحث بالاسم (للطلبات القديمة)
       const opProd=_opProductsList.find(p=>p.id===product.id)||_opProductsList.find(p=>p.name===product.name);
       const storePrice=opProd?.storePrices?.[store.id]||0;
@@ -4939,7 +4939,11 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       const sellPrice=storePrice||totalCost||0;
       const customerUnit=parseFloat(product.price)||0;
       const soldPrice=(customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
-      const ref=db.collection('operator_sales').doc();
+      // معرّف ثابت مشتقّ من الطلب: فحص التكرار أعلاه ليس ذرّياً (بينه وبين
+      // الكتابة عمليات await)، فنداءان متزامنان — «قيد التوصيل» ثم «تم
+      // التوصيل»، أو جهازان معاً — كانا يكتبان صفَّي مبيعة للمنتج نفسه
+      // فتُحتسب تكلفته مرّتين. بالمعرّف الثابت تُعيد الكتابة نفس المستند.
+      const ref=db.collection('operator_sales').doc(`${orderId}_${pi}`);
       batch.set(ref,{
         storeId:store.id,
         storeName:store.name,
@@ -15297,7 +15301,8 @@ async function loadBalanceTab(){
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
       // تفصيل تكلفة الشجر — ليعرف المستخدم من أين جاء الرقم بالضبط
-      if(t>0)treeRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',qty:q,unit:t,total:t*q});
+      if(t>0)treeRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',
+        qty:q,unit:t,total:t*q,ord:s.fromOrderId||'',id:d.id});
     });
     treeRows.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     _opBalTreeRows=treeRows;
@@ -15371,6 +15376,10 @@ function renderBalanceSummary(){
     </div>`).join('');
   // تفصيل التكلفة مجمّعاً باليوم — يجيب على «من وين جاء هذا الرقم؟»
   const treeCostRows=_opBalTreeRows||[];
+  // كشف الصفوف المكرّرة (نفس الطلب ونفس المنتج) — أثر ثغرة تكرار قديمة
+  const _dupSeen={};
+  treeCostRows.forEach(x=>{const k=(x.ord||x.id)+'|'+x.name;_dupSeen[k]=(_dupSeen[k]||0)+1;});
+  const _dupCount=Object.values(_dupSeen).filter(n=>n>1).length;
   const treeByDay=[];
   treeCostRows.forEach(x=>{
     let g=treeByDay.find(y=>y.date===x.date);
@@ -15382,10 +15391,11 @@ function renderBalanceSummary(){
         <span style="font-size:0.72rem;font-weight:800;color:#d7ebe0;">📅 ${g.date||'—'}</span>
         <span style="font-weight:800;font-size:0.78rem;color:#6ee7a8;font-variant-numeric:tabular-nums;">+${g.total.toFixed(2)}</span>
       </div>
-      ${g.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0 2px 10px;">
-        <span style="font-size:0.67rem;color:#9fc7b4;">${it.name}${it.store?' · '+it.store:''}</span>
-        <span style="font-size:0.67rem;color:#9fc7b4;font-variant-numeric:tabular-nums;flex-shrink:0;">${it.qty} × ${it.unit.toFixed(2)} = ${it.total.toFixed(2)}</span>
-      </div>`).join('')}
+      ${g.items.map(it=>{const dup=_dupSeen[(it.ord||it.id)+'|'+it.name]>1;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0 2px 10px;">
+        <span style="font-size:0.67rem;color:${dup?'#f2a6a0':'#9fc7b4'};">${dup?'⚠️ ':''}${it.name}${it.store?' · '+it.store:''}${it.ord?` <span style="opacity:.6;">#${String(it.ord).slice(-5).toUpperCase()}</span>`:''}</span>
+        <span style="font-size:0.67rem;color:${dup?'#f2a6a0':'#9fc7b4'};font-variant-numeric:tabular-nums;flex-shrink:0;">${it.qty} × ${it.unit.toFixed(2)} = ${it.total.toFixed(2)}</span>
+      </div>`;}).join('')}
     </div>`).join('');
   const treeRow=`<div style="background:rgba(90,168,120,.08);border:1px solid rgba(110,231,168,.28);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
@@ -15398,6 +15408,7 @@ function renderBalanceSummary(){
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${treeBal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${treeBal.toFixed(2)}</div></div>
       </div>
       ${_treeScanWarn?`<div style="margin-top:8px;padding:7px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">⚠️ ${_treeScanWarn}</div>`:''}
+      ${_dupCount?`<div style="margin-top:8px;padding:7px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">⚠️ ${_dupCount} منتج مسجَّل أكثر من مرّة لنفس الطلب — مُعلَّم بـ⚠️ في التفصيل</div>`:''}
       ${treeCostRows.length?`<button onclick="toggleBalSection('sup_cost___tree__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌳 من وين التكلفة؟ (${treeCostRows.length})</span><span>▼</span></button>
       <div id="sup_cost___tree__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${treeCostHtml}</div>`:''}
       ${treePays.length?`<button onclick="toggleBalSection('sup_tx___tree__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الدفعات (${treePays.length})</span><span>▼</span></button>
