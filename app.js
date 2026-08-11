@@ -15408,7 +15408,10 @@ function renderBalanceSummary(){
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${treeBal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${treeBal.toFixed(2)}</div></div>
       </div>
       ${_treeScanWarn?`<div style="margin-top:8px;padding:7px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">⚠️ ${_treeScanWarn}</div>`:''}
-      ${_dupCount?`<div style="margin-top:8px;padding:7px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">⚠️ ${_dupCount} منتج مسجَّل أكثر من مرّة لنفس الطلب — مُعلَّم بـ⚠️ في التفصيل</div>`:''}
+      ${_dupCount?`<div style="margin-top:8px;padding:8px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">
+        ⚠️ ${_dupCount} منتج مسجَّل أكثر من مرّة لنفس الطلب — مُعلَّم بـ⚠️ في التفصيل
+        <button onclick="cleanDuplicateSales()" style="display:block;width:100%;margin-top:7px;padding:7px;background:rgba(242,166,160,.22);color:#ffd9d5;border:1px solid rgba(242,166,160,.45);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:800;cursor:pointer;">🧹 فحص وتنظيف المكرّر</button>
+      </div>`:''}
       ${treeCostRows.length?`<button onclick="toggleBalSection('sup_cost___tree__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌳 من وين التكلفة؟ (${treeCostRows.length})</span><span>▼</span></button>
       <div id="sup_cost___tree__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${treeCostHtml}</div>`:''}
       ${treePays.length?`<button onclick="toggleBalSection('sup_tx___tree__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الدفعات (${treePays.length})</span><span>▼</span></button>
@@ -15478,6 +15481,56 @@ async function resetCapital(){
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
 }
+
+// تنظيف صفوف المبيعات المكرّرة الناتجة عن ثغرة التزامن القديمة.
+// لا نحذف بالتخمين: نقارن عدد صفوف كل منتج بعدد مرّات وروده في الطلب
+// الأصلي، فما زاد عن ذلك هو نسخة مكرّرة. طلب فيه المنتج نفسه مرّتين
+// عن قصد يبقى كما هو، والطلب المحذوف لا يُمَسّ.
+async function cleanDuplicateSales(){
+  try{
+    toast('⏳ جاري الفحص...');
+    const snap=await db.collection('operator_sales').get();
+    const byOrder={};
+    snap.docs.forEach(d=>{
+      const s=d.data();
+      if(!s.fromOrderId)return;
+      (byOrder[s.fromOrderId]=byOrder[s.fromOrderId]||[]).push({id:d.id,ref:d.ref,...s});
+    });
+    const extras=[];
+    for(const [oid,rows] of Object.entries(byOrder)){
+      // لا يوجد تكرار محتمل أصلاً
+      const key=r=>(r.productId||'')+'|'+(r.productName||'');
+      const counts={};rows.forEach(r=>{counts[key(r)]=(counts[key(r)]||0)+1;});
+      if(!Object.values(counts).some(n=>n>1))continue;
+      let order=null;
+      try{const os=await db.collection('employee_orders').doc(oid).get();if(os.exists)order=os.data();}catch(e){}
+      if(!order)continue;                       // الطلب محذوف — لا نجازف
+      const want={};
+      (order.products||[]).forEach(p=>{const k=(p.id||'')+'|'+(p.name||'');want[k]=(want[k]||0)+1;});
+      Object.keys(counts).forEach(k=>{
+        const expected=want[k]||0;
+        if(counts[k]<=expected)return;
+        // نُبقي الصفوف ذات المعرّف الثابت أولاً (هي الأصل بعد الإصلاح)
+        const grp=rows.filter(r=>key(r)===k)
+          .sort((a,b)=>(b.id.startsWith(oid+'_')?1:0)-(a.id.startsWith(oid+'_')?1:0));
+        grp.slice(Math.max(expected,1)).forEach(r=>extras.push(r));
+      });
+    }
+    if(!extras.length){toast('✅ لا يوجد صفوف مكرّرة');return;}
+    const treeSum=extras.reduce((s,r)=>s+((r.treeCost||0)*(r.qty||1)),0);
+    const rawSum=extras.reduce((s,r)=>s+((r.rawMaterialCost||0)*(r.qty||1)),0);
+    const lines=extras.slice(0,12).map(r=>`• ${r.productName||'—'} — ${r.date||''} — شجر ${((r.treeCost||0)*(r.qty||1)).toFixed(2)}`).join('\n');
+    if(!confirm(`وُجد ${extras.length} صفّ مكرّر:\n\n${lines}${extras.length>12?`\n… و${extras.length-12} غيرها`:''}\n\nبحذفها تنقص تكلفة الشجر ${treeSum.toFixed(2)} والمواد الخام ${rawSum.toFixed(2)}.\n\nمتابعة الحذف؟`))return;
+    for(let i=0;i<extras.length;i+=400){
+      const batch=db.batch();
+      extras.slice(i,i+400).forEach(r=>batch.delete(r.ref));
+      await batch.commit();
+    }
+    toast(`✅ حُذف ${extras.length} صفّ مكرّر`);
+    loadBalanceTab();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.cleanDuplicateSales=cleanDuplicateSales;
 
 async function deleteSupplierPayment(id){
   if(!confirm('حذف هذه الدفعة؟ (بترجع للكاش وباقي المورد)'))return;
