@@ -15240,6 +15240,8 @@ let _opBalPayments=[];
 let _opBalSalesRaw=0;
 let _opBalRawSold=0;          // تكلفة المواد الخام للطلبات المباعة
 let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المباعة (مورد شجر)
+let _opBalTreeRows=[];        // تفصيل تكلفة الشجر — كل مبيعة ساهمت فيها
+let _treeScanWarn='';         // تحذير إن تعذّر استبعاد الطلبات الملغاة
 let _opSuppliers=[];          // الموردين
 let _opSupplierPayments=[];   // دفعاتك للموردين
 
@@ -15283,9 +15285,10 @@ async function loadBalanceTab(){
     try{
       const osnap=await db.collection('employee_orders').where('status','in',['cancelled','returned','refused']).get();
       osnap.docs.forEach(d=>cancelledOrders.add(d.id));
-    }catch(e){}
+    }catch(e){_treeScanWarn='تعذّر جلب الطلبات الملغاة — قد تظهر تكلفة أعلى من الحقيقي';}
     const snap=await db.collection('operator_sales').get();
     let rawSold=0,treeSold=0;
+    const treeRows=[];
     snap.docs.filter(d=>{const s=d.data();
       return s.delivered!==false
         &&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId))
@@ -15293,9 +15296,13 @@ async function loadBalanceTab(){
       const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
+      // تفصيل تكلفة الشجر — ليعرف المستخدم من أين جاء الرقم بالضبط
+      if(t>0)treeRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',qty:q,unit:t,total:t*q});
     });
+    treeRows.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    _opBalTreeRows=treeRows;
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
-  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;}
+  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeRows=[];}
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
@@ -15362,6 +15369,24 @@ function renderBalanceSummary(){
       <span style="font-size:0.72rem;color:#9fc7b4;">💳 دفعة${x.noCash?' <span style="color:#e7c66b;">(بدون كاش)</span>':''} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
       <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span style="font-weight:800;font-size:0.8rem;color:#e7c66b;font-variant-numeric:tabular-nums;">−${(x.amount||0).toFixed(2)}</span><button onclick="deleteSupplierPayment('${x.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button></span>
     </div>`).join('');
+  // تفصيل التكلفة مجمّعاً باليوم — يجيب على «من وين جاء هذا الرقم؟»
+  const treeCostRows=_opBalTreeRows||[];
+  const treeByDay=[];
+  treeCostRows.forEach(x=>{
+    let g=treeByDay.find(y=>y.date===x.date);
+    if(!g){g={date:x.date,total:0,items:[]};treeByDay.push(g);}
+    g.total+=x.total;g.items.push(x);
+  });
+  const treeCostHtml=treeByDay.map(g=>`<div style="border-bottom:1px solid rgba(255,255,255,.06);padding:6px 2px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span style="font-size:0.72rem;font-weight:800;color:#d7ebe0;">📅 ${g.date||'—'}</span>
+        <span style="font-weight:800;font-size:0.78rem;color:#6ee7a8;font-variant-numeric:tabular-nums;">+${g.total.toFixed(2)}</span>
+      </div>
+      ${g.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0 2px 10px;">
+        <span style="font-size:0.67rem;color:#9fc7b4;">${it.name}${it.store?' · '+it.store:''}</span>
+        <span style="font-size:0.67rem;color:#9fc7b4;font-variant-numeric:tabular-nums;flex-shrink:0;">${it.qty} × ${it.unit.toFixed(2)} = ${it.total.toFixed(2)}</span>
+      </div>`).join('')}
+    </div>`).join('');
   const treeRow=`<div style="background:rgba(90,168,120,.08);border:1px solid rgba(110,231,168,.28);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
         <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🌳 شجر <span style="font-size:0.62rem;font-weight:600;color:#9fc7b4;">(تلقائي)</span></span>
@@ -15372,7 +15397,10 @@ function renderBalanceSummary(){
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">مدفوع</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${treePaid.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي عليك</div><div style="font-weight:900;color:${treeBal>0.01?'#f2a6a0':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${treeBal.toFixed(2)}</div></div>
       </div>
-      ${treePays.length?`<button onclick="toggleBalSection('sup_tx___tree__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الدفعات (${treePays.length})</span><span>▼</span></button>
+      ${_treeScanWarn?`<div style="margin-top:8px;padding:7px 10px;background:rgba(242,166,160,.14);border:1px solid rgba(242,166,160,.3);border-radius:9px;font-size:0.7rem;color:#f2a6a0;font-weight:700;">⚠️ ${_treeScanWarn}</div>`:''}
+      ${treeCostRows.length?`<button onclick="toggleBalSection('sup_cost___tree__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌳 من وين التكلفة؟ (${treeCostRows.length})</span><span>▼</span></button>
+      <div id="sup_cost___tree__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${treeCostHtml}</div>`:''}
+      ${treePays.length?`<button onclick="toggleBalSection('sup_tx___tree__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الدفعات (${treePays.length})</span><span>▼</span></button>
       <div id="sup_tx___tree__" style="display:none;margin-top:6px;padding:2px 4px;">${treeTxRows}</div>`:''}
     </div>`;
   // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
