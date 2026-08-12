@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v221';
+const CACHE = 'alkiswani-v222';
 // كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
 // اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
 const STATIC = 'alkiswani-static-1';
@@ -92,7 +92,12 @@ self.addEventListener('fetch', e => {
       if (hit) return hit;
       try {
         const res = await fetch(e.request);
-        if (res && res.status === 200) {
+        // نتحقّق أنّ الرد شيفرة فعلاً: أثناء النشر قد يردّ المضيف صفحة خطأ
+        // بترويسة HTML وحالة 200. وبما أنّ القراءة cache-first، تخزينها
+        // يُعطِّل التطبيق بشكل دائم ولا يُصلحه إلا مسح بيانات الموقع يدوياً.
+        const ct = (res && res.headers && res.headers.get('content-type')) || '';
+        const isJs = /javascript|ecmascript/i.test(ct);
+        if (res && res.status === 200 && isJs) {
           // يُخزَّن في الكاش الدائم لا كاش النسخة، فلا يمحوه رفع النسخة التالي
           const c = await caches.open(STATIC);
           await c.put(e.request, res.clone());
