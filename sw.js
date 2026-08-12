@@ -20,7 +20,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE = 'alkiswani-v220';
+const CACHE = 'alkiswani-v221';
 // كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
 // اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
 const STATIC = 'alkiswani-static-1';
@@ -43,13 +43,26 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      // نحذف كاش النسخ القديمة فقط — الكاش الثابت يبقى
-      Promise.all(keys.filter(k => k !== CACHE && k !== STATIC).map(k => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+  e.waitUntil((async () => {
+    // ننقل أي نسخة app.js مخزّنة إلى الكاش الدائم قبل حذف كاش النسخ القديمة.
+    // كان الحذف فورياً، فيبقى الجهاز بلا أي app.js حتى ينزل الجديد — وإن
+    // تعذّر التنزيل (شبكة ضعيفة) بقي التطبيق بلا شيفرة ولا مسار تعافٍ.
+    const stat = await caches.open(STATIC);
+    const keys = await caches.keys();
+    for (const name of keys) {
+      if (name === STATIC) continue;
+      try {
+        const c = await caches.open(name);
+        for (const req of await c.keys()) {
+          if (!req.url.includes('/app.js')) continue;
+          const r = await c.match(req);
+          if (r) await stat.put(req, r.clone());
+        }
+      } catch (err) {}
+    }
+    await Promise.all(keys.filter(k => k !== CACHE && k !== STATIC).map(k => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 // network-first مع مهلة: لو النت بطيء نعرض النسخة المخزنة فوراً والتحديث ينزل بالخلفية للفتحة الجاية
@@ -74,13 +87,31 @@ self.addEventListener('fetch', e => {
   // app.js?vNNN: الرابط يحمل رقم النسخة، فمحتواه ثابت لهذا الرابط ⇒ cache-first.
   // كان network-first بمهلة 2.5 ثانية: كل فتحة تنتظر الشبكة لملف ~1MB بلا داعٍ.
   if(url.endsWith('/app.js') || url.includes('/app.js?')) {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
-        if(res && res.status === 200)
-          caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+    e.respondWith((async () => {
+      const hit = await caches.match(e.request);
+      if (hit) return hit;
+      try {
+        const res = await fetch(e.request);
+        if (res && res.status === 200) {
+          // يُخزَّن في الكاش الدائم لا كاش النسخة، فلا يمحوه رفع النسخة التالي
+          const c = await caches.open(STATIC);
+          await c.put(e.request, res.clone());
+          // لا نحذف النسخ الأقدم إلا بعد نجاح تخزين الجديدة
+          for (const k of await c.keys())
+            if (k.url.includes('/app.js') && k.url !== e.request.url) await c.delete(k);
+        }
         return res;
-      }))
-    );
+      } catch (err) {
+        // سقطت الشبكة ولا نسخة لهذا الرابط: أعِد أي app.js مخزّنة.
+        // شيفرة أقدم بقليل خير من تطبيق ميت.
+        for (const name of await caches.keys()) {
+          const c = await caches.open(name);
+          const prev = (await c.keys()).find(k => k.url.includes('/app.js'));
+          if (prev) return c.match(prev);
+        }
+        throw err;
+      }
+    })());
     return;
   }
 
