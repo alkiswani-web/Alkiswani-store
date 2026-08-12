@@ -4852,9 +4852,22 @@ async function updateEmpOrderStatus(id,newStatus){
   try{
     const docRef=db.collection('employee_orders').doc(id);
     const snap=await docRef.get();
-    const data=snap.data();
+    // كان data.status يُقرأ من مستند قد لا يوجد ⇒ خطأ غامض بدل سبب واضح
+    if(!snap.exists){toast('❌ الطلب غير موجود — حدِّث الصفحة');return;}
+    const data=snap.data()||{};
     const prevStatus=data.status;
-    if(prevStatus===newStatus)return;
+    // كان الرجوع صامتاً هنا: الضغط على «تسليم» لطلب سُلِّم فعلاً (والشاشة لم
+    // تُحدَّث بعد) لا يفعل شيئاً ولا يُظهر سبباً، فيبدو الزر معطّلاً. نُخبر
+    // المستخدم ونُصحّح الشاشة بالحالة الفعلية.
+    if(prevStatus===newStatus){
+      toast(`الطلب أصلاً «${_empSt(newStatus).label}» — حُدِّثت الشاشة`);
+      const _sync=(arr)=>{if(!arr)return;const i=arr.findIndex(o=>o.id===id);if(i>=0)arr[i]={...arr[i],...data,id};};
+      _sync(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
+      _sync(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
+      if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+      if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
+      return;
+    }
     // Block delivered if no rep assigned
     if(newStatus==='delivered'&&!data.deliveryRepName){
       toast('⚠️ يجب تعيين مندوب توصيل أولاً قبل تسليم الطلب');
@@ -17028,7 +17041,7 @@ function _renderDeliveryQueue(orders){
                 <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
                   <span style="font-weight:800;color:#166534;">${_orderNet(o).toFixed(2)} د.أ</span>
                   ${_delivSelectMode?'':`<button onclick="_openRepPickerFromDetail('${o.id}')" style="padding:4px 8px;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">🔄</button>
-                  <button onclick="markOrderDelivered('${o.id}')" style="padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسليم</button>`}
+                  <button onclick="markOrderDelivered('${o.id}',this)" style="padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">✅ تسليم</button>`}
                 </div>
               </div>
               <div style="color:#374151;">📞 ${o.customerPhone||'—'}</div>
@@ -17107,8 +17120,12 @@ function _buildStoreDeliveryMsg(orders,storeName){
   return `🏪 طلبات ${storeName}\nقيد التوصيل الآن: ${orders.length} طلب\nالإجمالي: ${total.toFixed(2)} د.أ\n──────────────\n${lines.join('\n\n')}`;
 }
 
-async function markOrderDelivered(id){
-  await updateEmpOrderStatus(id,'delivered');
+async function markOrderDelivered(id,btn){
+  // تعطيل الزر أثناء التنفيذ: كل ضغطة تُعيد رسم لوحة فيها مئات الطلبات،
+  // فالضغطات المتتابعة كانت تتداخل وتضيع بلا أثر ظاهر.
+  if(btn){if(btn.disabled)return;btn.disabled=true;btn.textContent='⏳';}
+  try{await updateEmpOrderStatus(id,'delivered');}
+  finally{if(btn){btn.disabled=false;btn.textContent='✅ تسليم';}}
 }
 
 // ===== تحديد متعدد + تسليم جماعي لقسم قيد التوصيل =====
