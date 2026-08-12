@@ -14346,18 +14346,28 @@ async function loadRepAccounting(){
     if(!reps.length){listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">لا يوجد مناديب مسجلين — أضفهم من قائمة المناديب في تاب الطلبات</div>';return;}
     const _ca=o=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return Math.max(0,t-(o.deliveryFee||0));};
     // مطلوب منه = كل الطلبات اللي أخذها (معه + مُسلَّمة)، المرتجع/الملغي مستثنى
+    // المفتاح = الهاتف إن وُجد وإلا الاسم؛ الهاتف وحده كان يدمج كل من بلا هاتف
     const paidByPhone={};
-    paymentsSnap.docs.forEach(d=>{const p=d.data();paidByPhone[p.repPhone]=(paidByPhone[p.repPhone]||0)+(p.amount||0);});
+    paymentsSnap.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);paidByPhone[k]=(paidByPhone[k]||0)+(p.amount||0);});
     const owedByPhone={};
     const countByPhone={};
     const deliveredCountByPhone={};
-    ordersSnap.docs.forEach(d=>{const o=d.data();let pKey=o.deliveryRepPhone;if(!pKey&&o.deliveryRepName){const mr=reps.find(r=>r.name===o.deliveryRepName);if(mr?.phone)pKey=mr.phone;}if(pKey){owedByPhone[pKey]=(owedByPhone[pKey]||0)+_ca(o);countByPhone[pKey]=(countByPhone[pKey]||0)+1;if(o.status==='delivered')deliveredCountByPhone[pKey]=(deliveredCountByPhone[pKey]||0)+1;}});
+    ordersSnap.docs.forEach(d=>{
+      const o=d.data();
+      let ph=String(o.deliveryRepPhone||'').trim();
+      if(!ph&&o.deliveryRepName){const mr=reps.find(r=>_repNorm(r.name)===_repNorm(o.deliveryRepName));if(mr?.phone)ph=mr.phone;}
+      if(!ph&&!o.deliveryRepName)return;              // طلب بلا مندوب أصلاً
+      const k=_repKey(ph,o.deliveryRepName);
+      owedByPhone[k]=(owedByPhone[k]||0)+_ca(o);
+      countByPhone[k]=(countByPhone[k]||0)+1;
+      if(o.status==='delivered')deliveredCountByPhone[k]=(deliveredCountByPhone[k]||0)+1;
+    });
     const paidPointsByPhone={};
-    pointsSnap.docs.forEach(d=>{const p=d.data();paidPointsByPhone[p.repPhone]=(paidPointsByPhone[p.repPhone]||0)+(p.points||0);});
+    pointsSnap.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);paidPointsByPhone[k]=(paidPointsByPhone[k]||0)+(p.points||0);});
 
     // Summary bar totals
     let grandOwed=0,grandPaid=0,repsWithBalance=0;
-    reps.forEach(r=>{const b=(owedByPhone[r.phone]||0)-(paidByPhone[r.phone]||0);if(b>0){grandOwed+=b;repsWithBalance++;}grandPaid+=paidByPhone[r.phone]||0;});
+    reps.forEach(r=>{const k=_repKey(r.phone,r.name);const b=(owedByPhone[k]||0)-(paidByPhone[k]||0);if(b>0){grandOwed+=b;repsWithBalance++;}grandPaid+=paidByPhone[k]||0;});
 
     const summaryBar=grandOwed>0?`
       <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:12px;padding:13px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -14375,12 +14385,13 @@ async function loadRepAccounting(){
       </div>`;
 
     listEl.innerHTML=summaryBar+reps.map(r=>{
-      const owed=owedByPhone[r.phone]||0;
-      const paid=paidByPhone[r.phone]||0;
+      const _k=_repKey(r.phone,r.name);
+      const owed=owedByPhone[_k]||0;
+      const paid=paidByPhone[_k]||0;
       const balance=owed-paid;
-      const count=countByPhone[r.phone]||0;
-      const deliveredCount=deliveredCountByPhone[r.phone]||0;
-      const paidPts=paidPointsByPhone[r.phone]||0;
+      const count=countByPhone[_k]||0;
+      const deliveredCount=deliveredCountByPhone[_k]||0;
+      const paidPts=paidPointsByPhone[_k]||0;
       const pendingPts=Math.max(0,deliveredCount-paidPts);
       const safePhone=(r.phone||'').replace(/'/g,"&#39;");
       const safeName=(r.name||'').replace(/'/g,"&#39;");
@@ -14421,6 +14432,16 @@ async function loadRepAccounting(){
   }catch(e){listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
 }
 
+// هوية المندوب: الهاتف إن وُجد وإلا الاسم.
+// كان الهاتف وحده هو المفتاح، والطلب يُحفظ بـ deliveryRepPhone:repPhone||''
+// فمندوب بلا هاتف مفتاحه '' — ويشترك كل المناديب بلا هاتف في حساب واحد:
+// طلبات بعضهم ودفعات بعضهم تتجمّع على أوّل واحد يُفتح حسابه.
+function _repNorm(n){return String(n||'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').trim();}
+function _repKey(phone,name){
+  const p=String(phone||'').trim();
+  return p?('p:'+p):('n:'+_repNorm(name));
+}
+
 async function showRepStatement(phone,name){
   _repAcctRep={phone,name};
   document.getElementById('repAcctListView').style.display='none';
@@ -14432,16 +14453,21 @@ async function showRepStatement(phone,name){
   if(detailEl)detailEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
   try{
     // Normalize Arabic name: replace أ/إ/آ → ا, ة → ه (handles spelling variants)
-    const _normName=n=>n.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').trim();
+    const _normName=n=>_repNorm(n);
     const nameNorm=_normName(name);
+    const hasPhone=!!String(phone||'').trim();
+    // بلا هاتف: لا نستعلم بـ '' إطلاقاً — يطابق طلبات كل مندوب بلا هاتف
     const nameQueries=[
-      db.collection('employee_orders').where('deliveryRepPhone','==',phone).get(),
+      ...(hasPhone?[db.collection('employee_orders').where('deliveryRepPhone','==',phone).get()]:[]),
       db.collection('employee_orders').where('deliveryRepName','==',name).get(),
       ...(nameNorm!==name?[db.collection('employee_orders').where('deliveryRepName','==',nameNorm).get()]:[]),
     ];
+    // الدفعات والمرتجعات تحفظ repName أيضاً، فنطابق بالاسم عند غياب الهاتف
     const [paymentsSnap,refundsSnap,...orderSnaps]=await Promise.all([
-      db.collection('rep_payments').where('repPhone','==',phone).get(),
-      db.collection('rep_refunds').where('repPhone','==',phone).get(),
+      hasPhone?db.collection('rep_payments').where('repPhone','==',phone).get()
+              :db.collection('rep_payments').where('repName','==',name).get(),
+      hasPhone?db.collection('rep_refunds').where('repPhone','==',phone).get()
+              :db.collection('rep_refunds').where('repName','==',name).get(),
       ...nameQueries
     ]);
     // Merge all order results (deduplicate by id)
@@ -14702,7 +14728,10 @@ async function _renderRepPoints(phone,name,deliveredCount){
   if(!el)return;
   if(!_pointValue){el.innerHTML='';return;}
   try{
-    const snap=await db.collection('rep_points_payments').where('repPhone','==',phone).get();
+    // بلا هاتف نطابق بالاسم — '' يطابق نقاط كل مندوب بلا هاتف
+    const snap=String(phone||'').trim()
+      ? await db.collection('rep_points_payments').where('repPhone','==',phone).get()
+      : await db.collection('rep_points_payments').where('repName','==',name).get();
     const ppays=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const paidPoints=ppays.reduce((s,p)=>s+(p.points||0),0);
     const pendingPoints=Math.max(0,deliveredCount-paidPoints);
