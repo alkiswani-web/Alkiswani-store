@@ -15323,7 +15323,11 @@ async function loadBalanceTab(){
   }catch(e){_opBalSettings={capitalBase:0};}
   // Load purchases
   try{
-    const snap=await db.collection('operator_purchases').orderBy('date','desc').get();
+    // تُفلتر بـ capitalStart في المتصفّح، فلنحصرها على الخادم
+    const _capFrom=(_opBalSettings&&_opBalSettings.capitalStart)||'0000-00-00';
+    let snap;
+    try{snap=await db.collection('operator_purchases').where('date','>=',_capFrom).orderBy('date','desc').get();}
+    catch(e){snap=await db.collection('operator_purchases').orderBy('date','desc').get();}
     _opBalPurchases=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opBalPurchases=[];}
   // Load suppliers + supplier payments (النظام الجديد بدل أبو يحيى)
@@ -15347,14 +15351,22 @@ async function loadBalanceTab(){
     // وقت البيع بالضبط، لا تكلفة المنتج الحالية التي قد تكون تغيّرت.
     const cancelledOrders=new Set();
     try{
-      const rsnap=await db.collection('page_refunds').get();
+      // مرتجع مبيعةٍ داخل الفترة يُسجَّل بتاريخ الفترة أو بعده، فلا حاجة لما قبلها
+      let rsnap;
+      try{rsnap=await db.collection('page_refunds').where('date','>=',_matStart).get();}
+      catch(e){rsnap=await db.collection('page_refunds').get();}
       rsnap.docs.forEach(d=>{const r=d.data();if(r.orderId)cancelledOrders.add(r.orderId);});
     }catch(e){}
     try{
       const osnap=await db.collection('employee_orders').where('status','in',['cancelled','returned','refused']).get();
       osnap.docs.forEach(d=>cancelledOrders.add(d.id));
     }catch(e){_treeScanWarn='تعذّر جلب الطلبات الملغاة — قد تظهر تكلفة أعلى من الحقيقي';}
-    const snap=await db.collection('operator_sales').get();
+    // كانت المجموعة كاملة تُجلب ثم تُفلتر بالتاريخ في المتصفّح — آلاف
+    // المستندات في كل فتح، وتكبر كل يوم. الفلترة على الخادم بمدى تاريخ
+    // (حقل مفرد، لا يحتاج فهرساً مركّباً) مع رجوع احتياطي عند أي خلل.
+    let snap;
+    try{snap=await db.collection('operator_sales').where('date','>=',_matStart).get();}
+    catch(e){snap=await db.collection('operator_sales').get();}
     let rawSold=0,treeSold=0;
     const treeRows=[];
     snap.docs.filter(d=>{const s=d.data();
