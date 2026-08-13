@@ -15567,11 +15567,25 @@ async function _findExtraSaleRows(rows){
   rows.forEach(r=>{if(r.fromOrderId)(byOrder[r.fromOrderId]=byOrder[r.fromOrderId]||[]).push(r);});
   const key=r=>(r.productId||'')+'|'+(r.productName||'');
   const extras=[];
-  for(const [oid,list] of Object.entries(byOrder)){
+  // الطلبات المشكوك فيها فقط، وتُجلب دفعةً واحدة بالتوازي: كان الجلب داخل
+  // الحلقة بـ await فيصير كل طلب رحلة شبكة منفصلة تنتظر سابقتها — عشرات
+  // الطلبات تعني عشرات الثواني في كل فتح لمركز الحسابات.
+  const suspect=Object.entries(byOrder).filter(([,list])=>{
+    const c={};list.forEach(r=>{c[key(r)]=(c[key(r)]||0)+1;});
+    return Object.values(c).some(n=>n>1);
+  }).map(([oid])=>oid);
+  const orderById=new Map();
+  const CH=25;   // دفعات متوازية محدودة حتى لا نُغرق الاتصال
+  for(let i=0;i<suspect.length;i+=CH){
+    const part=suspect.slice(i,i+CH);
+    const got=await Promise.all(part.map(oid=>
+      db.collection('employee_orders').doc(oid).get().then(s=>[oid,s&&s.exists?s.data():null]).catch(()=>[oid,null])));
+    got.forEach(([oid,d])=>orderById.set(oid,d));
+  }
+  for(const oid of suspect){
+    const list=byOrder[oid];
     const counts={};list.forEach(r=>{counts[key(r)]=(counts[key(r)]||0)+1;});
-    if(!Object.values(counts).some(n=>n>1))continue;   // لا تكرار محتمل أصلاً
-    let order=null;
-    try{const os=await db.collection('employee_orders').doc(oid).get();if(os.exists)order=os.data();}catch(e){}
+    const order=orderById.get(oid);
     if(!order)continue;                                 // الطلب محذوف — لا نجازف
     const want={};
     (order.products||[]).forEach(p=>{const k=(p.id||'')+'|'+(p.name||'');want[k]=(want[k]||0)+1;});
