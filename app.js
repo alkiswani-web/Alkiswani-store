@@ -4815,9 +4815,11 @@ body{background:#fff;font-family:Arial,sans-serif;}
 .lat{flex-shrink:0;font-size:9.5pt;font-weight:700;margin-top:.8mm;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .lph{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;gap:2mm;margin-top:1.5mm;overflow:hidden;}
 /* السعر شامل التوصيل — هو المبلغ الذي يُحصّله المندوب، فيُطبع أبرز من الهاتف */
-.lpr{font-size:19pt;font-weight:900;white-space:nowrap;letter-spacing:-.3pt;flex-shrink:0;}
-.lpr small{font-size:9pt;font-weight:700;}
-.lno{font-size:15pt;font-weight:900;direction:ltr;white-space:nowrap;overflow:hidden;letter-spacing:-.3pt;}
+/* الهاتف أولاً: لا ينكمش ولا يُقتطع مهما طال السعر. السعر يُعرض أصغر
+   ويتنازل عن المساحة عند الضيق — قراءة الرقم خطأً أسوأ من سعر أصغر. */
+.lpr{font-size:12pt;font-weight:900;white-space:nowrap;letter-spacing:-.3pt;min-width:0;overflow:hidden;}
+.lpr small{font-size:7.5pt;font-weight:700;}
+.lno{font-size:15pt;font-weight:900;direction:ltr;white-space:nowrap;letter-spacing:-.3pt;flex-shrink:0;}
 .lbot{flex:1;min-height:0;display:flex;align-items:flex-end;gap:2.5mm;margin-top:1mm;}
 .lqr{flex-shrink:0;height:100%;max-width:50%;display:flex;align-items:flex-end;}
 .lqr svg{height:100%;width:auto;max-width:100%;display:block;shape-rendering:crispEdges;}
