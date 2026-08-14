@@ -4721,6 +4721,11 @@ async function _printOrderLabels(orders){
   let seq=0;
   orders.forEach(o=>{
     const url=window.location.origin+window.location.pathname+'?order='+o.id;
+    // المبلغ المطلوب من الزبون شامل التوصيل — netPrice يشمله أصلاً،
+    // وإلا جمعناه من أسعار المنتجات مضافاً إليها أجرة التوصيل.
+    const _net=(o.netPrice!=null)?o.netPrice
+      :((o.products||[{price:o.price||0,qty:1}]).reduce((a,p)=>a+((p.price||0)*(p.qty||1)),0)+(o.deliveryFee||0));
+    const price=(Number(_net)||0).toFixed(2);
     const phone=(o.customerPhone||'').replace(/\s+/g,'');
     const addr=(o.address||'').trim();
     const page=(o.pageName||'').trim();
@@ -4739,7 +4744,7 @@ async function _printOrderLabels(orders){
       const extra=[pr.color?'اللون: '+pr.color:'',pr.writing?'✍ '+pr.writing:'',cn].filter(Boolean).join(' · ');
       for(let k=0;k<qty;k++){
         idx++;
-        pieceLabels.push({url,phone,addr,page,divId:'qrl_'+(seq++),
+        pieceLabels.push({url,phone,addr,page,price,divId:'qrl_'+(seq++),
           sortKey:(pr.name||'').trim(), ordNum:o.orderNum?('#'+o.orderNum):('#'+(o.id||'').slice(-5).toUpperCase()),
           idx, total, line:(pr.name||'').trim(), extra});
       }
@@ -4747,7 +4752,7 @@ async function _printOrderLabels(orders){
     if(carton.length){
       idx++;
       const line=carton.map(pr=>{const q=pr.qty||pr.quantity||1;return (pr.name||'')+(q>1?' × '+q:'');}).filter(Boolean).join('، ');
-      cartonLabels.push({url,phone,addr,page,divId:'qrl_'+(seq++),
+      cartonLabels.push({url,phone,addr,page,price,divId:'qrl_'+(seq++),
         sortKey:carton.map(pr=>(pr.name||'').trim()).sort((a,b)=>a.localeCompare(b,'ar')).join(' | '),
         ordNum:o.orderNum?('#'+o.orderNum):('#'+(o.id||'').slice(-5).toUpperCase()),
         idx, total, line, extra:'', carton:true});
@@ -4776,7 +4781,10 @@ async function _printOrderLabels(orders){
         <div class="ltop"><span>${l.page||''}</span><span class="o">${l.ordNum||''}</span></div>
         <div class="lnm">${l.line}</div>
         ${l.extra?`<div class="lat">${l.extra}</div>`:''}
-        ${l.phone?`<div class="lph">${l.phone}</div>`:''}
+        ${(l.phone||l.price)?`<div class="lph">
+          ${l.price?`<span class="lpr">${l.price} <small>د.أ</small></span>`:''}
+          ${l.phone?`<span class="lno">${l.phone}</span>`:''}
+        </div>`:''}
         <div class="lbot">
           ${l.svg?`<div class="lqr">${l.svg}</div>`:''}
           ${l.addr?`<div class="lad">${l.addr}</div>`:''}
@@ -4805,7 +4813,11 @@ body{background:#fff;font-family:Arial,sans-serif;}
 .ltop .o{font-family:monospace;font-weight:700;flex-shrink:0;}
 .lnm{flex-shrink:0;font-size:15pt;font-weight:900;line-height:1.12;margin-top:2mm;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .lat{flex-shrink:0;font-size:9.5pt;font-weight:700;margin-top:.8mm;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.lph{flex-shrink:0;font-size:16pt;font-weight:900;direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;letter-spacing:-.3pt;margin-top:1.5mm;}
+.lph{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;gap:2mm;margin-top:1.5mm;overflow:hidden;}
+/* السعر شامل التوصيل — هو المبلغ الذي يُحصّله المندوب، فيُطبع أبرز من الهاتف */
+.lpr{font-size:19pt;font-weight:900;white-space:nowrap;letter-spacing:-.3pt;flex-shrink:0;}
+.lpr small{font-size:9pt;font-weight:700;}
+.lno{font-size:15pt;font-weight:900;direction:ltr;white-space:nowrap;overflow:hidden;letter-spacing:-.3pt;}
 .lbot{flex:1;min-height:0;display:flex;align-items:flex-end;gap:2.5mm;margin-top:1mm;}
 .lqr{flex-shrink:0;height:100%;max-width:50%;display:flex;align-items:flex-end;}
 .lqr svg{height:100%;width:auto;max-width:100%;display:block;shape-rendering:crispEdges;}
