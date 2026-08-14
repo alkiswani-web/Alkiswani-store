@@ -9019,15 +9019,15 @@ async function _loadOpWithdrawals(){
   // المسحوبات عبر كل التاريخ في كل تحميل للوحة الحسابات
   const map=new Map();
   try{
-    const byId=await db.collection('operator_withdrawals').where('sessionId','==',sid).get();
-    byId.docs.forEach(d=>map.set(d.id,{id:d.id,...d.data()}));
+    // الاستعلامان مستقلّان ونتيجتهما تُدمج — كانا متتاليين بلا سبب
+    const _wCol=db.collection('operator_withdrawals');
+    const [byId,byDate]=await Promise.all([
+      _wCol.where('sessionId','==',sid).get().catch(()=>null),
+      from?_wCol.where('date','>=',from).where('date','<=',to).get().catch(()=>null):Promise.resolve(null),
+    ]);
+    if(byId)byId.docs.forEach(d=>map.set(d.id,{id:d.id,...d.data()}));
+    if(byDate)byDate.docs.forEach(d=>{if(!map.has(d.id))map.set(d.id,{id:d.id,...d.data()});});
   }catch(e){}
-  if(from){
-    try{
-      const byDate=await db.collection('operator_withdrawals').where('date','>=',from).where('date','<=',to).get();
-      byDate.docs.forEach(d=>{if(!map.has(d.id))map.set(d.id,{id:d.id,...d.data()});});
-    }catch(e){}
-  }
   _opAllWithdrawals=[...map.values()];
   // مسحوبات الكشف الحالي: ما يحمل معرّف الجلسة، أو سجلات قديمة بلا معرّف تقع ضمن مدى الجلسة
   _opWithdrawals=_opAllWithdrawals.filter(w=>
@@ -9074,31 +9074,28 @@ async function _loadOpSessionData(){
       // exclude records that belong to a different session (old records with no sessionId are kept)
       .filter(s=>!s.sessionId||s.sessionId===_opCurrentSession.id);
   }catch(e){_opDailySales=[];}
-  await _loadOpWithdrawals();
-  try{
-    const eSnap=await db.collection('operator_expenses').where('date','>=',from).where('date','<=',to).get();
-    _opDayExpenses=eSnap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opDayExpenses=[];}
-  // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
-  try{
-    const rbSnap=await db.collection('operator_rawbuys').where('sessionId','==',_opCurrentSession.id).get();
-    _opRawBuys=rbSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  }catch(e){_opRawBuys=[];}
-  // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
-  try{
-    const spSnap=await db.collection('operator_supplier_payments').where('sessionId','==',_opCurrentSession.id).get();
-    _opSessionSupPays=spSnap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opSessionSupPays=[];}
-  // تسويات الكاش اليدوية للكشف الحالي
-  try{
-    const caSnap=await db.collection('operator_cash_adjust').where('sessionId','==',_opCurrentSession.id).get();
-    _opCashAdjust=caSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  }catch(e){_opCashAdjust=[];}
-  // دفعات رواتب موظفي المشغل المدفوعة فعلياً ضمن فترة الكشف — كاش خرج من الصندوق
-  try{
-    const wpSnap=await db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',to).get();
-    _opSessionWagePays=wpSnap.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.storeId==='__mashghal__');
-  }catch(e){_opSessionWagePays=[];}
+  // هذه الجلبات مستقلّة تماماً — كل واحدة تملأ متغيّراً مختلفاً. كانت متتالية
+  // فيصير كل استعلام رحلة شبكة تنتظر سابقتها: ستّ رحلات بالطابور بدل واحدة.
+  // على اتصال جوّال (٤٠٠–٦٠٠ms للرحلة) هذا وحده ثوانٍ من الانتظار الصافي.
+  const _sid=_opCurrentSession.id;
+  const _P=(q,ok,fb)=>q.get().then(ok).catch(()=>fb());
+  await Promise.all([
+    _loadOpWithdrawals().catch(()=>{}),
+    _P(db.collection('operator_expenses').where('date','>=',from).where('date','<=',to),
+       s=>{_opDayExpenses=s.docs.map(d=>({id:d.id,...d.data()}));},()=>{_opDayExpenses=[];}),
+    // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
+    _P(db.collection('operator_rawbuys').where('sessionId','==',_sid),
+       s=>{_opRawBuys=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));},()=>{_opRawBuys=[];}),
+    // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
+    _P(db.collection('operator_supplier_payments').where('sessionId','==',_sid),
+       s=>{_opSessionSupPays=s.docs.map(d=>({id:d.id,...d.data()}));},()=>{_opSessionSupPays=[];}),
+    // تسويات الكاش اليدوية للكشف الحالي
+    _P(db.collection('operator_cash_adjust').where('sessionId','==',_sid),
+       s=>{_opCashAdjust=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));},()=>{_opCashAdjust=[];}),
+    // دفعات رواتب موظفي المشغل المدفوعة فعلياً ضمن فترة الكشف — كاش خرج من الصندوق
+    _P(db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',to),
+       s=>{_opSessionWagePays=s.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.storeId==='__mashghal__');},()=>{_opSessionWagePays=[];}),
+  ]);
   // Mashghal employee wages for this session period
   try{
     const [attSnap,ratesSnap,workersSnap]=await Promise.all([
@@ -15321,21 +15318,18 @@ async function loadBalanceTab(){
     const doc=await db.collection('operator_balance').doc('settings').get();
     _opBalSettings=doc.exists?doc.data():{capitalBase:0};
   }catch(e){_opBalSettings={capitalBase:0};}
-  // Load purchases
+  // المشتريات والموردون مستقلّون عن بعضهم — كانا متتاليين فيصير كل واحد
+  // رحلة شبكة تنتظر سابقتها. نجمعهما في دفعة واحدة.
+  const _capFrom=(_opBalSettings&&_opBalSettings.capitalStart)||'0000-00-00';
+  const [_purSnap,supSnap,paySnap]=await Promise.all([
+    db.collection('operator_purchases').where('date','>=',_capFrom).orderBy('date','desc').get()
+      .catch(()=>db.collection('operator_purchases').orderBy('date','desc').get().catch(()=>null)),
+    db.collection('operator_suppliers').get().catch(()=>null),
+    db.collection('operator_supplier_payments').get().catch(()=>null),
+  ]);
+  _opBalPurchases=_purSnap?_purSnap.docs.map(d=>({id:d.id,...d.data()})):[];
   try{
-    // تُفلتر بـ capitalStart في المتصفّح، فلنحصرها على الخادم
-    const _capFrom=(_opBalSettings&&_opBalSettings.capitalStart)||'0000-00-00';
-    let snap;
-    try{snap=await db.collection('operator_purchases').where('date','>=',_capFrom).orderBy('date','desc').get();}
-    catch(e){snap=await db.collection('operator_purchases').orderBy('date','desc').get();}
-    _opBalPurchases=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opBalPurchases=[];}
-  // Load suppliers + supplier payments (النظام الجديد بدل أبو يحيى)
-  try{
-    const [supSnap,paySnap]=await Promise.all([
-      db.collection('operator_suppliers').get(),
-      db.collection('operator_supplier_payments').get()
-    ]);
+    if(!supSnap||!paySnap)throw new Error('suppliers');
     _opSuppliers=supSnap.docs.map(d=>({id:d.id,...d.data()}));
     _opSupplierPayments=paySnap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opSuppliers=[];_opSupplierPayments=[];}
