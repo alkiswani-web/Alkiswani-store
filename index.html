@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="preload" href="app.js?v231" as="script">
+<link rel="preload" href="app.js?v232" as="script">
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
 <link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
@@ -3028,6 +3028,66 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
           </div>
 
+          <!-- إجار المحل -->
+          <div id="rent_card" style="margin-bottom:12px;"></div>
+
+          <!-- إعداد الإجار (مخفي) -->
+          <div id="rent_setup_form" style="display:none;background:var(--card-bg);border:1.5px solid #fcd34d;border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;font-weight:700;color:#92400e;margin-bottom:10px;">⚙️ إعداد إجار المحل</div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>🏠 الإجار الشهري (د.أ)</label>
+                <input type="number" id="rent_monthly_inp" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid #fcd34d;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>📌 كم علينا الآن (متأخرات)</label>
+                <input type="number" id="rent_opening_inp" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid #fcd34d;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+            <div class="fg" style="margin-bottom:6px;">
+              <label>📅 أول شهر يُضاف تلقائياً</label>
+              <input type="month" id="rent_start_inp"
+                style="width:100%;padding:10px 12px;border:1.5px solid #fcd34d;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-bottom:12px;">إذا المتأخرات فوق بتشمل إجار الشهر الحالي، اختر الشهر الجاي حتى لا يُحتسب مرّتين. بعدها يُضاف الإجار وحده أول كل شهر.</div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="saveRentSettings()" style="flex:1;padding:11px;background:#b45309;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">💾 حفظ</button>
+              <button onclick="toggleRentSetup()" style="padding:11px 14px;background:#f3f4f6;color:#374151;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
+            </div>
+          </div>
+
+          <!-- تسجيل دفعة إجار -->
+          <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fde68a;">
+            <div style="font-size:0.88rem;font-weight:700;color:#92400e;margin-bottom:4px;">🏠 تسجيل دفعة إجار</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-bottom:12px;">تُخصم من المستحق ومن التحصيل (الكاش) — لا تسجّلها كمصروف مرّة ثانية</div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>💵 المبلغ (د.أ)</label>
+                <input type="number" id="rent_pay_amount" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>📅 التاريخ</label>
+                <input type="date" id="rent_pay_date"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+            <div class="fg" style="margin-bottom:12px;">
+              <label>📝 ملاحظات</label>
+              <input type="text" id="rent_pay_notes" placeholder="مثلاً: دفعة على حساب شهر ٨"
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <button onclick="addRentPayment()" style="width:100%;padding:12px;background:#b45309;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💾 تسجيل الدفعة</button>
+          </div>
+
+          <!-- سجل الإجار -->
+          <button onclick="toggleBalSection('rent_ledger',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid #fde68a;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#92400e;cursor:pointer;margin-bottom:8px;">
+            <span>🏠 سجل الإجار (الشهور والدفعات)</span><span>▼</span>
+          </button>
+          <div id="rent_ledger" style="display:none;margin-bottom:14px;"></div>
+
           <!-- Add withdrawal form (مصاريف مشغل فقط) -->
           <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fce7f3;">
             <div style="font-size:0.88rem;font-weight:700;color:#be185d;margin-bottom:4px;">🔴 تسجيل سحب — مصاريف مشغل</div>
@@ -4417,7 +4477,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="app.js?v231"></script>
+<script src="app.js?v232"></script>
 
 <!-- PRODUCT ADVISOR -->
 <div class="advisor-overlay" id="advisorOverlay">

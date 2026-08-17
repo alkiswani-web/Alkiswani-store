@@ -8978,6 +8978,7 @@ let _opCurrentSession=null;
 let _opMashghalWages=[];
 let _opSessionWagePays=[]; // رواتب المشغل المدفوعة ضمن الكشف — تُخصم من الكاش والربح
 let _opCashAdjust=[];    // تسويات الكاش اليدوية — تُضاف لصافي التحصيل
+let _opSessionRentPays=[]; // دفعات إجار المحل ضمن الكشف — تُخصم من الكاش
 function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
 const _opToday=()=>jordanDateStr();
 
@@ -9127,6 +9128,9 @@ async function _loadOpSessionData(){
     // دفعات رواتب موظفي المشغل المدفوعة فعلياً ضمن فترة الكشف — كاش خرج من الصندوق
     _P(db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',to),
        s=>{_opSessionWagePays=s.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.storeId==='__mashghal__');},()=>{_opSessionWagePays=[];}),
+    // دفعات إجار المحل ضمن الكشف — كاش خرج من نفس الصندوق
+    _P(db.collection('rosemary_transactions').where('sessionId','==',_sid),
+       s=>{_opSessionRentPays=s.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.type==='rent_payment');},()=>{_opSessionRentPays=[];}),
   ]);
   // Mashghal employee wages for this session period
   try{
@@ -9676,10 +9680,12 @@ function renderOperatorDailyView(){
     const _collWages=(_opSessionWagePays||[]).reduce((s,w)=>s+(w.amount||0),0);
     // تسويات يدوية (رصيد كاش أولي / فروقات) — بالموجب أو بالسالب
     const _collAdjust=(_opCashAdjust||[]).reduce((s,a)=>s+(a.amount||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages;
+    // دفعات إجار المحل — كاش خرج من الصندوق
+    const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
+    const _collNet=_collOrdersNet+_collStorePayments+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent;
     ccNet=_collNet;
     ccIn=_collOrdersNet+_collStorePayments+Math.max(0,_collAdjust);
-    ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+Math.max(0,-_collAdjust);
+    ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
       ${_ccHead('🔀','حركة الكاش')}
@@ -9692,6 +9698,7 @@ function renderOperatorDailyView(){
         ${_ccFlow('🧱','شراء مواد خام',_collRawBuys,'out')}
         ${_collSupPays>0?_ccFlow('🏭','دفعات الموردين',_collSupPays,'out'):''}
         ${_collWages>0?_ccFlow('👷','رواتب المشغل',_collWages,'out'):''}
+        ${_collRent>0?_ccFlow('🏠','إجار المحل',_collRent,'out'):''}
         ${_collAdjust!==0?_ccFlow('⚖️','تسوية الكاش',Math.abs(_collAdjust),_collAdjust>0?'in':'out'):''}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(231,198,107,0.16),transparent);border-top:1px solid rgba(231,198,107,.14);">
           <span style="display:flex;align-items:center;gap:10px;font-weight:900;color:#eafff4;font-size:0.92rem;"><span style="width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#f3e0a6,#b8912f);display:grid;place-items:center;">💰</span> صافي التحصيل</span>
@@ -16169,8 +16176,12 @@ let _rwSalesCount=0;
 
 async function loadRosemaryWallet(){
   try{
-    const doc=await db.collection('rosemary_wallet').doc('settings').get();
+    const [doc,rentDoc]=await Promise.all([
+      db.collection('rosemary_wallet').doc('settings').get(),
+      db.collection('rosemary_wallet').doc('rent').get().catch(()=>null)
+    ]);
     _rwSettings=doc.exists?doc.data():{initialBalance:0};
+    _rentSettings=(rentDoc&&rentDoc.exists)?rentDoc.data():{monthlyAmount:0,openingDue:0,startMonth:''};
   }catch(e){_rwSettings={initialBalance:0};}
   // مركز الحسابات مفتوح على طول — نضمن جلسة مفتوحة تلقائياً
   if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
@@ -16178,10 +16189,17 @@ async function loadRosemaryWallet(){
   // السحوبات اليدوية — للكشف الحالي فقط
   try{
     const snap=await db.collection('rosemary_transactions').get();
-    _rwTxList=snap.docs.map(d=>({id:d.id,...d.data()}))
+    const _all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    _rwTxList=_all
       .filter(t=>t.type==='withdraw'&&sessionId&&t.sessionId===sessionId)
       .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  }catch(e){_rwTxList=[];}
+    // بند إجار المحل — حساب جاري مستقلّ عن الكشف: كل الشهور وكل الدفعات
+    _rentCharges=_all.filter(t=>t.type==='rent_charge')
+      .sort((a,b)=>String(b.month||'').localeCompare(String(a.month||'')));
+    _rentPayments=_all.filter(t=>t.type==='rent_payment')
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }catch(e){_rwTxList=[];_rentCharges=[];_rentPayments=[];}
+  await _ensureRentCharges();
   // مصاريف الكشف الحالي — بنفس منطق الأرباح تماماً: سجلات الجلسة ⋃ سجلات
   // المدى الزمني غير الموسومة. الاستعلام الصارم السابق كان يُسقط أي مصروف
   // سُجّل بلا sessionId فيظهر الرصيد أعلى من الحقيقي.
@@ -16274,6 +16292,7 @@ function renderRosemaryWallet(){
       </div>
       </div>
     </div>`;
+  renderRentCard();
   renderRwTxList();
 }
 
@@ -16350,6 +16369,218 @@ async function saveRwInitialBalance(){
     renderRosemaryWallet();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
+
+// ===== إجار المحل — بند ضمن رصيد روزميري =====
+// حساب جارٍ مستقلّ عن الكشف: المتأخرات الأولية (يدوي) + إجار كل شهر (تلقائي
+// أول الشهر) − الدفعات. كل دفعة تُخصم من التحصيل (الكاش) كأي مصروف نقدي.
+let _rentSettings={monthlyAmount:0,openingDue:0,startMonth:''};
+let _rentCharges=[];   // إجار الشهور — معرّف الوثيقة rent_YYYY-MM (ثابت ⇒ لا تكرار)
+let _rentPayments=[];  // الدفعات
+
+function _rentMonthNow(){
+  try{ return (typeof jordanDateStr==='function'?jordanDateStr():new Date().toISOString().slice(0,10)).slice(0,7); }
+  catch(e){ return new Date().toISOString().slice(0,7); }
+}
+function _rentNextMonth(m){
+  let y=+String(m).slice(0,4),mo=+String(m).slice(5,7);
+  mo++; if(mo>12){mo=1;y++;}
+  return y+'-'+String(mo).padStart(2,'0');
+}
+function _rentTotals(){
+  const charged=_rentCharges.reduce((s,c)=>s+(Number(c.amount)||0),0);
+  const paid=_rentPayments.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const opening=Number((_rentSettings||{}).openingDue)||0;
+  return {charged,paid,opening,due:opening+charged-paid,months:_rentCharges.length};
+}
+
+// يضيف إجار كل شهر ناقص من شهر البداية حتى الشهر الحالي.
+// المعرّف مشتقّ من الشهر، فإعادة فتح الصفحة (أو جهازان معاً) لا تضاعف الإجار.
+async function _ensureRentCharges(){
+  const s=_rentSettings||{};
+  const amt=Number(s.monthlyAmount)||0;
+  const start=String(s.startMonth||'');
+  if(amt<=0||!/^\d{4}-\d{2}$/.test(start))return;
+  const cur=_rentMonthNow();
+  if(cur<start)return;
+  const have=new Set(_rentCharges.map(c=>c.month));
+  const missing=[];
+  let key=start;
+  for(let guard=0;guard<240&&key<=cur;guard++){
+    if(!have.has(key))missing.push(key);
+    key=_rentNextMonth(key);
+  }
+  if(!missing.length)return;
+  try{
+    const batch=db.batch();
+    missing.forEach(k=>batch.set(db.collection('rosemary_transactions').doc('rent_'+k),{
+      type:'rent_charge',month:k,amount:amt,date:k+'-01',auto:true,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    }));
+    await batch.commit();
+    missing.forEach(k=>_rentCharges.push({id:'rent_'+k,type:'rent_charge',month:k,amount:amt,date:k+'-01',auto:true}));
+    _rentCharges.sort((a,b)=>String(b.month||'').localeCompare(String(a.month||'')));
+  }catch(e){}
+}
+
+function _rentMonthLabel(m){
+  const N=['كانون الثاني','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين الأول','تشرين الثاني','كانون الأول'];
+  const i=+String(m).slice(5,7)-1;
+  return (N[i]||m)+' '+String(m).slice(0,4);
+}
+
+function renderRentCard(){
+  const card=document.getElementById('rent_card');
+  if(!card)return;
+  const t=_rentTotals();
+  const amt=Number((_rentSettings||{}).monthlyAmount)||0;
+  const start=String((_rentSettings||{}).startMonth||'');
+  const notSet=!(amt>0&&/^\d{4}-\d{2}$/.test(start));
+  const cur=_rentMonthNow();
+  const paidThisMonth=_rentPayments.filter(p=>String(p.date||'').slice(0,7)===cur)
+    .reduce((s,p)=>s+(Number(p.amount)||0),0);
+  card.innerHTML=`
+    <div style="background:linear-gradient(150deg,#3a2410 0%,#5c3a17 55%,#7a5220 100%);border-radius:20px;padding:16px;color:#fff;box-shadow:0 12px 30px rgba(58,36,16,.3);border:1px solid rgba(231,198,107,.28);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div>
+          <div style="font-size:0.78rem;color:#e7c66b;font-weight:700;margin-bottom:6px;">🏠 إجار المحل — المستحق علينا</div>
+          <div style="font-size:1.9rem;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.due>0?'#f5d78e':'#a7f3d0'};">${t.due.toFixed(2)} <span style="font-size:0.8rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
+        </div>
+        <button onclick="toggleRentSetup()" style="background:rgba(231,198,107,.2);color:#f2e9d3;border:1px solid rgba(231,198,107,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;">⚙️ إعداد الإجار</button>
+      </div>
+      <div style="font-size:0.68rem;color:rgba(255,255,255,.68);margin-top:6px;">
+        ${notSet?'⚠️ لم يُضبط الإجار بعد — اضغط «إعداد الإجار» وحدّد المبلغ الشهري وكم علينا الآن'
+        :`متأخرات ${t.opening.toFixed(2)} + ${t.months} شهر (${amt.toFixed(2)}/شهر) ${t.charged.toFixed(2)} − مدفوع ${t.paid.toFixed(2)}`}
+      </div>
+      ${!notSet?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">📅 إجار ${_rentMonthLabel(cur)}</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#fde68a;font-variant-numeric:tabular-nums;">${amt.toFixed(2)}</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">💚 مدفوع هذا الشهر</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#a7f3d0;font-variant-numeric:tabular-nums;">${paidThisMonth.toFixed(2)}</div>
+        </div>
+      </div>`:''}
+      <div style="font-size:0.64rem;color:rgba(255,255,255,.5);margin-top:9px;">كل دفعة إجار تُخصم من التحصيل (الكاش) — لا تسجّلها كمصروف مرّة ثانية</div>
+    </div>`;
+  const inpA=document.getElementById('rent_monthly_inp');
+  if(inpA&&document.activeElement!==inpA)inpA.value=amt||'';
+  const inpB=document.getElementById('rent_opening_inp');
+  if(inpB&&document.activeElement!==inpB)inpB.value=(Number((_rentSettings||{}).openingDue)||0)||'';
+  const inpC=document.getElementById('rent_start_inp');
+  if(inpC&&document.activeElement!==inpC)inpC.value=start||_rentNextMonth(cur);
+  const dEl=document.getElementById('rent_pay_date');
+  if(dEl&&!dEl.value)dEl.value=(typeof jordanDateStr==='function'?jordanDateStr():'');
+  renderRentLedger();
+}
+
+function renderRentLedger(){
+  const wrap=document.getElementById('rent_ledger');
+  if(!wrap)return;
+  const rows=[
+    ..._rentCharges.map(c=>({id:c.id,kind:'charge',label:'إجار '+_rentMonthLabel(c.month),amount:c.amount||0,date:c.date||'',notes:''})),
+    ..._rentPayments.map(p=>({id:p.id,kind:'pay',label:'دفعة إجار',amount:p.amount||0,date:p.date||'',notes:p.notes||''})),
+  ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const opening=Number((_rentSettings||{}).openingDue)||0;
+  if(opening>0)rows.push({id:'',kind:'open',label:'متأخرات سابقة (رصيد افتتاحي)',amount:opening,date:'',notes:''});
+  if(!rows.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد حركات إجار بعد</div>';
+    return;
+  }
+  wrap.innerHTML=rows.map(r=>{
+    const isPay=r.kind==='pay';
+    const act=r.kind==='open'
+      ?'<span style="font-size:0.68rem;color:#9ca3af;">⚙️ إعداد</span>'
+      :(r.kind==='charge'
+        ?`<button onclick="editRentCharge('${r.id}')" style="background:#fef3c7;color:#92400e;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.78rem;" title="تعديل مبلغ هذا الشهر">✏️</button>`
+        :`<button onclick="deleteRentTx('${r.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✕</button>`);
+    return `<div style="background:var(--card-bg);border:1px solid ${isPay?'#86efac':'#fcd34d'};border-right:4px solid ${isPay?'#16a34a':'#d97706'};border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-weight:700;color:${isPay?'#166534':'#92400e'};font-size:0.9rem;">${isPay?'💚':'🏠'} ${r.label} — ${(Number(r.amount)||0).toFixed(2)} د.أ</div>
+        <div style="font-size:0.75rem;color:var(--text-mid);">${r.date?'📅 '+r.date:''}${r.notes?(r.date?' — ':'')+r.notes:''}</div>
+      </div>
+      ${act}
+    </div>`;
+  }).join('');
+}
+
+function toggleRentSetup(){
+  const f=document.getElementById('rent_setup_form');
+  if(!f)return;
+  f.style.display=(f.style.display==='block')?'none':'block';
+}
+
+async function saveRentSettings(){
+  const monthly=parseFloat(document.getElementById('rent_monthly_inp').value);
+  const opening=parseFloat(document.getElementById('rent_opening_inp').value||'0');
+  const start=(document.getElementById('rent_start_inp').value||'').trim();
+  if(isNaN(monthly)||monthly<0){toast('⚠️ أدخل الإجار الشهري');return;}
+  if(isNaN(opening)||opening<0){toast('⚠️ أدخل المتأخرات (أو صفر)');return;}
+  if(!/^\d{4}-\d{2}$/.test(start)){toast('⚠️ اختر أول شهر يُحتسب تلقائياً');return;}
+  try{
+    await db.collection('rosemary_wallet').doc('rent').set({
+      monthlyAmount:monthly,openingDue:opening,startMonth:start,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    _rentSettings={..._rentSettings,monthlyAmount:monthly,openingDue:opening,startMonth:start};
+    const f=document.getElementById('rent_setup_form');
+    if(f)f.style.display='none';
+    toast('✅ تم حفظ إعداد الإجار');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function addRentPayment(){
+  const amount=parseFloat(document.getElementById('rent_pay_amount').value);
+  const date=document.getElementById('rent_pay_date').value;
+  const notes=(document.getElementById('rent_pay_notes').value||'').trim();
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!date){toast('⚠️ اختر التاريخ');return;}
+  if(!_opCurrentSession||!_opCurrentSession.id){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  try{
+    await db.collection('rosemary_transactions').add({
+      type:'rent_payment',amount,date,notes,
+      sessionId:_opCurrentSession.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('rent_pay_amount').value='';
+    document.getElementById('rent_pay_notes').value='';
+    toast('✅ سُجّلت دفعة الإجار — خُصمت من التحصيل');
+    await loadRosemaryWallet();
+    if(typeof _loadOpSessionData==='function'){try{await _loadOpSessionData();}catch(e){}}
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteRentTx(id){
+  if(!id)return;
+  if(!confirm('حذف هذه الدفعة؟ سيرتفع المستحق ويرجع الكاش كما كان.'))return;
+  try{
+    await db.collection('rosemary_transactions').doc(id).delete();
+    toast('✅ تم الحذف');
+    await loadRosemaryWallet();
+    if(typeof _loadOpSessionData==='function'){try{await _loadOpSessionData();}catch(e){}}
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+// تعديل إجار شهر بعينه (زيادة إجار، شهر ناقص، اتفاق مختلف) — الشهور الأخرى لا تتأثر
+async function editRentCharge(id){
+  const c=_rentCharges.find(x=>x.id===id);
+  if(!c)return;
+  const v=prompt('إجار '+_rentMonthLabel(c.month)+' (د.أ):',String(Number(c.amount)||0));
+  if(v===null)return;
+  const n=parseFloat(v);
+  if(isNaN(n)||n<0){toast('⚠️ مبلغ غير صحيح');return;}
+  try{
+    await db.collection('rosemary_transactions').doc(id).set({amount:n,auto:false},{merge:true});
+    c.amount=n;c.auto=false;
+    toast('✅ تم التعديل');
+    renderRentCard();
+  }catch(e){toast('❌ خطأ في التعديل');}
+}
+
+window.toggleRentSetup=toggleRentSetup; window.saveRentSettings=saveRentSettings;
+window.addRentPayment=addRentPayment; window.deleteRentTx=deleteRentTx;
+window.editRentCharge=editRentCharge;
 
 window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
 window.saveMalikDuties=saveMalikDuties;
