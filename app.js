@@ -1668,9 +1668,16 @@ async function openFrameGallery(){
   if(grid) grid.innerHTML='<div style="text-align:center;color:rgba(255,255,255,0.45);padding:60px 0;font-size:0.9rem;">⏳ جاري التحميل...</div>';
   try{
     // Direct Firestore query to get fresh image data
-    const snap=await db.collection('employee_orders')
-      .where('isFrameOrder','==',true)
-      .get();
+    // كانت تجلب كل طلبات البراويز منذ البداية بلا سقف ولا ترتيب — والطلبات
+    // القديمة قد تحمل صورها base64 داخل المستند، فيصير التحميل ميغابايتات.
+    // نأخذ الأحدث فقط، ومع تعذّر الفهرس المركّب نرجع للاستعلام المجرّد.
+    let snap;
+    try{
+      snap=await db.collection('employee_orders')
+        .where('isFrameOrder','==',true).orderBy('createdAt','desc').limit(150).get();
+    }catch(e){
+      snap=await db.collection('employee_orders').where('isFrameOrder','==',true).get();
+    }
     const fromFirestore=snap.docs.map(d=>({id:d.id,...d.data()}))
       .filter(o=>_hasRealImage(o)&&o.photoTaken!==true&&!['cancelled','returned','refused'].includes(o.status));
     // also include برواز by product name from memory (orders that predate the flag)
@@ -1826,41 +1833,52 @@ async function uploadGalleryPhotos(input){
   }
   if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع (0/'+files.length+')...</div>';}
   let done=0,lastErr=null;
-  const newItems=[];
-  for(const file of files){
-    try{
-      const isVideo=file.type.startsWith('video/');
-      const ext=isVideo?(file.name.split('.').pop()||'mp4'):'jpg';
-      const path=`galleries/${_galCurrentPhone}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const ref=storage.ref(path);
-      if(isVideo){
-        await ref.put(file);
-      } else {
-        const base64=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);});
-        const compressed=await _compressImage(base64,1200,0.80);
-        const blob=await fetch(compressed).then(r=>r.blob());
-        await ref.put(blob);
-      }
-      const url=await ref.getDownloadURL();
-      newItems.push({url,storagePath:path,type:isVideo?'video':'image',createdAt:new Date().toISOString()});
-      done++;
-      if(prog) prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع ('+done+'/'+files.length+')...</div>';
-    }catch(e){
-      console.error('Upload error',e);
-      lastErr=e;
-      if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ خطأ: '+(e.code||e.name||'unknown')+' — '+e.message+'</div>';}
-      break;
+  const failed=[];
+  // كان الرفع ملفاً ملفاً، وأي فشل ينفّذ break فيُلغى رفع كل ما بعده بصمت —
+  // لهذا لم تُحفظ كل الصور عند رفع أكثر من صورتين. الآن: كل ملف مستقلّ،
+  // فشل واحد لا يُسقط البقية، والرفع على دفعات متوازية فيصير أسرع كثيراً.
+  const _one=async(file)=>{
+    const isVideo=file.type.startsWith('video/');
+    const ext=isVideo?(file.name.split('.').pop()||'mp4'):'jpg';
+    const path=`galleries/${_galCurrentPhone}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const ref=storage.ref(path);
+    if(isVideo){
+      await ref.put(file);
+    } else {
+      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>rej(new Error('تعذّر قراءة الملف'));r.readAsDataURL(file);});
+      const compressed=await _compressImage(base64,1200,0.80);
+      const blob=await fetch(compressed).then(r=>r.blob());
+      await ref.put(blob);
     }
+    const url=await ref.getDownloadURL();
+    return {url,storagePath:path,type:isVideo?'video':'image',createdAt:new Date().toISOString()};
+  };
+  const newItems=[];
+  const CH=3;   // ثلاثة معاً — توازن بين السرعة وعدم إغراق الاتصال
+  for(let i=0;i<files.length;i+=CH){
+    const part=files.slice(i,i+CH);
+    const res=await Promise.all(part.map(f=>_one(f).then(v=>({ok:true,v})).catch(e=>({ok:false,e,name:f.name}))));
+    res.forEach(r=>{
+      if(r.ok){newItems.push(r.v);done++;}
+      else{console.error('Upload error',r.e);lastErr=r.e;failed.push(r.name||'ملف');}
+    });
+    if(prog) prog.innerHTML='<div style="color:#c9a84c;font-size:0.82rem;text-align:center;padding:8px;">⏳ جاري الرفع ('+done+'/'+files.length+')...</div>';
   }
   if(!newItems.length){
-    if(!lastErr&&prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل رفع الملفات — تأكد من الاتصال</div>';}
+    const why=lastErr?((lastErr.code||lastErr.name||'خطأ')+' — '+lastErr.message):'تأكد من الاتصال';
+    if(prog){prog.style.display='block';prog.innerHTML='<div style="color:#f87171;font-size:0.82rem;text-align:center;padding:8px;">❌ فشل رفع الملفات — '+why+'</div>';}
     return;
   }
   const updatedPhotos=[...(_galCurrentData.photos||[]),...newItems];
   await db.collection('customer_galleries').doc(_galCurrentPhone).update({photos:updatedPhotos,photoCount:updatedPhotos.length});
   _galCurrentData.photos=updatedPhotos;
   _galCurrentData.photoCount=updatedPhotos.length;
-  if(prog)prog.style.display='none';
+  // لا نُخفي النتيجة إن سقط بعضها — المستخدم يحتاج أن يعرف ليعيد المحاولة
+  if(prog){
+    if(failed.length){prog.style.display='block';
+      prog.innerHTML='<div style="color:#fbbf24;font-size:0.82rem;text-align:center;padding:8px;">⚠️ رُفعت '+done+' من '+files.length+' — فشل: '+failed.join('، ')+'</div>';}
+    else prog.style.display='none';
+  }
   _renderGalleryCustomer();
 }
 async function deleteGalleryPhoto(phone,url,storagePath,idx){
