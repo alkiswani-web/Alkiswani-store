@@ -1,11 +1,30 @@
-// Force reload if cached version is stale
+// إعادة تحميل مرّة واحدة عند نشر نسخة جديدة.
+// كان يستعمل sessionStorage — وهو يُمسح مع كل جلسة تبويب جديدة (وكل فتحة
+// للتطبيق من الشاشة الرئيسية جلسة جديدة)، فكان الشرط صحيحاً في كل فتحة باردة:
+// التطبيق يحمّل نفسه مرّتين كاملتين — مستند + Firebase SDK + app.js + كل
+// استعلامات init — قبل أن يرى المالك أي شيء. localStorage يبقى، فينفّذ
+// السطر غرضه الحقيقي: إعادة تحميل واحدة عند تغيّر V فقط.
+// وعلى جهاز لم يزُر الموقع قطّ لا يوجد شيء قديم يُبطَل، فلا إعادة تحميل أصلاً.
 (function(){
   const V='20260617-r4';
-  if(sessionStorage.getItem('_av')!==V){
-    sessionStorage.setItem('_av',V);
-    location.reload(true);
-  }
+  try{
+    const prev=localStorage.getItem('_av');
+    if(prev===V)return;
+    localStorage.setItem('_av',V);
+    if(prev!=null) location.reload();   // زائر قديم بنسخة أقدم فقط
+  }catch(e){}
 })();
+// يؤجّل عملاً غير عاجل إلى ما بعد جهوز الصفحة، حتى لا يزاحم على قناة
+// Firestore ولا على الخيط الرئيسي وقت الفتح.
+function _whenIdle(fn,maxWait){
+  const run=()=>{
+    if(typeof requestIdleCallback==='function') requestIdleCallback(()=>{try{fn();}catch(e){}},{timeout:maxWait||4000});
+    else setTimeout(()=>{try{fn();}catch(e){}},maxWait||1200);
+  };
+  if(document.readyState==='complete') run();
+  else window.addEventListener('load',run,{once:true});
+}
+
 // ===== FIREBASE CONFIG =====
 const firebaseConfig = {
   apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
@@ -218,14 +237,19 @@ async function loadProducts(){
   const _apply=s=>{products=s.docs.map(d=>({...d.data(),_docId:d.id}));renderStore();renderMostOrdered();updateHeroStats();};
   let snap=null;
   try{
-    // السيرفر بمهلة 4 ثوانٍ — لو بطّأ نعرض من كاش الجهاز فوراً والتحديث يكمل بالخلفية
+    // السيرفر بمهلة 4 ثوانٍ — لو بطّأ نعرض من كاش الجهاز فوراً والتحديث يكمل بالخلفية.
+    // نحتفظ بالوعد الأصلي ونعيد استعماله: Promise.race لا يلغي الخاسر، فالاستعلام
+    // الأول ينزل المجموعة كاملةً على أي حال. إطلاق استعلام ثالث كان يضاعف
+    // بايتات المنتجات على الوصلة البطيئة نفسها التي سبّبت التأخير.
+    const _serverGet=db.collection('products').get();
+    _serverGet.catch(()=>{});
     snap=await Promise.race([
-      db.collection('products').get(),
+      _serverGet,
       new Promise(res=>setTimeout(()=>res(null),4000))
     ]);
     if(!snap){
       try{const c=await db.collection('products').get({source:'cache'});if(c&&c.docs.length)snap=c;}catch(e){}
-      db.collection('products').get().then(_apply).catch(()=>{});
+      _serverGet.then(_apply).catch(()=>{});
     }
   }catch(e){
     try{const c=await db.collection('products').get({source:'cache'});if(c&&c.docs.length)snap=c;}catch(e2){}
@@ -240,18 +264,29 @@ async function updateHeroStats(){
     if(pc) pc.textContent='+'+products.length;
     const cc=document.getElementById('heroCustomersCount');
     if(cc){
-      // Cache customer count for 15 min — avoids loading all orders on every visit
+      // عدّاد الزبائن يمسح مجموعة orders كاملةً بلا حدود. كان الكاش في
+      // sessionStorage — يُمسح مع كل جلسة تبويب، أي مع كل فتحة باردة، فكان
+      // المسح الكامل يقع في كل مرّة ويزاحم استعلامات اللوحة على نفس القناة.
+      // localStorage يبقى، فيقع المسح مرّة كل ٦ ساعات لا كل فتحة.
       let customerCount;
       try{
-        const raw=sessionStorage.getItem('_heroStatsCust');
-        if(raw){const p=JSON.parse(raw);if(Date.now()-p.ts<15*60*1000)customerCount=p.v;}
+        const raw=localStorage.getItem('_heroStatsCust')||sessionStorage.getItem('_heroStatsCust');
+        if(raw){const p=JSON.parse(raw);if(Date.now()-p.ts<6*60*60*1000)customerCount=p.v;}
       }catch(e){}
       if(customerCount===undefined){
-        const ordersSnap=await db.collection('orders').get();
-        customerCount=new Set(ordersSnap.docs.map(d=>d.data().phone).filter(Boolean)).size;
-        try{sessionStorage.setItem('_heroStatsCust',JSON.stringify({v:customerCount,ts:Date.now()}));}catch(e){}
+        // مؤجَّل إلى ما بعد جهوز الصفحة — رقم تجميلي لا يستحق مزاحمة التحميل
+        _whenIdle(async()=>{
+          try{
+            const ordersSnap=await db.collection('orders').get();
+            const n=new Set(ordersSnap.docs.map(d=>d.data().phone).filter(Boolean)).size;
+            try{localStorage.setItem('_heroStatsCust',JSON.stringify({v:n,ts:Date.now()}));}catch(e){}
+            const el=document.getElementById('heroCustomersCount');
+            if(el) el.textContent='+'+n;
+          }catch(e){}
+        });
+      } else {
+        cc.textContent='+'+customerCount;
       }
-      cc.textContent='+'+customerCount;
     }
     let totalStars=0,totalReviews=0;
     products.forEach(function(p){(p.reviews||[]).forEach(function(r){totalStars+=r.stars||0;totalReviews++;});});
@@ -5856,12 +5891,21 @@ function searchAdminProducts(q){
   `).join('');
 }
 async function renderAdmin(){
-  await loadCustomers();
+  // كان يبدأ بـ await loadCustomers() — مسح مجموعة الزبائن كاملةً بلا حدود —
+  // فتبقى اللوحة فارغة حتى يعود، رغم أنّ المطلوب منه رقمٌ واحد في بطاقة
+  // إحصاء. نرسم فوراً من المنتجات المحمّلة أصلاً، والرقم يلحق.
   const cats=[...new Set(products.map(p=>p.cat))];
   document.getElementById('aTotalP').textContent=products.length;
   document.getElementById('aTotalC').textContent=cats.length;
-  document.getElementById('aTotalCust').textContent=customers.length;
   document.getElementById('pCount').textContent=products.length;
+  const _custEl=document.getElementById('aTotalCust');
+  if(_custEl){
+    if(customers.length){_custEl.textContent=customers.length;}
+    else{
+      _custEl.textContent='…';
+      loadCustomers().then(()=>{_custEl.textContent=customers.length;}).catch(()=>{_custEl.textContent='—';});
+    }
+  }
   const list=document.getElementById('adminList');
   if(!products.length){list.innerHTML=`<div class="empty-msg">ما في منتجات بعد</div>`;return;}
   list.innerHTML=products.map(p=>`
@@ -11433,6 +11477,22 @@ if('serviceWorker' in navigator){
       .then(()=>console.log('✅ PWA ready'))
       .catch(e=>console.log('SW:',e));
   });
+  // المستند يُعرض من الكاش فوراً ويُحدَّث بالخلفية؛ إن جاء مختلفاً نُظهر زرّ
+  // تحديث بدل أن يبقى المالك على نسخة قديمة دون أن يدري.
+  navigator.serviceWorker.addEventListener('message',ev=>{
+    if(!ev.data||ev.data.type!=='html-updated')return;
+    if(document.getElementById('_swUpdBar'))return;
+    const b=document.createElement('div');
+    b.id='_swUpdBar';
+    b.style.cssText='position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:100000;background:#1a3a2a;color:#f2e9d3;border:1px solid rgba(230,207,146,.35);border-radius:12px;padding:9px 14px;font-family:Tajawal,sans-serif;font-size:0.82rem;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.28);display:flex;align-items:center;gap:10px;';
+    b.innerHTML='<span>🔄 في نسخة جديدة</span>'
+      +'<button style="background:#e6cf92;color:#1a3a2a;border:none;border-radius:8px;padding:5px 11px;font-family:Tajawal,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;">تحديث</button>'
+      +'<button style="background:none;border:none;color:rgba(242,233,211,.6);font-size:1rem;cursor:pointer;line-height:1;">✕</button>';
+    const [go,close]=b.querySelectorAll('button');
+    go.onclick=()=>location.reload();
+    close.onclick=()=>b.remove();
+    document.body.appendChild(b);
+  });
 }
 
 // ===== SOCIAL PROOF NOTIFICATIONS (REAL ORDERS) =====
@@ -11928,8 +11988,10 @@ async function init(){
   if(new URLSearchParams(window.location.search).has('rep')){_initRepApp();return;}
   const _gToken=new URLSearchParams(window.location.search).get('g');
   if(_gToken){_initPublicSlideshow(_gToken);return;}
-  // Ensure Firestore is online before loading any data
-  await _ensureNet();
+  // الشبكة مفعّلة افتراضياً ولا شيء في التطبيق يعطّلها؛ كان await هنا يجبر
+  // تهيئة IndexedDB (مع synchronizeTabs وانتخاب primary lease) بالكامل قبل
+  // إصدار أول طلب شبكة. لا ننتظرها.
+  _ensureNet().catch(()=>{});
   try{ initDarkMode(); }catch(e){}
   try{ checkReferral(); }catch(e){}
   try{ updateWishBadge(); }catch(e){}
@@ -11939,14 +12001,17 @@ async function init(){
     loadCategories().catch(e=>console.log('loadCategories error',e)),
     loadProducts().catch(e=>console.error('loadProducts error:',e))
   ]);
-  // Non-critical: run in background, don't block the page
-  loadCustomerPhotos().catch(()=>{});
-  loadEidSettings().catch(()=>{});
-  loadAboutSettings().catch(()=>{});
-  try{ trackVisit(); }catch(e){}
   try{ updateCartCount(); }catch(e){}
   try{ updateNavUser(); }catch(e){}
-  try{ startSocialProof(); }catch(e){}
+  // غير عاجل: كانت تنطلق فوراً فتزاحم استعلامات لوحة التحكم على نفس قناة
+  // Firestore وعلى حزمة الجوّال في اللحظة نفسها التي يفتح فيها المالك اللوحة.
+  _whenIdle(()=>{
+    loadCustomerPhotos().catch(()=>{});
+    loadEidSettings().catch(()=>{});
+    loadAboutSettings().catch(()=>{});
+    try{ trackVisit(); }catch(e){}
+    try{ startSocialProof(); }catch(e){}
+  });
   try{ showWelcome(); }catch(e){}
   _initTrackingPage().catch(()=>{});
   _initDeliveryBatchPage().catch(()=>{});

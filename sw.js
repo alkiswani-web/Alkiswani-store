@@ -1,26 +1,35 @@
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
+// إشعارات FCM — معزولة داخل try لأنّ أي استثناء في المستوى الأعلى من ملف
+// service worker يُفشل التسجيل كلّه، فيبقى الجهاز بلا كاش إطلاقاً: كل فتحة
+// تنزّل المستند وSDK فايربيس وapp.js من الشبكة من جديد. وهذه الأسطر تعتمد
+// على شبكة خارجية (gstatic) وقت التنصيب، أي أنّ انقطاعاً لحظياً واحداً كان
+// كفيلاً بتعطيل التخزين المؤقّت كلّه إلى أجل غير مسمّى.
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
-  authDomain: "alkiswani-store.firebaseapp.com",
-  projectId: "alkiswani-store",
-  storageBucket: "alkiswani-store.firebasestorage.app",
-  messagingSenderId: "60330492719",
-  appId: "1:60330492719:web:71e36dd5327db3e54017da"
-});
-
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  const { title, body } = payload.notification;
-  self.registration.showNotification(title, {
-    body,
-    icon: '/icon-192.png'
+  firebase.initializeApp({
+    apiKey: "AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",
+    authDomain: "alkiswani-store.firebaseapp.com",
+    projectId: "alkiswani-store",
+    storageBucket: "alkiswani-store.firebasestorage.app",
+    messagingSenderId: "60330492719",
+    appId: "1:60330492719:web:71e36dd5327db3e54017da"
   });
-});
 
-const CACHE = 'alkiswani-v232';
+  const messaging = firebase.messaging();
+
+  messaging.onBackgroundMessage((payload) => {
+    const { title, body } = payload.notification;
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192.png'
+    });
+  });
+} catch (e) {
+  // بلا إشعارات خلفية — لكنّ التخزين المؤقّت أدناه يعمل، وهو الأهم للسرعة.
+}
+
+const CACHE = 'alkiswani-v233';
 // كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
 // اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
 const STATIC = 'alkiswani-static-1';
@@ -65,19 +74,35 @@ self.addEventListener('activate', e => {
   })());
 });
 
-// network-first مع مهلة: لو النت بطيء نعرض النسخة المخزنة فوراً والتحديث ينزل بالخلفية للفتحة الجاية
-function networkFirstWithTimeout(req, timeoutMs) {
+// stale-while-revalidate: النسخة المخزّنة تُعاد فوراً (~10ms) والتحديث ينزل
+// بالخلفية للفتحة الجاية.
+// كان network-first بمهلة: طلب الملاحة أول شيء في الصفحة ولا شيء يبدأ قبله،
+// فكانت كل فتحة تدفع تنزيل المستند كاملاً من الشبكة قبل تحليل أول بايت —
+// والكاش لا يُستعمل إلا إذا تجاوزت الشبكة المهلة. أي أسوأ الحالتين:
+// شبكة عادية ⇒ ندفع التنزيل كاملاً، شبكة سيّئة ⇒ ندفع المهلة كاملة ثم الكاش.
+// وبما أنّ المعروض قد يتأخّر فتحةً واحدة بعد النشر، نُخبر الصفحة إن اختلف
+// المستند الجديد عن المخزّن فتعرض زرّ تحديث — بدل أن يظنّ المالك أن النشر لم يصل.
+async function _notifyIfChanged(cached, res) {
+  try {
+    const [a, b] = await Promise.all([cached.clone().text(), res.clone().text()]);
+    if (a === b) return;
+    for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage({ type: 'html-updated' });
+  } catch (err) {}
+}
+
+function staleWhileRevalidate(req, cacheName) {
   return caches.match(req).then(cached => {
     const networkFetch = fetch(req).then(res => {
       if(res && res.status === 200) {
         const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(req, clone));
+        caches.open(cacheName).then(c => c.put(req, clone));
+        if(cached) _notifyIfChanged(cached, res);
       }
       return res;
     });
     if(!cached) return networkFetch; // أول زيارة: لازم النت
-    const timer = new Promise(resolve => setTimeout(() => resolve(cached), timeoutMs));
-    return Promise.race([networkFetch.catch(() => cached), timer]);
+    networkFetch.catch(() => {});    // حدِّث بالخلفية ولا تُسقِط الوعد
+    return cached;
   });
 }
 
@@ -141,9 +166,25 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML (navigation): network-first with timeout fallback to cache
+  // HTML (navigation): الكاش فوراً + تحديث بالخلفية.
+  // النسخة المعروضة قد تتأخّر فتحةً واحدة بعد النشر — مقبول لأن رابط app.js
+  // يحمل رقم نسخته، فالمستند القديم يجلب شيفرته المطابقة لا خليطاً منهما.
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
-    e.respondWith(networkFirstWithTimeout(e.request, 2500));
+    e.respondWith(staleWhileRevalidate(e.request, CACHE));
+    return;
+  }
+
+  // صور الموقع الثابتة (الشعار والأيقونات): روابطها تحمل رقم نسخة أو لا تتغيّر
+  // إطلاقاً ⇒ cache-first في الكاش الدائم. لولا ذلك لأُعيد تنزيل شعار شاشة
+  // التحميل (~50KB) في كل فتحة قبل أن يرى المالك أي شيء.
+  if(/\/(loading-logo|icon-\d+)\.(jpg|png)(\?|$)/.test(url)) {
+    e.respondWith(
+      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+        if(res && res.status === 200)
+          caches.open(STATIC).then(c => c.put(e.request, res.clone()));
+        return res;
+      }))
+    );
     return;
   }
 
