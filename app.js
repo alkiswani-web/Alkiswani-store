@@ -43,6 +43,89 @@ const storage = firebase.storage();
 let _akFunctions=null;
 try{_akFunctions=firebase.functions();}catch(e){_akFunctions=null;}
 
+// ===== كاش قصير للاستعلامات الثقيلة =====
+// تبويبات لوحة التحكم تنادي دوال تحميلها في كل ضغطة، وبعضها يجلب مجموعات
+// كاملة (الطلبات، المبيعات، المنتجات). فالتنقّل بين تبويبين ذهاباً وإياباً
+// كان يعيد تنزيل الميغابايتات نفسها في كل مرّة.
+// الكاش قصير الأمد، و**أي كتابة على قاعدة البيانات تمسحه بالكامل**، فلا يمكن
+// أن يعرض رقماً قديماً بعد عملية قام بها المستخدم.
+const _qCache=new Map();
+function _cachedQuery(key,ttlMs,fn){
+  const hit=_qCache.get(key);
+  if(hit&&(Date.now()-hit.t)<ttlMs) return hit.p;
+  const p=fn();
+  _qCache.set(key,{t:Date.now(),p});
+  Promise.resolve(p).catch(()=>{ const cur=_qCache.get(key); if(cur&&cur.p===p)_qCache.delete(key); });
+  return p;
+}
+function _invalidateQuery(prefix){
+  if(!prefix){_qCache.clear();return;}
+  for(const k of [..._qCache.keys()]) if(k.startsWith(prefix)) _qCache.delete(k);
+}
+// تعطيل الكاش عند أي كتابة — نلتقطها من نماذج الـSDK نفسها بدل تتبّع كل
+// موضع استدعاء يدوياً (وهو ما يُنسى منه واحد فيظهر رقم قديم).
+(function(){
+  try{
+    const col=db.collection('_cacheprobe'), doc=col.doc('x');
+    const wrap=(obj,names)=>names.forEach(n=>{
+      const proto=Object.getPrototypeOf(obj), orig=proto&&proto[n];
+      if(typeof orig!=='function'||orig.__akWrapped)return;
+      const w=function(){ _invalidateQuery(); return orig.apply(this,arguments); };
+      w.__akWrapped=true; proto[n]=w;
+    });
+    wrap(doc,['set','update','delete']);
+    wrap(col,['add']);
+    wrap(db.batch(),['commit']);
+  }catch(e){}
+})();
+
+// ===== دمج الاستعلامات المتطابقة =====
+// فتحة واحدة لتبويب الرصيد كانت تُصدر ٣١ استعلاماً، منها استعلامات متطابقة
+// حرفياً تتكرّر ٢–٣ مرّات لأن دوالّ مختلفة تحتاج البيانات نفسها ولا تعرف عن
+// بعضها. هنا نبني مفتاحاً من الاستعلام نفسه (المجموعة + الشروط + الترتيب +
+// الحدّ)، فتتشارك النداءات المتطابقة تنزيلاً واحداً.
+// المهلة قصيرة جداً (٣ ثوانٍ): الغرض دمج نداءات فتحةٍ واحدة، لا الاحتفاظ
+// ببيانات قديمة. وأي كتابة تمسح الكاش فوراً على أي حال.
+const _DEDUPE_MS=3000;
+function _qKeyPart(v){
+  try{
+    if(v==null)return String(v);
+    if(Array.isArray(v))return '['+v.map(_qKeyPart).join(',')+']';
+    if(typeof v==='object'){
+      if(typeof v.toMillis==='function')return 'ts'+v.toMillis();
+      if(typeof v.toDate==='function')return 'ts'+v.toDate().getTime();
+      if(v.id&&v.path)return 'ref'+v.path;
+      return (v.constructor&&v.constructor.name||'o')+JSON.stringify(v);
+    }
+    return String(v);
+  }catch(e){return '?';}
+}
+(function(){
+  try{
+    const CHAIN=['where','orderBy','limit','limitToLast','startAt','startAfter','endAt','endBefore'];
+    const wrapQuery=(q,key)=>new Proxy(q,{
+      get(t,p,r){
+        const v=Reflect.get(t,p,t);
+        if(typeof v!=='function')return v;
+        if(CHAIN.includes(p))
+          return (...a)=>wrapQuery(v.apply(t,a),key+'|'+p+'('+a.map(_qKeyPart).join(',')+')');
+        if(p==='get')
+          // خيار المصدر (cache/server) يتخطّى الدمج — سلوكه مقصود ومختلف
+          return (...a)=>a.length?v.apply(t,a):_cachedQuery('q:'+key,_DEDUPE_MS,()=>v.apply(t));
+        // كل ما عدا ذلك يمرّ كما هو — وبالذات doc()، فمراجع الوثائق تُمرَّر
+        // إلى batch.set و runTransaction وتخضع لفحوص نوع داخل الـSDK، ولا
+        // ينبغي أن تصل إليها مغلّفةً بوكيل. إبطال الكاش عند الكتابة يتكفّل
+        // به ترقيع النماذج أعلاه (مُتحقَّق منه بالفحوصات).
+        return v.bind(t);
+      }
+    });
+    const origCollection=db.collection.bind(db);
+    db.collection=function(name){ return wrapQuery(origCollection(name),'c:'+name); };
+    const origGroup=db.collectionGroup&&db.collectionGroup.bind(db);
+    if(origGroup) db.collectionGroup=function(name){ return wrapQuery(origGroup(name),'g:'+name); };
+  }catch(e){}
+})();
+
 // ===== PUSH NOTIFICATIONS (FCM v1 API) =====
 let _fcmMessaging=null,_fcmVapidKey=null,_fcmReady=false;
 let _fcmSA=null,_fcmAT=null,_fcmATExp=0;
@@ -1166,7 +1249,7 @@ function switchAdminTab(tab){
   if(activeBtn)activeBtn.classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='customers')renderCustomers();
-  if(tab==='orders')renderOrders();
+  if(tab==='orders')renderOrders(true);
   if(tab==='stats'){loadStats();loadVisitorStats();}
   if(tab==='badges')loadBadgeSettings();
   if(tab==='points')loadPointsSettingsUI();
@@ -5821,10 +5904,17 @@ function switchOrderTab(status, btn){
   renderOrdersByStatus();
 }
 
-async function renderOrders(){
+// _allOrdersSnap مشترك بين تبويب الطلبات وتبويب الإحصائيات — كلاهما يحتاج
+// المجموعة كاملة، وكانا ينزّلانها مرّتين منفصلتين.
+function _getAllOrdersSnap(useCache){
+  if(!useCache) _invalidateQuery('orders:all');
+  return _cachedQuery('orders:all',60000,()=>db.collection('orders').get());
+}
+
+async function renderOrders(useCache){
   const list=document.getElementById('ordersList');
-  list.innerHTML='<div class="empty-msg">⏳ جاري التحميل...</div>';
-  const snap=await db.collection('orders').get();
+  if(!window._allOrders) list.innerHTML='<div class="empty-msg">⏳ جاري التحميل...</div>';
+  const snap=await _getAllOrdersSnap(useCache);
   const allOrders=snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
   // Update counts
   const counts={'جديد':0,'قيد التجهيز':0,'بالطريق':0,'تم التسليم':0,'ملغي':0};
@@ -5838,14 +5928,21 @@ async function renderOrders(){
   renderOrdersByStatus();
 }
 
-function renderOrdersByStatus(){
+// عرض تدريجي: كان يبني سلسلة HTML لكل طلبات الحالة دفعةً واحدة — آلاف
+// الصفوف في تكّة واحدة على الخيط الرئيسي، فتتجمّد الصفحة قبل أن تظهر.
+let _ordersPageSize=40;
+function showMoreOrders(){ _ordersPageSize+=60; renderOrdersByStatus(true); }
+function renderOrdersByStatus(keepPage){
+  if(!keepPage) _ordersPageSize=40;
   const list=document.getElementById('ordersList');
   const all=window._allOrders||[];
   const filtered=all.filter(o=>(o.status||'جديد')===currentOrderStatus);
   if(!filtered.length){list.innerHTML=`<div class="empty-msg">ما في طلبات بهذه الحالة</div>`;return;}
+  const _total=filtered.length;
+  const _shown=filtered.slice(0,_ordersPageSize);
   const statusColors={'جديد':'#dcfce7','قيد التجهيز':'#fef9c3','بالطريق':'#dbeafe','تم التسليم':'#f0fdf4','ملغي':'#fee2e2'};
   const statusText={'جديد':'#166534','قيد التجهيز':'#854d0e','بالطريق':'#1e40af','تم التسليم':'#166534','ملغي':'#991b1b'};
-  list.innerHTML=filtered.map(o=>`
+  list.innerHTML=_shown.map(o=>`
     <div class="prod-row" style="flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:6px;">
         <div style="font-weight:700;color:var(--green-dark);font-size:0.9rem;">طلب ${o.orderNum||'#'+String(o.id).slice(-6)} · ${o.date}</div>
@@ -5866,7 +5963,8 @@ function renderOrdersByStatus(){
         <button onclick="deleteOrder('${o.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;color:#6b7280;">🗑️ حذف</button>
       </div>
     </div>
-  `).join('');
+  `).join('')
+  +(_total>_shown.length?`<button onclick="showMoreOrders()" style="width:100%;padding:12px;margin-top:4px;background:var(--card-bg);color:var(--green-dark);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">⬇️ عرض المزيد (${_shown.length} من ${_total})</button>`:'');
 }
 
 function searchAdminProducts(q){
@@ -6667,7 +6765,7 @@ function startOrderListener(){
       _lastOrderCount=topId;
       playOrderSound();
       showNewOrderAlert(latest);
-      renderOrders();
+      renderOrders();   // بلا كاش: طلب جديد وصل
     }
   },e=>{console.error('order listener error:',e);});
 }
@@ -6811,8 +6909,8 @@ function switchOpTab(tab){
     }
   });
   if(tab!=='sales'&&_todaySalesUnsub){_todaySalesUnsub();_todaySalesUnsub=null;}
-  if(tab==='products') loadOpProducts();
-  if(tab==='stores') loadOpStores();
+  if(tab==='products') loadOpProducts(true);
+  if(tab==='stores') loadOpStores(true);
   if(tab==='sales') initSalesTab();
   if(tab==='account'){loadAcctStoreList();checkOperatorDayStatus();}
   if(tab==='balance') loadBalanceTab();
@@ -7372,14 +7470,15 @@ function _renderOppImgPreview(){
   </div>`;
 }
 
-async function loadOpProducts(){
+async function loadOpProducts(useCache){
+  if(!useCache) _invalidateQuery('opproducts:');
   try{
-    const snap=await db.collection('operator_products').orderBy('name').get();
+    const snap=await _cachedQuery('opproducts:all',90000,()=>db.collection('operator_products').orderBy('name').get());
     _opProductsList=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){_opProductsList=[];}
   if(!_opStoresList.length){
     try{
-      const snap=await db.collection('operator_stores').orderBy('name').get();
+      const snap=await _cachedQuery('opstores:all',90000,()=>db.collection('operator_stores').orderBy('name').get());
       _opStoresList=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e){}
   }
@@ -7633,9 +7732,10 @@ async function deleteOpProduct(id){
 let _opStoresList=[];
 let _opAllStoresList=[]; // includes archived — used for accounting history
 
-async function loadOpStores(){
+async function loadOpStores(useCache){
+  if(!useCache) _invalidateQuery('opstores:');
   try{
-    const snap=await db.collection('operator_stores').orderBy('name').get();
+    const snap=await _cachedQuery('opstores:all',90000,()=>db.collection('operator_stores').orderBy('name').get());
     const all=snap.docs.map(d=>({id:d.id,...d.data()}));
     _opAllStoresList=all;
     _opStoresList=all.filter(s=>!s.archived); // only active for new entries
@@ -8927,10 +9027,12 @@ async function loadAcctStoreList(){
   const threshold=getAcctThreshold();
   let refundByStore={},owedByStore={},paidByStore={};
   try{
+    // حسابات المتاجر حسابات جارية منذ البداية، فالمجاميع يجب أن تشمل كل شيء —
+    // لا تقييد هنا. لكنّ إعادة فتح التبويب لا تستحق إعادة تنزيلها.
     const [rSnap,sSnap,pSnap]=await Promise.all([
-      db.collection('page_refunds').get(),
-      db.collection('operator_sales').get(),
-      db.collection('operator_store_payments').get()
+      _cachedQuery('acct:refunds',60000,()=>db.collection('page_refunds').get()),
+      _cachedQuery('acct:sales',60000,()=>db.collection('operator_sales').get()),
+      _cachedQuery('acct:payments',60000,()=>db.collection('operator_store_payments').get())
     ]);
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId)refundByStore[r.storeId]=(refundByStore[r.storeId]||0)+(r.totalCost||0);});
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false)owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
@@ -9121,6 +9223,12 @@ function _wdForStore(w,storeName,storeId){
 }
 
 async function _loadOpDayData(date){await _loadOpSessionData();}
+// مبيعات فترة الكشف — يطلبها مركز الحسابات ومحفظة روزميري بنفس الحدود تماماً،
+// وكانت تُنزَّل مرّتين منفصلتين (مجموعة كاملة في كل مرّة).
+function _sessionSalesSnap(from,to){
+  return _cachedQuery('sess:sales:'+from+':'+to,60000,
+    ()=>db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get());
+}
 async function _loadOpSessionData(){
   const body=document.getElementById('opacct_op_body');
   const actionsWrap=document.getElementById('opacct_op_actions');
@@ -9145,7 +9253,7 @@ async function _loadOpSessionData(){
     infoEl.innerHTML=`<span style="color:#166534;font-weight:700;">🟢 الكشف من ${_fmtDate(_kashfStart)}</span> <span style="color:#9ca3af;font-size:0.78rem;">— حتى اليوم ${_fmtDate(to)}</span>`;
   }
   try{
-    const salesSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
+    const salesSnap=await _sessionSalesSnap(from,to);
     _opDailySales=salesSnap.docs.map(d=>({id:d.id,...d.data()}))
       .filter(s=>s.delivered!==false)
       // exclude records that belong to a different session (old records with no sessionId are kept)
@@ -11004,7 +11112,8 @@ async function toggleVisitorPublic(){
 
 async function loadStats(){
   try{
-    const snap = await db.collection('orders').get();
+    // يشارك تبويبَ الطلبات نفس التنزيل بدل جلب المجموعة كاملةً مرّة ثانية
+    const snap = await _getAllOrdersSnap(true);
     const orders = snap.docs.map(d=>({...d.data(),id:d.id}));
     const today = new Date().toDateString();
     
@@ -15417,6 +15526,16 @@ let _opSupplierPayments=[];   // دفعاتك للموردين
 async function loadBalanceTab(){
   // نضمن الجلسة المفتوحة أولاً — لأنّ حساب مواد الطلبات المباعة (شجر/خام) يعتمد على فترة الكشف
   if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
+  // استعلامات المستهلك لا تعتمد إلا على تاريخ الجلسة المعروف الآن، فنُطلقها
+  // فوراً بدل انتظار الإعدادات والمشتريات. كانت سلسلة من أربع رحلات متتالية
+  // كل واحدة تنتظر التي قبلها، وهي أثقل ما في التبويب.
+  const _mS=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
+  const _pRefundsP=_cachedQuery('bal:refunds:'+_mS,60000,()=>db.collection('page_refunds').where('date','>=',_mS).get())
+    .catch(()=>_cachedQuery('bal:refunds:all',60000,()=>db.collection('page_refunds').get()));
+  const _pCancelledP=_cachedQuery('bal:cancelled',60000,()=>db.collection('employee_orders').where('status','in',['cancelled','returned','refused']).get());
+  const _pSalesP=_cachedQuery('bal:sales:'+_mS,60000,()=>db.collection('operator_sales').where('date','>=',_mS).get())
+    .catch(()=>_cachedQuery('acct:sales',60000,()=>db.collection('operator_sales').get()));
+  [_pRefundsP,_pCancelledP,_pSalesP].forEach(p=>{try{p.catch(()=>{});}catch(e){}});
   // Load settings
   try{
     const doc=await db.collection('operator_balance').doc('settings').get();
@@ -15450,21 +15569,20 @@ async function loadBalanceTab(){
     const cancelledOrders=new Set();
     try{
       // مرتجع مبيعةٍ داخل الفترة يُسجَّل بتاريخ الفترة أو بعده، فلا حاجة لما قبلها
-      let rsnap;
-      try{rsnap=await db.collection('page_refunds').where('date','>=',_matStart).get();}
-      catch(e){rsnap=await db.collection('page_refunds').get();}
+      const rsnap=await _pRefundsP;
       rsnap.docs.forEach(d=>{const r=d.data();if(r.orderId)cancelledOrders.add(r.orderId);});
     }catch(e){}
     try{
-      const osnap=await db.collection('employee_orders').where('status','in',['cancelled','returned','refused']).get();
+      // تبقى بلا تقييد تاريخي عمداً: تاريخ الطلب قد يسبق تاريخ مبيعته بكثير،
+      // وتقييدها يعني احتساب تكلفة طلب ملغى ضمن المستهلك. لكنّ فتح تبويب
+      // الرصيد مرّتين متتاليتين لا يستحق مسحها مرّتين.
+      const osnap=await _pCancelledP;
       osnap.docs.forEach(d=>cancelledOrders.add(d.id));
     }catch(e){_treeScanWarn='تعذّر جلب الطلبات الملغاة — قد تظهر تكلفة أعلى من الحقيقي';}
     // كانت المجموعة كاملة تُجلب ثم تُفلتر بالتاريخ في المتصفّح — آلاف
     // المستندات في كل فتح، وتكبر كل يوم. الفلترة على الخادم بمدى تاريخ
     // (حقل مفرد، لا يحتاج فهرساً مركّباً) مع رجوع احتياطي عند أي خلل.
-    let snap;
-    try{snap=await db.collection('operator_sales').where('date','>=',_matStart).get();}
-    catch(e){snap=await db.collection('operator_sales').get();}
+    const snap=await _pSalesP;
     let rawSold=0,treeSold=0;
     const treeRows=[];
     snap.docs.filter(d=>{const s=d.data();
@@ -16253,7 +16371,7 @@ async function loadRosemaryWallet(){
   const sessionId=(_opCurrentSession&&_opCurrentSession.status!=='closed')?_opCurrentSession.id:null;
   // السحوبات اليدوية — للكشف الحالي فقط
   try{
-    const snap=await db.collection('rosemary_transactions').get();
+    const snap=await _cachedQuery('rw:tx',60000,()=>db.collection('rosemary_transactions').get());
     const _all=snap.docs.map(d=>({id:d.id,...d.data()}));
     _rwTxList=_all
       .filter(t=>t.type==='withdraw'&&sessionId&&t.sessionId===sessionId)
@@ -16304,7 +16422,7 @@ async function loadRosemaryWallet(){
     if(sessionId){
       const from=_opCurrentSession.openedDate||jordanDateStr();
       const to=_opCurrentSession.closedDate||jordanDateStr();
-      const sSnap=await db.collection('operator_sales').where('date','>=',from).where('date','<=',to).get();
+      const sSnap=await _sessionSalesSnap(from,to);
       sSnap.docs.forEach(d=>{
         const s=d.data();
         if(s.delivered===false)return;
@@ -16647,6 +16765,87 @@ window.toggleRentSetup=toggleRentSetup; window.saveRentSettings=saveRentSettings
 window.addRentPayment=addRentPayment; window.deleteRentTx=deleteRentTx;
 window.editRentCharge=editRentCharge;
 
+// ===== تشخيص السرعة =====
+// يقيس على بيانات المتجر الحقيقية: كم وثيقة وكم بايت وكم ثانية لكل استعلام
+// ثقيل في لوحة التحكم — لأن الأرقام الحقيقية وحدها تحدّد أين يذهب الوقت.
+async function runSpeedDiagnostics(btn){
+  const out=document.getElementById('speed_diag_out');
+  if(!out)return;
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري القياس...';}
+  _invalidateQuery();
+  const sid=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
+  const cutoff=(typeof _ordersDateCutoff==='function')?_ordersDateCutoff():null;
+  const TESTS=[
+    ['طلبات المتجر (كل الطلبات)',            ()=>db.collection('orders')],
+    ['الزبائن',                              ()=>db.collection('customers')],
+    ['طلبات الموظفين — آخر ٣٠ يوم',          ()=>cutoff?db.collection('employee_orders').where('createdAt','>=',cutoff).orderBy('createdAt','desc'):null],
+    ['الطلبات الملغاة (كل التاريخ)',          ()=>db.collection('employee_orders').where('status','in',['cancelled','returned','refused'])],
+    ['المبيعات (كل التاريخ)',                 ()=>db.collection('operator_sales')],
+    ['المبيعات — من بداية الكشف',             ()=>db.collection('operator_sales').where('date','>=',sid)],
+    ['منتجات المشغل',                        ()=>db.collection('operator_products')],
+    ['دفعات المتاجر',                        ()=>db.collection('operator_store_payments')],
+    ['المرتجعات',                            ()=>db.collection('page_refunds')],
+    ['مسحوبات المتاجر',                      ()=>db.collection('operator_withdrawals')],
+  ];
+  const rows=[];
+  for(const [label,mk] of TESTS){
+    let q=null;
+    try{q=mk();}catch(e){}
+    if(!q){rows.push({label,skip:true});continue;}
+    const t0=Date.now();
+    try{
+      const snap=await q.get();
+      const ms=Date.now()-t0;
+      let bytes=0;
+      try{ snap.docs.forEach(d=>{bytes+=JSON.stringify(d.data()).length;}); }catch(e){bytes=-1;}
+      rows.push({label,n:snap.size,ms,bytes});
+    }catch(e){ rows.push({label,err:(e&&e.message)||'خطأ'}); }
+    out.innerHTML=_speedDiagHtml(rows,true);
+  }
+  out.innerHTML=_speedDiagHtml(rows,false);
+  if(btn){btn.disabled=false;btn.textContent='⏱ قِس السرعة الآن';}
+}
+
+function _speedDiagHtml(rows,busy){
+  const kb=b=>b<0?'—':(b>1048576?(b/1048576).toFixed(2)+' MB':Math.round(b/1024)+' KB');
+  const done=rows.filter(r=>r.n!=null);
+  const totB=done.reduce((s,r)=>s+Math.max(0,r.bytes),0);
+  const totMs=done.reduce((s,r)=>s+r.ms,0);
+  const worst=done.slice().sort((a,b)=>b.ms-a.ms)[0];
+  const body=rows.map(r=>{
+    if(r.skip)return `<div style="font-size:0.72rem;color:#9ca3af;padding:3px 0;">${r.label} — تخطّي</div>`;
+    if(r.err)return `<div style="font-size:0.72rem;color:#dc2626;padding:3px 0;">${r.label} — ❌ ${r.err}</div>`;
+    const slow=r.ms>3000;
+    return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:0.73rem;padding:3px 0;border-bottom:1px solid rgba(99,102,241,.12);">
+      <span style="color:${slow?'#b91c1c':'#3730a3'};font-weight:${slow?'700':'400'};">${slow?'🔴 ':''}${r.label}</span>
+      <span style="white-space:nowrap;color:#4338ca;font-variant-numeric:tabular-nums;">${r.n} · ${kb(r.bytes)} · ${(r.ms/1000).toFixed(1)}ث</span>
+    </div>`;
+  }).join('');
+  const txt=rows.filter(r=>r.n!=null).map(r=>`${r.label}: ${r.n} وثيقة، ${kb(r.bytes)}، ${(r.ms/1000).toFixed(1)}ث`).join('\n');
+  return `<div style="background:#fff;border:1px solid #c7d2fe;border-radius:9px;padding:9px 11px;">
+    ${body}
+    <div style="margin-top:8px;font-size:0.75rem;font-weight:800;color:#3730a3;">
+      الإجمالي: ${done.reduce((s,r)=>s+r.n,0)} وثيقة · ${kb(totB)} · ${(totMs/1000).toFixed(1)} ثانية
+    </div>
+    ${worst&&!busy?`<div style="font-size:0.72rem;color:#b91c1c;margin-top:3px;">الأبطأ: ${worst.label} (${(worst.ms/1000).toFixed(1)}ث)</div>`:''}
+    ${busy?'<div style="font-size:0.72rem;color:#6366f1;margin-top:6px;">⏳ ...</div>'
+      :`<button onclick="_copySpeedDiag(this)" data-txt="${String(txt).replace(/"/g,'&quot;')}" style="margin-top:8px;width:100%;padding:7px;background:#4338ca;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">📋 نسخ النتيجة</button>`}
+  </div>`;
+}
+
+function _copySpeedDiag(btn){
+  const t=btn.getAttribute('data-txt')||'';
+  const done=()=>{btn.textContent='✅ تم النسخ';setTimeout(()=>{btn.textContent='📋 نسخ النتيجة';},1800);};
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done).catch(()=>{});return;}
+  }catch(e){}
+  try{
+    const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);done();
+  }catch(e){}
+}
+window.runSpeedDiagnostics=runSpeedDiagnostics; window._copySpeedDiag=_copySpeedDiag;
+
 window.loadBalanceTab=loadBalanceTab; window.saveBalanceBase=saveBalanceBase;
 window.saveMalikDuties=saveMalikDuties;
 window.migrateOldSales=migrateOldSales;
@@ -16661,6 +16860,7 @@ window.toggleBalSection=toggleBalSection;
 window.openAdvisor=openAdvisor; window.closeAdvisor=closeAdvisor;
 window.advisorSelectCat=advisorSelectCat; window.advisorSelectPrice=advisorSelectPrice; window.advisorGoBack=advisorGoBack;
 window.addAdvisorProduct=addAdvisorProduct;
+window.showMoreOrders=showMoreOrders;
 window.openCancelDialog=openCancelDialog;
 window.confirmCancelOrder=confirmCancelOrder;
 window.openCustomerCancelDialog=openCustomerCancelDialog;
