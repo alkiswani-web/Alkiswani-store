@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v233"></script>
+<script defer src="app.js?v234"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -3016,6 +3016,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div style="margin-bottom:4px;padding:12px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:12px;">
           <div style="font-size:0.78rem;color:#92400e;margin-bottom:8px;font-weight:600;">💰 تحديث تكاليف المواد من قائمة المنتجات</div>
           <button id="migrate_costs_btn" onclick="migrateRawMaterialCosts()" style="width:100%;padding:10px;background:#92400e;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">🔄 تحديث تكاليف المواد</button>
+        </div>
+
+        <div style="margin-bottom:4px;padding:12px;background:#eef2ff;border:1.5px solid #a5b4fc;border-radius:12px;">
+          <div style="font-size:0.78rem;color:#3730a3;margin-bottom:4px;font-weight:600;">⏱ تشخيص السرعة</div>
+          <div style="font-size:0.72rem;color:#6366f1;margin-bottom:8px;">يقيس كم بيانات ينزّلها كل جزء من اللوحة على بياناتك أنت — شغّله وابعتلي النتيجة</div>
+          <button id="speed_diag_btn" onclick="runSpeedDiagnostics(this)" style="width:100%;padding:10px;background:#4338ca;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">⏱ قِس السرعة الآن</button>
+          <div id="speed_diag_out" style="margin-top:10px;"></div>
         </div>
 
         </div></div>
