@@ -7148,57 +7148,143 @@ async function _uploadImagesToStorage(arr,prefix){
   return out;
 }
 
-// صيانة (مرة واحدة): نقل الصور القديمة المخزّنة base64 داخل الوثائق إلى Storage
-// آمن: لا نعدّل الوثيقة إلا إذا نجح رفع كل صورها — أي فشل يُبقيها كما هي
+// صيانة: نقل الصور المخزّنة base64 داخل الوثائق إلى Storage.
+//
+// قياس على بيانات المتجر الفعلية كشف أنّ هذا هو سبب البطء الأكبر:
+//   طلبات آخر ٣٠ يوم: 1072 وثيقة = 41.47 MB  (≈ 39 KB للوثيقة الواحدة)
+//   الطلبات الملغاة:    256 وثيقة = 15.89 MB  (≈ 62 KB للوثيقة)
+//   منتجات المشغل:       87 وثيقة =  2.29 MB  (≈ 26 KB للوثيقة)
+// بينما وثيقة الطلب الخالية من الصور ~1 KB. الفرق كلّه صور base64 داخل
+// الوثائق، وFirestore لا يستطيع جلب بعض الحقول دون بعض — فأيّ فتح للتبويب
+// ينزّل الصور كاملةً حتى لو لم تُعرض.
+//
+// النسخة السابقة كانت تغطّي آخر ١٢٠ يوماً فقط (والطلبات الملغاة تُمسح من كل
+// التاريخ)، وتجلب المجموعة كاملةً دفعةً واحدة، وترفع صورةً صورةً بالتتابع.
+// هذه تمرّ على كل الوثائق بالتصفّح عبر معرّفاتها، دفعةً دفعة، وترفع بالتوازي،
+// وتُظهر تقدّماً حقيقياً. آمنة لإعادة التشغيل: ما نُقل لم يعد base64 فيُتخطّى.
+let _migCancel=false;
+function cancelImageMigration(){_migCancel=true;}
+
+async function _uploadB64Parallel(arr,prefix,conc){
+  const out=new Array(arr.length);
+  const idx=arr.map((v,i)=>i).filter(i=>typeof arr[i]==='string'&&arr[i].startsWith('data:'));
+  arr.forEach((v,i)=>{if(!idx.includes(i))out[i]=v;});
+  const CH=conc||4;
+  for(let k=0;k<idx.length;k+=CH){
+    const part=idx.slice(k,k+CH);
+    await Promise.all(part.map(async i=>{
+      try{
+        const ref=storage.ref(prefix+'/'+Date.now()+'_'+i+'_'+Math.floor(Math.random()*1e6)+'.jpg');
+        await ref.putString(arr[i],'data_url');
+        out[i]=await ref.getDownloadURL();
+      }catch(e){ out[i]=arr[i]; }   // فشل الرفع ⇒ تبقى الصورة كما هي، لا تُفقد
+    }));
+  }
+  return out;
+}
+
+function _migRender(st){
+  const el=document.getElementById('migImgOut');
+  if(!el)return;
+  const mb=b=>(b/1048576).toFixed(1)+' MB';
+  el.innerHTML=`<div style="background:#fff;border:1px solid #bfdbfe;border-radius:9px;padding:10px 12px;font-size:0.78rem;color:#1e3a8a;">
+    <div style="font-weight:800;margin-bottom:5px;">${st.done?'✅ انتهى':'⏳ '+st.phase}</div>
+    <div>الوثائق المفحوصة: <b>${st.scanned}</b>${st.total?' / '+st.total:''}</div>
+    <div>الصور المنقولة: <b>${st.moved}</b></div>
+    <div>المحرَّر من قاعدة البيانات: <b style="color:#15803d;">${mb(st.freed)}</b></div>
+    ${st.failed?`<div style="color:#b45309;">تعذّر نقل ${st.failed} (بقيت كما هي — أعد التشغيل لاحقاً)</div>`:''}
+    ${st.err?`<div style="color:#b91c1c;">${st.err}</div>`:''}
+    ${!st.done?`<button onclick="cancelImageMigration()" style="margin-top:7px;padding:5px 12px;background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">إيقاف</button>
+      <div style="font-size:0.7rem;color:#6366f1;margin-top:5px;">الإيقاف آمن — ما نُقل يبقى منقولاً، وإعادة التشغيل تكمل من حيث توقّفت.</div>`:''}
+  </div>`;
+}
+
 async function migrateImagesToStorage(btn){
-  if(!confirm('نقل صور الطلبات والمنتجات القديمة إلى التخزين السحابي؟\nيُشغَّل مرة واحدة وقد يستغرق عدة دقائق — لا تغلق الصفحة أثناء التنفيذ.'))return;
-  if(btn)btn.disabled=true;
-  let moved=0,failed=0;
+  if(!confirm('نقل الصور المخزّنة داخل قاعدة البيانات إلى التخزين السحابي؟\n\nهذا أكبر سبب لبطء لوحة التحكم. قد يستغرق عدّة دقائق حسب عدد الطلبات وسرعة الإنترنت.\n\nآمن تماماً: أي صورة يفشل نقلها تبقى كما هي، والإيقاف أو إغلاق الصفحة لا يفسد شيئاً — إعادة التشغيل تكمل من حيث توقّفت.\n\nيُفضّل تشغيله على واي‑فاي.'))return;
+  _migCancel=false;
+  if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ النقل...';}
+  const st={phase:'المنتجات',scanned:0,total:0,moved:0,failed:0,freed:0,done:false,err:''};
   const isB64=u=>u&&typeof u==='string'&&u.startsWith('data:');
+  const size=a=>a.reduce((n,x)=>n+(isB64(x)?x.length:0),0);
+  _migRender(st);
   try{
-    // 1) صور المنتجات (operator_products)
+    // ١) منتجات المشغل — مجموعة صغيرة، دفعة واحدة
     const pSnap=await db.collection('operator_products').get();
-    let i=0;
+    st.total=pSnap.size;
     for(const d of pSnap.docs){
-      i++;
-      if(btn)btn.textContent=`⏳ المنتجات ${i}/${pSnap.size}…`;
+      if(_migCancel)break;
+      st.scanned++;
       const p=d.data();
-      if(!isB64(p.imageDataUrl))continue;
-      const [url]=await _uploadImagesToStorage([p.imageDataUrl],'product-images');
-      if(isB64(url)){failed++;continue;}
-      await d.ref.update({imageDataUrl:url});moved++;
+      if(isB64(p.imageDataUrl)){
+        const before=p.imageDataUrl.length;
+        const [url]=await _uploadB64Parallel([p.imageDataUrl],'product-images');
+        if(isB64(url)){st.failed++;}
+        else{ await d.ref.update({imageDataUrl:url}); st.moved++; st.freed+=before; }
+      }
+      if(st.scanned%5===0)_migRender(st);
     }
-    // 2) صور الطلبات (آخر 120 يوم — تغطي كل الطلبات النشطة والمعروضة)
-    const cutoff=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-120*864e5));
-    const oSnap=await db.collection('employee_orders').where('createdAt','>=',cutoff).get();
-    i=0;
-    for(const d of oSnap.docs){
-      i++;
-      if(btn)btn.textContent=`⏳ الطلبات ${i}/${oSnap.size}…`;
-      const o=d.data();
-      const arr=(o.imageDataUrls&&o.imageDataUrls.length)?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
-      if(!arr.some(isB64))continue;
-      const out=await _uploadImagesToStorage(arr,'order-images');
-      if(out.some(isB64)){failed++;continue;}
-      await d.ref.update({imageDataUrls:out,imageDataUrl:out[0]||''});moved++;
+    _migRender(st);
+
+    // ٢) الطلبات — كل الوثائق، بالتصفّح عبر المعرّفات (يغطّي ما لا يحمل createdAt)
+    st.phase='الطلبات'; st.scanned=0; st.total=0;
+    const FieldPath=firebase.firestore.FieldPath;
+    let cursor=null; const PAGE=30;
+    while(!_migCancel){
+      let q=db.collection('employee_orders').orderBy(FieldPath.documentId()).limit(PAGE);
+      if(cursor)q=q.startAfter(cursor);
+      const snap=await q.get();
+      if(snap.empty)break;
+      cursor=snap.docs[snap.docs.length-1].id;
+      for(const d of snap.docs){
+        if(_migCancel)break;
+        st.scanned++;
+        const o=d.data();
+        const arr=(o.imageDataUrls&&o.imageDataUrls.length)?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+        if(!arr.some(isB64))continue;
+        const before=size(arr);
+        const out=await _uploadB64Parallel(arr,'order-images');
+        if(out.some(isB64)){st.failed++;continue;}
+        await d.ref.update({imageDataUrls:out,imageDataUrl:out[0]||''});
+        st.moved++; st.freed+=before;
+      }
+      _migRender(st);
+      if(snap.size<PAGE)break;
     }
-    // 3) صور المبيعات (operator_sales — آخر 120 يوم بالتاريخ النصي)
-    const dateCut=new Date(Date.now()-120*864e5).toISOString().slice(0,10);
-    const sSnap=await db.collection('operator_sales').where('date','>=',dateCut).get();
-    i=0;
-    for(const d of sSnap.docs){
-      i++;
-      if(btn)btn.textContent=`⏳ المبيعات ${i}/${sSnap.size}…`;
-      const s=d.data();
-      if(!isB64(s.imageDataUrl))continue;
-      const [url]=await _uploadImagesToStorage([s.imageDataUrl],'sale-images');
-      if(isB64(url)){failed++;continue;}
-      await d.ref.update({imageDataUrl:url});moved++;
+
+    // ٣) المبيعات — القياس أظهر أنّها نظيفة (~0.4 KB للوثيقة)، لكن نمرّ عليها احتياطاً
+    st.phase='المبيعات'; st.scanned=0;
+    let sCursor=null;
+    while(!_migCancel){
+      let q=db.collection('operator_sales').orderBy(FieldPath.documentId()).limit(200);
+      if(sCursor)q=q.startAfter(sCursor);
+      const snap=await q.get();
+      if(snap.empty)break;
+      sCursor=snap.docs[snap.docs.length-1].id;
+      for(const d of snap.docs){
+        if(_migCancel)break;
+        st.scanned++;
+        const v=d.data();
+        if(!isB64(v.imageDataUrl))continue;
+        const before=v.imageDataUrl.length;
+        const [url]=await _uploadB64Parallel([v.imageDataUrl],'sale-images');
+        if(isB64(url)){st.failed++;continue;}
+        await d.ref.update({imageDataUrl:url});
+        st.moved++; st.freed+=before;
+      }
+      _migRender(st);
+      if(snap.size<200)break;
     }
-    toast(`✅ تم نقل ${moved} عنصر${failed?` — تعذّر ${failed} (بقيت كما هي)`:''}`);
-  }catch(e){toast('❌ '+e.message);}
+    st.done=true; st.phase=_migCancel?'أُوقف':'انتهى';
+    _invalidateQuery();
+    _migRender(st);
+    toast(`✅ نُقلت ${st.moved} صورة — تحرّر ${(st.freed/1048576).toFixed(1)} MB من قاعدة البيانات`);
+  }catch(e){
+    st.err=(e&&e.message)||'خطأ'; st.done=true; _migRender(st);
+    toast('❌ '+st.err);
+  }
   finally{if(btn){btn.disabled=false;btn.textContent='⚡ ابدأ النقل الآن';}}
 }
+window.cancelImageMigration=cancelImageMigration;
 window.migrateImagesToStorage=migrateImagesToStorage;
 
 async function onDlvImageChange(input){

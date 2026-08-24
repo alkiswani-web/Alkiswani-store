@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v234"></script>
+<script defer src="app.js?v235"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -3415,9 +3415,18 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           </div>
           <!-- Migrate embedded images to Storage (performance) -->
           <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:14px;padding:16px 18px;margin-bottom:16px;">
-            <div style="font-size:0.9rem;font-weight:700;color:#1e40af;margin-bottom:6px;">⚡ تسريع: نقل الصور القديمة للتخزين السحابي</div>
-            <div style="font-size:0.78rem;color:#1e3a8a;margin-bottom:10px;">ينقل صور الطلبات والمنتجات المخزّنة داخل قاعدة البيانات إلى التخزين السحابي (روابط خفيفة) — يسرّع التحميل كثيراً. يُشغَّل مرة واحدة وقد يستغرق دقائق. آمن: أي صورة يفشل نقلها تبقى كما هي.</div>
+            <div style="font-size:0.9rem;font-weight:700;color:#1e40af;margin-bottom:6px;">⚡ تسريع: نقل الصور من قاعدة البيانات إلى التخزين السحابي</div>
+            <div style="font-size:0.78rem;color:#1e3a8a;margin-bottom:6px;line-height:1.75;">
+              <b>هذا أكبر سبب لبطء لوحة التحكم.</b> الصور مخزّنة داخل وثائق الطلبات نفسها، وقاعدة البيانات لا تستطيع جلب جزء من الوثيقة — فكل فتح للتبويب ينزّل الصور كاملةً حتى لو ما ظهرت.
+            </div>
+            <div style="font-size:0.75rem;color:#1e3a8a;background:#dbeafe;border-radius:8px;padding:7px 10px;margin-bottom:10px;line-height:1.7;">
+              القياس على بياناتك: طلبات آخر ٣٠ يوم = <b>41.5 MB</b> لـ1072 طلب (≈٣٩ ك.ب للطلب الواحد، بينما الطلب بلا صور ≈١ ك.ب).
+            </div>
+            <div style="font-size:0.75rem;color:#1e3a8a;margin-bottom:10px;line-height:1.7;">
+              يُفضّل تشغيله على <b>واي‑فاي</b>. آمن: أي صورة يفشل نقلها تبقى كما هي، والإيقاف أو إغلاق الصفحة لا يفسد شيئاً — إعادة التشغيل تكمل من حيث توقّفت.
+            </div>
             <button onclick="migrateImagesToStorage(this)" style="padding:9px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">⚡ ابدأ النقل الآن</button>
+            <div id="migImgOut" style="margin-top:10px;"></div>
           </div>
           <!-- Clear rep from waiting orders -->
           <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:14px;padding:16px 18px;margin-bottom:16px;">
