@@ -7228,38 +7228,61 @@ async function migrateImagesToStorage(btn){
     // ٢) الطلبات — كل الوثائق، بالتصفّح عبر المعرّفات (يغطّي ما لا يحمل createdAt)
     st.phase='الطلبات'; st.scanned=0; st.total=0;
     const FieldPath=firebase.firestore.FieldPath;
-    let cursor=null; const PAGE=30;
-    while(!_migCancel){
-      let q=db.collection('employee_orders').orderBy(FieldPath.documentId()).limit(PAGE);
-      if(cursor)q=q.startAfter(cursor);
-      const snap=await q.get();
+    const _doOrder=async d=>{
+      const o=d.data();
+      const arr=(o.imageDataUrls&&o.imageDataUrls.length)?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
+      if(!arr.some(isB64))return;
+      const before=size(arr);
+      const out=await _uploadB64Parallel(arr,'order-images');
+      if(out.some(isB64)){st.failed++;return;}
+      await d.ref.update({imageDataUrls:out,imageDataUrl:out[0]||''});
+      st.moved++; st.freed+=before;
+    };
+    // التصفّح عبر معرّفات الوثائق يغطّي كل شيء (حتى ما لا يحمل حقل تاريخ)
+    // ولا يحمّل المجموعة كاملةً في الذاكرة. وإن رُفض هذا الترتيب لأي سبب،
+    // نمرّ على المجموعة كاملةً مرّة واحدة — أبطأ لكنه لا يترك وثيقةً خلفه.
+    // (لا مسار وسط: ترحيل جزئي صامت أسوأ من ترحيل بطيء.)
+    let cursor=null, lastId=null, pages=0, paged=true;
+    while(!_migCancel&&pages++<5000){
+      let snap;
+      try{
+        let q=db.collection('employee_orders').orderBy(FieldPath.documentId()).limit(30);
+        if(cursor)q=q.startAfter(cursor);
+        snap=await q.get();
+      }catch(e){ paged=false; break; }
       if(snap.empty)break;
-      cursor=snap.docs[snap.docs.length-1].id;
-      for(const d of snap.docs){
-        if(_migCancel)break;
-        st.scanned++;
-        const o=d.data();
-        const arr=(o.imageDataUrls&&o.imageDataUrls.length)?o.imageDataUrls:(o.imageDataUrl?[o.imageDataUrl]:[]);
-        if(!arr.some(isB64))continue;
-        const before=size(arr);
-        const out=await _uploadB64Parallel(arr,'order-images');
-        if(out.some(isB64)){st.failed++;continue;}
-        await d.ref.update({imageDataUrls:out,imageDataUrl:out[0]||''});
-        st.moved++; st.freed+=before;
-      }
+      const endId=snap.docs[snap.docs.length-1].id;
+      if(endId===lastId){ paged=false; break; }   // المؤشّر لا يتقدّم
+      lastId=endId; cursor=endId;
+      for(const d of snap.docs){ if(_migCancel)break; st.scanned++; await _doOrder(d); }
       _migRender(st);
-      if(snap.size<PAGE)break;
+      if(snap.size<30){ cursor=null; break; }
     }
+    if(!paged&&!_migCancel){
+      st.err='التصفّح بالمعرّفات غير متاح — نمرّ على كل الطلبات دفعةً واحدة (قد يستغرق وقتاً أطول)';
+      st.scanned=0; _migRender(st);
+      const all=await db.collection('employee_orders').get();
+      for(const d of all.docs){
+        if(_migCancel)break;
+        st.scanned++; await _doOrder(d);
+        if(st.scanned%20===0)_migRender(st);
+      }
+      st.err='';
+    }
+    _migRender(st);
 
     // ٣) المبيعات — القياس أظهر أنّها نظيفة (~0.4 KB للوثيقة)، لكن نمرّ عليها احتياطاً
     st.phase='المبيعات'; st.scanned=0;
-    let sCursor=null;
-    while(!_migCancel){
+    let sCursor=null, sLast=null, sPages=0;
+    while(!_migCancel&&sPages++<5000){
       let q=db.collection('operator_sales').orderBy(FieldPath.documentId()).limit(200);
       if(sCursor)q=q.startAfter(sCursor);
-      const snap=await q.get();
+      let snap;
+      try{ snap=await q.get(); }catch(e){ break; }
       if(snap.empty)break;
       sCursor=snap.docs[snap.docs.length-1].id;
+      if(sCursor===sLast)break;
+      sLast=sCursor;
       for(const d of snap.docs){
         if(_migCancel)break;
         st.scanned++;
@@ -7275,9 +7298,13 @@ async function migrateImagesToStorage(btn){
       if(snap.size<200)break;
     }
     st.done=true; st.phase=_migCancel?'أُوقف':'انتهى';
+    if(!st.moved&&!st.failed&&!_migCancel)
+      st.err='لم يُعثر على صور مخزّنة داخل الوثائق — لا شيء لنقله.';
     _invalidateQuery();
     _migRender(st);
-    toast(`✅ نُقلت ${st.moved} صورة — تحرّر ${(st.freed/1048576).toFixed(1)} MB من قاعدة البيانات`);
+    toast(st.moved
+      ?`✅ نُقلت ${st.moved} صورة — تحرّر ${(st.freed/1048576).toFixed(1)} MB من قاعدة البيانات`
+      :'ℹ️ لا توجد صور مخزّنة داخل الوثائق');
   }catch(e){
     st.err=(e&&e.message)||'خطأ'; st.done=true; _migRender(st);
     toast('❌ '+st.err);
@@ -16874,6 +16901,14 @@ async function runSpeedDiagnostics(btn){
     ['مسحوبات المتاجر',                      ()=>db.collection('operator_withdrawals')],
   ];
   const rows=[];
+  // الصور المخزّنة base64 داخل الوثائق — السبب الأكبر للحجم. نعدّها من نفس
+  // اللقطات المجلوبة بدل استعلام إضافي.
+  const emb={docs:0,bytes:0};
+  const _isB64=u=>u&&typeof u==='string'&&u.startsWith('data:');
+  const _scanEmb=snap=>{ try{ snap.docs.forEach(d=>{ const o=d.data()||{};
+    const arr=[].concat(o.imageDataUrls||[],o.imageDataUrl?[o.imageDataUrl]:[]);
+    const b=arr.filter(_isB64).reduce((n,x)=>n+x.length,0);
+    if(b){emb.docs++;emb.bytes+=b;} }); }catch(e){} };
   for(const [label,mk] of TESTS){
     let q=null;
     try{q=mk();}catch(e){}
@@ -16884,15 +16919,23 @@ async function runSpeedDiagnostics(btn){
       const ms=Date.now()-t0;
       let bytes=0;
       try{ snap.docs.forEach(d=>{bytes+=JSON.stringify(d.data()).length;}); }catch(e){bytes=-1;}
+      if(/طلبات الموظفين|منتجات المشغل/.test(label)) _scanEmb(snap);
       rows.push({label,n:snap.size,ms,bytes});
     }catch(e){ rows.push({label,err:(e&&e.message)||'خطأ'}); }
-    out.innerHTML=_speedDiagHtml(rows,true);
+    out.innerHTML=_speedDiagHtml(rows,true,emb);
   }
-  out.innerHTML=_speedDiagHtml(rows,false);
+  out.innerHTML=_speedDiagHtml(rows,false,emb);
   if(btn){btn.disabled=false;btn.textContent='⏱ قِس السرعة الآن';}
 }
 
-function _speedDiagHtml(rows,busy){
+function _appVersion(){
+  try{
+    const el=[...document.querySelectorAll('script[src*="app.js"]')].pop();
+    const m=el&&el.src.match(/app\.js\?v(\d+)/);
+    return m?('v'+m[1]):'؟';
+  }catch(e){return '؟';}
+}
+function _speedDiagHtml(rows,busy,emb){
   const kb=b=>b<0?'—':(b>1048576?(b/1048576).toFixed(2)+' MB':Math.round(b/1024)+' KB');
   const done=rows.filter(r=>r.n!=null);
   const totB=done.reduce((s,r)=>s+Math.max(0,r.bytes),0);
@@ -16907,9 +16950,21 @@ function _speedDiagHtml(rows,busy){
       <span style="white-space:nowrap;color:#4338ca;font-variant-numeric:tabular-nums;">${r.n} · ${kb(r.bytes)} · ${(r.ms/1000).toFixed(1)}ث</span>
     </div>`;
   }).join('');
-  const txt=rows.filter(r=>r.n!=null).map(r=>`${r.label}: ${r.n} وثيقة، ${kb(r.bytes)}، ${(r.ms/1000).toFixed(1)}ث`).join('\n');
+  const embLine=emb&&emb.docs
+    ?`صور مخزّنة داخل الوثائق: ${emb.docs} وثيقة، ${kb(emb.bytes)} — لم يُشغَّل النقل بعد`
+    :(emb?'صور مخزّنة داخل الوثائق: لا شيء ✅':'');
+  const txt='النسخة: '+_appVersion()+'\n'
+    +rows.filter(r=>r.n!=null).map(r=>`${r.label}: ${r.n} وثيقة، ${kb(r.bytes)}، ${(r.ms/1000).toFixed(1)}ث`).join('\n')
+    +(embLine?'\n'+embLine:'');
   return `<div style="background:#fff;border:1px solid #c7d2fe;border-radius:9px;padding:9px 11px;">
+    <div style="font-size:0.72rem;color:#6366f1;margin-bottom:5px;">النسخة الشغّالة: <b>${_appVersion()}</b></div>
     ${body}
+    ${emb&&!busy?(emb.docs
+      ?`<div style="margin-top:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:0.75rem;font-weight:800;color:#b91c1c;">🔴 صور مخزّنة داخل الوثائق: ${emb.docs} وثيقة · ${kb(emb.bytes)}</div>
+          <div style="font-size:0.72rem;color:#b91c1c;margin-top:3px;">هذا سبب الحجم. شغّل «نقل الصور للتخزين السحابي» من الإعدادات.</div>
+        </div>`
+      :`<div style="margin-top:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 10px;font-size:0.75rem;font-weight:800;color:#166534;">✅ لا توجد صور مخزّنة داخل الوثائق</div>`):''}
     <div style="margin-top:8px;font-size:0.75rem;font-weight:800;color:#3730a3;">
       الإجمالي: ${done.reduce((s,r)=>s+r.n,0)} وثيقة · ${kb(totB)} · ${(totMs/1000).toFixed(1)} ثانية
     </div>
