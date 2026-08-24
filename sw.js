@@ -29,7 +29,7 @@ try {
   // بلا إشعارات خلفية — لكنّ التخزين المؤقّت أدناه يعمل، وهو الأهم للسرعة.
 }
 
-const CACHE = 'alkiswani-v236';
+const CACHE = 'alkiswani-v237';
 // كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
 // اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
 const STATIC = 'alkiswani-static-1';
@@ -74,35 +74,47 @@ self.addEventListener('activate', e => {
   })());
 });
 
-// stale-while-revalidate: النسخة المخزّنة تُعاد فوراً (~10ms) والتحديث ينزل
-// بالخلفية للفتحة الجاية.
-// كان network-first بمهلة: طلب الملاحة أول شيء في الصفحة ولا شيء يبدأ قبله،
-// فكانت كل فتحة تدفع تنزيل المستند كاملاً من الشبكة قبل تحليل أول بايت —
-// والكاش لا يُستعمل إلا إذا تجاوزت الشبكة المهلة. أي أسوأ الحالتين:
-// شبكة عادية ⇒ ندفع التنزيل كاملاً، شبكة سيّئة ⇒ ندفع المهلة كاملة ثم الكاش.
-// وبما أنّ المعروض قد يتأخّر فتحةً واحدة بعد النشر، نُخبر الصفحة إن اختلف
-// المستند الجديد عن المخزّن فتعرض زرّ تحديث — بدل أن يظنّ المالك أن النشر لم يصل.
-async function _notifyIfChanged(cached, res) {
+// يُستدعى فقط حين عُرض المخزّن ثم وصل ردّ الشبكة مختلفاً عنه.
+async function _notifyIfChanged(cached, res, req, cacheName) {
   try {
     const [a, b] = await Promise.all([cached.clone().text(), res.clone().text()]);
     if (a === b) return;
+    // اختلف المستند ⇒ احذف النسخة المخزّنة كي تذهب الفتحة القادمة للشبكة
+    // حتماً، ولا تعتمد على أن يتعاون app.js القديم مع الرسالة أدناه.
+    try { const c = await caches.open(cacheName); await c.delete(req); } catch (e) {}
     for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage({ type: 'html-updated' });
   } catch (err) {}
 }
 
-function staleWhileRevalidate(req, cacheName) {
+// الملاحة: الشبكة أولاً بمهلة قصيرة، والكاش شبكة أمان.
+//
+// جرّبتُ stale-while-revalidate لتوفير ~ثانية على الفتحات المتكرّرة، فكانت
+// النتيجة أنّ المالك بقي عالقاً على نسخة قديمة عدّة أيام: كل فتحة تعرض
+// المخزّن، والتحديث ينزل للفتحة التالية التي قد لا تأتي قبل نشر تالٍ يمسح
+// الكاش من جديد. تسليم النسخة الصحيحة أهمّ من ثانية واحدة.
+//
+// المهلة 1500ms: على شبكة معقولة يصل المستند في ~300–600ms فيُعرض الجديد
+// دائماً؛ وعلى شبكة سيّئة يُعرض المخزّن بعد ثانية ونصف بدل الانتظار الطويل.
+function navigationStrategy(req, cacheName, timeoutMs) {
   return caches.match(req).then(cached => {
-    const networkFetch = fetch(req).then(res => {
+    // no-cache يجبر التحقّق من الخادم: GitHub Pages يضع max-age على الـHTML،
+    // فبدونه قد يردّ كاش المتصفّح نسخةً قديمة ولا تصل التحديثات أصلاً.
+    const networkFetch = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => {
       if(res && res.status === 200) {
         const clone = res.clone();
         caches.open(cacheName).then(c => c.put(req, clone));
-        if(cached) _notifyIfChanged(cached, res);
       }
       return res;
     });
     if(!cached) return networkFetch; // أول زيارة: لازم النت
-    networkFetch.catch(() => {});    // حدِّث بالخلفية ولا تُسقِط الوعد
-    return cached;
+    const timer = new Promise(resolve => setTimeout(() => resolve(null), timeoutMs));
+    return Promise.race([networkFetch.catch(() => null), timer]).then(res => {
+      if (res) return res;
+      // انتهت المهلة أو سقطت الشبكة: اعرض المخزّن، وإن جاء الرد لاحقاً
+      // مختلفاً فاحذف المخزّن ونبّه الصفحة.
+      networkFetch.then(r => { if (r && r.status === 200) _notifyIfChanged(cached, r, req, cacheName); }).catch(() => {});
+      return cached;
+    });
   });
 }
 
@@ -166,11 +178,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML (navigation): الكاش فوراً + تحديث بالخلفية.
-  // النسخة المعروضة قد تتأخّر فتحةً واحدة بعد النشر — مقبول لأن رابط app.js
-  // يحمل رقم نسخته، فالمستند القديم يجلب شيفرته المطابقة لا خليطاً منهما.
+  // HTML (navigation): الشبكة أولاً بمهلة قصيرة — التحديث يصل من أول فتحة.
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
-    e.respondWith(staleWhileRevalidate(e.request, CACHE));
+    e.respondWith(navigationStrategy(e.request, CACHE, 1500));
     return;
   }
 
