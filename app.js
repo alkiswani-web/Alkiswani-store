@@ -7306,8 +7306,12 @@ async function migrateImagesToStorage(btn){
       ?`✅ نُقلت ${st.moved} صورة — تحرّر ${(st.freed/1048576).toFixed(1)} MB من قاعدة البيانات`
       :'ℹ️ لا توجد صور مخزّنة داخل الوثائق');
   }catch(e){
-    st.err=(e&&e.message)||'خطأ'; st.done=true; _migRender(st);
-    toast('❌ '+st.err);
+    const m=(e&&e.message)||'خطأ';
+    st.err=_isLocalDbError(m)
+      ?('عطل في قاعدة البيانات المحلية على الجهاز — شغّل «إصلاح قاعدة البيانات المحلية» من تشخيص السرعة ثم أعد المحاولة. ('+m+')')
+      :m;
+    st.done=true; _migRender(st);
+    toast('❌ '+m);
   }
   finally{if(btn){btn.disabled=false;btn.textContent='⚡ ابدأ النقل الآن';}}
 }
@@ -16928,6 +16932,30 @@ async function runSpeedDiagnostics(btn){
   if(btn){btn.disabled=false;btn.textContent='⏱ قِس السرعة الآن';}
 }
 
+// خطأ داخلي في مخزن Firestore المحلي على الجهاز (IndexedDB) — لا علاقة له
+// بالبيانات على الخادم. يحدث حين تتضارب معرّفات المتابعة، وأشهر أسبابه فتح
+// الموقع في عدّة تبويبات مع مزامنة التبويبات. العلاج: تصفير المخزن المحلي.
+function _isLocalDbError(msg){
+  return /Target ID already exists|INTERNAL ASSERTION|IndexedDB|Failed to obtain (exclusive )?access/i.test(String(msg||''));
+}
+async function repairLocalDb(btn){
+  if(!confirm('إصلاح قاعدة البيانات المحلية على هذا الجهاز؟\n\nيمسح النسخة المخزّنة محلياً فقط — بياناتك على الخادم لا تُمسّ إطلاقاً، وتُنزَّل من جديد بعد إعادة التحميل.\n\nأغلق أي تبويب آخر للموقع قبل المتابعة.'))return;
+  if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ الإصلاح...';}
+  try{
+    await db.terminate();
+    await db.clearPersistence();
+    alert('✅ تم — سيُعاد تحميل الصفحة الآن.');
+    location.reload();
+  }catch(e){
+    const m=(e&&e.message)||'';
+    if(btn){btn.disabled=false;btn.textContent='🛠 إصلاح قاعدة البيانات المحلية';}
+    alert(/other clients|another tab|active/i.test(m)
+      ?'⚠️ في تبويب آخر للموقع مفتوح. أغلق كل التبويبات الأخرى ثم أعد المحاولة.'
+      :('❌ تعذّر الإصلاح: '+m+'\n\nبديل: امسح بيانات الموقع من إعدادات المتصفّح.'));
+  }
+}
+window.repairLocalDb=repairLocalDb;
+
 function _appVersion(){
   try{
     const el=[...document.querySelectorAll('script[src*="app.js"]')].pop();
@@ -16956,9 +16984,15 @@ function _speedDiagHtml(rows,busy,emb){
   const txt='النسخة: '+_appVersion()+'\n'
     +rows.filter(r=>r.n!=null).map(r=>`${r.label}: ${r.n} وثيقة، ${kb(r.bytes)}، ${(r.ms/1000).toFixed(1)}ث`).join('\n')
     +(embLine?'\n'+embLine:'');
+  const _dbBroken=rows.some(r=>r.err&&_isLocalDbError(r.err));
   return `<div style="background:#fff;border:1px solid #c7d2fe;border-radius:9px;padding:9px 11px;">
     <div style="font-size:0.72rem;color:#6366f1;margin-bottom:5px;">النسخة الشغّالة: <b>${_appVersion()}</b></div>
     ${body}
+    ${_dbBroken&&!busy?`<div style="margin-top:8px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:9px 11px;">
+      <div style="font-size:0.75rem;font-weight:800;color:#9a3412;">⚠️ عطل في قاعدة البيانات المحلية على هذا الجهاز</div>
+      <div style="font-size:0.72rem;color:#9a3412;margin:3px 0 7px;">بياناتك على الخادم سليمة تماماً — المشكلة في النسخة المخزّنة على الجهاز. أغلق أي تبويب آخر للموقع ثم اضغط:</div>
+      <button onclick="repairLocalDb(this)" style="width:100%;padding:8px;background:#c2410c;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">🛠 إصلاح قاعدة البيانات المحلية</button>
+    </div>`:''}
     ${emb&&!busy?(emb.docs
       ?`<div style="margin-top:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:8px 10px;">
           <div style="font-size:0.75rem;font-weight:800;color:#b91c1c;">🔴 صور مخزّنة داخل الوثائق: ${emb.docs} وثيقة · ${kb(emb.bytes)}</div>
