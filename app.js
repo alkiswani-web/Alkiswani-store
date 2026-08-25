@@ -9148,7 +9148,9 @@ async function loadAcctStoreList(){
       _cachedQuery('acct:payments',60000,()=>db.collection('operator_store_payments').get())
     ]);
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId)refundByStore[r.storeId]=(refundByStore[r.storeId]||0)+(r.totalCost||0);});
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false)owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
+    // طلبات أخرجها مشغل الشجر: قبض ثمنها هو، فالصفحة لا تدين لي بها —
+    // المدين هو مشغل الشجر، ويظهر في حسابه «مرابح الشجر».
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false&&s.fulfilledBy!=='tree')owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
     pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId&&p.withdrawalType!=='withdrawal')paidByStore[p.storeId]=(paidByStore[p.storeId]||0)+(p.amount||0);});
   }catch(e){}
   const thresholdRow=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;">
@@ -9432,7 +9434,7 @@ async function _loadOpSessionData(){
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false&&s.fulfilledBy!=='tree'){
       const qty=s.qty||1;
       // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
       const official=(s.sellPrice||0);
@@ -9944,16 +9946,18 @@ function renderOperatorDailyView(){
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
     // خصم دفعات الموردين (كاش دفعته لموردينك)
-    const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash).reduce((s,p)=>s+(p.amount||0),0);
+    const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId!=='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
+    // مرابح الشجر: كاش يدخل من مشغل الشجر لا يخرج إليه
+    const _collTreeProfitIn=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
     // رواتب المشغل المدفوعة فعلياً — كاش خرج من نفس الصندوق
     const _collWages=(_opSessionWagePays||[]).reduce((s,w)=>s+(w.amount||0),0);
     // تسويات يدوية (رصيد كاش أولي / فروقات) — بالموجب أو بالسالب
     const _collAdjust=(_opCashAdjust||[]).reduce((s,a)=>s+(a.amount||0),0);
     // دفعات إجار المحل — كاش خرج من الصندوق
     const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent;
+    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent;
     ccNet=_collNet;
-    ccIn=_collOrdersNet+_collStorePayments+Math.max(0,_collAdjust);
+    ccIn=_collOrdersNet+_collStorePayments+_collTreeProfitIn+Math.max(0,_collAdjust);
     ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
@@ -9961,6 +9965,7 @@ function renderOperatorDailyView(){
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.18);border-radius:18px;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 26px rgba(0,0,0,.2);margin-bottom:12px;">
         ${_ccFlow('🧾','قيمة الطلبات للزبون',_collCustomer,'in')}
         ${_collStorePayments>0?_ccFlow('💳','دفعات المتاجر (كاش)',_collStorePayments,'in'):''}
+        ${_collTreeProfitIn>0?_ccFlow('🌲','مرابح الشجر (قبضتها)',_collTreeProfitIn,'in'):''}
         ${_ccFlow('🚚','أجور التوصيل',_collDelivery,'out')}
         ${_ccFlow('💸','مسحوبات المتاجر',_collStoreWd,'out')}
         ${_ccFlow('🧾','المصاريف',_collExpenses,'out')}
@@ -15636,6 +15641,10 @@ let _opBalSalesRaw=0;
 let _opBalRawSold=0;          // تكلفة المواد الخام للطلبات المباعة
 let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المباعة (مورد شجر)
 let _opBalTreeRows=[];        // تفصيل تكلفة الشجر — كل مبيعة ساهمت فيها
+// مرابح الشجر: طلبات أخرجها مشغل الشجر وقبض ثمنها من الزبون، فصار مديناً لي
+// بالربح. صفّ المبيعة لهذه الطلبات سعرُه هو الربح نفسه وتكاليفه صفر.
+let _opBalTreeProfit=0;       // ما لي عند مشغل الشجر من أرباح طلباته
+let _opBalTreeProfitRows=[];  // تفصيلها — من أي طلب جاء كل مبلغ
 let _opBalDupIds=new Set();   // معرّفات صفوف المبيعات الزائدة عن الطلب الأصلي
 let _treeScanWarn='';         // تحذير إن تعذّر استبعاد الطلبات الملغاة
 let _opSuppliers=[];          // الموردين
@@ -15701,13 +15710,23 @@ async function loadBalanceTab(){
     // المستندات في كل فتح، وتكبر كل يوم. الفلترة على الخادم بمدى تاريخ
     // (حقل مفرد، لا يحتاج فهرساً مركّباً) مع رجوع احتياطي عند أي خلل.
     const snap=await _pSalesP;
-    let rawSold=0,treeSold=0;
-    const treeRows=[];
+    let rawSold=0,treeSold=0,treeProfit=0;
+    const treeRows=[];const treeProfitRows=[];
     snap.docs.filter(d=>{const s=d.data();
       return s.delivered!==false
         &&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId))
         &&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
       const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
+      // أخرجه مشغل الشجر: لا مواد خام من مخزني ولا تكلفة شجر عليّ — بل هو
+      // مدين لي بالربح. ولولا هذا الشرط لعُدّ سعرُه (وهو الربح) مواداً خام
+      // مستهلكة، لأنّ تكاليفه كلّها أصفار.
+      if(s.fulfilledBy==='tree'){
+        const amt=(s.sellPrice||0)*q;
+        treeProfit+=amt;
+        treeProfitRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',
+          qty:q,unit:s.sellPrice||0,total:amt,ord:s.fromOrderId||'',id:d.id});
+        return;
+      }
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
       // تفصيل تكلفة الشجر — ليعرف المستخدم من أين جاء الرقم بالضبط
@@ -15724,7 +15743,9 @@ async function loadBalanceTab(){
       _opBalDupIds=new Set((await _findExtraSaleRows(inWindow)).map(r=>r.id));
     }catch(e){_opBalDupIds=new Set();}
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
-  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeRows=[];}
+    _opBalTreeProfit=treeProfit;_opBalTreeProfitRows=treeProfitRows;
+  }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeRows=[];
+    _opBalTreeProfit=0;_opBalTreeProfitRows=[];}
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
@@ -15835,8 +15856,38 @@ function renderBalanceSummary(){
       ${treePays.length?`<button onclick="toggleBalSection('sup_tx___tree__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 الدفعات (${treePays.length})</span><span>▼</span></button>
       <div id="sup_tx___tree__" style="display:none;margin-top:6px;padding:2px 4px;">${treeTxRows}</div>`:''}
     </div>`;
+  // ── مرابح الشجر: هو مدين لي، لا أنا له — اتجاه معاكس لكرت التكلفة ──
+  const tpPaid=_opSupplierPayments.filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
+  const tpTotal=_opBalTreeProfit;
+  const tpBal=tpTotal-tpPaid;
+  const tpPays=_opSupplierPayments.filter(p=>p.supplierId==='__treeprofit__').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const tpTxRows=tpPays.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
+      <span style="font-size:0.72rem;color:#9fc7b4;">💰 قبضتُ منه · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
+      <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span style="font-weight:800;font-size:0.8rem;color:#6ee7a8;font-variant-numeric:tabular-nums;">−${(x.amount||0).toFixed(2)}</span><button onclick="deleteSupplierPayment('${x.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button></span>
+    </div>`).join('');
+  const tpDetail=(_opBalTreeProfitRows||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    .map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.06);">
+      <span style="font-size:0.71rem;color:#9fc7b4;min-width:0;">${r.date} · ${r.name}${r.qty>1?' ×'+r.qty:''}${r.store?' · '+r.store:''}${r.ord?' <span style="color:#c9b981;">#'+String(r.ord).slice(-6).toUpperCase()+'</span>':''}</span>
+      <span style="font-weight:800;font-size:0.78rem;color:#6ee7a8;font-variant-numeric:tabular-nums;flex-shrink:0;">${r.total.toFixed(2)}</span>
+    </div>`).join('');
+  const treeProfitRow=(tpTotal>0||tpPaid>0)?`<div style="background:rgba(110,231,168,.07);border:1px solid rgba(110,231,168,.3);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
+        <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🌲 مرابح الشجر <span style="font-size:0.62rem;font-weight:600;color:#9fc7b4;">(تلقائي · له عندك)</span></span>
+        <button onclick="paySupplier('__treeprofit__','مرابح الشجر')" style="padding:6px 13px;background:linear-gradient(145deg,#6ee7a8,#2f9e63);color:#06281a;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💰 قبضت</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">أرباح طلباته</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpTotal.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">قبضتُ منه</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpPaid.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي إلك عنده</div><div style="font-weight:900;color:${tpBal>0.01?'#f3e0a6':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${tpBal.toFixed(2)}</div></div>
+      </div>
+      ${tpDetail?`<button onclick="toggleBalSection('sup_cost___treeprofit__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌲 من وين الربح؟ (${_opBalTreeProfitRows.length})</span><span>▼</span></button>
+      <div id="sup_cost___treeprofit__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${tpDetail}</div>`:''}
+      ${tpPays.length?`<button onclick="toggleBalSection('sup_tx___treeprofit__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 المقبوضات (${tpPays.length})</span><span>▼</span></button>
+      <div id="sup_tx___treeprofit__" style="display:none;margin-top:6px;padding:2px 4px;">${tpTxRows}</div>`:''}
+    </div>`:'';
+
   // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
-  const supRows=treeRow+_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
+  const supRows=treeRow+treeProfitRow+_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
     const sBuys=_opBalPurchases.filter(p=>p.supplierId===sup.id);
     const sPays=_opSupplierPayments.filter(p=>p.supplierId===sup.id);
     const buys=sBuys.reduce((s,p)=>s+(p.amount||0),0);
@@ -16060,15 +16111,17 @@ async function saveSupplierPurchase(){
 function paySupplier(supplierId,name){
   const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
   const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
+  // مرابح الشجر اتجاهها معاكس: أنا أقبض منه لا أدفع له
+  const _in=supplierId==='__treeprofit__';
   _supModal(`
-    <div style="font-weight:800;font-size:1.05rem;color:#b8912f;margin-bottom:4px;text-align:center;">💳 دفعة للمورد</div>
-    <div style="text-align:center;font-size:0.85rem;color:#6b7280;margin-bottom:16px;">🏭 ${name}</div>
+    <div style="font-weight:800;font-size:1.05rem;color:${_in?'#166534':'#b8912f'};margin-bottom:4px;text-align:center;">${_in?'💰 قبضة من مشغل الشجر':'💳 دفعة للمورد'}</div>
+    <div style="text-align:center;font-size:0.85rem;color:#6b7280;margin-bottom:16px;">${_in?'🌲':'🏭'} ${name}</div>
     <input type="hidden" id="sup_pay_id" value="${supplierId}"><input type="hidden" id="sup_pay_name" value="${name.replace(/"/g,'&quot;')}">
     <label style="${L}">المبلغ (د.أ)</label><input id="sup_pay_amt" type="number" min="0" step="0.5" placeholder="0.00" style="${F}">
     <label style="${L}">ملاحظة (اختياري)</label><input id="sup_pay_notes" type="text" placeholder="..." style="${F}">
     <label style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;cursor:pointer;margin-bottom:14px;">
       <input type="checkbox" id="sup_pay_cash" checked style="width:18px;height:18px;accent-color:#166534;cursor:pointer;flex-shrink:0;">
-      <div><div style="font-size:0.84rem;font-weight:700;color:#166534;">💵 تُخصم من الكاش (التحصيل)</div><div style="font-size:0.72rem;color:#15803d;margin-top:2px;">شيل الصح لو دفعت من مصدر ثاني (مش من كاش التحصيل)</div></div>
+      <div><div style="font-size:0.84rem;font-weight:700;color:#166534;">${_in?'💵 تُضاف للكاش (التحصيل)':'💵 تُخصم من الكاش (التحصيل)'}</div><div style="font-size:0.72rem;color:#15803d;margin-top:2px;">${_in?'شيل الصح لو ما استلمتها كاش (حوالة أو مقاصّة)':'شيل الصح لو دفعت من مصدر ثاني (مش من كاش التحصيل)'}</div></div>
     </label>
     <div style="display:flex;gap:10px;">
       <button onclick="saveSupplierPayment()" style="flex:1;padding:12px;background:#b8912f;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💳 تسجيل الدفعة</button>
