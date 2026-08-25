@@ -16499,7 +16499,12 @@ async function loadRosemaryWallet(){
       .sort((a,b)=>String(b.month||'').localeCompare(String(a.month||'')));
     _rentPayments=_all.filter(t=>t.type==='rent_payment')
       .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  }catch(e){_rwTxList=[];_rentCharges=[];_rentPayments=[];}
+    // السداد — أشخاص عليهم مبالغ ودفعاتهم
+    _debtPeople=_all.filter(t=>t.type==='debt_person')
+      .sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'));
+    _debtPayments=_all.filter(t=>t.type==='debt_payment')
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }catch(e){_rwTxList=[];_rentCharges=[];_rentPayments=[];_debtPeople=[];_debtPayments=[];}
   await _ensureRentCharges();
   // مصاريف الكشف الحالي — بنفس منطق الأرباح تماماً: سجلات الجلسة ⋃ سجلات
   // المدى الزمني غير الموسومة. الاستعلام الصارم السابق كان يُسقط أي مصروف
@@ -16563,7 +16568,11 @@ function renderRosemaryWallet(){
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
   const totalWages=(_rwWages||[]).reduce((s,w)=>s+(w.amount||0),0);
   const initialBalance=_rwSettings.initialBalance||0;
-  const currentBalance=initialBalance+_rwSalesProfit-totalExpenses-totalWages-totalWithdrawals;
+  // السداد: المبلغ الذي على الشخص لا يُنقص الرصيد — فالرصيد كاشٌ متاح، والدَّين
+  // لا يخرج منه إلا حين يُدفع فعلاً. والدفعة الموسومة «خارجي» دُفعت من مصدر
+  // آخر فلا تمسّ الرصيد أيضاً.
+  const totalDebtPaid=_debtTotals().paidFromBalance;
+  const currentBalance=initialBalance+_rwSalesProfit-totalExpenses-totalWages-totalWithdrawals-totalDebtPaid;
   const noSession=!(_opCurrentSession&&_opCurrentSession.id&&_opCurrentSession.status!=='closed');
   const card=document.getElementById('rw_balance_card');
   if(card) card.innerHTML=`
@@ -16572,7 +16581,7 @@ function renderRosemaryWallet(){
       <div style="position:relative;">
       <div style="font-size:0.78rem;color:#cbe6d6;font-weight:700;margin-bottom:6px;">🌿 أرباح المحل — رصيد روزميري</div>
       <div style="font-size:2.1rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${currentBalance.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
-      <div style="font-size:0.68rem;color:rgba(255,255,255,.65);">رصيد أولي ${initialBalance.toFixed(2)} + أرباح ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)}${totalWages>0?' − رواتب '+totalWages.toFixed(2):''} − سحوبات ${totalWithdrawals.toFixed(2)}</div>
+      <div style="font-size:0.68rem;color:rgba(255,255,255,.65);">رصيد أولي ${initialBalance.toFixed(2)} + أرباح ${_rwSalesProfit.toFixed(2)} − مصاريف ${totalExpenses.toFixed(2)}${totalWages>0?' − رواتب '+totalWages.toFixed(2):''} − سحوبات ${totalWithdrawals.toFixed(2)}${totalDebtPaid>0?' − سداد '+totalDebtPaid.toFixed(2):''}</div>
       ${noSession?'<div style="font-size:0.7rem;background:rgba(255,255,255,0.14);border-radius:9px;padding:6px 10px;margin-top:7px;">⚠️ لا يوجد كشف مفتوح — الأرباح والمصاريف تُحسب من الكشف المفتوح</div>':''}
       <button onclick="document.getElementById('rw_initial_form').style.display='block';document.getElementById('rw_initial_inp').value='${initialBalance}'"
         style="position:absolute;top:0;left:0;background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ رصيد أولي</button>
@@ -16594,6 +16603,7 @@ function renderRosemaryWallet(){
       </div>
     </div>`;
   renderRentCard();
+  renderDebtCard();
   renderRwTxList();
 }
 
@@ -16878,6 +16888,203 @@ async function editRentCharge(id){
     renderRentCard();
   }catch(e){toast('❌ خطأ في التعديل');}
 }
+
+// ===== السداد — أشخاص عليهم مبالغ ودفعاتها =====
+// المبلغ على الشخص لا يُنقص رصيد روزميري: الرصيد كاشٌ متاح، والدَّين لا يخرج
+// منه إلا حين يُدفع. ولكل دفعة خياران — من الرصيد (الافتراضي) أو خارجي
+// (دُفعت من مصدر آخر) فلا تمسّ الرصيد لكن تُنقص المستحق على الشخص.
+let _debtPeople=[];
+let _debtPayments=[];
+
+function _debtPaidFor(personId){
+  return _debtPayments.filter(p=>p.personId===personId)
+    .reduce((s,p)=>s+(Number(p.amount)||0),0);
+}
+function _debtTotals(){
+  const owed=_debtPeople.reduce((s,d)=>s+(Number(d.amount)||0),0);
+  const paid=_debtPayments.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const paidFromBalance=_debtPayments.filter(p=>p.fromBalance!==false)
+    .reduce((s,p)=>s+(Number(p.amount)||0),0);
+  return {owed,paid,paidFromBalance,paidOutside:paid-paidFromBalance,remaining:owed-paid};
+}
+
+function renderDebtCard(){
+  const card=document.getElementById('debt_card');
+  if(!card)return;
+  const t=_debtTotals();
+  card.innerHTML=`
+    <div style="background:linear-gradient(150deg,#3b1d3d 0%,#5b2a5e 55%,#7a3a7e 100%);border-radius:20px;padding:16px;color:#fff;box-shadow:0 12px 30px rgba(59,29,61,.3);border:1px solid rgba(236,180,240,.25);">
+      <div style="font-size:0.78rem;color:#f0c8f4;font-weight:700;margin-bottom:6px;">🤝 السداد — المتبقّي علينا</div>
+      <div style="font-size:1.9rem;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.remaining>0?'#f5d0f7':'#a7f3d0'};">${t.remaining.toFixed(2)} <span style="font-size:0.8rem;font-weight:700;color:#e9b8ee;">د.أ</span></div>
+      ${_debtPeople.length?`<div style="font-size:0.68rem;color:rgba(255,255,255,.68);margin-top:6px;">
+        ${_debtPeople.length} شخص · الأصل ${t.owed.toFixed(2)} − مدفوع ${t.paid.toFixed(2)}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">💳 مدفوع من الرصيد</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#fca5a5;font-variant-numeric:tabular-nums;">${t.paidFromBalance.toFixed(2)}</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">🌐 دفع خارجي</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#a7f3d0;font-variant-numeric:tabular-nums;">${t.paidOutside.toFixed(2)}</div>
+        </div>
+      </div>`
+      :'<div style="font-size:0.68rem;color:rgba(255,255,255,.68);margin-top:6px;">ما في أشخاص بعد — أضف شخصاً والمبلغ الذي عليه</div>'}
+      <div style="font-size:0.64rem;color:rgba(255,255,255,.5);margin-top:9px;">المبلغ على الشخص لا يُنقص الرصيد — يُنقصه ما يُدفع فعلاً من الرصيد فقط</div>
+    </div>`;
+  renderDebtList();
+  const d=document.getElementById('debt_date');
+  if(d&&!d.value)d.value=(typeof jordanDateStr==='function'?jordanDateStr():'');
+}
+
+function renderDebtList(){
+  const wrap=document.getElementById('debt_list');
+  if(!wrap)return;
+  if(!_debtPeople.length){
+    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:16px;">لا يوجد أشخاص بعد</div>';
+    return;
+  }
+  wrap.innerHTML=_debtPeople.map(d=>{
+    const amt=Number(d.amount)||0;
+    const paid=_debtPaidFor(d.id);
+    const rem=amt-paid;
+    const done=rem<=0.009;
+    const pays=_debtPayments.filter(p=>p.personId===d.id);
+    const payRows=pays.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px;border-top:1px solid var(--border);">
+        <span style="font-size:0.72rem;color:var(--text-mid);">💳 ${(Number(p.amount)||0).toFixed(2)} · ${p.date||''}${p.fromBalance===false?' <span style="color:#059669;font-weight:700;">(خارجي)</span>':''}${p.notes?' — '+p.notes:''}</span>
+        <button onclick="deleteDebtPayment('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
+      </div>`).join('');
+    return `<div style="background:var(--card-bg);border:1px solid ${done?'#86efac':'#e9d5ff'};border-right:4px solid ${done?'#16a34a':'#a855f7'};border-radius:11px;padding:11px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="min-width:0;">
+          <div style="font-weight:800;color:var(--text-dark);font-size:0.92rem;">${done?'✅ ':''}${d.name||'—'}</div>
+          <div style="font-size:0.74rem;color:var(--text-mid);margin-top:2px;">الأصل ${amt.toFixed(2)} − مدفوع ${paid.toFixed(2)}${d.notes?' · '+d.notes:''}</div>
+        </div>
+        <div style="text-align:left;flex-shrink:0;">
+          <div style="font-weight:900;font-size:1.05rem;color:${done?'#16a34a':'#7e22ce'};font-variant-numeric:tabular-nums;">${Math.max(0,rem).toFixed(2)}</div>
+          <div style="font-size:0.64rem;color:#9ca3af;">متبقٍّ</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:9px;">
+        ${!done?`<button onclick="openDebtPay('${d.id}')" style="flex:1;padding:7px;background:#7e22ce;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💳 تسجيل دفعة</button>`:''}
+        <button onclick="editDebtPerson('${d.id}')" style="padding:7px 11px;background:#f3e8ff;color:#7e22ce;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">✏️</button>
+        <button onclick="deleteDebtPerson('${d.id}')" style="padding:7px 11px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">🗑️</button>
+      </div>
+      ${payRows?`<div style="margin-top:7px;">${payRows}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function addDebtPerson(){
+  const name=(document.getElementById('debt_name').value||'').trim();
+  const amount=parseFloat(document.getElementById('debt_amount').value);
+  const notes=(document.getElementById('debt_notes').value||'').trim();
+  if(!name){toast('⚠️ اكتب الاسم');return;}
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل المبلغ');return;}
+  try{
+    await db.collection('rosemary_transactions').add({
+      type:'debt_person',name,amount,notes,date:jordanDateStr(),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('debt_name').value='';
+    document.getElementById('debt_amount').value='';
+    document.getElementById('debt_notes').value='';
+    toast('✅ أُضيف');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+// نافذة الدفعة — الخيار الافتراضي: يُخصم من الرصيد
+let _debtPayId=null;
+function openDebtPay(personId){
+  const d=_debtPeople.find(x=>x.id===personId);
+  if(!d)return;
+  _debtPayId=personId;
+  const rem=(Number(d.amount)||0)-_debtPaidFor(personId);
+  const box=document.getElementById('debt_pay_form');
+  if(!box)return;
+  document.getElementById('debt_pay_who').textContent=d.name||'';
+  document.getElementById('debt_pay_rem').textContent=Math.max(0,rem).toFixed(2);
+  const amt=document.getElementById('debt_pay_amount'); if(amt)amt.value='';
+  const dt=document.getElementById('debt_pay_date'); if(dt&&!dt.value)dt.value=jordanDateStr();
+  const nt=document.getElementById('debt_pay_notes'); if(nt)nt.value='';
+  const fb=document.getElementById('debt_pay_from_balance'); if(fb)fb.checked=true;
+  box.style.display='block';
+  try{box.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}
+}
+function closeDebtPay(){
+  _debtPayId=null;
+  const box=document.getElementById('debt_pay_form');
+  if(box)box.style.display='none';
+}
+
+async function saveDebtPayment(){
+  if(!_debtPayId){toast('⚠️ اختر الشخص');return;}
+  const amount=parseFloat(document.getElementById('debt_pay_amount').value);
+  const date=document.getElementById('debt_pay_date').value;
+  const notes=(document.getElementById('debt_pay_notes').value||'').trim();
+  const fromBalance=!!document.getElementById('debt_pay_from_balance')?.checked;
+  if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!date){toast('⚠️ اختر التاريخ');return;}
+  const d=_debtPeople.find(x=>x.id===_debtPayId);
+  const rem=d?((Number(d.amount)||0)-_debtPaidFor(_debtPayId)):0;
+  if(amount>rem+0.009&&!confirm(`المبلغ أكبر من المتبقّي (${Math.max(0,rem).toFixed(2)}).\nتسجيله كما هو؟`))return;
+  try{
+    await db.collection('rosemary_transactions').add({
+      type:'debt_payment',personId:_debtPayId,personName:(d&&d.name)||'',
+      amount,date,notes,fromBalance,
+      sessionId:(_opCurrentSession&&_opCurrentSession.id)||null,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeDebtPay();
+    toast(fromBalance?'✅ سُجّلت الدفعة — خُصمت من الرصيد':'✅ سُجّلت الدفعة — دفع خارجي، الرصيد لم يتغيّر');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+async function deleteDebtPayment(id){
+  if(!confirm('حذف هذه الدفعة؟ سيرتفع المتبقّي على الشخص.'))return;
+  try{
+    await db.collection('rosemary_transactions').doc(id).delete();
+    toast('✅ تم الحذف');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+async function editDebtPerson(id){
+  const d=_debtPeople.find(x=>x.id===id);
+  if(!d)return;
+  const nm=prompt('اسم الشخص:',d.name||'');
+  if(nm===null)return;
+  const v=prompt('المبلغ الذي عليه (د.أ):',String(Number(d.amount)||0));
+  if(v===null)return;
+  const n=parseFloat(v);
+  if(!String(nm).trim()){toast('⚠️ الاسم مطلوب');return;}
+  if(isNaN(n)||n<0){toast('⚠️ مبلغ غير صحيح');return;}
+  try{
+    await db.collection('rosemary_transactions').doc(id).set({name:String(nm).trim(),amount:n},{merge:true});
+    toast('✅ تم التعديل');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في التعديل');}
+}
+
+async function deleteDebtPerson(id){
+  const d=_debtPeople.find(x=>x.id===id);
+  const pays=_debtPayments.filter(p=>p.personId===id);
+  if(!confirm(`حذف "${(d&&d.name)||''}"؟`+(pays.length?`\n\nسيُحذف معه ${pays.length} دفعة، وسيرتفع الرصيد بمقدار ما خُصم منها.`:'')))return;
+  try{
+    const batch=db.batch();
+    batch.delete(db.collection('rosemary_transactions').doc(id));
+    pays.forEach(p=>batch.delete(db.collection('rosemary_transactions').doc(p.id)));
+    await batch.commit();
+    toast('✅ تم الحذف');
+    loadRosemaryWallet();
+  }catch(e){toast('❌ خطأ في الحذف');}
+}
+
+window.addDebtPerson=addDebtPerson; window.openDebtPay=openDebtPay; window.closeDebtPay=closeDebtPay;
+window.saveDebtPayment=saveDebtPayment; window.deleteDebtPayment=deleteDebtPayment;
+window.editDebtPerson=editDebtPerson; window.deleteDebtPerson=deleteDebtPerson;
 
 window.toggleRentSetup=toggleRentSetup; window.saveRentSettings=saveRentSettings;
 window.addRentPayment=addRentPayment; window.deleteRentTx=deleteRentTx;

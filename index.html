@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v240"></script>
+<script defer src="app.js?v241"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -3117,6 +3117,74 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <span>🏠 سجل الإجار (الشهور والدفعات)</span><span>▼</span>
           </button>
           <div id="rent_ledger" style="display:none;margin-bottom:14px;"></div>
+
+          <!-- السداد -->
+          <div id="debt_card" style="margin-bottom:12px;"></div>
+
+          <!-- إضافة شخص -->
+          <div class="form-card" style="margin-bottom:14px;border:1.5px solid #e9d5ff;">
+            <div style="font-size:0.88rem;font-weight:700;color:#7e22ce;margin-bottom:4px;">🤝 إضافة شخص للسداد</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-bottom:12px;">المبلغ الذي عليه — لا يُنقص الرصيد، يُنقصه ما يُدفع فعلاً</div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>👤 الاسم</label>
+                <input type="text" id="debt_name" placeholder="اسم الشخص"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>💵 المبلغ (د.أ)</label>
+                <input type="number" id="debt_amount" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+            <div class="fg" style="margin-bottom:12px;">
+              <label>📝 ملاحظات</label>
+              <input type="text" id="debt_notes" placeholder="سبب المبلغ..."
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <input type="hidden" id="debt_date">
+            <button onclick="addDebtPerson()" style="width:100%;padding:12px;background:#7e22ce;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">➕ إضافة</button>
+          </div>
+
+          <!-- نموذج الدفعة (مخفي حتى تُختار شخصاً) -->
+          <div id="debt_pay_form" style="display:none;background:var(--card-bg);border:1.5px solid #a855f7;border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.88rem;font-weight:800;color:#7e22ce;margin-bottom:2px;">💳 دفعة لـ <span id="debt_pay_who"></span></div>
+            <div style="font-size:0.74rem;color:#9ca3af;margin-bottom:11px;">المتبقّي عليه: <b id="debt_pay_rem">0.00</b> د.أ</div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <div class="fg">
+                <label>💵 المبلغ (د.أ)</label>
+                <input type="number" id="debt_pay_amount" min="0" step="0.5" placeholder="0.00"
+                  style="width:100%;padding:10px 12px;border:1.5px solid #e9d5ff;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+              <div class="fg">
+                <label>📅 التاريخ</label>
+                <input type="date" id="debt_pay_date"
+                  style="width:100%;padding:10px 12px;border:1.5px solid #e9d5ff;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+              </div>
+            </div>
+            <div class="fg" style="margin-bottom:10px;">
+              <label>📝 ملاحظات</label>
+              <input type="text" id="debt_pay_notes" placeholder="اختياري..."
+                style="width:100%;padding:10px 12px;border:1.5px solid #e9d5ff;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:var(--card-bg);color:var(--text-dark);">
+            </div>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+              <input type="checkbox" id="debt_pay_from_balance" checked style="width:18px;height:18px;accent-color:#16a34a;flex-shrink:0;">
+              <div>
+                <div style="font-size:0.86rem;font-weight:700;color:#166534;">💵 تُخصم من الرصيد</div>
+                <div style="font-size:0.72rem;color:#15803d;margin-top:2px;">شيل الصح لو دفعتها من مصدر خارجي — عندها يُنقص المتبقّي على الشخص والرصيد لا يتغيّر</div>
+              </div>
+            </label>
+            <div style="display:flex;gap:8px;">
+              <button onclick="saveDebtPayment()" style="flex:1;padding:12px;background:#7e22ce;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">💾 تسجيل الدفعة</button>
+              <button onclick="closeDebtPay()" style="padding:12px 14px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;">✕</button>
+            </div>
+          </div>
+
+          <!-- قائمة الأشخاص -->
+          <button onclick="toggleBalSection('debt_list',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card-bg);border:1.5px solid #e9d5ff;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;color:#7e22ce;cursor:pointer;margin-bottom:8px;">
+            <span>🤝 قائمة السداد</span><span>▼</span>
+          </button>
+          <div id="debt_list" style="display:none;margin-bottom:14px;"></div>
 
           <!-- Add withdrawal form (مصاريف مشغل فقط) -->
           <div class="form-card" style="margin-bottom:14px;border:1.5px solid #fce7f3;">
