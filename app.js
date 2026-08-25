@@ -79,52 +79,12 @@ function _invalidateQuery(prefix){
   }catch(e){}
 })();
 
-// ===== دمج الاستعلامات المتطابقة =====
-// فتحة واحدة لتبويب الرصيد كانت تُصدر ٣١ استعلاماً، منها استعلامات متطابقة
-// حرفياً تتكرّر ٢–٣ مرّات لأن دوالّ مختلفة تحتاج البيانات نفسها ولا تعرف عن
-// بعضها. هنا نبني مفتاحاً من الاستعلام نفسه (المجموعة + الشروط + الترتيب +
-// الحدّ)، فتتشارك النداءات المتطابقة تنزيلاً واحداً.
-// المهلة قصيرة جداً (٣ ثوانٍ): الغرض دمج نداءات فتحةٍ واحدة، لا الاحتفاظ
-// ببيانات قديمة. وأي كتابة تمسح الكاش فوراً على أي حال.
-const _DEDUPE_MS=3000;
-function _qKeyPart(v){
-  try{
-    if(v==null)return String(v);
-    if(Array.isArray(v))return '['+v.map(_qKeyPart).join(',')+']';
-    if(typeof v==='object'){
-      if(typeof v.toMillis==='function')return 'ts'+v.toMillis();
-      if(typeof v.toDate==='function')return 'ts'+v.toDate().getTime();
-      if(v.id&&v.path)return 'ref'+v.path;
-      return (v.constructor&&v.constructor.name||'o')+JSON.stringify(v);
-    }
-    return String(v);
-  }catch(e){return '?';}
-}
-(function(){
-  try{
-    const CHAIN=['where','orderBy','limit','limitToLast','startAt','startAfter','endAt','endBefore'];
-    const wrapQuery=(q,key)=>new Proxy(q,{
-      get(t,p,r){
-        const v=Reflect.get(t,p,t);
-        if(typeof v!=='function')return v;
-        if(CHAIN.includes(p))
-          return (...a)=>wrapQuery(v.apply(t,a),key+'|'+p+'('+a.map(_qKeyPart).join(',')+')');
-        if(p==='get')
-          // خيار المصدر (cache/server) يتخطّى الدمج — سلوكه مقصود ومختلف
-          return (...a)=>a.length?v.apply(t,a):_cachedQuery('q:'+key,_DEDUPE_MS,()=>v.apply(t));
-        // كل ما عدا ذلك يمرّ كما هو — وبالذات doc()، فمراجع الوثائق تُمرَّر
-        // إلى batch.set و runTransaction وتخضع لفحوص نوع داخل الـSDK، ولا
-        // ينبغي أن تصل إليها مغلّفةً بوكيل. إبطال الكاش عند الكتابة يتكفّل
-        // به ترقيع النماذج أعلاه (مُتحقَّق منه بالفحوصات).
-        return v.bind(t);
-      }
-    });
-    const origCollection=db.collection.bind(db);
-    db.collection=function(name){ return wrapQuery(origCollection(name),'c:'+name); };
-    const origGroup=db.collectionGroup&&db.collectionGroup.bind(db);
-    if(origGroup) db.collectionGroup=function(name){ return wrapQuery(origGroup(name),'g:'+name); };
-  }catch(e){}
-})();
+// ملاحظة: كان هنا وكيل (Proxy) يغلّف كائنات الاستعلام ليدمج المتطابقة منها
+// في تنزيل واحد. أُزيل بعد أن انهار Firestore على جهاز المالك بـ
+// «INTERNAL ASSERTION FAILED: Unexpected state» فتعطّل كل استعلام في اللوحة.
+// لم أُثبت السببية، لكنّ تغليف كائنات الـSDK بوكيل يغيّر هويّتها، وهذا النوع
+// من التدخّل لا يستحق المخاطرة مقابل توفير تنزيلات مكرّرة داخل الفتحة الواحدة.
+// الكاش المُصرَّح به في مواضع محدّدة (_cachedQuery) باقٍ — فهو لا يمسّ الـSDK.
 
 // ===== PUSH NOTIFICATIONS (FCM v1 API) =====
 let _fcmMessaging=null,_fcmVapidKey=null,_fcmReady=false;
@@ -16938,23 +16898,78 @@ async function runSpeedDiagnostics(btn){
 function _isLocalDbError(msg){
   return /Target ID already exists|INTERNAL ASSERTION|IndexedDB|Failed to obtain (exclusive )?access/i.test(String(msg||''));
 }
+// حذف قواعد IndexedDB مباشرةً — لا يمرّ عبر Firestore إطلاقاً، فينجح حتى
+// حين يكون الـSDK نفسه في حالة منهارة ولا يستجيب لأي نداء.
+function _nukeLocalDbs(){
+  return new Promise(async resolve=>{
+    const names=new Set(['firebaseLocalStorageDb','firestore/[DEFAULT]/'+firebaseConfig.projectId+'/main']);
+    try{
+      if(indexedDB.databases){
+        for(const d of await indexedDB.databases()){
+          if(d&&d.name&&/firestore|firebase/i.test(d.name)) names.add(d.name);
+        }
+      }
+    }catch(e){}
+    let left=names.size;
+    if(!left)return resolve(0);
+    let done=0;
+    names.forEach(n=>{
+      let settled=false;
+      const fin=ok=>{ if(settled)return; settled=true; if(ok)done++; if(--left<=0)resolve(done); };
+      try{
+        const req=indexedDB.deleteDatabase(n);
+        req.onsuccess=()=>fin(true); req.onerror=()=>fin(false);
+        req.onblocked=()=>fin(false);          // تبويب آخر يحجز القاعدة
+        setTimeout(()=>fin(false),4000);
+      }catch(e){ fin(false); }
+    });
+  });
+}
+
 async function repairLocalDb(btn){
-  if(!confirm('إصلاح قاعدة البيانات المحلية على هذا الجهاز؟\n\nيمسح النسخة المخزّنة محلياً فقط — بياناتك على الخادم لا تُمسّ إطلاقاً، وتُنزَّل من جديد بعد إعادة التحميل.\n\nأغلق أي تبويب آخر للموقع قبل المتابعة.'))return;
+  if(!confirm('إصلاح قاعدة البيانات المحلية على هذا الجهاز؟\n\nيمسح النسخة المخزّنة على الجهاز فقط — بياناتك على الخادم لا تُمسّ إطلاقاً، وتُنزَّل من جديد بعد إعادة التحميل.\n\nأغلق أي تبويب آخر للموقع قبل المتابعة.'))return;
   if(btn){btn.disabled=true;btn.textContent='⏳ جارٍ الإصلاح...';}
+  // المسار النظيف أولاً، فإن كان الـSDK منهاراً ننتقل للحذف المباشر.
+  try{ await db.terminate(); }catch(e){}
   try{
-    await db.terminate();
     await db.clearPersistence();
-    alert('✅ تم — سيُعاد تحميل الصفحة الآن.');
-    location.reload();
-  }catch(e){
-    const m=(e&&e.message)||'';
-    if(btn){btn.disabled=false;btn.textContent='🛠 إصلاح قاعدة البيانات المحلية';}
-    alert(/other clients|another tab|active/i.test(m)
-      ?'⚠️ في تبويب آخر للموقع مفتوح. أغلق كل التبويبات الأخرى ثم أعد المحاولة.'
-      :('❌ تعذّر الإصلاح: '+m+'\n\nبديل: امسح بيانات الموقع من إعدادات المتصفّح.'));
+    alert('✅ تم — ستُعاد تحميل الصفحة الآن.');
+    location.reload(); return;
+  }catch(e){}
+  const n=await _nukeLocalDbs();
+  if(n>0){
+    alert('✅ تم مسح المخزن المحلي ('+n+') — ستُعاد تحميل الصفحة الآن.');
+    location.reload(); return;
   }
+  if(btn){btn.disabled=false;btn.textContent='🛠 إصلاح قاعدة البيانات المحلية';}
+  alert('⚠️ تعذّر المسح — غالباً بسبب تبويب آخر مفتوح للموقع يحجز قاعدة البيانات.\n\nأغلق كل تبويبات الموقع (وأغلق التطبيق من قائمة التطبيقات الأخيرة إن كان مثبّتاً على الشاشة الرئيسية)، ثم افتحه من جديد وأعد المحاولة.\n\nبديل مضمون: إعدادات المتصفّح ← بيانات المواقع ← alkiswanirosemary.com ← حذف.');
 }
 window.repairLocalDb=repairLocalDb;
+
+// انهيار مخزن Firestore المحلي يُفشل كل استعلام في اللوحة، ورسالته الخام
+// بالإنجليزية لا تدلّ على مخرج. نرصده أينما وقع ونعرض زرّ الإصلاح مباشرةً،
+// بدل أن يضطرّ المالك لاكتشاف أنّ العلاج مدفون في أداة تشخيص.
+function _showLocalDbBanner(){
+  if(document.getElementById('_dbFixBar'))return;
+  const b=document.createElement('div');
+  b.id='_dbFixBar';
+  b.style.cssText='position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:100001;max-width:92vw;background:#7c2d12;color:#ffedd5;border:1px solid #fdba74;border-radius:12px;padding:11px 14px;font-family:Tajawal,sans-serif;font-size:0.82rem;box-shadow:0 10px 30px rgba(0,0,0,.35);';
+  b.innerHTML='<div style="font-weight:800;margin-bottom:3px;">⚠️ عطل في قاعدة البيانات المحلية</div>'
+    +'<div style="font-size:0.75rem;opacity:.9;margin-bottom:8px;">بياناتك على الخادم سليمة. أغلق أي تبويب آخر للموقع ثم اضغط إصلاح.</div>'
+    +'<div style="display:flex;gap:8px;">'
+    +'<button style="flex:1;background:#fdba74;color:#7c2d12;border:none;border-radius:8px;padding:7px 12px;font-family:Tajawal,sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;">🛠 إصلاح الآن</button>'
+    +'<button style="background:none;border:none;color:rgba(255,237,213,.6);font-size:1rem;cursor:pointer;">✕</button></div>';
+  const [go,close]=b.querySelectorAll('button');
+  go.onclick=()=>repairLocalDb(go);
+  close.onclick=()=>b.remove();
+  document.body.appendChild(b);
+}
+window.addEventListener('unhandledrejection',ev=>{
+  try{ const m=(ev&&ev.reason&&(ev.reason.message||ev.reason))||''; if(_isLocalDbError(m))_showLocalDbBanner(); }catch(e){}
+});
+window.addEventListener('error',ev=>{
+  try{ if(_isLocalDbError((ev&&(ev.message||(ev.error&&ev.error.message)))||''))_showLocalDbBanner(); }catch(e){}
+});
 
 function _appVersion(){
   try{
