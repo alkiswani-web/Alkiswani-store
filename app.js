@@ -16499,7 +16499,7 @@ async function loadRosemaryWallet(){
       .sort((a,b)=>String(b.month||'').localeCompare(String(a.month||'')));
     _rentPayments=_all.filter(t=>t.type==='rent_payment')
       .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-    // السداد — أشخاص عليهم مبالغ ودفعاتهم
+    // السداد — أشخاص لهم علينا مبالغ، ودفعاتنا لهم
     _debtPeople=_all.filter(t=>t.type==='debt_person')
       .sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'));
     _debtPayments=_all.filter(t=>t.type==='debt_payment')
@@ -16568,7 +16568,7 @@ function renderRosemaryWallet(){
   const totalExpenses=_rwExpenses.reduce((s,e)=>s+(e.amount||0),0);
   const totalWages=(_rwWages||[]).reduce((s,w)=>s+(w.amount||0),0);
   const initialBalance=_rwSettings.initialBalance||0;
-  // السداد: المبلغ الذي على الشخص لا يُنقص الرصيد — فالرصيد كاشٌ متاح، والدَّين
+  // السداد: المبلغ المستحق للشخص لا يُنقص الرصيد — فالرصيد كاشٌ متاح، والدَّين
   // لا يخرج منه إلا حين يُدفع فعلاً. والدفعة الموسومة «خارجي» دُفعت من مصدر
   // آخر فلا تمسّ الرصيد أيضاً.
   const totalDebtPaid=_debtTotals().paidFromBalance;
@@ -16889,10 +16889,11 @@ async function editRentCharge(id){
   }catch(e){toast('❌ خطأ في التعديل');}
 }
 
-// ===== السداد — أشخاص عليهم مبالغ ودفعاتها =====
-// المبلغ على الشخص لا يُنقص رصيد روزميري: الرصيد كاشٌ متاح، والدَّين لا يخرج
-// منه إلا حين يُدفع. ولكل دفعة خياران — من الرصيد (الافتراضي) أو خارجي
-// (دُفعت من مصدر آخر) فلا تمسّ الرصيد لكن تُنقص المستحق على الشخص.
+// ===== السداد — ديون على المشغل لأشخاص =====
+// الاتجاه: **المشغل مدين للشخص**، فالدفعة خروجُ مال منّا إليه.
+// والمبلغ المستحق له لا يُنقص رصيد روزميري: الرصيد كاشٌ متاح، والدَّين لا
+// يخرج منه إلا حين يُدفع فعلاً. ولكل دفعة خياران — من الرصيد (الافتراضي)
+// أو خارجي (دُفعت من مصدر آخر) فلا تمسّ الرصيد لكن تُنقص المتبقّي له.
 let _debtPeople=[];
 let _debtPayments=[];
 
@@ -16914,10 +16915,10 @@ function renderDebtCard(){
   const t=_debtTotals();
   card.innerHTML=`
     <div style="background:linear-gradient(150deg,#3b1d3d 0%,#5b2a5e 55%,#7a3a7e 100%);border-radius:20px;padding:16px;color:#fff;box-shadow:0 12px 30px rgba(59,29,61,.3);border:1px solid rgba(236,180,240,.25);">
-      <div style="font-size:0.78rem;color:#f0c8f4;font-weight:700;margin-bottom:6px;">🤝 السداد — المتبقّي علينا</div>
+      <div style="font-size:0.78rem;color:#f0c8f4;font-weight:700;margin-bottom:6px;">🤝 السداد — ديون علينا لأشخاص</div>
       <div style="font-size:1.9rem;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.remaining>0?'#f5d0f7':'#a7f3d0'};">${t.remaining.toFixed(2)} <span style="font-size:0.8rem;font-weight:700;color:#e9b8ee;">د.أ</span></div>
       ${_debtPeople.length?`<div style="font-size:0.68rem;color:rgba(255,255,255,.68);margin-top:6px;">
-        ${_debtPeople.length} شخص · الأصل ${t.owed.toFixed(2)} − مدفوع ${t.paid.toFixed(2)}
+        ${_debtPeople.length} شخص · إجمالي الدَّين ${t.owed.toFixed(2)} − دفعنا ${t.paid.toFixed(2)}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
         <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
@@ -16929,8 +16930,8 @@ function renderDebtCard(){
           <div style="font-weight:900;font-size:0.95rem;color:#a7f3d0;font-variant-numeric:tabular-nums;">${t.paidOutside.toFixed(2)}</div>
         </div>
       </div>`
-      :'<div style="font-size:0.68rem;color:rgba(255,255,255,.68);margin-top:6px;">ما في أشخاص بعد — أضف شخصاً والمبلغ الذي عليه</div>'}
-      <div style="font-size:0.64rem;color:rgba(255,255,255,.5);margin-top:9px;">المبلغ على الشخص لا يُنقص الرصيد — يُنقصه ما يُدفع فعلاً من الرصيد فقط</div>
+      :'<div style="font-size:0.68rem;color:rgba(255,255,255,.68);margin-top:6px;">ما في أشخاص بعد — أضف شخصاً والمبلغ الذي له علينا</div>'}
+      <div style="font-size:0.64rem;color:rgba(255,255,255,.5);margin-top:9px;">الدَّين نفسه لا يُنقص الرصيد — يُنقصه ما تدفعه فعلاً من الرصيد</div>
     </div>`;
   renderDebtList();
   const d=document.getElementById('debt_date');
@@ -16958,11 +16959,11 @@ function renderDebtList(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div style="min-width:0;">
           <div style="font-weight:800;color:var(--text-dark);font-size:0.92rem;">${done?'✅ ':''}${d.name||'—'}</div>
-          <div style="font-size:0.74rem;color:var(--text-mid);margin-top:2px;">الأصل ${amt.toFixed(2)} − مدفوع ${paid.toFixed(2)}${d.notes?' · '+d.notes:''}</div>
+          <div style="font-size:0.74rem;color:var(--text-mid);margin-top:2px;">الدَّين ${amt.toFixed(2)} − دفعنا ${paid.toFixed(2)}${d.notes?' · '+d.notes:''}</div>
         </div>
         <div style="text-align:left;flex-shrink:0;">
           <div style="font-weight:900;font-size:1.05rem;color:${done?'#16a34a':'#7e22ce'};font-variant-numeric:tabular-nums;">${Math.max(0,rem).toFixed(2)}</div>
-          <div style="font-size:0.64rem;color:#9ca3af;">متبقٍّ</div>
+          <div style="font-size:0.64rem;color:#9ca3af;">باقي له</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;margin-top:9px;">
@@ -17000,7 +17001,7 @@ function openDebtPay(personId){
   const d=_debtPeople.find(x=>x.id===personId);
   if(!d)return;
   _debtPayId=personId;
-  const rem=(Number(d.amount)||0)-_debtPaidFor(personId);
+  const rem=(Number(d.amount)||0)-_debtPaidFor(personId);   // الباقي له علينا
   const box=document.getElementById('debt_pay_form');
   if(!box)return;
   document.getElementById('debt_pay_who').textContent=d.name||'';
@@ -17028,7 +17029,7 @@ async function saveDebtPayment(){
   if(!date){toast('⚠️ اختر التاريخ');return;}
   const d=_debtPeople.find(x=>x.id===_debtPayId);
   const rem=d?((Number(d.amount)||0)-_debtPaidFor(_debtPayId)):0;
-  if(amount>rem+0.009&&!confirm(`المبلغ أكبر من المتبقّي (${Math.max(0,rem).toFixed(2)}).\nتسجيله كما هو؟`))return;
+  if(amount>rem+0.009&&!confirm(`المبلغ أكبر من الباقي له (${Math.max(0,rem).toFixed(2)}).\nتسجيله كما هو؟`))return;
   try{
     await db.collection('rosemary_transactions').add({
       type:'debt_payment',personId:_debtPayId,personName:(d&&d.name)||'',
@@ -17037,13 +17038,13 @@ async function saveDebtPayment(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     closeDebtPay();
-    toast(fromBalance?'✅ سُجّلت الدفعة — خُصمت من الرصيد':'✅ سُجّلت الدفعة — دفع خارجي، الرصيد لم يتغيّر');
+    toast(fromBalance?'✅ سُجّلت الدفعة له — خُصمت من الرصيد':'✅ سُجّلت الدفعة له — دفع خارجي، الرصيد لم يتغيّر');
     loadRosemaryWallet();
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
 
 async function deleteDebtPayment(id){
-  if(!confirm('حذف هذه الدفعة؟ سيرتفع المتبقّي على الشخص.'))return;
+  if(!confirm('حذف هذه الدفعة؟ سيرتفع الباقي له علينا.'))return;
   try{
     await db.collection('rosemary_transactions').doc(id).delete();
     toast('✅ تم الحذف');
@@ -17056,7 +17057,7 @@ async function editDebtPerson(id){
   if(!d)return;
   const nm=prompt('اسم الشخص:',d.name||'');
   if(nm===null)return;
-  const v=prompt('المبلغ الذي عليه (د.أ):',String(Number(d.amount)||0));
+  const v=prompt('المبلغ الذي له علينا (د.أ):',String(Number(d.amount)||0));
   if(v===null)return;
   const n=parseFloat(v);
   if(!String(nm).trim()){toast('⚠️ الاسم مطلوب');return;}
