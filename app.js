@@ -4253,7 +4253,8 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
             <div><em>المنطقة</em>${_roEsc(o.area||o.address||'—')}</div>
           </div>
           <div class="ro-chips">${chips}</div>
-          ${o.needsReview||repeatN>1?`<div class="ro-flags">
+          ${o.needsReview||repeatN>1||_isTreeFulfilled(o)?`<div class="ro-flags">
+            ${_isTreeFulfilled(o)?'<span class="ro-fl" style="background:rgba(110,231,168,.14);color:#6ee7a8;border-color:rgba(110,231,168,.3);">🌲 طلّعه مشغل الشجر</span>':''}
             ${o.needsReview?'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>':''}
             ${repeatN>1?`<button type="button" class="ro-fl n tap" title="عرض طلبات الزبون السابقة" onclick="event.stopPropagation();viewCustomerHistory('${_roPhoneArg}')">زبون متكرر · ${repeatN} ←</button>`:''}
           </div>`:''}
@@ -5041,17 +5042,41 @@ async function updateEmpOrderStatus(id,newStatus){
   }catch(e){toast('❌ '+e.message);}
 }
 
-async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessionId){
+// ===== من طلّع الطلب: مشغلي أم مشغل الشجر؟ =====
+// حين يُخرِج مشغل الشجر الطلب ويشحنه ويدفع التوصيل، لا يمرّ من عندي كاش ولا
+// أدين له بتكلفة الشجر — الصفحة تدين لي بالربح فقط.
+// لذلك نسجّل صفّ المبيعة بـ«الربح كأنه سعر البيع، والتكاليف صفراً». عندها
+// تخرج كل الأرقام صحيحةً من نفسها: المستحق على الصفحة = الربح، حساب مشغل
+// الشجر لا يتحرّك، والربح في رصيد روزميري هو نفسه في الحالتين.
+function _isTreeFulfilled(o){ return !!o && o.fulfilledBy==='tree'; }
+
+// الطلب يصلح لمشغل الشجر فقط إذا كان كلّ منتج فيه منتجَ شجر — الخشب من مشغلي.
+function _orderAllTree(orderData){
+  const items=(orderData&&orderData.products)||[];
+  if(!items.length) return false;
+  if(!_opProductsList.length) return false;   // بلا قائمة منتجات لا نجزم
+  return items.every(it=>{
+    const p=_opProductsList.find(x=>x.id===it.id)||_opProductsList.find(x=>x.name===it.name);
+    return !!(p&&p.isTree);
+  });
+}
+
+// force: يتخطّى حارس التكرار ليعيد بناء الصفوف حين يتغيّر «من طلّع الطلب»
+// بعد التسجيل. آمن لأنّ معرّف كل صفّ مشتقّ من الطلب ورقم المنتج، فالكتابة
+// تستبدل الصفّ نفسه ولا تُنشئ صفّاً ثانياً.
+async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessionId,force){
   // Find store linked to this page
   if(!_opStoresList.length) await loadOpStores();
   const store=_opStoresList.find(s=>s.pageId===orderData.pageId);
   if(!store) return; // no linked store — skip silently
 
   // Prevent duplicate sync
-  try{
-    const dup=await db.collection('operator_sales').where('fromOrderId','==',orderId).limit(1).get();
-    if(!dup.empty) return;
-  }catch(e){}
+  if(!force){
+    try{
+      const dup=await db.collection('operator_sales').where('fromOrderId','==',orderId).limit(1).get();
+      if(!dup.empty) return;
+    }catch(e){}
+  }
 
   // Ensure products list is loaded for cost lookup
   if(!_opProductsList.length) await loadOpProducts();
@@ -5067,9 +5092,12 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       const storePrice=opProd?.storePrices?.[store.id]||0;
       const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.treeCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
       // المستحق = السعر الرسمي (سعر المتجر أو التكلفة). soldPrice = السعر الفعلي يلي انباع فيه للزبون
-      const sellPrice=storePrice||totalCost||0;
+      const _fullPrice=storePrice||totalCost||0;
+      const _treeMade=_isTreeFulfilled(orderData);
+      // مشغل الشجر أخرجه: المستحق = الربح فقط، والتكاليف كلها عليه لا عليّ
+      const sellPrice=_treeMade?Math.max(0,_fullPrice-(opProd?(opProd.treeCost||0):0)):_fullPrice;
       const customerUnit=parseFloat(product.price)||0;
-      const soldPrice=(customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
+      const soldPrice=_treeMade?sellPrice:((customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice);
       // معرّف ثابت مشتقّ من الطلب: فحص التكرار أعلاه ليس ذرّياً (بينه وبين
       // الكتابة عمليات await)، فنداءان متزامنان — «قيد التوصيل» ثم «تم
       // التوصيل»، أو جهازان معاً — كانا يكتبان صفَّي مبيعة للمنتج نفسه
@@ -5083,10 +5111,13 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
         qty:product.qty||1,
         sellPrice,
         soldPrice,
-        rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
-        treeCost:opProd?(opProd.treeCost||0):0,
-        machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
-        assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
+        rawMaterialCost:_treeMade?0:(opProd?(opProd.rawMaterialCost||0):0),
+        treeCost:_treeMade?0:(opProd?(opProd.treeCost||0):0),
+        machineWorkerWage:_treeMade?0:(opProd?(opProd.machineWorkerWage||0):0),
+        assemblyWorkerWage:_treeMade?0:(opProd?(opProd.assemblyWorkerWage||0):0),
+        // مَن أخرجه + الأرقام الأصلية، ليُعرف من أين جاء الرقم عند المراجعة
+        fulfilledBy:_treeMade?'tree':'me',
+        ...(_treeMade?{origSellPrice:_fullPrice,origTreeCost:opProd?(opProd.treeCost||0):0}:{}),
         notes:orderData.notes||'',
         date:dateOverride||jordanDateStr(),
         delivered:true,
@@ -5117,11 +5148,11 @@ async function unsyncOrderFromAccounting(orderId){
 }
 
 // عند تعيين مندوب لطلب (قيد التوصيل) عبر تحديث مباشر — نضمن تسجيل تاريخ الدخول ومزامنة المحاسبة
-async function _enterDeliveringSync(orderId,data){
+async function _enterDeliveringSync(orderId,data,force){
   try{
     let dd=data&&data.deliveredDate;
     if(!dd){dd=jordanDateStr();try{await db.collection('employee_orders').doc(orderId).update({deliveredDate:dd});}catch(e){}}
-    await syncOrderToAccounting(orderId,data,dd,true,_opCurrentSession?.id||null);
+    await syncOrderToAccounting(orderId,data,dd,true,_opCurrentSession?.id||null,force);
   }catch(e){console.error('_enterDeliveringSync error:',e);}
   _refreshKashfIfOpen();
 }
@@ -7701,6 +7732,8 @@ function editOpProduct(id){
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=!!p.isRawMaterial;
+  const tr=document.getElementById('opp_is_tree');
+  if(tr) tr.checked=!!p.isTree;
   const hcn=document.getElementById('opp_has_color_numbers');
   const hcnWrap=document.getElementById('opp_color_numbers_wrap');
   const hcnCount=document.getElementById('opp_color_numbers_count');
@@ -7735,6 +7768,8 @@ function cancelEditProduct(){
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=false;
+  const tr=document.getElementById('opp_is_tree');
+  if(tr) tr.checked=false;
   const hcn=document.getElementById('opp_has_color_numbers');
   if(hcn) hcn.checked=false;
   const hcnWrap=document.getElementById('opp_color_numbers_wrap');
@@ -7765,6 +7800,7 @@ async function saveOpProduct(){
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
+    const isTree=document.getElementById('opp_is_tree')?.checked||false;
     const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
     const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
     const category=(document.getElementById('opp_category')?.value||'').trim();
@@ -7777,14 +7813,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
@@ -9891,8 +9927,12 @@ function renderOperatorDailyView(){
 
     // إجمالي التحصيل: قيمة الطلبات للزبون − أجور التوصيل = صافي الكاش اللي لازم يرجع للمحل
     // نستثني المناديب المستبعدين (شركات التوصيل الخارجية) — إنت ما بتستلم كاش منهم
-    const _collOrders=_opDayOrders.filter(o=>!(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName)));
-    const _collExcludedCount=_opDayOrders.length-_collOrders.length;
+    // طلبات أخرجها مشغل الشجر: هو شحنها ودفع توصيلها وقبض ثمنها — ولا فلس
+    // مرّ من عندي. تُستثنى بغضّ النظر عن المندوب المسجّل (إن سُجّل للمتابعة).
+    const _collOrders=_opDayOrders.filter(o=>
+      !_isTreeFulfilled(o) && !(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName)));
+    const _collTreeMadeCount=_opDayOrders.filter(_isTreeFulfilled).length;
+    const _collExcludedCount=_opDayOrders.length-_collOrders.length-_collTreeMadeCount;
     const _collCustomer=_collOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
     const _collDelivery=_collOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
     const _collOrdersNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
@@ -9935,6 +9975,7 @@ function renderOperatorDailyView(){
         </div>
       </div>
       ${_collExcludedCount>0?`<div style="font-size:0.7rem;color:#e7c66b;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:10px;padding:8px 12px;margin-bottom:10px;">🚫 مستثنى ${_collExcludedCount} طلب لمناديب مستبعدين (شركات توصيل)</div>`:''}
+      ${_collTreeMadeCount>0?`<div style="font-size:0.7rem;color:#9fe8c0;background:rgba(110,231,168,.08);border:1px solid rgba(110,231,168,.2);border-radius:10px;padding:8px 12px;margin-bottom:10px;">🌲 مستثنى ${_collTreeMadeCount} طلب أخرجها مشغل الشجر — قبضها هو، والصفحة مدينة لك بالربح فقط</div>`:''}
       ${!isClosed?`<div style="display:flex;gap:8px;">
         <button onclick="addRawBuy()" style="flex:1;padding:12px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(184,145,47,.32);">🧱 شراء مواد خام</button>
         <button onclick="addOpExpense()" style="flex:1;padding:12px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">🧾 تسجيل مصروف</button>
@@ -17645,17 +17686,63 @@ async function qrAssignToRep(repName,repPhone){
     const noteLabel=data.status==='delivered'?`تعيين مندوب (${repName})`:`${fromLabel} ← قيد التوصيل (${repName})`;
     const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:noteLabel};
     const _dd=data?.deliveredDate||jordanDateStr();
-    await docRef.update({status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||'',assignedAt:firebase.firestore.Timestamp.now(),deliveredDate:_dd,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    _enterDeliveringSync(_qrAssignOrderId,{...data,deliveredDate:_dd});
+    // من أخرج الطلب — يُكتب قبل مزامنة الحساب لأنّ صفّ المبيعة يعتمد عليه
+    const _fb=(_qrFulfilledBy==='tree'&&_orderAllTree(data))?'tree':'me';
+    await docRef.update({status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||'',fulfilledBy:_fb,assignedAt:firebase.firestore.Timestamp.now(),deliveredDate:_dd,editHistory:[...(data?.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    // تغيّر «من طلّع الطلب» بعد التسجيل ⇒ نعيد بناء صفوف المبيعة بالأرقام الجديدة
+    const _fbChanged=((data&&data.fulfilledBy)||'me')!==_fb;
+    _enterDeliveringSync(_qrAssignOrderId,{...data,fulfilledBy:_fb,deliveredDate:_dd},_fbChanged);
     // Patch local cache immediately
-    const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||''};};
+    const _pL=(arr)=>{if(!arr)return;const idx=arr.findIndex(o=>o.id===_qrAssignOrderId);if(idx>=0)arr[idx]={...arr[idx],status:assignStatus,deliveryRepName:repName,deliveryRepPhone:repPhone||'',fulfilledBy:_fb};};
     _pL(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
     _pL(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
-    toast(`✅ أُسند لـ ${repName}`);
+    toast(_fb==='tree'?(repName?`✅ ${repName} · 🌲 طلّعه مشغل الشجر`:'✅ 🌲 طلّعه مشغل الشجر'):`✅ أُسند لـ ${repName}`);
     closeQRRepAssignModal();
     if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
     if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   }catch(e){toast('❌ '+e.message);}
+}
+
+// اختيار من أخرج الطلب — يُعرض في نفس نافذة المندوب لأنّ صفّ المبيعة يُكتب
+// لحظة «قيد التوصيل» بالضبط، فلو تأخّر الاختيار كُتبت الأرقام خطأً ثم صُحّحت.
+let _qrFulfilledBy='me';
+function _setQrFulfilledBy(v){
+  _qrFulfilledBy=v;
+  ['me','tree'].forEach(k=>{
+    const el=document.getElementById('qrFb_'+k);
+    if(!el)return;
+    const on=(k===v);
+    el.style.background=on?(k==='tree'?'#dcfce7':'#e0f2fe'):'#fff';
+    el.style.borderColor=on?(k==='tree'?'#16a34a':'#0ea5e9'):'#e5e7eb';
+    el.style.fontWeight=on?'800':'600';
+  });
+}
+window._setQrFulfilledBy=_setQrFulfilledBy;
+
+async function _fulfilledByPickerHtml(orderId){
+  let o=null;
+  try{
+    const cached=(typeof _opOrdersAllData!=='undefined'&&_opOrdersAllData)?_opOrdersAllData.find(x=>x.id===orderId):null;
+    o=cached||((await db.collection('employee_orders').doc(orderId).get()).data());
+  }catch(e){}
+  if(!o) return '';
+  if(!_opProductsList.length){ try{ await loadOpProducts(true); }catch(e){} }
+  const allTree=_orderAllTree(o);
+  const outside=!!(o.area&&String(o.area).trim()&&String(o.area).trim()!=='عمان');
+  // الافتراضي: مشغل الشجر لو الطلب كلّه شجر وخارج عمان — قابل للتغيير دائماً
+  _qrFulfilledBy=(o.fulfilledBy==='tree')?'tree':((allTree&&outside&&!o.fulfilledBy)?'tree':'me');
+  const btn=(k,label,sub)=>`<button id="qrFb_${k}" ${allTree||k==='me'?`onclick="_setQrFulfilledBy('${k}')"`:'disabled'}
+      style="flex:1;padding:9px 10px;border:1.5px solid #e5e7eb;border-radius:9px;background:#fff;font-family:'Tajawal',sans-serif;font-size:0.8rem;cursor:${allTree||k==='me'?'pointer':'not-allowed'};opacity:${allTree||k==='me'?'1':'.45'};text-align:center;">
+      <div>${label}</div><div style="font-size:0.66rem;color:#6b7280;font-weight:600;margin-top:2px;">${sub}</div></button>`;
+  return `<div style="background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:11px;padding:10px 12px;margin-bottom:10px;">
+    <div style="font-size:0.82rem;font-weight:800;color:#374151;margin-bottom:7px;">🏭 مين طلّع الطلب؟</div>
+    <div style="display:flex;gap:8px;">
+      ${btn('me','🏠 المشغل الرئيسي','أنا أقبض وأدفع الشجر')}
+      ${btn('tree','🌲 مشغل الشجر','هو يقبض · إلي الربح فقط')}
+    </div>
+    ${!allTree?`<div style="font-size:0.72rem;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 9px;margin-top:8px;">⚠️ الطلب فيه منتج مش شجر — لازم يطلع من مشغلك</div>`
+      :`<div style="font-size:0.7rem;color:#6b7280;margin-top:7px;">${outside?'الطلب خارج عمان':'الطلب داخل عمان'} — بتقدر تغيّر الاختيار</div>`}
+  </div>`;
 }
 
 async function _showRepPickerInModal(orderId){
@@ -17664,15 +17751,18 @@ async function _showRepPickerInModal(orderId){
   const actionBtns=document.getElementById('qrAssignActionBtns');
   actionBtns.innerHTML='';
   repSection.style.display='block';
+  const fbHtml=await _fulfilledByPickerHtml(orderId);
   const reps=await _loadDeliveryReps();
   const repList=document.getElementById('qrAssignRepList');
-  repList.innerHTML=(reps.length
+  repList.innerHTML=fbHtml+(reps.length
     ?reps.map(r=>`<button onclick="qrAssignToRep('${r.name.replace(/'/g,"\\'")}','${(r.phone||'').replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;cursor:pointer;text-align:right;width:100%;box-sizing:border-box;">
       <div><div style="font-weight:700;color:#0369a1;">${r.name}</div><div style="font-size:0.72rem;color:#6b7280;">${r.phone||''}</div></div>
       <span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:700;">اختيار ←</span>
     </button>`).join('')
     :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد مناديب — أضفهم من الإعدادات</div>')
+    +`<button onclick="qrAssignToRep('','')" style="width:100%;margin-top:8px;padding:9px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">🌲 بدون مندوب — مشغل الشجر بشحنها</button>`
     +`<button onclick="updateEmpOrderStatus('${orderId}','waiting_rep').then(closeQRRepAssignModal)" style="width:100%;margin-top:8px;padding:9px;background:#fef3c7;color:#d97706;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">⏳ انتظار مندوب</button>`;
+  _setQrFulfilledBy(_qrFulfilledBy);
 }
 
 async function _openQRRepAssignForWaiting(orderId){
