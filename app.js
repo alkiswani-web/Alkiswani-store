@@ -15870,7 +15870,9 @@ function renderBalanceSummary(){
       <span style="font-size:0.71rem;color:#9fc7b4;min-width:0;">${r.date} · ${r.name}${r.qty>1?' ×'+r.qty:''}${r.store?' · '+r.store:''}${r.ord?' <span style="color:#c9b981;">#'+String(r.ord).slice(-6).toUpperCase()+'</span>':''}</span>
       <span style="font-weight:800;font-size:0.78rem;color:#6ee7a8;font-variant-numeric:tabular-nums;flex-shrink:0;">${r.total.toFixed(2)}</span>
     </div>`).join('');
-  const treeProfitRow=(tpTotal>0||tpPaid>0)?`<div style="background:rgba(110,231,168,.07);border:1px solid rgba(110,231,168,.3);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
+  // يظهر دائماً ولو كان صفراً — كما كرت تكلفة الشجر تماماً. إخفاؤه عند الصفر
+  // يجعل المالك لا يعرف أنّ الحساب موجود أصلاً ولا أين مكانه.
+  const treeProfitRow=`<div style="background:rgba(110,231,168,.07);border:1px solid rgba(110,231,168,.3);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;">
         <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🌲 مرابح الشجر <span style="font-size:0.62rem;font-weight:600;color:#9fc7b4;">(تلقائي · له عندك)</span></span>
         <button onclick="paySupplier('__treeprofit__','مرابح الشجر')" style="padding:6px 13px;background:linear-gradient(145deg,#6ee7a8,#2f9e63);color:#06281a;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💰 قبضت</button>
@@ -15884,7 +15886,10 @@ function renderBalanceSummary(){
       <div id="sup_cost___treeprofit__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${tpDetail}</div>`:''}
       ${tpPays.length?`<button onclick="toggleBalSection('sup_tx___treeprofit__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 المقبوضات (${tpPays.length})</span><span>▼</span></button>
       <div id="sup_tx___treeprofit__" style="display:none;margin-top:6px;padding:2px 4px;">${tpTxRows}</div>`:''}
-    </div>`:'';
+      ${(tpTotal===0&&tpPaid===0)?`<div style="margin-top:8px;font-size:0.68rem;color:#9fc7b4;line-height:1.7;">
+        يمتلئ وحده حين تعلّم طلباً بـ«🌲 مشغل الشجر» عند «قيد التوصيل» — عندها يقبض هو ثمنه ويصير مديناً لك بالربح.
+      </div>`:''}
+    </div>`;
 
   // حساب كل مورد: مشتريات − مدفوعات = الباقي المستحق عليك
   const supRows=treeRow+treeProfitRow+_opSuppliers.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar')).map(sup=>{
