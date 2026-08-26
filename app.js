@@ -15647,8 +15647,12 @@ let _opBalTreeSold=0;         // تكلفة الشجر للطلبات المبا
 let _opBalTreeRows=[];        // تفصيل تكلفة الشجر — كل مبيعة ساهمت فيها
 // مرابح الشجر: طلبات أخرجها مشغل الشجر وقبض ثمنها من الزبون، فصار مديناً لي
 // بالربح. صفّ المبيعة لهذه الطلبات سعرُه هو الربح نفسه وتكاليفه صفر.
-let _opBalTreeProfit=0;       // ما لي عند مشغل الشجر من أرباح طلباته
-let _opBalTreeProfitRows=[];  // تفصيلها — من أي طلب جاء كل مبلغ
+let _opBalTreeProfit=0;       // ما قبضه مشغل الشجر بالنيابة عنّي (كامل)
+let _opBalTreeProfitRows=[];  // تفصيله — من أي طلب جاء كل مبلغ
+// تفكيك ما قبضه: ربحي + ربح المتجر + تكلفة شجره. الثلاثة تُجمع = المقبوض.
+let _opBalTreeMyProfit=0;     // ربحي أنا من طلباته — أهمّ رقم في الكرت
+let _opBalTreeStoreProfit=0;  // ربح المتجر منها (حقّه، يُسحب كأي طلب)
+let _opBalTreeItsCost=0;      // تكلفة شجر هذه الطلبات — على حسابه المنفصل
 let _opBalDupIds=new Set();   // معرّفات صفوف المبيعات الزائدة عن الطلب الأصلي
 let _treeScanWarn='';         // تحذير إن تعذّر استبعاد الطلبات الملغاة
 let _opSuppliers=[];          // الموردين
@@ -15715,6 +15719,7 @@ async function loadBalanceTab(){
     // (حقل مفرد، لا يحتاج فهرساً مركّباً) مع رجوع احتياطي عند أي خلل.
     const snap=await _pSalesP;
     let rawSold=0,treeSold=0,treeProfit=0;
+    let tpMine=0,tpStorePrice=0,tpItsCost=0;
     const treeRows=[];const treeProfitRows=[];
     snap.docs.filter(d=>{const s=d.data();
       return s.delivered!==false
@@ -15727,6 +15732,13 @@ async function loadBalanceTab(){
         treeProfit+=s.treeCollected;
         treeProfitRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',
           qty:q,unit:s.treeCollected,total:s.treeCollected,ord:s.fromOrderId||'',id:d.id});
+      }
+      // تفكيك المقبوض على صفوف طلباته كلّها (لا الصفّ الأول وحده)
+      if(s.fulfilledBy==='tree'){
+        const _cst=r+t+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0);
+        tpStorePrice+=(s.sellPrice||0)*q;
+        tpMine+=((s.sellPrice||0)-_cst)*q;
+        tpItsCost+=t*q;
       }
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
@@ -15745,8 +15757,11 @@ async function loadBalanceTab(){
     }catch(e){_opBalDupIds=new Set();}
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
     _opBalTreeProfit=treeProfit;_opBalTreeProfitRows=treeProfitRows;
+    _opBalTreeMyProfit=tpMine;_opBalTreeItsCost=tpItsCost;
+    _opBalTreeStoreProfit=Math.max(0,treeProfit-tpStorePrice);
   }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeRows=[];
-    _opBalTreeProfit=0;_opBalTreeProfitRows=[];}
+    _opBalTreeProfit=0;_opBalTreeProfitRows=[];
+    _opBalTreeMyProfit=0;_opBalTreeStoreProfit=0;_opBalTreeItsCost=0;}
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
     const el=document.getElementById(id);
@@ -15878,18 +15893,22 @@ function renderBalanceSummary(){
         <span style="font-weight:800;color:#eafff4;font-size:0.9rem;">🌲 مرابح الشجر <span style="font-size:0.62rem;font-weight:600;color:#9fc7b4;">(تلقائي · له عندك)</span></span>
         <button onclick="paySupplier('__treeprofit__','مرابح الشجر')" style="padding:6px 13px;background:linear-gradient(145deg,#6ee7a8,#2f9e63);color:#06281a;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💰 قبضت</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
+      <div style="text-align:center;padding:9px 0 4px;">
+        <div style="font-size:0.64rem;color:#9fc7b4;">💚 ربحك من طلباته</div>
+        <div style="font-weight:900;color:#6ee7a8;font-size:1.55rem;line-height:1.1;font-variant-numeric:tabular-nums;">${(_opBalTreeMyProfit||0).toFixed(2)}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:6px;">
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">قبضها بالنيابة عنك</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpTotal.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">سلّمك</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpPaid.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي إلك عنده</div><div style="font-weight:900;color:${tpBal>0.01?'#f3e0a6':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${tpBal.toFixed(2)}</div></div>
       </div>
-      ${(tpBal>0.01||treeBal>0.01)?`<div style="margin-top:9px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid rgba(231,198,107,.2);border-radius:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:#9fc7b4;">
-          <span>له عندك <b style="color:#f3e0a6;">${tpBal.toFixed(2)}</b> − عليك إله <b style="color:#f2a6a0;">${treeBal.toFixed(2)}</b></span>
-          <span style="font-weight:900;color:${(tpBal-treeBal)>=0?'#6ee7a8':'#f2a6a0'};font-size:0.9rem;font-variant-numeric:tabular-nums;">${(tpBal-treeBal)>=0?'بدك منه ':'بدّه منك '}${Math.abs(tpBal-treeBal).toFixed(2)}</span>
-        </div>
-        <button onclick="settleTreeAccounts()" style="width:100%;margin-top:8px;padding:8px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚖️ مقاصّة — سجّل الاثنين مرّة واحدة</button>
+      ${tpTotal>0?`<div style="margin-top:9px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.07);border-radius:10px;">
+        <div style="font-size:0.63rem;color:#9fc7b4;margin-bottom:5px;">المقبوض ${tpTotal.toFixed(2)} مكوّن من:</div>
+        <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>💚 ربحك</span><span style="font-weight:800;color:#6ee7a8;font-variant-numeric:tabular-nums;">${(_opBalTreeMyProfit||0).toFixed(2)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>🏪 ربح المتجر</span><span style="font-weight:800;color:#9fc7b4;font-variant-numeric:tabular-nums;">${(_opBalTreeStoreProfit||0).toFixed(2)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>🌳 تكلفة شجره <span style="font-size:0.6rem;color:#9fc7b4;">(على حسابه فوق)</span></span><span style="font-weight:800;color:#e7c66b;font-variant-numeric:tabular-nums;">${(_opBalTreeItsCost||0).toFixed(2)}</span></div>
       </div>`:''}
+
       ${tpDetail?`<button onclick="toggleBalSection('sup_cost___treeprofit__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌲 من وين الربح؟ (${_opBalTreeProfitRows.length})</span><span>▼</span></button>
       <div id="sup_cost___treeprofit__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${tpDetail}</div>`:''}
       ${tpPays.length?`<button onclick="toggleBalSection('sup_tx___treeprofit__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 المقبوضات (${tpPays.length})</span><span>▼</span></button>
@@ -16121,42 +16140,6 @@ async function saveSupplierPurchase(){
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
 }
-// مقاصّة حساب مشغل الشجر: ما قبضه بالنيابة عنك مقابل تكلفة الشجر التي عليك،
-// في عمليّة واحدة تكتب السطرين المنفصلين نفسيهما — لا سطراً مدمجاً مبهماً،
-// كي يبقى كل حساب مقروءاً على حدة عند المراجعة.
-async function settleTreeAccounts(){
-  const tp=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((a,p)=>a+(p.amount||0),0);
-  const tc=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__tree__').reduce((a,p)=>a+(p.amount||0),0);
-  const heOwes=Math.max(0,(_opBalTreeProfit||0)-tp);      // له عندك
-  const youOwe=Math.max(0,(_opBalTreeSold||0)-tc);        // عليك إله
-  if(heOwes<=0.009&&youOwe<=0.009){toast('لا شيء للمقاصّة — الحسابان مسوّيان');return;}
-  const net=heOwes-youOwe;
-  const msg='⚖️ مقاصّة حساب مشغل الشجر\n\n'
-    +'قبضها بالنيابة عنك: '+heOwes.toFixed(2)+'\n'
-    +'تكلفة الشجر عليك:  '+youOwe.toFixed(2)+'\n'
-    +'──────────────\n'
-    +(net>=0?('يعطيك: '+net.toFixed(2)):('تعطيه: '+Math.abs(net).toFixed(2)))+' د.أ\n\n'
-    +'سيُسجَّل سطران: قبضٌ '+heOwes.toFixed(2)+' ودفعٌ '+youOwe.toFixed(2)+'\n'
-    +'وصافي التحصيل يتغيّر بمقدار '+(net>=0?'+':'')+net.toFixed(2)+' فقط.\n\nمتابعة؟';
-  if(!confirm(msg))return;
-  try{
-    if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
-    const d=jordanDateStr(), by=_currentAdminUser||'أدمن';
-    const mk=(supplierId,supplierName,amount)=>db.collection('operator_supplier_payments').add({
-      supplierId,supplierName,amount,notes:'مقاصّة',date:d,noCash:false,
-      sessionId:_opCurrentSession?.id||null,addedBy:by,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    const jobs=[];
-    if(heOwes>0.009) jobs.push(mk('__treeprofit__','مرابح الشجر',heOwes));
-    if(youOwe>0.009) jobs.push(mk('__tree__','شجر',youOwe));
-    await Promise.all(jobs);
-    toast('✅ تمّت المقاصّة — '+(net>=0?'قبضتَ ':'دفعتَ ')+Math.abs(net).toFixed(2));
-    if(typeof loadBalanceTab==='function') loadBalanceTab();
-  }catch(e){toast('❌ '+((e&&e.message)||'خطأ في المقاصّة'));}
-}
-window.settleTreeAccounts=settleTreeAccounts;
-
 function paySupplier(supplierId,name){
   const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
   const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
