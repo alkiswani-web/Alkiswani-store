@@ -15652,7 +15652,8 @@ let _opBalTreeProfitRows=[];  // تفصيله — من أي طلب جاء كل �
 // تفكيك ما قبضه: ربحي + ربح المتجر + تكلفة شجره. الثلاثة تُجمع = المقبوض.
 let _opBalTreeMyProfit=0;     // ربحي أنا من طلباته — أهمّ رقم في الكرت
 let _opBalTreeStoreProfit=0;  // ربح المتجر منها (حقّه، يُسحب كأي طلب)
-let _opBalTreeItsCost=0;      // تكلفة شجر هذه الطلبات — على حسابه المنفصل
+let _opBalTreeItsCost=0;      // تكلفة شجر هذه الطلبات — شجرُه هو، لا تُحتسب عليّ
+let _opBalTreeCollected=0;    // ما قبضه من الزبون كاملاً (للشرح فقط)
 let _opBalDupIds=new Set();   // معرّفات صفوف المبيعات الزائدة عن الطلب الأصلي
 let _treeScanWarn='';         // تحذير إن تعذّر استبعاد الطلبات الملغاة
 let _opSuppliers=[];          // الموردين
@@ -15733,12 +15734,14 @@ async function loadBalanceTab(){
         treeProfitRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',
           qty:q,unit:s.treeCollected,total:s.treeCollected,ord:s.fromOrderId||'',id:d.id});
       }
-      // تفكيك المقبوض على صفوف طلباته كلّها (لا الصفّ الأول وحده)
+      // أخرجه مشغل الشجر: شجرُه شجرُه — لم آخذه منه فلا يُحتسب عليّ.
+      // (treeCost يبقى على الصفّ ليخرج ربحي صحيحاً، لكنّه لا يدخل حسابه.)
       if(s.fulfilledBy==='tree'){
         const _cst=r+t+(s.machineWorkerWage||0)+(s.assemblyWorkerWage||0);
         tpStorePrice+=(s.sellPrice||0)*q;
         tpMine+=((s.sellPrice||0)-_cst)*q;
         tpItsCost+=t*q;
+        return;   // لا تكلفة شجر عليّ ولا مواد خام
       }
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
@@ -15756,11 +15759,15 @@ async function loadBalanceTab(){
       _opBalDupIds=new Set((await _findExtraSaleRows(inWindow)).map(r=>r.id));
     }catch(e){_opBalDupIds=new Set();}
     _opBalRawSold=rawSold;_opBalTreeSold=treeSold;_opBalSalesRaw=rawSold+treeSold;
-    _opBalTreeProfit=treeProfit;_opBalTreeProfitRows=treeProfitRows;
+    // ما يجب أن يعطيني = ما قبضه − تكلفة شجره التي أبقاها لنفسه
+    //                    = ربحي + ربح المتجر
+    _opBalTreeCollected=treeProfit;
+    _opBalTreeProfit=Math.max(0,treeProfit-tpItsCost);
+    _opBalTreeProfitRows=treeProfitRows;
     _opBalTreeMyProfit=tpMine;_opBalTreeItsCost=tpItsCost;
     _opBalTreeStoreProfit=Math.max(0,treeProfit-tpStorePrice);
   }catch(e){_opBalRawSold=0;_opBalTreeSold=0;_opBalSalesRaw=0;_opBalTreeRows=[];
-    _opBalTreeProfit=0;_opBalTreeProfitRows=[];
+    _opBalTreeProfit=0;_opBalTreeProfitRows=[];_opBalTreeCollected=0;
     _opBalTreeMyProfit=0;_opBalTreeStoreProfit=0;_opBalTreeItsCost=0;}
   // Set today's date in forms
   ['opbal_buy_date','opbal_pay_date','opstore_bal_date'].forEach(id=>{
@@ -15894,19 +15901,21 @@ function renderBalanceSummary(){
         <button onclick="paySupplier('__treeprofit__','مرابح الشجر')" style="padding:6px 13px;background:linear-gradient(145deg,#6ee7a8,#2f9e63);color:#06281a;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💰 قبضت</button>
       </div>
       <div style="text-align:center;padding:9px 0 4px;">
-        <div style="font-size:0.64rem;color:#9fc7b4;">💚 ربحك من طلباته</div>
+        <div style="font-size:0.64rem;color:#9fc7b4;">💚 ربح مشغلك من طلباته</div>
         <div style="font-weight:900;color:#6ee7a8;font-size:1.55rem;line-height:1.1;font-variant-numeric:tabular-nums;">${(_opBalTreeMyProfit||0).toFixed(2)}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:6px;">
-        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">قبضها بالنيابة عنك</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpTotal.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">بدّك منه</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpTotal.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">سلّمك</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpPaid.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي إلك عنده</div><div style="font-weight:900;color:${tpBal>0.01?'#f3e0a6':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${tpBal.toFixed(2)}</div></div>
       </div>
       ${tpTotal>0?`<div style="margin-top:9px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.07);border-radius:10px;">
-        <div style="font-size:0.63rem;color:#9fc7b4;margin-bottom:5px;">المقبوض ${tpTotal.toFixed(2)} مكوّن من:</div>
-        <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>💚 ربحك</span><span style="font-weight:800;color:#6ee7a8;font-variant-numeric:tabular-nums;">${(_opBalTreeMyProfit||0).toFixed(2)}</span></div>
+        <div style="font-size:0.63rem;color:#9fc7b4;margin-bottom:5px;">بدّك منه ${tpTotal.toFixed(2)} مكوّن من:</div>
+        <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>💚 ربح مشغلك</span><span style="font-weight:800;color:#6ee7a8;font-variant-numeric:tabular-nums;">${(_opBalTreeMyProfit||0).toFixed(2)}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>🏪 ربح المتجر</span><span style="font-weight:800;color:#9fc7b4;font-variant-numeric:tabular-nums;">${(_opBalTreeStoreProfit||0).toFixed(2)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#d7ebe0;padding:2px 0;"><span>🌳 تكلفة شجره <span style="font-size:0.6rem;color:#9fc7b4;">(على حسابه فوق)</span></span><span style="font-weight:800;color:#e7c66b;font-variant-numeric:tabular-nums;">${(_opBalTreeItsCost||0).toFixed(2)}</span></div>
+        <div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);font-size:0.66rem;color:#9fc7b4;line-height:1.7;">
+          قبض من الزبون <b style="color:#d7ebe0;">${(_opBalTreeCollected||0).toFixed(2)}</b> وأبقى <b style="color:#e7c66b;">${(_opBalTreeItsCost||0).toFixed(2)}</b> تكلفة شجره — شجرُه هو، فلا تُحتسب على حسابك.
+        </div>
       </div>`:''}
 
       ${tpDetail?`<button onclick="toggleBalSection('sup_cost___treeprofit__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌲 من وين الربح؟ (${_opBalTreeProfitRows.length})</span><span>▼</span></button>
