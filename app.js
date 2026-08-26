@@ -5092,12 +5092,19 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       const storePrice=opProd?.storePrices?.[store.id]||0;
       const totalCost=opProd?((opProd.rawMaterialCost||0)+(opProd.treeCost||0)+(opProd.machineWorkerWage||0)+(opProd.assemblyWorkerWage||0)):0;
       // المستحق = السعر الرسمي (سعر المتجر أو التكلفة). soldPrice = السعر الفعلي يلي انباع فيه للزبون
-      const _fullPrice=storePrice||totalCost||0;
+      // الطلب الذي يُخرجه مشغل الشجر طلبٌ عادي في كل شيء — سعرُ متجره وتكلفة
+      // شجره كما هي. الفرق الوحيد أنّ الكاش قبضه هو لا مندوبي، فيُسجَّل ما
+      // قبضه في حسابه ليُقاصّ. هذا يُبقي ربح المتجر (سعر الزبون − سعر المتجر)
+      // على حاله، وكان يضيع حين كنّا نكتب الربح مكان السعر.
+      const sellPrice=storePrice||totalCost||0;
       const _treeMade=_isTreeFulfilled(orderData);
-      // مشغل الشجر أخرجه: المستحق = الربح فقط، والتكاليف كلها عليه لا عليّ
-      const sellPrice=_treeMade?Math.max(0,_fullPrice-(opProd?(opProd.treeCost||0):0)):_fullPrice;
       const customerUnit=parseFloat(product.price)||0;
-      const soldPrice=_treeMade?sellPrice:((customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice);
+      const soldPrice=(customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
+      // ما قبضه مشغل الشجر بالنيابة عنّي = قيمة الطلب للزبون − أجرة التوصيل
+      // (يدفعها هو). يُكتب على الصفّ الأول فقط كي لا يتضاعف بعدد المنتجات.
+      const _treeCollected=(_treeMade&&pi===0)
+        ?Math.max(0,(orderData.netPrice!=null?orderData.netPrice:(orderData.totalPrice||0))-(orderData.deliveryFee||0))
+        :0;
       // معرّف ثابت مشتقّ من الطلب: فحص التكرار أعلاه ليس ذرّياً (بينه وبين
       // الكتابة عمليات await)، فنداءان متزامنان — «قيد التوصيل» ثم «تم
       // التوصيل»، أو جهازان معاً — كانا يكتبان صفَّي مبيعة للمنتج نفسه
@@ -5111,13 +5118,12 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
         qty:product.qty||1,
         sellPrice,
         soldPrice,
-        rawMaterialCost:_treeMade?0:(opProd?(opProd.rawMaterialCost||0):0),
-        treeCost:_treeMade?0:(opProd?(opProd.treeCost||0):0),
-        machineWorkerWage:_treeMade?0:(opProd?(opProd.machineWorkerWage||0):0),
-        assemblyWorkerWage:_treeMade?0:(opProd?(opProd.assemblyWorkerWage||0):0),
-        // مَن أخرجه + الأرقام الأصلية، ليُعرف من أين جاء الرقم عند المراجعة
+        rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
+        treeCost:opProd?(opProd.treeCost||0):0,
+        machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
+        assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
         fulfilledBy:_treeMade?'tree':'me',
-        ...(_treeMade?{origSellPrice:_fullPrice,origTreeCost:opProd?(opProd.treeCost||0):0}:{}),
+        treeCollected:_treeCollected,
         notes:orderData.notes||'',
         date:dateOverride||jordanDateStr(),
         delivered:true,
@@ -9148,9 +9154,7 @@ async function loadAcctStoreList(){
       _cachedQuery('acct:payments',60000,()=>db.collection('operator_store_payments').get())
     ]);
     rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId)refundByStore[r.storeId]=(refundByStore[r.storeId]||0)+(r.totalCost||0);});
-    // طلبات أخرجها مشغل الشجر: قبض ثمنها هو، فالصفحة لا تدين لي بها —
-    // المدين هو مشغل الشجر، ويظهر في حسابه «مرابح الشجر».
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false&&s.fulfilledBy!=='tree')owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false)owedByStore[s.storeId]=(owedByStore[s.storeId]||0)+(s.sellPrice||0)*(s.qty||1);});
     pSnap.docs.forEach(d=>{const p=d.data();if(p.storeId&&p.withdrawalType!=='withdrawal')paidByStore[p.storeId]=(paidByStore[p.storeId]||0)+(p.amount||0);});
   }catch(e){}
   const thresholdRow=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--card-bg);border:1.5px solid var(--border);border-radius:10px;font-family:'Tajawal',sans-serif;">
@@ -9434,7 +9438,7 @@ async function _loadOpSessionData(){
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false&&s.fulfilledBy!=='tree'){
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
       const qty=s.qty||1;
       // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
       const official=(s.sellPrice||0);
@@ -15717,15 +15721,12 @@ async function loadBalanceTab(){
         &&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId))
         &&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid);}).forEach(d=>{
       const s=d.data();const q=s.qty||1;const r=s.rawMaterialCost||0,t=s.treeCost||0;
-      // أخرجه مشغل الشجر: لا مواد خام من مخزني ولا تكلفة شجر عليّ — بل هو
-      // مدين لي بالربح. ولولا هذا الشرط لعُدّ سعرُه (وهو الربح) مواداً خام
-      // مستهلكة، لأنّ تكاليفه كلّها أصفار.
-      if(s.fulfilledBy==='tree'){
-        const amt=(s.sellPrice||0)*q;
-        treeProfit+=amt;
+      // ما قبضه مشغل الشجر بالنيابة عنّي — مسجَّل على الصفّ الأول من طلبه.
+      // التكاليف تُحسب طبيعيةً لأنّ الطلب طلبٌ عادي: شجره عليّ وسعرُه سعرُه.
+      if(s.treeCollected>0){
+        treeProfit+=s.treeCollected;
         treeProfitRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',
-          qty:q,unit:s.sellPrice||0,total:amt,ord:s.fromOrderId||'',id:d.id});
-        return;
+          qty:q,unit:s.treeCollected,total:s.treeCollected,ord:s.fromOrderId||'',id:d.id});
       }
       if(r===0&&t===0){rawSold+=(s.sellPrice||0)*q;}
       else{rawSold+=r*q;treeSold+=t*q;}
@@ -15878,10 +15879,17 @@ function renderBalanceSummary(){
         <button onclick="paySupplier('__treeprofit__','مرابح الشجر')" style="padding:6px 13px;background:linear-gradient(145deg,#6ee7a8,#2f9e63);color:#06281a;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;white-space:nowrap;">💰 قبضت</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
-        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">أرباح طلباته</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpTotal.toFixed(2)}</div></div>
-        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">قبضتُ منه</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpPaid.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">قبضها بالنيابة عنك</div><div style="font-weight:800;color:#d7ebe0;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpTotal.toFixed(2)}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">سلّمك</div><div style="font-weight:800;color:#6ee7a8;font-size:0.9rem;font-variant-numeric:tabular-nums;">${tpPaid.toFixed(2)}</div></div>
         <div style="text-align:center;"><div style="font-size:0.6rem;color:#9fc7b4;">الباقي إلك عنده</div><div style="font-weight:900;color:${tpBal>0.01?'#f3e0a6':'#6ee7a8'};font-size:0.95rem;font-variant-numeric:tabular-nums;">${tpBal.toFixed(2)}</div></div>
       </div>
+      ${(tpBal>0.01||treeBal>0.01)?`<div style="margin-top:9px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid rgba(231,198,107,.2);border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:#9fc7b4;">
+          <span>له عندك <b style="color:#f3e0a6;">${tpBal.toFixed(2)}</b> − عليك إله <b style="color:#f2a6a0;">${treeBal.toFixed(2)}</b></span>
+          <span style="font-weight:900;color:${(tpBal-treeBal)>=0?'#6ee7a8':'#f2a6a0'};font-size:0.9rem;font-variant-numeric:tabular-nums;">${(tpBal-treeBal)>=0?'بدك منه ':'بدّه منك '}${Math.abs(tpBal-treeBal).toFixed(2)}</span>
+        </div>
+        <button onclick="settleTreeAccounts()" style="width:100%;margin-top:8px;padding:8px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚖️ مقاصّة — سجّل الاثنين مرّة واحدة</button>
+      </div>`:''}
       ${tpDetail?`<button onclick="toggleBalSection('sup_cost___treeprofit__',this)" style="width:100%;margin-top:10px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#9fd7b4;cursor:pointer;"><span>🌲 من وين الربح؟ (${_opBalTreeProfitRows.length})</span><span>▼</span></button>
       <div id="sup_cost___treeprofit__" style="display:none;margin-top:6px;padding:2px 4px;max-height:340px;overflow-y:auto;">${tpDetail}</div>`:''}
       ${tpPays.length?`<button onclick="toggleBalSection('sup_tx___treeprofit__',this)" style="width:100%;margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;color:#c9b981;cursor:pointer;"><span>📋 المقبوضات (${tpPays.length})</span><span>▼</span></button>
@@ -16113,6 +16121,42 @@ async function saveSupplierPurchase(){
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
 }
+// مقاصّة حساب مشغل الشجر: ما قبضه بالنيابة عنك مقابل تكلفة الشجر التي عليك،
+// في عمليّة واحدة تكتب السطرين المنفصلين نفسيهما — لا سطراً مدمجاً مبهماً،
+// كي يبقى كل حساب مقروءاً على حدة عند المراجعة.
+async function settleTreeAccounts(){
+  const tp=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((a,p)=>a+(p.amount||0),0);
+  const tc=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__tree__').reduce((a,p)=>a+(p.amount||0),0);
+  const heOwes=Math.max(0,(_opBalTreeProfit||0)-tp);      // له عندك
+  const youOwe=Math.max(0,(_opBalTreeSold||0)-tc);        // عليك إله
+  if(heOwes<=0.009&&youOwe<=0.009){toast('لا شيء للمقاصّة — الحسابان مسوّيان');return;}
+  const net=heOwes-youOwe;
+  const msg='⚖️ مقاصّة حساب مشغل الشجر\n\n'
+    +'قبضها بالنيابة عنك: '+heOwes.toFixed(2)+'\n'
+    +'تكلفة الشجر عليك:  '+youOwe.toFixed(2)+'\n'
+    +'──────────────\n'
+    +(net>=0?('يعطيك: '+net.toFixed(2)):('تعطيه: '+Math.abs(net).toFixed(2)))+' د.أ\n\n'
+    +'سيُسجَّل سطران: قبضٌ '+heOwes.toFixed(2)+' ودفعٌ '+youOwe.toFixed(2)+'\n'
+    +'وصافي التحصيل يتغيّر بمقدار '+(net>=0?'+':'')+net.toFixed(2)+' فقط.\n\nمتابعة؟';
+  if(!confirm(msg))return;
+  try{
+    if(typeof _ensureOpenSession==='function'){try{await _ensureOpenSession();}catch(e){}}
+    const d=jordanDateStr(), by=_currentAdminUser||'أدمن';
+    const mk=(supplierId,supplierName,amount)=>db.collection('operator_supplier_payments').add({
+      supplierId,supplierName,amount,notes:'مقاصّة',date:d,noCash:false,
+      sessionId:_opCurrentSession?.id||null,addedBy:by,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const jobs=[];
+    if(heOwes>0.009) jobs.push(mk('__treeprofit__','مرابح الشجر',heOwes));
+    if(youOwe>0.009) jobs.push(mk('__tree__','شجر',youOwe));
+    await Promise.all(jobs);
+    toast('✅ تمّت المقاصّة — '+(net>=0?'قبضتَ ':'دفعتَ ')+Math.abs(net).toFixed(2));
+    if(typeof loadBalanceTab==='function') loadBalanceTab();
+  }catch(e){toast('❌ '+((e&&e.message)||'خطأ في المقاصّة'));}
+}
+window.settleTreeAccounts=settleTreeAccounts;
+
 function paySupplier(supplierId,name){
   const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
   const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
