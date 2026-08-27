@@ -9776,7 +9776,7 @@ function renderOperatorDailyView(){
         </div>`:'';
       const wdRows=storeWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:6px;">
-          <div style="flex:1;min-width:0;font-size:0.72rem;color:#9fc7b4;">${w.notes?w.notes+' — ':''}${w.date||''}</div>
+          <div style="flex:1;min-width:0;font-size:0.72rem;color:#9fc7b4;">${w.notes?w.notes+' — ':''}${w.date||''}${w.noCash?' <span style="color:#e7c66b;font-weight:700;">(بدون كاش)</span>':''}</div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
             <span style="font-weight:800;color:#f2a6a0;font-size:0.82rem;font-variant-numeric:tabular-nums;">${(w.amount||0).toFixed(2)}</span>
             ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
@@ -9903,7 +9903,7 @@ function renderOperatorDailyView(){
       const grpSafiColor=grpSafi>=0?'#fff':'#fca5a5';
       const grpWdRows=grpWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:6px;">
-          <div style="flex:1;min-width:0;font-size:0.72rem;color:#9fc7b4;">${w.notes?w.notes+' — ':''}${w.date||''}</div>
+          <div style="flex:1;min-width:0;font-size:0.72rem;color:#9fc7b4;">${w.notes?w.notes+' — ':''}${w.date||''}${w.noCash?' <span style="color:#e7c66b;font-weight:700;">(بدون كاش)</span>':''}</div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
             <span style="font-weight:800;color:#f2a6a0;font-size:0.82rem;font-variant-numeric:tabular-nums;">${(w.amount||0).toFixed(2)}</span>
             ${!isClosed?`<button onclick="deleteOperatorWithdrawal('${w.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}
@@ -9960,9 +9960,11 @@ function renderOperatorDailyView(){
     const _collDelivery=_collOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
     const _collOrdersNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
     // خصم مسحوبات المتاجر (النوع "مسحوب" مش "دفعة") ومصاريف الكشف الحالي من الكاش المتوقع
-    const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment').reduce((s,w)=>s+(w.amount||0),0);
+    // المسحوب الموسوم «بدون كاش» (بضاعة أو تسوية) يُنقص مستحق المتجر لكنّه لم
+    // يُخرج ديناراً من الصندوق، فلا مكان له في حركة الكاش.
+    const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment'&&!w.noCash).reduce((s,w)=>s+(w.amount||0),0);
     // دفعات المتاجر (كاش المتجر دفعهولك لتسديد المستحق) — تُضاف للكاش المتوقع
-    const _collStorePayments=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment').reduce((s,w)=>s+(w.amount||0),0);
+    const _collStorePayments=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment'&&!w.noCash).reduce((s,w)=>s+(w.amount||0),0);
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
@@ -10106,7 +10108,7 @@ function renderOperatorDailyView(){
     const _wRow=(w,color,bg,border)=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed ${border};gap:8px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${w.storeName||'—'}</div>
+          <div style="font-size:0.82rem;font-weight:700;color:#1a3a2a;">${w.storeName||'—'}${w.noCash?' <span style="font-size:0.68rem;color:#b8912f;font-weight:700;">(بدون كاش)</span>':''}</div>
           ${w.notes?`<div style="font-size:0.73rem;color:#9ca3af;">${w.notes}</div>`:''}
           <div style="font-size:0.7rem;color:#9ca3af;">${w.date||''}</div>
         </div>
@@ -10425,7 +10427,8 @@ function showAddWithdrawalModal(){
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
       <input id="wd_date" type="date" value="${today}" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
-      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
+      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      ${_wdCashToggle(false)}
       <div style="display:flex;gap:10px;">
         <button onclick="saveOperatorWithdrawal()" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">💸 حفظ</button>
         <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
@@ -10445,6 +10448,7 @@ async function saveOperatorWithdrawal(){
   const amount=parseFloat(amountEl?.value||'0');
   const date=dateEl?.value||jordanDateStr();
   const notes=notesEl?.value?.trim()||'';
+  const noCash=document.getElementById('wd_from_cash')?.checked===false;
   if(!storeId){toast('⚠️ اختر المتجر');return;}
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
@@ -10454,13 +10458,13 @@ async function saveOperatorWithdrawal(){
     batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
-      withdrawalType:'withdrawal',
+      withdrawalType:'withdrawal', noCash,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef2=db.collection('operator_store_payments').doc();
     batch.set(pmtRef2,{
       storeId,storeName,amount,date,
-      withdrawalType:'withdrawal',
+      withdrawalType:'withdrawal', noCash,
       notes:(notes||''),
       sourceWithdrawalId:wRef.id,
       sessionId:_opCurrentSession.id,
@@ -10468,7 +10472,7 @@ async function saveOperatorWithdrawal(){
     });
     await batch.commit();
     document.getElementById('withdrawal_modal')?.remove();
-    toast('✅ تم تسجيل المسحوب في الكشف ورصيد المحل');
+    toast('✅ تم تسجيل المسحوب في الكشف ورصيد المحل'+(noCash?' — بدون مساس بالكاش':''));
     await _loadOpWithdrawals();
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
@@ -10606,6 +10610,17 @@ async function deleteRawBuy(id){
   }catch(e){toast('❌ '+e.message);}
 }
 
+// خانة «هل مسّ الكاش؟» — بنفس فكرة دفعات الموردين والسداد.
+// المسحوب يُنقص المستحق على المتجر دائماً، لكنّ الكاش لا يخرج من الصندوق إلا
+// إذا كان مسحوباً نقدياً فعلاً؛ ومسحوب البضاعة كان يُنقص صافي التحصيل بلا وجه حق.
+function _wdCashToggle(isPayment){
+  return `<label style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;cursor:pointer;margin-bottom:14px;">
+      <input type="checkbox" id="wd_from_cash" checked style="width:18px;height:18px;accent-color:#166534;cursor:pointer;flex-shrink:0;">
+      <div><div style="font-size:0.84rem;font-weight:700;color:#166534;">${isPayment?'💵 تُضاف للكاش (التحصيل)':'💵 تُخصم من الكاش (التحصيل)'}</div>
+      <div style="font-size:0.72rem;color:#15803d;margin-top:2px;">${isPayment?'شيل الصح لو ما استلمتها كاش (حوالة أو مقاصّة)':'شيل الصح لو المسحوب بضاعة أو من مصدر ثاني — بيضل ينخصم من مستحق المتجر'}</div></div>
+    </label>`;
+}
+
 function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
   if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const today=jordanDateStr();
@@ -10624,7 +10639,8 @@ function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
       <input id="wd_date" type="date" value="${today}" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
-      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
+      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      ${_wdCashToggle(isPayment)}
       <div style="display:flex;gap:10px;">
         <button onclick="saveGroupWithdrawal()" style="flex:1;padding:12px;background:${isPayment?'#dc2626':'#7c3aed'};color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">${isPayment?'💳 حفظ الدفعة':'💸 حفظ'}</button>
         <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
@@ -10640,6 +10656,7 @@ async function saveGroupWithdrawal(){
   const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
   const date=document.getElementById('wd_date')?.value||jordanDateStr();
   const notes=(document.getElementById('wd_notes')?.value||'').trim();
+  const noCash=document.getElementById('wd_from_cash')?.checked===false;
   if(!groupName){toast('⚠️ خطأ: لا يوجد مجموعة');return;}
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
@@ -10650,14 +10667,14 @@ async function saveGroupWithdrawal(){
       sessionId:_opCurrentSession.id,
       groupName, storeName:groupName,
       storeId:grpStoreId,
-      withdrawalType,
+      withdrawalType, noCash,
       amount, date, notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef=db.collection('operator_store_payments').doc();
     batch.set(pmtRef,{
       storeId:grpStoreId,storeName:groupName,amount,date,
-      withdrawalType,
+      withdrawalType, noCash,
       notes:(notes||''),
       sourceWithdrawalId:wRef.id,
       sessionId:_opCurrentSession.id,
@@ -10666,7 +10683,7 @@ async function saveGroupWithdrawal(){
     await batch.commit();
     if(withdrawalType==='payment') _opAcctPaid[grpStoreId]=(_opAcctPaid[grpStoreId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
-    toast(withdrawalType==='payment'?'✅ تم تسجيل الدفعة للمجموعة':'✅ تم تسجيل المسحوب للمجموعة');
+    toast((withdrawalType==='payment'?'✅ تم تسجيل الدفعة للمجموعة':'✅ تم تسجيل المسحوب للمجموعة')+(noCash?' — بدون مساس بالكاش':''));
     await _loadOpWithdrawals();
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
@@ -10690,7 +10707,8 @@ function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
       <input id="wd_date" type="date" value="${today}" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">ملاحظة (اختياري)</label>
-      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:18px;box-sizing:border-box;">
+      <input id="wd_notes" type="text" placeholder="..." style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
+      ${_wdCashToggle(isPayment)}
       <div style="display:flex;gap:10px;">
         <button onclick="saveOperatorWithdrawalFixed()" style="flex:1;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">${isPayment?'💳 حفظ الدفعة':'💸 حفظ'}</button>
         <button onclick="document.getElementById('withdrawal_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
@@ -10707,6 +10725,7 @@ async function saveOperatorWithdrawalFixed(){
   const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
   const date=document.getElementById('wd_date')?.value||jordanDateStr();
   const notes=(document.getElementById('wd_notes')?.value||'').trim();
+  const noCash=document.getElementById('wd_from_cash')?.checked===false;
   if(!storeName){toast('⚠️ خطأ: لا يوجد متجر');return;}
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   try{
@@ -10715,13 +10734,13 @@ async function saveOperatorWithdrawalFixed(){
     batch.set(wRef,{
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
-      withdrawalType,
+      withdrawalType, noCash,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef=db.collection('operator_store_payments').doc();
     batch.set(pmtRef,{
       storeId,storeName,amount,date,
-      withdrawalType,
+      withdrawalType, noCash,
       notes:(notes||''),
       sourceWithdrawalId:wRef.id,
       sessionId:_opCurrentSession.id,
@@ -10730,7 +10749,7 @@ async function saveOperatorWithdrawalFixed(){
     await batch.commit();
     if(withdrawalType==='payment') _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
-    toast(withdrawalType==='payment'?'✅ تم تسجيل الدفعة':'✅ تم تسجيل المسحوب');
+    toast((withdrawalType==='payment'?'✅ تم تسجيل الدفعة':'✅ تم تسجيل المسحوب')+(noCash?' — بدون مساس بالكاش':''));
     await _loadOpWithdrawals();
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
