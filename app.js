@@ -1571,11 +1571,20 @@ async function ewRecordPayment(){
       date:jordanDateStr(),addedBy:_currentAdminUser||'أدمن',
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    toast('✅ تم تسجيل الدفعة');
+    toast(_ewStore.id==='__mashghal__'?'✅ سُجّلت الدفعة — خُصمت من التحصيل ومن رصيد روزميري':'✅ تم تسجيل الدفعة');
     document.getElementById('ewPayAmt').value='';
     document.getElementById('ewPayNotes').value='';
     await _ewRefreshEmployee();
+    await _ewRefreshAccounting();
   }catch(e){toast('❌ '+e.message);}
+}
+
+// راتب المشغل كاشٌ خرج من الصندوق: يُخصم من التحصيل ومن رصيد روزميري. لكنّ
+// شاشة الرواتب كانت تحدّث نفسها فقط، فيبقى الرقمان على حالهما حتى إعادة
+// تحميل الصفحة — فيبدو وكأنّ الدفعة لم تُخصم أصلاً.
+async function _ewRefreshAccounting(){
+  try{ if(typeof loadRosemaryWallet==='function') await loadRosemaryWallet(); }catch(e){}
+  try{ if(typeof _loadOpSessionData==='function'&&_opCurrentSession) await _loadOpSessionData(); }catch(e){}
 }
 
 async function ewDeletePayment(docId){
@@ -1584,6 +1593,7 @@ async function ewDeletePayment(docId){
     await db.collection('emp_wage_payments').doc(docId).delete();
     toast('🗑 تم حذف الدفعة');
     await _ewRefreshEmployee();
+    await _ewRefreshAccounting();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -9244,6 +9254,7 @@ let _opMashghalWages=[];
 let _opSessionWagePays=[]; // رواتب المشغل المدفوعة ضمن الكشف — تُخصم من الكاش والربح
 let _opCashAdjust=[];    // تسويات الكاش اليدوية — تُضاف لصافي التحصيل
 let _opSessionRentPays=[]; // دفعات إجار المحل ضمن الكشف — تُخصم من الكاش
+let _opSessionDebtPays=[]; // دفعات السداد (ديون علينا) ضمن الكشف — كاش خرج من نفس الصندوق
 function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
 const _opToday=()=>jordanDateStr();
 
@@ -9399,9 +9410,15 @@ async function _loadOpSessionData(){
     // دفعات رواتب موظفي المشغل المدفوعة فعلياً ضمن فترة الكشف — كاش خرج من الصندوق
     _P(db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',to),
        s=>{_opSessionWagePays=s.docs.map(d=>({id:d.id,...d.data()})).filter(w=>w.storeId==='__mashghal__');},()=>{_opSessionWagePays=[];}),
-    // دفعات إجار المحل ضمن الكشف — كاش خرج من نفس الصندوق
+    // دفعات إجار المحل والسداد ضمن الكشف — كاش خرج من نفس الصندوق.
+    // الاثنان في نفس المجموعة، فجلبة واحدة تكفي.
     _P(db.collection('rosemary_transactions').where('sessionId','==',_sid),
-       s=>{_opSessionRentPays=s.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.type==='rent_payment');},()=>{_opSessionRentPays=[];}),
+       s=>{
+         const _rows=s.docs.map(d=>({id:d.id,...d.data()}));
+         _opSessionRentPays=_rows.filter(t=>t.type==='rent_payment');
+         // «دفع خارجي» دُفع من جيب آخر، فلا يمسّ كاش الصندوق
+         _opSessionDebtPays=_rows.filter(t=>t.type==='debt_payment'&&t.fromBalance!==false);
+       },()=>{_opSessionRentPays=[];_opSessionDebtPays=[];}),
   ]);
   // Mashghal employee wages for this session period
   try{
@@ -9959,10 +9976,12 @@ function renderOperatorDailyView(){
     const _collAdjust=(_opCashAdjust||[]).reduce((s,a)=>s+(a.amount||0),0);
     // دفعات إجار المحل — كاش خرج من الصندوق
     const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent;
+    // دفعات السداد (ديون علينا لأشخاص) — كاش خرج من نفس الصندوق تماماً كالإجار
+    const _collDebt=(_opSessionDebtPays||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
     ccNet=_collNet;
     ccIn=_collOrdersNet+_collStorePayments+_collTreeProfitIn+Math.max(0,_collAdjust);
-    ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+Math.max(0,-_collAdjust);
+    ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
       ${_ccHead('🔀','حركة الكاش')}
@@ -9977,6 +9996,7 @@ function renderOperatorDailyView(){
         ${_collSupPays>0?_ccFlow('🏭','دفعات الموردين',_collSupPays,'out'):''}
         ${_collWages>0?_ccFlow('👷','رواتب المشغل',_collWages,'out'):''}
         ${_collRent>0?_ccFlow('🏠','إجار المحل',_collRent,'out'):''}
+        ${_collDebt>0?_ccFlow('🤝','سداد ديون',_collDebt,'out'):''}
         ${_collAdjust!==0?_ccFlow('⚖️','تسوية الكاش',Math.abs(_collAdjust),_collAdjust>0?'in':'out'):''}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(231,198,107,0.16),transparent);border-top:1px solid rgba(231,198,107,.14);">
           <span style="display:flex;align-items:center;gap:10px;font-weight:900;color:#eafff4;font-size:0.92rem;"><span style="width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#f3e0a6,#b8912f);display:grid;place-items:center;">💰</span> صافي التحصيل</span>
@@ -10759,6 +10779,9 @@ async function _rwCarryOverOnClose(session,toDate){
       const wSnap2=await db.collection('emp_wage_payments').where('date','>=',from).where('date','<=',toDate).get();
       wSnap2.docs.forEach(d=>{const w=d.data();if(w.storeId==='__mashghal__')wages+=(w.amount||0);});
     }catch(e){}
+    // ملاحظة مقصودة: دفعات السداد **لا** تدخل هنا. رصيد روزميري يخصمها من كل
+    // التاريخ لا من الكشف وحده، فلو رُحّلت مع الكشف لخُصمت مرّتين: مرّة داخل
+    // الرصيد الأولي الجديد، ومرّة كل مرّة يُحسب فيها الرصيد بعد ذلك.
     // سحوبات روزميري اليدوية للكشف
     let withdrawals=0;
     const wSnap=await db.collection('rosemary_transactions').where('sessionId','==',sid).get();
@@ -16693,6 +16716,14 @@ function renderRosemaryWallet(){
           <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">🔴 السحوبات</div>
           <div style="font-weight:900;font-size:0.95rem;color:#fca5a5;font-variant-numeric:tabular-nums;">${totalWithdrawals.toFixed(2)}</div>
         </div>
+        ${totalWages>0?`<div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">👷 رواتب المشغل</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#fca5a5;font-variant-numeric:tabular-nums;">${totalWages.toFixed(2)}</div>
+        </div>`:''}
+        ${totalDebtPaid>0?`<div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:9px;text-align:center;">
+          <div style="font-size:0.64rem;color:rgba(255,255,255,.8);">🤝 سداد ديون</div>
+          <div style="font-weight:900;font-size:0.95rem;color:#fca5a5;font-variant-numeric:tabular-nums;">${totalDebtPaid.toFixed(2)}</div>
+        </div>`:''}
       </div>
       </div>
     </div>`;
@@ -17132,9 +17163,16 @@ async function saveDebtPayment(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     closeDebtPay();
-    toast(fromBalance?'✅ سُجّلت الدفعة له — خُصمت من الرصيد':'✅ سُجّلت الدفعة له — دفع خارجي، الرصيد لم يتغيّر');
-    loadRosemaryWallet();
+    toast(fromBalance?'✅ سُجّلت الدفعة له — خُصمت من الرصيد ومن التحصيل':'✅ سُجّلت الدفعة له — دفع خارجي، الرصيد لم يتغيّر');
+    await loadRosemaryWallet();
+    await _debtRefreshCash();
   }catch(e){toast('❌ خطأ في الحفظ');}
+}
+
+// الدفعة من الرصيد كاشٌ خرج من صندوق المحل، فلا بدّ أن يهبط بها صافي التحصيل
+// أيضاً لا رصيد روزميري وحده — وإلا بقي الصندوق يعِد بمالٍ صُرِف فعلاً.
+async function _debtRefreshCash(){
+  try{ if(typeof _loadOpSessionData==='function'&&_opCurrentSession) await _loadOpSessionData(); }catch(e){}
 }
 
 async function deleteDebtPayment(id){
@@ -17142,7 +17180,8 @@ async function deleteDebtPayment(id){
   try{
     await db.collection('rosemary_transactions').doc(id).delete();
     toast('✅ تم الحذف');
-    loadRosemaryWallet();
+    await loadRosemaryWallet();
+    await _debtRefreshCash();
   }catch(e){toast('❌ خطأ في الحذف');}
 }
 
@@ -17173,7 +17212,8 @@ async function deleteDebtPerson(id){
     pays.forEach(p=>batch.delete(db.collection('rosemary_transactions').doc(p.id)));
     await batch.commit();
     toast('✅ تم الحذف');
-    loadRosemaryWallet();
+    await loadRosemaryWallet();
+    await _debtRefreshCash();
   }catch(e){toast('❌ خطأ في الحذف');}
 }
 
