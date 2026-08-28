@@ -9265,12 +9265,26 @@ function _opDateOffset(date, days){
 }
 
 async function checkOperatorDayStatus(){await loadOpSessionStatus();}
+
+// كل الكشوفات المفتوحة. المفروض واحد فقط؛ وجود أكثر يعني أنّ كشفاً شبحاً
+// أُنشئ فوق الكشف الحقيقي — وحينها كل الأرقام تُقرأ من الشبح ⇒ أصفار.
+let _opOpenSessions=[];
+async function _fetchOpenSessions(){
+  const snap=await db.collection('operator_sessions').where('status','==','open').get();
+  return snap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>String(a.openedDate||'').localeCompare(String(b.openedDate||''))
+                 ||String(a.id).localeCompare(String(b.id)));
+}
 async function loadOpSessionStatus(){
   const badge=document.getElementById('opacct_op_status_badge');
   try{
-    const snap=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
-    if(!snap.empty){
-      _opCurrentSession={id:snap.docs[0].id,...snap.docs[0].data()};
+    // كان limit(1) بلا ترتيب: أيّ كشف مفتوح يردّه الخادم أولاً هو المعتمد.
+    // فلو وُجد كشفان مفتوحان صار الاختيار عشوائياً ويتبدّل بين فتحة وأخرى —
+    // مرّة يظهر حسابك كاملاً ومرّة يظهر صفراً. الأقدم دائماً هو الحقيقي.
+    const list=await _fetchOpenSessions();
+    _opOpenSessions=list;
+    if(list.length){
+      _opCurrentSession=list[0];
       if(badge){badge.textContent=`🟢 مفتوح منذ ${_fmtDate(_opCurrentSession.openedDate)}`;badge.style.background='rgba(255,255,255,0.2)';}
     } else {
       _opCurrentSession=null;
@@ -9640,12 +9654,18 @@ function renderOperatorDailyView(){
   const totExp=(_opDayExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totWages=(_opSessionWagePays||[]).reduce((s,w)=>s+parseFloat(w.amount||0),0);
   const closedBanner=isClosed?'<div style="background:rgba(220,38,38,.14);border:1px solid rgba(220,38,38,.3);border-radius:12px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:700;color:#e08a8a;font-size:0.85rem;">🔒 الكشف مغلق — من '+_fmtDate(_opCurrentSession?.openedDate)+' إلى '+_fmtDate(_opCurrentSession?.closedDate)+'</div>':'';
-  const _emptyCC='<div class="cc-empty">لا يوجد بيانات في هذه الفترة</div>';
+  // «لا يوجد بيانات» وحدها لا تُفسّر شيئاً. الأصفار سببها دائماً حدّ الفترة:
+  // الكشف المفتوح يبدأ من تاريخ ما، وكل ما قبله في الكشوفات المغلقة.
+  const _ccWhy=_opCurrentSession
+    ?`<div style="font-size:0.72rem;color:#9fc7b4;margin-top:6px;line-height:1.7;">الكشف المفتوح يبدأ من <b style="color:#e7c66b;">${_fmtDate(_opCurrentSession.openedDate)}</b> — وما قبله في «الكشوفات المغلقة».</div>`
+    :'<div style="font-size:0.72rem;color:#e08a8a;margin-top:6px;">⚠️ لا يوجد كشف مفتوح</div>';
+  const _emptyCC='<div class="cc-empty">لا يوجد بيانات في هذه الفترة'+_ccWhy+'</div>';
+  const _warnCC=_opSessionWarnHtml();
   const cpLbl=document.getElementById('cc_period_lbl'); if(cpLbl) cpLbl.textContent='مباشر';
   // Only skip render when closed and truly nothing to show
   if(isClosed&&!_opDailySales.length&&!_opDayOrders.length&&!_opWithdrawals.length){
-    kashfBody.innerHTML=closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
-    if(elColl) elColl.innerHTML=closedBanner+_emptyCC;
+    kashfBody.innerHTML=_warnCC+closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
+    if(elColl) elColl.innerHTML=_warnCC+closedBanner+_emptyCC;
     if(elStores) elStores.innerHTML=_emptyCC;
     if(elProfit) elProfit.innerHTML=_emptyCC;
     if(typeof _renderCcGauge==='function')_renderCcGauge(0,0,0);
@@ -9666,7 +9686,7 @@ function renderOperatorDailyView(){
     const srows=pr.map(p=>`<tr style="border-bottom:1px solid var(--border);font-size:0.82rem;"><td style="padding:9px 10px;font-weight:600;color:var(--text-dark);">${p.name}</td><td style="padding:9px 10px;text-align:center;color:var(--text-mid);">${p.qty}</td><td style="padding:9px 10px;text-align:center;color:#166534;">${(p.sell/p.qty).toFixed(2)}</td><td style="padding:9px 10px;text-align:center;font-weight:800;color:#166534;">${p.sell.toFixed(2)}</td></tr>`).join('');
     kashfHtml+=`<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:340px;"><thead><tr style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;font-size:0.76rem;"><th style="padding:11px 10px;text-align:right;font-weight:700;">🛍 المنتج</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الكمية</th><th style="padding:11px 10px;text-align:center;font-weight:700;">سعر البيع</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الإجمالي</th></tr></thead><tbody>${srows}</tbody><tfoot><tr style="background:#f0fdf4;font-size:0.86rem;font-weight:900;border-top:2px solid #86efac;"><td style="padding:11px 10px;color:#166534;">الإجمالي</td><td style="padding:11px 10px;text-align:center;color:#166534;">${totQty}</td><td style="padding:11px 10px;"></td><td style="padding:11px 10px;text-align:center;color:#166534;">${totSellK.toFixed(2)} د.أ</td></tr></tfoot></table></div></div>`;
   }
-  kashfBody.innerHTML=kashfHtml;
+  kashfBody.innerHTML=_warnCC+kashfHtml;
   // ===== الحسابات: ثلاثة بافرات لثلاث لوحات (التحصيل / المتاجر / الأرباح) =====
   let collHtml='';   // لوحة التحصيل
   let storesHtml=''; // لوحة المتاجر
@@ -10216,7 +10236,7 @@ function renderOperatorDailyView(){
   }
 
   // ===== نشر البافرات في اللوحات الثلاث + رسم ساعة التحصيل =====
-  if(elColl) elColl.innerHTML=collHtml||(closedBanner+_emptyCC);
+  if(elColl) elColl.innerHTML=_warnCC+(collHtml||(closedBanner+_emptyCC));
   if(elStores) elStores.innerHTML=storesHtml||_emptyCC;
   if(elProfit) elProfit.innerHTML=(html&&html!==closedBanner)?html:(closedBanner+_emptyCC);
   if(typeof _renderCcGauge==='function')_renderCcGauge(ccNet,ccIn,ccOut);
@@ -16002,10 +16022,14 @@ async function _ensureOpenSession(){
   if(_opCurrentSession&&_opCurrentSession.status!=='closed') return _opCurrentSession;
   if(_ensureSessionPromise) return _ensureSessionPromise;
   _ensureSessionPromise=(async()=>{
-    try{
-      const ss=await db.collection('operator_sessions').where('status','==','open').limit(1).get();
-      if(!ss.empty){_opCurrentSession={id:ss.docs[0].id,...ss.docs[0].data()};return _opCurrentSession;}
-    }catch(e){}
+    // فشل البحث كان يسقط إلى الإنشاء: انقطاعُ شبكةٍ لحظيّ واحد يفتح كشفاً
+    // جديداً فوق كشفك الحقيقي، فتصير كل الأرقام أصفاراً وحركتك مخبوءة تحته.
+    // لا نُنشئ إلا حين نتأكّد أنّه لا يوجد كشف مفتوح فعلاً.
+    let list;
+    try{ list=await _fetchOpenSessions(); }
+    catch(e){ return _opCurrentSession||null; }
+    _opOpenSessions=list;
+    if(list.length){ _opCurrentSession=list[0]; return _opCurrentSession; }
     try{
       const today=jordanDateStr();
       const ref=await db.collection('operator_sessions').add({
@@ -16018,6 +16042,50 @@ async function _ensureOpenSession(){
   })();
   try{return await _ensureSessionPromise;}finally{_ensureSessionPromise=null;}
 }
+
+// ═══ كشف شبحيّ: تحذير وإصلاح ═══
+// حين يوجد أكثر من كشف مفتوح، الأقدم هو حسابك الحقيقي والباقي أُنشئ بالخطأ.
+// نُنبّه صراحةً بدل أن يرى المالك أصفاراً بلا تفسير.
+function _opSessionWarnHtml(){
+  if(!_opOpenSessions||_opOpenSessions.length<2) return '';
+  const main=_opOpenSessions[0];
+  return `<div style="background:rgba(231,198,107,.1);border:1.5px solid rgba(231,198,107,.4);border-radius:14px;padding:12px 14px;margin-bottom:12px;">
+    <div style="font-weight:800;color:#e7c66b;font-size:0.86rem;margin-bottom:4px;">⚠️ في ${_opOpenSessions.length} كشوفات مفتوحة — المفروض واحد</div>
+    <div style="font-size:0.76rem;color:#cfe3d8;line-height:1.7;">المعتمد الآن هو الأقدم (من ${_fmtDate(main.openedDate)}). الكشوفات الزائدة تُنشأ بالخطأ عند انقطاع الشبكة، وتُخفي حركتك فتظهر الأرقام أصفاراً.</div>
+    <button onclick="repairOpenSessions(this)" style="width:100%;margin-top:9px;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;">🔧 أغلق الكشوفات الزائدة الفارغة</button>
+  </div>`;
+}
+
+async function repairOpenSessions(btn){
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الفحص...';}
+  try{
+    const list=await _fetchOpenSessions();
+    _opOpenSessions=list;
+    if(list.length<2){toast('✅ ما في كشوفات زائدة');await loadOpSessionStatus();await _loadOpSessionData();return;}
+    const extras=list.slice(1);
+    let closed=0;const kept=[];
+    for(const s of extras){
+      // لا نغلق إلا الفارغ تماماً — أي كشف فيه حركة يبقى كما هو ويُبلَّغ عنه
+      let n=0;
+      for(const col of ['operator_sales','operator_withdrawals','operator_expenses','operator_rawbuys']){
+        try{ n+=(await db.collection(col).where('sessionId','==',s.id).limit(1).get()).size; }catch(e){}
+        if(n) break;
+      }
+      if(n){kept.push(s);continue;}
+      await db.collection('operator_sessions').doc(s.id).update({
+        status:'closed',closedDate:s.openedDate||jordanDateStr(),
+        autoClosedEmpty:true,closedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      closed++;
+    }
+    toast(closed?`✅ أُغلق ${closed} كشف فارغ زائد${kept.length?` — وبقي ${kept.length} فيه حركة`:''}`
+                :'⚠️ الكشوفات الزائدة فيها حركة — لم يُغلق شيء');
+    await loadOpSessionStatus();
+    await _loadOpSessionData();
+  }catch(e){toast('❌ '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent='🔧 أغلق الكشوفات الزائدة الفارغة';}}
+}
+window.repairOpenSessions=repairOpenSessions;
 
 function toggleBalSection(id,btn){
   const el=document.getElementById(id);
