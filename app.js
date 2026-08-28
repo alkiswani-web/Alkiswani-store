@@ -12780,6 +12780,7 @@ async function _loadAttendanceData(date){
         <th style="padding:9px 6px;text-align:center;color:#60a5fa;font-weight:800;">خروج</th>
         <th style="padding:9px 6px;text-align:center;color:#c9a84c;font-weight:800;">المدة</th>
         <th style="padding:9px 6px;text-align:center;color:#f97316;font-weight:800;">الأجر</th>
+        <th style="padding:9px 4px;text-align:center;color:#c9a84c;font-weight:800;">تعديل</th>
       </tr></thead><tbody>`;
     records.forEach(r=>{
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
@@ -12797,6 +12798,7 @@ async function _loadAttendanceData(date){
         <td style="padding:8px 6px;text-align:center;color:#60a5fa;font-weight:700;">${outT}</td>
         <td style="padding:8px 6px;text-align:center;color:#c9a84c;font-weight:800;">${durLabel}</td>
         <td style="padding:8px 6px;text-align:center;color:#f97316;font-weight:800;">${earnLabel}</td>
+        <td style="padding:8px 4px;text-align:center;"><button onclick="editAttendance('${r._id}')" title="تعديل الأوقات" style="background:#3a2e12;color:#c9a84c;border:1px solid #5a4a1e;border-radius:7px;padding:4px 8px;font-size:0.78rem;cursor:pointer;line-height:1;">✏️</button></td>
       </tr>`;
     });
     html+='</tbody></table>';
@@ -12893,7 +12895,7 @@ async function attRangeReport(){
       const secs=_ewSecs(r);
       byEmp[id].secs+=secs;
       let sessions=Array.isArray(r.sessions)&&r.sessions.length?r.sessions:(r.checkIn?[{in:r.checkIn,out:r.checkOut||null}]:[]);
-      byEmp[id].days[r.date]={secs,sessions,manual:!!r.manualEntry};
+      byEmp[id].days[r.date]={secs,sessions,manual:!!r.manualEntry,docId:r._id};
     });
     const emps=Object.values(byEmp).map(e=>{
       const rate=rates[e.id]||0;
@@ -12926,10 +12928,11 @@ async function attRangeReport(){
               ${Object.keys(e.days).sort().map(d=>{
                 const v=e.days[d];
                 const parts=v.sessions.map(x=>`${hm(x.in)}${x.out?' → '+hm(x.out):' → <span style="color:#fbbf24;">مفتوح</span>'}`).join(' ، ');
-                return `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #1c1c1c;font-size:0.76rem;">
+                return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #1c1c1c;font-size:0.76rem;">
                   <span style="color:#9ca3af;">${_fmtDate(d)}${v.manual?' <span style="color:#c9a84c;font-size:0.68rem;">يدوي</span>':''}</span>
                   <span style="color:#6b7280;flex:1;text-align:center;">${parts||'—'}</span>
                   <span style="color:#c9a84c;font-weight:700;white-space:nowrap;">${_fmtDuration(v.secs)}</span>
+                  <button onclick="event.stopPropagation();editAttendance('${v.docId}')" title="تعديل الأوقات" style="background:#3a2e12;color:#c9a84c;border:1px solid #5a4a1e;border-radius:6px;padding:3px 7px;font-size:0.72rem;cursor:pointer;line-height:1;flex-shrink:0;">✏️</button>
                 </div>`;
               }).join('')}
             </div>
@@ -13113,6 +13116,172 @@ async function saveManualCheckout(docId){
   }catch(e){toast('❌ '+e.message);}
 }
 window.manualCheckout=manualCheckout; window.saveManualCheckout=saveManualCheckout;
+
+// ═══ تعديل سجل دوام ═══
+// الدخول اليدوي يُكتب بالساعة والدقيقة، والخطأ فيه وارد: صباح بدل مساء، أو
+// جلسة تُسجَّل مرّتين فتتضاعف المدة. ولم يكن ثمّة طريق للتصحيح إلا حذف الوثيقة
+// من قاعدة البيانات مباشرة. هنا: تعديل أوقات كل جلسة، حذف الزائدة، وإضافة جلسة.
+let _attEdCtx=null;      // {docId, empId, name, date}
+let _attEdSessions=[];   // [{in,out}] بصيغة datetime-local المحلية
+
+function _attDtLocal(iso){
+  if(!iso) return '';
+  try{
+    const d=new Date(iso); if(isNaN(d)) return '';
+    const p=n=>String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }catch(e){return '';}
+}
+function _attEdSecs(list){
+  return list.reduce((t,s)=>{
+    if(!s.in||!s.out) return t;
+    const a=new Date(s.in).getTime(), b=new Date(s.out).getTime();
+    return t+(b>a?Math.floor((b-a)/1000):0);
+  },0);
+}
+// يقرأ ما كتبه المستخدم في الحقول قبل أي إعادة رسم، وإلا ضاع تعديله
+function _attEdSync(){
+  _attEdSessions=_attEdSessions.map((s,i)=>({
+    in:document.getElementById('att_ed_in_'+i)?.value ?? s.in,
+    out:document.getElementById('att_ed_out_'+i)?.value ?? s.out
+  }));
+}
+function _attEdRender(){
+  const wrap=document.getElementById('att_ed_rows');
+  if(!wrap)return;
+  const F='width:100%;padding:9px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:\'Tajawal\',sans-serif;font-size:0.86rem;box-sizing:border-box;';
+  wrap.innerHTML=_attEdSessions.length?_attEdSessions.map((s,i)=>`
+    <div style="border:1.5px solid #e5e7eb;border-radius:11px;padding:11px;margin-bottom:9px;background:#fafafa;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+        <span style="font-size:0.8rem;font-weight:800;color:#374151;">⏱ جلسة ${i+1}</span>
+        <button onclick="attEdRemove(${i})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:4px 10px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">🗑 احذفها</button>
+      </div>
+      <label style="font-size:0.75rem;font-weight:700;color:#166534;display:block;margin-bottom:3px;">دخول</label>
+      <input type="datetime-local" id="att_ed_in_${i}" value="${s.in||''}" onchange="attEdRefreshTotal()" style="${F}margin-bottom:8px;">
+      <label style="font-size:0.75rem;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;">خروج <span style="color:#9ca3af;font-weight:500;">(اتركه فارغاً لجلسة ما زالت مفتوحة)</span></label>
+      <input type="datetime-local" id="att_ed_out_${i}" value="${s.out||''}" onchange="attEdRefreshTotal()" style="${F}">
+    </div>`).join(''):'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">لا توجد جلسات — أضف واحدة أو احذف السجل</div>';
+  attEdRefreshTotal();
+}
+function attEdRefreshTotal(){
+  const el=document.getElementById('att_ed_total');
+  if(!el)return;
+  const list=_attEdSessions.map((s,i)=>({
+    in:document.getElementById('att_ed_in_'+i)?.value||'',
+    out:document.getElementById('att_ed_out_'+i)?.value||''
+  }));
+  el.textContent=_fmtDuration(_attEdSecs(list));
+}
+function attEdRemove(i){ _attEdSync(); _attEdSessions.splice(i,1); _attEdRender(); }
+function attEdAdd(){
+  _attEdSync();
+  const base=(_attEdCtx&&_attEdCtx.date)||new Date().toLocaleDateString('en-CA');
+  _attEdSessions.push({in:base+'T09:00',out:''});
+  _attEdRender();
+}
+
+async function editAttendance(docId){
+  try{
+    const doc=await db.collection('attendance').doc(docId).get();
+    if(!doc.exists){toast('❌ السجل غير موجود');return;}
+    const d=doc.data();
+    const raw=(Array.isArray(d.sessions)&&d.sessions.length)?d.sessions:(d.checkIn?[{in:d.checkIn,out:d.checkOut||null}]:[]);
+    _attEdSessions=raw.map(s=>({in:_attDtLocal(s.in),out:_attDtLocal(s.out)}));
+    _attEdCtx={docId,empId:d.employeeId||docId.split('_')[0],name:d.employeeName||d.employeeId||'',date:d.date||''};
+    document.getElementById('att_ed_modal')?.remove();
+    const o=document.createElement('div');
+    o.id='att_ed_modal';
+    o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;';
+    o.innerHTML=`<div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:400px;font-family:'Tajawal',sans-serif;max-height:92vh;overflow:auto;">
+      <div style="font-weight:800;font-size:1.05rem;color:#b45309;margin-bottom:3px;text-align:center;">✏️ تعديل الدوام</div>
+      <div style="text-align:center;font-size:0.84rem;color:#374151;font-weight:700;">${_attEdCtx.name}</div>
+      <div style="text-align:center;font-size:0.76rem;color:#9ca3af;margin-bottom:14px;">${_fmtDate(_attEdCtx.date)}</div>
+      <div id="att_ed_rows"></div>
+      <button onclick="attEdAdd()" style="width:100%;padding:10px;background:#f0fdf4;color:#166534;border:1.5px dashed #86efac;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:700;cursor:pointer;margin-bottom:12px;">➕ أضف جلسة</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+        <span style="font-size:0.82rem;font-weight:700;color:#92400e;">المدة بعد التعديل</span>
+        <span id="att_ed_total" style="font-size:0.95rem;font-weight:900;color:#b45309;">—</span>
+      </div>
+      <div style="display:flex;gap:9px;margin-bottom:9px;">
+        <button onclick="saveAttendanceEdit()" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 حفظ</button>
+        <button onclick="document.getElementById('att_ed_modal').remove()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">إلغاء</button>
+      </div>
+      <button onclick="deleteAttendanceRecord('${docId}')" style="width:100%;padding:10px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:700;cursor:pointer;">🗑 احذف سجل هذا اليوم كاملاً</button>
+    </div>`;
+    document.body.appendChild(o);
+    o.addEventListener('click',e=>{if(e.target===o)o.remove();});
+    _attEdRender();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function saveAttendanceEdit(){
+  if(!_attEdCtx){toast('⚠️ لا يوجد سجل مفتوح');return;}
+  _attEdSync();
+  const rows=_attEdSessions.filter(s=>s.in);
+  if(_attEdSessions.length&&!rows.length){toast('⚠️ كل جلسة لازم يكون إلها وقت دخول');return;}
+  for(const s of rows){
+    if(s.out&&new Date(s.out).getTime()<=new Date(s.in).getTime()){
+      toast('⚠️ وقت الخروج لازم يكون بعد الدخول');return;
+    }
+  }
+  if(rows.filter(s=>!s.out).length>1){toast('⚠️ ما بينفع أكثر من جلسة مفتوحة باليوم');return;}
+  // الجلسة تُنسب لليوم الذي بدأت فيه. لو صحّح المالك التاريخ نفسه (لا الساعة
+  // فقط) فالجلسة تنتقل إلى وثيقة يومها الصحيح، وإلا بقيت مخبوءة تحت يوم خاطئ.
+  const byDate={};
+  rows.forEach(s=>{
+    const day=new Date(s.in).toLocaleDateString('en-CA');
+    (byDate[day]=byDate[day]||[]).push({in:new Date(s.in).toISOString(),out:s.out?new Date(s.out).toISOString():null});
+  });
+  try{
+    const {docId,empId,name}=_attEdCtx;
+    const batch=db.batch();
+    const _write=(day,list)=>{
+      list.sort((a,b)=>String(a.in).localeCompare(String(b.in)));
+      const total=_attEdSecs(list);
+      batch.set(db.collection('attendance').doc(empId+'_'+day),{
+        employeeId:empId,employeeName:name,date:day,sessions:list,
+        checkIn:list[0].in,checkOut:list[list.length-1].out||null,
+        secondsWorked:total,manualEntry:true,
+        editedBy:_currentAdminUser||'أدمن',
+        editedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    };
+    const days=Object.keys(byDate);
+    // وثيقة اليوم الأصلي: تُحدَّث بما بقي لها، أو تُحذف إن لم يبقَ لها شيء
+    const ownDay=_attEdCtx.date;
+    days.forEach(day=>{ if(day!==ownDay) _write(day,byDate[day]); });
+    if(byDate[ownDay]) _write(ownDay,byDate[ownDay]);
+    else batch.delete(db.collection('attendance').doc(docId));
+    await batch.commit();
+    document.getElementById('att_ed_modal')?.remove();
+    const moved=days.filter(d=>d!==ownDay);
+    toast(moved.length?`✅ تم الحفظ — ونُقلت جلسة إلى ${_fmtDate(moved[0])}`:'✅ تم حفظ التعديل');
+    _attRefreshViews();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function deleteAttendanceRecord(docId){
+  if(!confirm('حذف سجل دوام هذا اليوم كاملاً؟'))return;
+  try{
+    await db.collection('attendance').doc(docId).delete();
+    document.getElementById('att_ed_modal')?.remove();
+    toast('🗑 تم حذف السجل');
+    _attRefreshViews();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// الكشفان (اليومي وكشف الفترة) يقرآن نفس المجموعة، فأيّهما كان مفتوحاً يُحدَّث
+function _attRefreshViews(){
+  try{
+    const df=document.getElementById('attDateFilter');
+    if(df&&df.value&&typeof _loadAttendanceData==='function') _loadAttendanceData(df.value);
+  }catch(e){}
+  try{ if(_attRangeData&&typeof attRangeReport==='function') attRangeReport(); }catch(e){}
+}
+
+window.editAttendance=editAttendance; window.saveAttendanceEdit=saveAttendanceEdit;
+window.deleteAttendanceRecord=deleteAttendanceRecord; window.attEdAdd=attEdAdd;
+window.attEdRemove=attEdRemove; window.attEdRefreshTotal=attEdRefreshTotal;
 window.loadEmpWages=loadEmpWages; window.ewOpenStore=ewOpenStore; window.ewOpenMashghal=ewOpenMashghal; window.ewOpenEmployee=ewOpenEmployee; window.ewSaveRate=ewSaveRate; window.ewRecordPayment=ewRecordPayment; window.ewDeletePayment=ewDeletePayment; window.ewBack=ewBack; window.ewBackToStore=ewBackToStore;
 window.openAttendanceScan=openAttendanceScan; window.openAttendanceModal=openAttendanceModal; window.closeAttendanceModal=closeAttendanceModal; window._loadAttendanceData=_loadAttendanceData; window._printAttQR=_printAttQR;
 window.ewSaveHourlyRate=ewSaveHourlyRate;
