@@ -3618,9 +3618,12 @@ function openOpOrderDetail(orderId){
 function _showOpOrderDetail(o){
   const st=_empSt(o.status);
   const prods=o.products||[{name:o.productName||'?',price:o.price||0,qty:1}];
-  const total=o.totalPrice||prods.reduce((s,p)=>s+(p.price*(p.qty||1)),0);
   const dlv=o.deliveryFee||0;
-  const net=o.netPrice!=null?o.netPrice:total+dlv;
+  // مجموع المنتجات يُحسب من الباقي بعد المرتجعات. وكان يُقرأ من totalPrice
+  // الذي يشمل التوصيل أصلاً، فيُطبع «منتجات: ٢٧ + توصيل: ٢» لطلب منتجاته ٢٥.
+  const prodsSum=(o.products&&o.products.length)?_prodsTotalRem(o)
+    :prods.reduce((s,p)=>s+((p.price||0)*(p.qty||1)),0);
+  const net=o.netPrice!=null?o.netPrice:prodsSum+dlv;
   const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
   const isClosed=['cancelled','returned','refused','delivered'].includes(o.status);
   const nextSt=EMP_STATUS_NEXT[o.status];
@@ -3668,24 +3671,37 @@ function _showOpOrderDetail(o){
       </div>
       <div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
         <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:10px;letter-spacing:1px;">المنتجات</div>
-        ${prods.map(p=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f5f5f5;gap:8px;">
+        ${prods.map((p,pi)=>{
+          const _ret=_retQty(o,pi), _rem=_remQty(o,pi), _gone=_ret>0&&_rem===0;
+          const _canRet=isOperator&&(o.status==='delivered'||o.status==='delivering')&&_rem>0&&(o.products||[]).length>0;
+          return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f5f5f5;gap:8px;${_gone?'opacity:.55;':''}">
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:800;font-size:0.88rem;color:#111;">${p.name}</div>
+            <div style="font-weight:800;font-size:0.88rem;color:#111;${_gone?'text-decoration:line-through;':''}">${p.name}</div>
+            ${_ret>0?`<div style="font-size:0.72rem;color:#7c2d12;background:#ffedd5;border:1px solid #fdba74;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;font-weight:800;">↩️ مرتجع ${_ret}${_gone?' — كامل':''}</div>`:''}
             ${p.priceLabel?`<div style="font-size:0.72rem;color:#854d0e;background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;font-weight:700;">🏷 ${p.priceLabel}</div>`:''}
             ${p.color?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">اللون: ${p.color}</div>`:''}
             ${p.colorNumbers?`<div style="font-size:0.72rem;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;font-weight:700;">${_fmtCN(p.colorNumbers)}</div>`:''}
             ${p.writing?`<div style="font-size:0.72rem;color:#555;background:#fafafa;border-right:2.5px solid #111;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;">✎ ${p.writing}</div>`:''}
           </div>
           <div style="text-align:left;flex-shrink:0;">
-            <div style="font-size:0.72rem;color:#999;">${p.qty||1} × ${p.price.toFixed(2)}</div>
-            <div style="font-weight:900;color:#111;font-size:0.9rem;">${(p.price*(p.qty||1)).toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></div>
+            <div style="font-size:0.72rem;color:#999;">${_rem||(p.qty||1)} × ${(p.price||0).toFixed(2)}</div>
+            <div style="font-weight:900;color:#111;font-size:0.9rem;">${((p.price||0)*_rem).toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></div>
+            ${_canRet?`<button onclick="openPartialReturn('${o.id}',${pi})" style="margin-top:5px;padding:4px 9px;background:#fff;color:#7c2d12;border:1px solid #fdba74;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.7rem;font-weight:800;cursor:pointer;white-space:nowrap;">↩️ إرجاع</button>`:''}
           </div>
-        </div>`).join('')}
+        </div>`;}).join('')}
         <div style="margin-top:10px;padding-top:10px;border-top:1.5px solid #111;display:flex;justify-content:space-between;align-items:center;">
-          ${dlv>0?`<div style="font-size:0.74rem;color:#999;">منتجات: ${total.toFixed(2)} + توصيل: ${dlv.toFixed(2)}</div>`:'<div></div>'}
+          ${dlv>0?`<div style="font-size:0.74rem;color:#999;">منتجات: ${prodsSum.toFixed(2)} + توصيل: ${dlv.toFixed(2)}</div>`:'<div></div>'}
           <div style="font-weight:900;font-size:1.1rem;color:#111;letter-spacing:-0.3px;">${net.toFixed(2)} <span style="font-size:0.6rem;color:#999;font-weight:500;">د.أ</span></div>
         </div>
       </div>
+      ${(o.returns&&o.returns.length)?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #fdba74;border-right:3px solid #ea580c;">
+        <div style="font-size:0.7rem;font-weight:800;color:#9a3412;margin-bottom:8px;letter-spacing:1px;">↩️ المرتجعات (${o.returns.reduce((s,r)=>s+(Number(r.qty)||0),0)} قطعة)</div>
+        ${o.returns.map(r=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #fff7ed;font-size:0.78rem;">
+          <span style="color:#111;font-weight:700;">${r.name||''} × ${r.qty||1}</span>
+          <span style="color:#9ca3af;font-size:0.72rem;">${r.date||''}${r.reason?' — '+r.reason:''}</span>
+          <span style="color:#ea580c;font-weight:900;white-space:nowrap;">−${(((Number(r.unitPrice)||0)*(Number(r.qty)||1))).toFixed(2)}</span>
+        </div>`).join('')}
+      </div>`:''}
       ${!['delivered','cancelled','returned','refused'].includes(o.status)?`<div style="background:#fff;border-radius:14px;padding:15px;border:1px solid #ebebeb;">
         <div style="font-size:0.7rem;font-weight:800;color:#999;margin-bottom:8px;letter-spacing:1px;">المندوب</div>
         ${o.deliveryRepName
@@ -5210,11 +5226,189 @@ async function _handleDeliveredCancel(orderId, orderData, reason){
   }catch(e){console.error('_handleDeliveredCancel error:',e);}
 }
 
-async function addPageRefundEntry(orderId, orderData, reason){
+// ===== الإرجاع الجزئي — بند واحد أو بعض كميّته =====
+// الزبونة تأخذ المبخرة وتُرجع الشجرة، أو تطلب ثلاث شجرات فتُرجع واحدة.
+// صفوف المبيعات مكتوبة أصلاً صفّاً لكل منتج بمعرّف `<الطلب>_<الفهرس>`،
+// فالإرجاع الجزئي جراحةٌ على صفّ واحد لا إعادة بناء للطلب.
+//
+// قاعدة صارمة: لا نحذف المنتج من products أبداً. المعرّفات مبنيّة على الفهرس،
+// فحذف عنصر يُزيح ما بعده ويترك صفّ مبيعة يتيماً في حساب المتجر إلى الأبد.
+// نُسجّل الإرجاع في مصفوفة returns والفهارس تبقى كما هي.
+function _retQty(o,idx){
+  return (o&&o.returns||[]).filter(r=>r.idx===idx).reduce((s,r)=>s+(Number(r.qty)||0),0);
+}
+function _remQty(o,idx){
+  const p=((o&&o.products)||[])[idx];
+  if(!p) return 0;
+  return Math.max(0,(Number(p.qty)||1)-_retQty(o,idx));
+}
+function _prodsTotalRem(o){
+  return ((o&&o.products)||[]).reduce((s,p,i)=>s+((Number(p.price)||0)*_remQty(o,i)),0);
+}
+function _allReturned(o){
+  const ps=(o&&o.products)||[];
+  return ps.length>0&&ps.every((p,i)=>_remQty(o,i)===0);
+}
+
+let _prIdx=null,_prOrderId=null;
+function openPartialReturn(orderId,idx){
+  const o=(_opOrdersAllData||[]).find(x=>x.id===orderId)||(_empOrdersAllData||[]).find(x=>x.id===orderId);
+  if(!o){toast('❌ الطلب غير موجود — حدِّث الصفحة');return;}
+  const p=(o.products||[])[idx];
+  if(!p){toast('❌ المنتج غير موجود');return;}
+  const rem=_remQty(o,idx), done=_retQty(o,idx), ord=Number(p.qty)||1;
+  if(rem<=0){toast('⚠️ هذا البند مُرجَع بالكامل');return;}
+  _prIdx=idx;_prOrderId=orderId;
+  document.getElementById('partial_return_modal')?.remove();
+  const F='width:100%;padding:11px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;box-sizing:border-box;';
+  const ov=document.createElement('div');
+  ov.id='partial_return_modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:380px;font-family:'Tajawal',sans-serif;">
+    <div style="font-weight:800;font-size:1.05rem;color:#374151;margin-bottom:3px;text-align:center;">↩️ إرجاع بند من الطلب</div>
+    <div style="text-align:center;font-size:0.9rem;color:#111;font-weight:800;margin-bottom:2px;">${p.name||''}</div>
+    <div style="text-align:center;font-size:0.75rem;color:#9ca3af;margin-bottom:14px;">مطلوب ${ord}${done?` · مُرجَع سابقاً ${done}`:''} · الباقي ${rem}</div>
+    <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الكمية المُرجَعة</label>
+    <input id="pr_qty" type="number" min="1" max="${rem}" step="1" value="${rem}" oninput="_prPreview()" style="${F}margin-bottom:10px;">
+    <label style="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">سبب الإرجاع (اختياري)</label>
+    <input id="pr_reason" type="text" placeholder="..." style="${F}margin-bottom:12px;">
+    <div id="pr_preview" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:0.78rem;color:#166534;line-height:1.8;"></div>
+    <div style="font-size:0.72rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 10px;margin-bottom:14px;line-height:1.7;">🚚 أجرة التوصيل تبقى على الزبون — المندوب راح ووصّل فعلاً.</div>
+    <div style="display:flex;gap:9px;">
+      <button onclick="savePartialReturn()" style="flex:1;padding:12px;background:#374151;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">↩️ سجّل الإرجاع</button>
+      <button onclick="closePartialReturn()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">إلغاء</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)closePartialReturn();});
+  _prPreview();
+}
+function closePartialReturn(){_prIdx=null;_prOrderId=null;document.getElementById('partial_return_modal')?.remove();}
+
+// يرى المالك المبلغ الجديد قبل أن يلتزم به
+function _prPreview(){
+  const box=document.getElementById('pr_preview');
+  if(!box||_prIdx==null)return;
+  const o=(_opOrdersAllData||[]).find(x=>x.id===_prOrderId)||(_empOrdersAllData||[]).find(x=>x.id===_prOrderId);
+  if(!o)return;
+  const p=(o.products||[])[_prIdx]||{};
+  const rem=_remQty(o,_prIdx);
+  let q=parseInt(document.getElementById('pr_qty')?.value||'0')||0;
+  q=Math.max(0,Math.min(rem,q));
+  const unit=Number(p.price)||0, dlv=Number(o.deliveryFee)||0;
+  const before=_prodsTotalRem(o), after=before-unit*q;
+  box.innerHTML=`الزبون كان عليه <b>${(before+dlv).toFixed(2)}</b> ← يصير <b style="font-size:0.95rem;">${(after+dlv).toFixed(2)}</b> د.أ
+    <div style="color:#15803d;font-size:0.72rem;">(منتجات ${after.toFixed(2)}${dlv?` + توصيل ${dlv.toFixed(2)}`:''})</div>`;
+}
+
+async function savePartialReturn(){
+  if(_prIdx==null||!_prOrderId){toast('⚠️ لا يوجد بند محدد');return;}
+  const orderId=_prOrderId, idx=_prIdx;
+  const qty=parseInt(document.getElementById('pr_qty')?.value||'0')||0;
+  const reason=(document.getElementById('pr_reason')?.value||'').trim();
+  try{
+    const ref=db.collection('employee_orders').doc(orderId);
+    const snap=await ref.get();
+    if(!snap.exists){toast('❌ الطلب غير موجود');return;}
+    const d={id:orderId,...snap.data()};
+    const p=(d.products||[])[idx];
+    if(!p){toast('❌ المنتج غير موجود');return;}
+    const rem=_remQty(d,idx);
+    if(qty<1||qty>rem){toast(`⚠️ الكمية لازم بين 1 و ${rem}`);return;}
+
+    const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
+    const entry={idx,id:p.id||'',name:p.name||'',qty,unitPrice:Number(p.price)||0,
+      date:jordanDateStr(),reason,by};
+    const nextOrder={...d,returns:[...(d.returns||[]),entry]};
+    const dlv=Number(d.deliveryFee)||0;
+    const prodsTotal=_prodsTotalRem(nextOrder);
+    // نفس اصطلاح إنشاء الطلب: الحقلان يشملان التوصيل
+    const newTotal=prodsTotal+dlv;
+    const remAfter=_remQty(nextOrder,idx);
+    const allBack=_allReturned(nextOrder);
+
+    const upd={
+      returns:nextOrder.returns,
+      totalPrice:newTotal,netPrice:newTotal,
+      editHistory:[...(d.editHistory||[]),
+        {by,at:jordanDisplayDate(),note:`↩️ إرجاع ${qty} × ${p.name||''}`}],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if(allBack){upd.status='returned';upd.returnReason=reason||'إرجاع كل البنود';}
+    await ref.update(upd);
+
+    // المجاميع الجديدة لازمة للمحاسبة (يُشتقّ منها ما قبضه مشغل الشجر)،
+    // فنحدّث النسخة المُمرَّرة لا نمرّر أرقام ما قبل الإرجاع.
+    nextOrder.totalPrice=newTotal; nextOrder.netPrice=newTotal;
+    await _applyReturnToAccounting(nextOrder,idx,qty,remAfter,reason);
+
+    closePartialReturn();
+    toast(allBack?'↩️ رجعت كل البنود — صار الطلب مرتجعاً'
+                 :`↩️ تم إرجاع ${qty} × ${p.name||''} — المطلوب صار ${newTotal.toFixed(2)}`);
+    const _patch=arr=>{if(!arr)return;const i=arr.findIndex(x=>x.id===orderId);if(i>=0)arr[i]={...arr[i],...upd,updatedAt:undefined};};
+    _patch(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
+    _patch(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+    if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
+    const sheet=document.getElementById('opOrderDetailSheet');
+    if(sheet&&sheet.style.display!=='none') openOpOrderDetail(orderId);
+    _refreshKashfIfOpen();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// أثر الإرجاع على حساب المتجر — بنفس قاعدة الإرجاع الكامل الموجودة:
+// مبيعة في الكشف المفتوح ⇒ نُعدّل صفّها. مبيعة في كشف مغلق ⇒ لا نمسّ كشفاً
+// قديماً، بل نُسجّل قيد مرتجع لهذا البند وحده في الكشف الحالي.
+async function _applyReturnToAccounting(order,idx,qty,remAfter,reason){
+  try{
+    const orderId=order.id;
+    const ref=db.collection('operator_sales').doc(`${orderId}_${idx}`);
+    const snap=await ref.get();
+    if(!snap.exists) return;
+    const sale=snap.data()||{};
+    const sameSession=sale.sessionId&&_opCurrentSession?.id&&sale.sessionId===_opCurrentSession.id;
+    if(sameSession){
+      if(remAfter>0) await ref.update({qty:remAfter});
+      else await ref.delete();
+      toast(remAfter>0?'↩️ عُدِّلت كمية المبيعة في الكشف':'↩️ أُزيلت المبيعة من حساب المتجر');
+      // لا نُصلح مبالغ مشغل الشجر إلا هنا: في الفرع الآخر الصفوف تخصّ كشفاً
+      // مغلقاً، وتعديلها يُعيد كتابة كشف انتهى.
+      await _fixTreeCollected(orderId,order);
+    }else{
+      const p=(order.products||[])[idx]||{};
+      await addPageRefundEntry(orderId,order,reason||'إرجاع جزئي',[{...p,qty}]);
+      toast('↩️ سُجّل قيد مرتجع للبند في الكشف الحالي');
+    }
+  }catch(e){console.error('_applyReturnToAccounting error:',e);}
+}
+
+// ما قبضه مشغل الشجر بالنيابة عنك مكتوب على الصفّ الأول وحده. لو كان الصفّ
+// الأول هو المُرجَع لضاع المبلغ كلّه من كرت «مرابح الشجر»، ولو نقص الطلب
+// لبقي المبلغ القديم. نُعيد حسابه ونضعه على أول صفّ باقٍ.
+async function _fixTreeCollected(orderId,order){
+  try{
+    if(!_isTreeFulfilled(order)) return;
+    const snap=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
+    if(snap.empty) return;
+    const rows=snap.docs.slice().sort((a,b)=>a.id.localeCompare(b.id));
+    const dlv=Number(order.deliveryFee)||0;
+    const net=(order.netPrice!=null?order.netPrice:(order.totalPrice||0));
+    const collected=Math.max(0,net-dlv);
+    const batch=db.batch();
+    rows.forEach((d,i)=>batch.update(d.ref,{treeCollected:i===0?collected:0}));
+    await batch.commit();
+  }catch(e){console.error('_fixTreeCollected error:',e);}
+}
+
+window.openPartialReturn=openPartialReturn; window.closePartialReturn=closePartialReturn;
+window.savePartialReturn=savePartialReturn; window._prPreview=_prPreview;
+
+async function addPageRefundEntry(orderId, orderData, reason, itemsOverride){
   try{
     if(!_opProductsList.length) await loadOpProducts();
     if(!_opStoresList.length) await loadOpStores();
-    const products=orderData.products||[];
+    // itemsOverride: بنود بعينها بكميّاتها (الإرجاع الجزئي) بدل الطلب كلّه
+    const products=itemsOverride&&itemsOverride.length?itemsOverride:(orderData.products||[]);
     if(!products.length) return;
     // find linked store
     const store=_opStoresList.find(s=>s.pageId===orderData.pageId)||null;
