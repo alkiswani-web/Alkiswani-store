@@ -1609,6 +1609,7 @@ async function ewRecordPayment(){
 // شاشة الرواتب كانت تحدّث نفسها فقط، فيبقى الرقمان على حالهما حتى إعادة
 // تحميل الصفحة — فيبدو وكأنّ الدفعة لم تُخصم أصلاً.
 async function _ewRefreshAccounting(){
+  try{ _payHubWagesCache=null; }catch(e){}
   try{ if(typeof loadRosemaryWallet==='function') await loadRosemaryWallet(); }catch(e){}
   try{ if(typeof _loadOpSessionData==='function'&&_opCurrentSession) await _loadOpSessionData(); }catch(e){}
 }
@@ -10456,6 +10457,7 @@ function renderOperatorDailyView(){
   }
 
   // ===== نشر البافرات في اللوحات الثلاث + رسم ساعة التحصيل =====
+  _payHubRefresh();
   if(elColl) elColl.innerHTML=_warnCC+(collHtml||(closedBanner+_emptyCC));
   if(elStores) elStores.innerHTML=storesHtml||_emptyCC;
   if(elProfit) elProfit.innerHTML=(html&&html!==closedBanner)?html:(closedBanner+_emptyCC);
@@ -10490,7 +10492,231 @@ function ccSeg(btn,panel){
   if(panel==='capital'){ if(typeof renderBalanceSummary==='function') try{renderBalanceSummary();}catch(e){} }
   if(panel==='wallet'){ if(typeof renderRosemaryWallet==='function') try{renderRosemaryWallet();}catch(e){} }
   if(panel==='wages'){ if(typeof loadEmpWages==='function') try{loadEmpWages();}catch(e){} }
+  if(panel==='pay'){ if(typeof renderPaymentsHub==='function') try{renderPaymentsHub();}catch(e){} }
 }
+
+// ═══ مركز الدفعات ═══
+// كانت كل دفعة في تبويبها: المورد في «رأس المال»، والإجار والسداد في
+// «المحفظة»، والراتب في «الرواتب»، ودفعة المتجر في «المتاجر». فتسجيل مدفوعات
+// يوم واحد يعني لفّة على أربع شاشات. هنا شاشة واحدة تجمع ما عليك وما إلك،
+// وكل زرّ فيها يفتح **نفس نافذة الدفع الأصلية** — فلا منطق محاسبة جديد
+// إطلاقاً، والأرقام تبقى محسوبة من مصادرها كما هي.
+const _payEsc=s=>String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+let _payHubWagesCache=null;
+
+function _payRow(r){
+  const col=r.kind==='in'?'#6ee7a8':'#f2a6a0';
+  const btn=r.kind==='in'?'💰 اقبض':'💳 ادفع';
+  const bg=r.kind==='in'?'linear-gradient(145deg,#6ee7a8,#2f9e68)':'linear-gradient(145deg,#f3e0a6,#b8912f)';
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.07);">
+    <span style="display:flex;align-items:center;gap:9px;min-width:0;font-size:0.83rem;font-weight:700;color:#d7ebe0;">
+      <span style="width:29px;height:29px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(231,198,107,.14);display:grid;place-items:center;font-size:0.85rem;flex-shrink:0;">${r.icon}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}${r.sub?`<span style="display:block;font-size:0.67rem;color:#9fc7b4;font-weight:600;">${r.sub}</span>`:''}</span>
+    </span>
+    <span style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
+      <span style="font-weight:900;font-size:0.92rem;color:${col};font-variant-numeric:tabular-nums;">${(r.amount||0).toFixed(2)}</span>
+      <button onclick="${r.act}" style="padding:7px 11px;background:${bg};color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.73rem;font-weight:800;cursor:pointer;white-space:nowrap;">${btn}</button>
+    </span>
+  </div>`;
+}
+
+function _payGroup(title,total,rows,tone){
+  const c=tone==='in'?'#6ee7a8':'#f2a6a0';
+  return `<div style="margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 2px 9px;">
+      <span style="font-size:0.9rem;font-weight:800;color:#eafff4;">${title}</span>
+      <span style="font-size:0.95rem;font-weight:900;color:${c};font-variant-numeric:tabular-nums;">${total.toFixed(2)} <span style="font-size:0.66rem;color:#9fc7b4;">د.أ</span></span>
+    </div>
+    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:16px;overflow:hidden;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
+      ${rows||'<div style="padding:14px;text-align:center;color:#9fc7b4;font-size:0.78rem;">ما في شي — مسوّي ✅</div>'}
+    </div>
+  </div>`;
+}
+
+// ما عليك وما إلك — كلّه مشتقّ من متغيّرات محمّلة أصلاً، بلا استعلام واحد
+function _payHubRows(){
+  const out=[],inn=[];
+  try{
+    // مورد الشجر: تكلفة الشجر المباع − ما دفعته له
+    const treePaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__tree__').reduce((s,p)=>s+(p.amount||0),0);
+    const treeBal=(_opBalTreeSold||0)-treePaid;
+    if(treeBal>0.009) out.push({icon:'🌳',name:'مورد الشجر',amount:treeBal,act:`paySupplier('__tree__','الشجر')`});
+    // بقية الموردين
+    (_opSuppliers||[]).forEach(sup=>{
+      const buys=(_opBalPurchases||[]).filter(p=>p.supplierId===sup.id).reduce((s,p)=>s+(p.amount||0),0);
+      const paid=(_opSupplierPayments||[]).filter(p=>p.supplierId===sup.id).reduce((s,p)=>s+(p.amount||0),0);
+      if(buys-paid>0.009) out.push({icon:'🏭',name:sup.name||'مورد',amount:buys-paid,act:`paySupplier('${_payEsc(sup.id)}','${_payEsc(sup.name)}')`});
+    });
+    // إجار المحل
+    if(typeof _rentTotals==='function'){
+      const rt=_rentTotals();
+      if(rt.due>0.009) out.push({icon:'🏠',name:'إجار المحل',sub:`${rt.months} شهر مسجّل`,amount:rt.due,act:`_payGoRent()`});
+    }
+    // السداد — كل شخص على حدة
+    (_debtPeople||[]).forEach(d=>{
+      const rem=(Number(d.amount)||0)-_debtPaidFor(d.id);
+      if(rem>0.009) out.push({icon:'🤝',name:d.name||'—',sub:'سداد',amount:rem,act:`_payGoDebt('${_payEsc(d.id)}')`});
+    });
+    // المتاجر — ضايل عليهم
+    const stores=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:_opStoresList)||[];
+    stores.forEach(st=>{
+      const bal=(_opAcctOwed[st.id]||0)-(_opAcctPaid[st.id]||0)-(_opAcctRefund[st.id]||0);
+      if(bal>0.009) inn.push({icon:'🏪',name:st.name||'متجر',amount:bal,
+        act:`showAddWithdrawalModalForStore('${_payEsc(st.id)}','${_payEsc(st.name)}','payment')`});
+    });
+    // مشغل الشجر — بدّك منه
+    const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
+    const tpBal=(_opBalTreeProfit||0)-tpPaid;
+    if(tpBal>0.009) inn.push({icon:'🌲',name:'مشغل الشجر',sub:'ربحك من طلباته',amount:tpBal,
+      act:`paySupplier('__treeprofit__','مرابح الشجر')`});
+  }catch(e){}
+  return {out,inn};
+}
+
+// المستحق للموظفين — الوحيد غير المحسوب مسبقاً. نحسبه بعدّ الطلبات فقط
+// (count) لا بجلبها: وثائق الطلبات تحمل صوراً بالميغابايتات، وجلبها كلّها
+// لمعرفة عددها كان سيُعيد بطء اللوحة الذي عالجناه.
+async function _payHubWages(){
+  if(_payHubWagesCache) return _payHubWagesCache;
+  const rows=[];
+  try{
+    const [ratesSnap,paysSnap,workersSnap]=await Promise.all([
+      db.collection('emp_wage_rates').get(),
+      db.collection('emp_wage_payments').get(),
+      db.collection('employee_workers').get()
+    ]);
+    const wname={};workersSnap.docs.forEach(d=>{const w=d.data();wname[d.id]=w.name||w.username||d.id;});
+    const paid={};
+    paysSnap.docs.forEach(d=>{const p=d.data();const k=(p.workerId||'')+'|'+(p.storeId||'');paid[k]=(paid[k]||0)+(parseFloat(p.amount)||0);});
+    const stores=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:_opStoresList)||[];
+    const jobs=[];
+    ratesSnap.docs.forEach(d=>{
+      const r=d.data()||{},wid=d.id;
+      Object.entries(r.rates||{}).forEach(([sid,rate])=>{
+        const rt=parseFloat(rate)||0;if(rt<=0)return;
+        const st=stores.find(s=>s.id===sid);if(!st)return;
+        jobs.push({wid,sid,name:wname[wid]||r.workerName||wid,store:st.name||'',rate:rt,pageId:st.pageId||''});
+      });
+      const hr=parseFloat(r.hourlyRate||0)||0;
+      if(hr>0) jobs.push({wid,sid:'__mashghal__',name:wname[wid]||r.workerName||wid,store:'المشغل',hourly:hr});
+    });
+    await Promise.all(jobs.map(async j=>{
+      let earned=0;
+      if(j.hourly){
+        try{
+          const a=await db.collection('attendance').where('employeeId','==',j.wid).get();
+          const secs=a.docs.reduce((s,d)=>s+_ewSecs(d.data()),0);
+          earned=Math.round(_secsToDecimalHrs(secs)*j.hourly*100)/100;
+        }catch(e){}
+      }else{
+        const q=db.collection('employee_orders').where('workerId','==',j.wid).where('pageId','==',j.pageId);
+        let n=null;
+        try{ if(typeof q.count==='function'){const s=await q.count().get();n=s&&s.data?s.data().count:null;} }catch(e){}
+        if(n==null){ try{ n=(await q.get()).size; }catch(e){ n=0; } }
+        earned=(n||0)*j.rate;
+      }
+      const bal=Math.round((earned-(paid[j.wid+'|'+j.sid]||0))*100)/100;
+      if(bal>0.009) rows.push({icon:'👷',name:j.name,sub:j.store,amount:bal,
+        act:`_payGoWage('${_payEsc(j.sid)}','${_payEsc(j.wid)}','${_payEsc(j.name)}')`});
+    }));
+  }catch(e){}
+  rows.sort((a,b)=>b.amount-a.amount);
+  _payHubWagesCache=rows;
+  return rows;
+}
+
+// سجلّ دفعات الكشف — كل مصادره محمّلة أصلاً في الذاكرة، بلا جلبة إضافية
+function _payHubLedger(){
+  const L=[];
+  const push=(date,icon,label,amount,dir)=>{if(amount)L.push({date:date||'',icon,label,amount,dir});};
+  (_opSessionSupPays||[]).forEach(p=>{
+    const isIn=p.supplierId==='__treeprofit__';
+    push(p.date,isIn?'🌲':'🏭',(isIn?'قبضة من مشغل الشجر':'دفعة مورد')+(p.supplierName?' · '+p.supplierName:'')+(p.noCash?' (بدون كاش)':''),p.amount,isIn?'in':'out');
+  });
+  (_opSessionRentPays||[]).forEach(p=>push(p.date,'🏠','دفعة إجار',p.amount,'out'));
+  (_opSessionDebtPays||[]).forEach(p=>push(p.date,'🤝','سداد'+(p.personName?' · '+p.personName:''),p.amount,'out'));
+  (_opSessionWagePays||[]).forEach(p=>push(p.date,'👷','راتب'+(p.workerName?' · '+p.workerName:''),p.amount,'out'));
+  (_opWithdrawals||[]).forEach(w=>{
+    const isPay=w.withdrawalType==='payment';
+    push(w.date,isPay?'💳':'💸',(isPay?'دفعة متجر':'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),w.amount,isPay?'in':'out');
+  });
+  (_opDayExpenses||[]).forEach(e=>push(e.date,'🧾','مصروف'+(e.category&&e.category!=='أخرى'?' · '+e.category:''),e.amount,'out'));
+  (_opRawBuys||[]).forEach(r=>push(r.date,'🧱','شراء مواد خام',r.amount,'out'));
+  L.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return L;
+}
+
+async function renderPaymentsHub(){
+  const el=document.getElementById('cc-pay');
+  if(!el) return;
+  const draw=(wageRows,loading)=>{
+    const {out,inn}=_payHubRows();
+    const allOut=[...out,...(wageRows||[])].sort((a,b)=>b.amount-a.amount);
+    const totOut=allOut.reduce((s,r)=>s+r.amount,0);
+    const totIn=inn.reduce((s,r)=>s+r.amount,0);
+    const led=_payHubLedger();
+    el.innerHTML=`
+      ${_ccHead('💸','مركز الدفعات','— كل شي من هون')}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;">
+        ${_ccStat('🔴 عليك تدفع',totOut,'red')}
+        ${_ccStat('🟢 إلك تقبض',totIn,'green')}
+      </div>
+      ${_payGroup('🔴 عليك تدفع'+(loading?' <span style="font-size:0.7rem;color:#9fc7b4;font-weight:600;">(الرواتب تُحسب…)</span>':''),totOut,allOut.map(r=>_payRow({...r,kind:'out'})).join(''),'out')}
+      ${_payGroup('🟢 إلك تقبض',totIn,inn.map(r=>_payRow({...r,kind:'in'})).join(''),'in')}
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.9rem;font-weight:800;color:#eafff4;margin:4px 2px 9px;">⚡ تسجيل سريع</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button onclick="addOpExpense()" style="flex:1;min-width:110px;padding:12px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">🧾 مصروف</button>
+          <button onclick="addRawBuy()" style="flex:1;min-width:110px;padding:12px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">🧱 مواد خام</button>
+          <button onclick="adjustCashToActual()" style="flex:1;min-width:110px;padding:12px;background:rgba(255,255,255,.06);color:#9fc7b4;border:1px solid rgba(159,199,180,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.83rem;font-weight:800;cursor:pointer;">⚖️ ضبط الكاش</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:0.9rem;font-weight:800;color:#eafff4;margin:4px 2px 9px;">📜 سجلّ دفعات الكشف <span style="font-size:0.72rem;color:#9fc7b4;font-weight:600;">(${led.length})</span></div>
+        <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:16px;overflow:hidden;">
+          ${led.length?led.map(x=>_ccFlow(x.icon,`${x.label} <span style="color:#9fc7b4;font-size:0.7rem;">${x.date}</span>`,x.amount,x.dir)).join('')
+            :'<div style="padding:16px;text-align:center;color:#9fc7b4;font-size:0.78rem;">ما في دفعات في هذا الكشف بعد</div>'}
+        </div>
+        <div style="font-size:0.68rem;color:#9fc7b4;margin:8px 4px;line-height:1.7;">الحذف يبقى في قسم كل بند — هون عرض فقط حتى لا يُحذف قيد بالخطأ.</div>
+      </div>`;
+  };
+  draw(_payHubWagesCache,!_payHubWagesCache);
+  if(!_payHubWagesCache){
+    try{ const w=await _payHubWages(); draw(w,false); }catch(e){ draw([],false); }
+  }
+}
+
+// كل زرّ يفتح نافذة الدفع الأصلية. بعض النوافذ نماذجُ داخل لوحة «المحفظة»
+// أو «الرواتب»، فلا تظهر إن كانت لوحتها مخفيّة — ننتقل إليها أولاً.
+function _payChip(p){return document.querySelector('.cc-chip[onclick*="\'' + p + '\'"]');}
+function _payGoRent(){
+  const c=_payChip('wallet'); if(c) ccSeg(c,'wallet');
+  setTimeout(()=>{const el=document.getElementById('rent_pay_amount');
+    if(el){try{el.closest('div').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}el.focus();}},250);
+}
+function _payGoDebt(personId){
+  const c=_payChip('wallet'); if(c) ccSeg(c,'wallet');
+  setTimeout(()=>{try{openDebtPay(personId);}catch(e){}},250);
+}
+async function _payGoWage(storeId,workerId,workerName){
+  const c=_payChip('wages'); if(c) ccSeg(c,'wages');
+  try{
+    if(typeof loadEmpWages==='function') await loadEmpWages();
+    if(storeId==='__mashghal__') await ewOpenMashghal(); else await ewOpenStore(storeId);
+    await ewOpenEmployee(workerId,workerName);
+    const el=document.getElementById('ewPayAmt'); if(el){try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}el.focus();}
+  }catch(e){}
+}
+// أي دفعة تُسجَّل من الشريحة تُحدِّث لوحتها الأصلية؛ نُعيد رسم الشريحة معها
+// كي لا يبقى المبلغ الذي دفعتَه للتوّ معروضاً كأنّه ما زال عليك.
+function _payHubRefresh(){
+  try{
+    if(!document.querySelector('.cc-panel[data-p="pay"].on')) return;
+    renderPaymentsHub();
+  }catch(e){}
+}
+window.renderPaymentsHub=renderPaymentsHub; window._payGoRent=_payGoRent;
+window._payGoDebt=_payGoDebt; window._payGoWage=_payGoWage;
 
 // ترويسة قسم فاخرة موحّدة (زجاج زمردي — نص فاتح)
 function _ccHead(icon,label,extra){
@@ -17206,6 +17432,7 @@ function renderRosemaryWallet(){
   renderRentCard();
   renderDebtCard();
   renderRwTxList();
+  _payHubRefresh();
 }
 
 function renderRwTxList(){

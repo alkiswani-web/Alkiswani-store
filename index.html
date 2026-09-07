@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v253"></script>
+<script defer src="app.js?v254"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2918,6 +2918,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <!-- SEGMENTED NAV -->
         <div class="cc-seg" role="tablist">
           <button class="cc-chip on" onclick="ccSeg(this,'coll')">💰 التحصيل</button>
+          <button class="cc-chip" onclick="ccSeg(this,'pay')">💸 الدفعات</button>
           <button class="cc-chip" onclick="ccSeg(this,'stores')">🏪 المتاجر</button>
           <button class="cc-chip" onclick="ccSeg(this,'profit')">📊 الأرباح</button>
           <button class="cc-chip" onclick="ccSeg(this,'wages')">👷 الرواتب</button>
@@ -2927,6 +2928,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
         <!-- PANEL: التحصيل -->
         <div class="cc-panel on" data-p="coll"><div class="cc-sheet"><div id="cc-coll"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
+        <!-- PANEL: الدفعات — مركز واحد لكل ما عليك وما إلك -->
+        <div class="cc-panel" data-p="pay"><div class="cc-sheet"><div id="cc-pay"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
         <!-- PANEL: المتاجر -->
         <div class="cc-panel" data-p="stores"><div class="cc-sheet"><div id="cc-stores"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
         <!-- PANEL: الأرباح -->
