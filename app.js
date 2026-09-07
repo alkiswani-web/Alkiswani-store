@@ -9476,6 +9476,9 @@ let _opSessionWagePays=[]; // رواتب المشغل المدفوعة ضمن ا
 let _opCashAdjust=[];    // تسويات الكاش اليدوية — تُضاف لصافي التحصيل
 let _opSessionRentPays=[]; // دفعات إجار المحل ضمن الكشف — تُخصم من الكاش
 let _opSessionDebtPays=[]; // دفعات السداد (ديون علينا) ضمن الكشف — كاش خرج من نفس الصندوق
+// صافي كل متجر كما يحسبه كرت المتجر بالضبط: قابل للسحب − مسحوب − مستحق.
+// مركز الدفعات يقرأ من هنا لا يُعيد الحساب، فلا يمكن أن يختلف الرقمان.
+let _opStoreNets={};
 function _fmtDate(d){if(!d)return '';const[y,m,day]=d.split('-');return `${day}/${m}/${y}`;}
 const _opToday=()=>jordanDateStr();
 
@@ -9863,6 +9866,7 @@ function jumpOpDate(val){
 }
 
 function renderOperatorDailyView(){
+  _opStoreNets={};
   // الكشف = عرض المبيعات فقط (منتجات + كمية + سعر البيع + الإجمالي)
   // كل الحسابات (تكاليف/أرباح/تحصيل/متاجر/رواتب) تُعرض في تبويب رصيد روزميري داخل #opbal_accounting
   const kashfBody=document.getElementById('opacct_op_body');
@@ -10067,6 +10071,8 @@ function renderOperatorDailyView(){
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
       const stSafi=store.eligibleTotal-stMatloub-storeWdTotal;
+      if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
+        eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0};
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
       const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
@@ -10557,12 +10563,16 @@ function _payHubRows(){
       const rem=(Number(d.amount)||0)-_debtPaidFor(d.id);
       if(rem>0.009) out.push({icon:'🤝',name:d.name||'—',sub:'سداد',amount:rem,act:`_payGoDebt('${_payEsc(d.id)}')`});
     });
-    // المتاجر — ضايل عليهم
-    const stores=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:_opStoresList)||[];
-    stores.forEach(st=>{
-      const bal=(_opAcctOwed[st.id]||0)-(_opAcctPaid[st.id]||0)-(_opAcctRefund[st.id]||0);
-      if(bal>0.009) inn.push({icon:'🏪',name:st.name||'متجر',amount:bal,
-        act:`showAddWithdrawalModalForStore('${_payEsc(st.id)}','${_payEsc(st.name)}','payment')`});
+    // المتاجر — الصافي نفسه المعروض في «🏪 المتاجر»، لا «ضايل عليه».
+    // «ضايل عليه» هو المستحق التراكمي وحده، ويتجاهل الكاش الذي بيدك للمتجر
+    // وما سحبه منك — فكان يعرض رقماً لا يطابق كرت المتجر ولا يعني شيئاً عملياً.
+    // إشارة الصافي تحدّد الجهة: موجب ⇒ كاشُه عندك فهو له، سالب ⇒ هو مدين لك.
+    Object.entries(_opStoreNets||{}).forEach(([sid,n])=>{
+      const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`;
+      if(n.safi>0.009) out.push({icon:'🏪',name:n.name||'متجر',sub,amount:n.safi,
+        act:`showAddWithdrawalModalForStore('${_payEsc(sid)}','${_payEsc(n.name)}','withdrawal')`});
+      else if(n.safi<-0.009) inn.push({icon:'🏪',name:n.name||'متجر',sub,amount:-n.safi,
+        act:`showAddWithdrawalModalForStore('${_payEsc(sid)}','${_payEsc(n.name)}','payment')`});
     });
     // مشغل الشجر — بدّك منه
     const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
