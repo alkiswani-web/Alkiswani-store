@@ -10072,7 +10072,8 @@ function renderOperatorDailyView(){
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
       const stSafi=store.eligibleTotal-stMatloub-storeWdTotal;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
-        eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0};
+        eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
+        inGroup:!!inGroup};
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
       const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
@@ -10147,6 +10148,9 @@ function renderOperatorDailyView(){
       // المربعات الأربعة للمجموعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const grpMatloub=grpAcctBal; // المطلوب للمجموعة (تراكمي)
       const grpSafi=grpEligible-grpMatloub-grpWdTotal;
+      // المجموعة حسابٌ واحد: مركز الدفعات يعرض صافيها لا صافي كل متجر فيها
+      _opStoreNets['__grp__'+groupName]={name:groupName,isGroup:true,
+        eligible:grpEligible||0,wd:grpWdTotal||0,matloub:grpMatloub||0,safi:grpSafi||0};
       const grpSafiColor=grpSafi>=0?'#fff':'#fca5a5';
       const grpWdRows=grpWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:6px;">
@@ -10567,12 +10571,19 @@ function _payHubRows(){
     // «ضايل عليه» هو المستحق التراكمي وحده، ويتجاهل الكاش الذي بيدك للمتجر
     // وما سحبه منك — فكان يعرض رقماً لا يطابق كرت المتجر ولا يعني شيئاً عملياً.
     // إشارة الصافي تحدّد الجهة: موجب ⇒ كاشُه عندك فهو له، سالب ⇒ هو مدين لك.
+    // المتاجر المجموعة في «مجموعة» حسابها واحد لا حساب لكل فرع: نعرض صافي
+    // المجموعة ونتخطّى أفرادها، وإلا ظهر نفس المال مقسّماً على صفوف يوهم
+    // بأنّها حسابات مستقلّة — ودفعةٌ لفرع تُقاصّ دَين فرع آخر في نفس المجموعة.
     Object.entries(_opStoreNets||{}).forEach(([sid,n])=>{
+      if(n.inGroup) return;
       const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`;
-      if(n.safi>0.009) out.push({icon:'🏪',name:n.name||'متجر',sub,amount:n.safi,
-        act:`showAddWithdrawalModalForStore('${_payEsc(sid)}','${_payEsc(n.name)}','withdrawal')`});
-      else if(n.safi<-0.009) inn.push({icon:'🏪',name:n.name||'متجر',sub,amount:-n.safi,
-        act:`showAddWithdrawalModalForStore('${_payEsc(sid)}','${_payEsc(n.name)}','payment')`});
+      const icon=n.isGroup?'👥':'🏪';
+      const nm=(n.name||'متجر')+(n.isGroup?' (مجموعة)':'');
+      const g=_payEsc(n.name);
+      const act=t=>n.isGroup?`showAddWithdrawalModalForGroup('${g}','${t}')`
+                            :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','${t}')`;
+      if(n.safi>0.009) out.push({icon,name:nm,sub,amount:n.safi,act:act('withdrawal')});
+      else if(n.safi<-0.009) inn.push({icon,name:nm,sub,amount:-n.safi,act:act('payment')});
     });
     // مشغل الشجر — بدّك منه
     const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
