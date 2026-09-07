@@ -1319,11 +1319,14 @@ async function ewOpenStore(storeId){
     ]);
     const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
     _ewAllWorkers=workers;
-    const orders=ordersSnap.docs.map(d=>d.data()).filter(o=>o.status==='delivered');
+    // أجرة الموظفة تُحتسب على **إدخال** الطلب لا على تسليمه: تضيف الطلب فينزل
+    // أجره فوراً. كان الشرط status==='delivered' فتنتظر أيّاماً حتى يصل الطلب،
+    // ولا تُحتسب لها طلبات ألغاها الزبون رغم أنّها أدّت شغلها فيها.
+    const orders=ordersSnap.docs.map(d=>d.data());
     const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}));
     const ratesMap={};
     ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
-    // الموظفون الظاهرون: يلي عندهم طلبات مسلّمة + يلي محدد إلهم أجر يدوي لهذا المتجر (حتى لو ما عندهم طلبات بعد)
+    // الموظفون الظاهرون: يلي عندهم طلبات + يلي محدد إلهم أجر يدوي لهذا المتجر (حتى لو ما عندهم طلبات بعد)
     const withRate=Object.keys(ratesMap).filter(wid=>parseFloat(ratesMap[wid]?.[storeId]||0)>0);
     const workerIds=[...new Set([...orders.map(o=>o.workerId).filter(Boolean),...withRate])];
     const addBtn=`<button onclick="ewShowAddWorkerPicker()" style="background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:14px;padding:13px 16px;cursor:pointer;color:#1d4ed8;font-family:'Tajawal',sans-serif;font-weight:800;font-size:0.85rem;width:100%;">➕ أضف موظف لهذا المتجر</button>`;
@@ -1443,9 +1446,12 @@ async function _ewRefreshEmployee(){
     });
     attEarned=Math.round(attEarned*100)/100;
 
-    // Order entries
-    const deliveredOrders=ordersSnap.docs.filter(d=>d.data().status==='delivered');
-    const orderCount=deliveredOrders.length;
+    // Order entries — الأجرة على الإدخال لا على التسليم، فالتاريخ المعتمد هو
+    // تاريخ إنشاء الطلب. وكانت الطلبات لا تُفلتر بالشهر أصلاً بينما الدوام
+    // والدفعات تُفلتر، فيُقارَن مستحقُّ كل التاريخ بمدفوعات شهر واحد.
+    const countedOrders=ordersSnap.docs.map(d=>d.data())
+      .filter(o=>!hasMonth||((o.date||'')>=dateFrom&&(o.date||'')<=dateTo));
+    const orderCount=countedOrders.length;
     const orderEarned=orderCount*_ewRate;
 
     const totalEarned=attEarned+orderEarned;
@@ -1482,6 +1488,17 @@ async function _ewRefreshEmployee(){
       const ts=r.checkIn?new Date(r.checkIn).getTime():new Date((r.date||'1970-01-01')+'T12:00:00').getTime();
       entries.push({type:'att',date:r.date,secs,dayEarned,inT,outT,ts});
     });
+    // الطلبات — سطر لكل يوم لا لكل طلب، فلا يغرق الكشف. ولولا هذه الأسطر
+    // لظهر مستحقُّ الطلبات رقماً في الملخّص بلا ما يقابله في الكشف.
+    if(_ewRate>0){
+      const byDay={};
+      countedOrders.forEach(o=>{const d=o.date||'';byDay[d]=(byDay[d]||0)+1;});
+      Object.keys(byDay).forEach(d=>{
+        entries.push({type:'ord',date:d,count:byDay[d],
+          earned:Math.round(byDay[d]*_ewRate*100)/100,
+          ts:new Date((d||'1970-01-01')+'T12:00:00').getTime()});
+      });
+    }
     // payments
     paymentsArr.forEach(p=>{
       const ts=(p.createdAt&&typeof p.createdAt.toMillis==='function')?p.createdAt.toMillis():(p.createdAt&&p.createdAt.seconds?p.createdAt.seconds*1000:new Date((p.date||'1970-01-01')+'T12:00:00').getTime());
@@ -1513,6 +1530,15 @@ async function _ewRefreshEmployee(){
             <span style="color:#9ca3af;font-size:0.7rem;margin-right:6px;">${e.inT}${hasOut?' ← '+e.outT:' (جاري)'}</span>
           </div>
           <span style="font-size:0.82rem;font-weight:900;color:#166534;text-align:left;">${e.dayEarned>0?'+'+e.dayEarned.toFixed(2):'—'}</span>
+        </div>`;
+      } else if(e.type==='ord'){
+        html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;${border}">
+          <span style="font-size:0.78rem;color:#374151;font-weight:700;">${(e.date||'—').slice(5)||'—'}</span>
+          <div style="font-size:0.78rem;color:#374151;">
+            <span style="color:#1d4ed8;">📦 ${e.count} طلب</span>
+            <span style="color:#9ca3af;font-size:0.7rem;margin-right:6px;">× ${_ewRate.toFixed(2)}</span>
+          </div>
+          <span style="font-size:0.82rem;font-weight:900;color:#1d4ed8;text-align:left;">+${e.earned.toFixed(2)}</span>
         </div>`;
       } else {
         html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;background:#fafffe;${border}">
