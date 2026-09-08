@@ -10516,17 +10516,22 @@ let _payHubWagesCache=null;
 
 function _payRow(r){
   const col=r.kind==='in'?'#6ee7a8':'#f2a6a0';
-  const btn=r.kind==='in'?'💰 اقبض':'💳 ادفع';
-  const bg=r.kind==='in'?'linear-gradient(145deg,#6ee7a8,#2f9e68)':'linear-gradient(145deg,#f3e0a6,#b8912f)';
-  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.07);">
-    <span style="display:flex;align-items:center;gap:9px;min-width:0;font-size:0.83rem;font-weight:700;color:#d7ebe0;">
-      <span style="width:29px;height:29px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(231,198,107,.14);display:grid;place-items:center;font-size:0.85rem;flex-shrink:0;">${r.icon}</span>
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}${r.sub?`<span style="display:block;font-size:0.67rem;color:#9fc7b4;font-weight:600;">${r.sub}</span>`:''}</span>
-    </span>
-    <span style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
-      <span style="font-weight:900;font-size:0.92rem;color:${col};font-variant-numeric:tabular-nums;">${(r.amount||0).toFixed(2)}</span>
-      <button onclick="${r.act}" style="padding:7px 11px;background:${bg};color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.73rem;font-weight:800;cursor:pointer;white-space:nowrap;">${btn}</button>
-    </span>
+  // صفوف المتاجر تحمل زرَّين (قبض ومسحوب) لأنّ الاتجاه يتبدّل من يوم ليوم،
+  // فبزرٍّ واحد كان لازماً الخروج إلى قسم المتاجر لتسجيل النوع الآخر.
+  const acts=r.acts||[{label:r.kind==='in'?'💰 اقبض':'💳 ادفع',act:r.act,tone:r.kind}];
+  const btn=a=>`<button onclick="${a.act}" style="padding:7px 10px;background:${a.tone==='in'?'linear-gradient(145deg,#6ee7a8,#2f9e68)':'linear-gradient(145deg,#f3e0a6,#b8912f)'};color:#20180f;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:800;cursor:pointer;white-space:nowrap;">${a.label}</button>`;
+  return `<div style="padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.07);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span style="display:flex;align-items:center;gap:9px;min-width:0;font-size:0.83rem;font-weight:700;color:#d7ebe0;">
+        <span style="width:29px;height:29px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(231,198,107,.14);display:grid;place-items:center;font-size:0.85rem;flex-shrink:0;">${r.icon}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:7px;flex-shrink:0;">
+        <span style="font-weight:900;font-size:0.92rem;color:${col};font-variant-numeric:tabular-nums;">${(r.amount||0).toFixed(2)}</span>
+        ${acts.map(btn).join('')}
+      </span>
+    </div>
+    ${r.sub?`<div style="font-size:0.67rem;color:#9fc7b4;font-weight:600;margin-top:5px;">${r.sub}</div>`:''}
   </div>`;
 }
 
@@ -10582,8 +10587,11 @@ function _payHubRows(){
       const g=_payEsc(n.name);
       const act=t=>n.isGroup?`showAddWithdrawalModalForGroup('${g}','${t}')`
                             :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','${t}')`;
-      if(n.safi>0.009) out.push({icon,name:nm,sub,amount:n.safi,act:act('withdrawal')});
-      else if(n.safi<-0.009) inn.push({icon,name:nm,sub,amount:-n.safi,act:act('payment')});
+      // الزرَّان معاً على كل صفّ متجر: يقبض منه اليوم ويسحب منه غداً
+      const acts=[{label:'💰 اقبض',act:act('payment'),tone:'in'},
+                  {label:'💸 مسحوب',act:act('withdrawal'),tone:'out'}];
+      if(n.safi>0.009) out.push({icon,name:nm,sub,amount:n.safi,acts});
+      else if(n.safi<-0.009) inn.push({icon,name:nm,sub,amount:-n.safi,acts});
     });
     // مشغل الشجر — بدّك منه
     const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
