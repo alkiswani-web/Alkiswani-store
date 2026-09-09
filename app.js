@@ -15190,8 +15190,9 @@ function repStartLocation(){
       p=>_repSendRepLocation(p.coords.latitude,p.coords.longitude),
       ()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:20000}
     );
+    _locStartBeat(_repSendRepLocation);
     if(btn){btn.textContent='⏹ موقع';btn.disabled=false;btn.style.background='rgba(239,68,68,0.7)';}
-    toast('📍 بدأ مشاركة الموقع مع الأدمن');
+    toast('📍 بدأ مشاركة الموقع — خلّي الشاشة فاتحة');
   },()=>{
     if(btn){btn.textContent='📍 موقع';btn.disabled=false;}
     toast('تعذر تحديد الموقع — تأكد من تفعيل GPS');
@@ -15200,6 +15201,7 @@ function repStartLocation(){
 
 function repStopLocation(){
   if(_repGeoWatchId!==null){navigator.geolocation.clearWatch(_repGeoWatchId);_repGeoWatchId=null;}
+  _locStopBeat();
   _repLocActive=false;
   if(_repCurrentUser){
     db.collection('rep_locations').doc(_repCurrentUser.phone||_repCurrentUser.name)
@@ -15211,6 +15213,7 @@ function repStopLocation(){
 
 function _repSendRepLocation(lat,lng){
   if(!_repCurrentUser)return;
+  _locLast={lat,lng};
   const key=_repCurrentUser.phone||_repCurrentUser.name;
   db.collection('rep_locations').doc(key).set({
     repId:key,repName:_repCurrentUser.name,
@@ -15235,6 +15238,31 @@ window.repOpenQRScanner=repOpenQRScanner; window.repOpenOrderById=repOpenOrderBy
 window.repSetStatus=repSetStatus; window.closeRepOrderModal=closeRepOrderModal;
 window.repToggleLocation=repToggleLocation; window.repShareLocation=repShareLocation;
 window.loadRepOrders=loadRepOrders;
+
+// ===== مشاركة الموقع: نبضة دورية وقفل إيقاظ =====
+// watchPosition لا يُطلق حدثاً إلا حين **يتحرّك** الجهاز. فالمندوب الواقف عند
+// زبون عشر دقائق يبدو «موقعه قديم» رغم أنّه يشارك فعلاً. النبضة تُعيد إرسال
+// آخر إحداثيات كل ٤٥ ثانية فيبقى السطر حيّاً.
+// وقفل الإيقاظ يمنع قفل الشاشة، لأنّ المتصفّح يُجمّد التبويب في الخلفية
+// فتتوقّف المشاركة تماماً — وهذا سبب الدبابيس المعلّقة منذ أسابيع.
+let _locLast=null,_locBeat=null,_locWake=null;
+async function _locRequestWake(){
+  try{ if(navigator.wakeLock&&!_locWake){_locWake=await navigator.wakeLock.request('screen');
+    _locWake.addEventListener&&_locWake.addEventListener('release',()=>{_locWake=null;});} }catch(e){}
+}
+function _locWakeOnVisible(){ if(document.visibilityState==='visible') _locRequestWake(); }
+function _locStartBeat(send){
+  clearInterval(_locBeat);
+  _locBeat=setInterval(()=>{ if(_locLast) send(_locLast.lat,_locLast.lng); },45000);
+  _locRequestWake();
+  document.addEventListener('visibilitychange',_locWakeOnVisible);
+}
+function _locStopBeat(){
+  clearInterval(_locBeat);_locBeat=null;_locLast=null;
+  document.removeEventListener('visibilitychange',_locWakeOnVisible);
+  try{ _locWake&&_locWake.release(); }catch(e){}
+  _locWake=null;
+}
 
 // ===== REP LOCATION TRACKING =====
 let _empGeoWatchId=null;
@@ -15263,8 +15291,9 @@ function _empStartLocationShare(){
       ()=>{},
       {enableHighAccuracy:true,maximumAge:0,timeout:30000}
     );
+    _locStartBeat(_empSendLocation);
     if(btn){btn.textContent='⏹ إيقاف';btn.disabled=false;btn.style.background='#dc2626';}
-    if(status)status.textContent='✅ موقعك يُشارك الآن مع الأدمن';
+    if(status)status.textContent='✅ موقعك يُشارك الآن — خلّي الشاشة فاتحة';
   },()=>{
     if(btn){btn.textContent='تفعيل';btn.disabled=false;}
     alert('تعذر تحديد موقعك. تأكد من تفعيل GPS والسماح للموقع بالوصول إليه.');
@@ -15273,6 +15302,7 @@ function _empStartLocationShare(){
 
 function _empStopLocationShare(){
   if(_empGeoWatchId!==null){navigator.geolocation.clearWatch(_empGeoWatchId);_empGeoWatchId=null;}
+  _locStopBeat();
   _empLocShareActive=false;
   if(_empCurrentUser?.id){
     db.collection('rep_locations').doc(_empCurrentUser.id)
@@ -15286,6 +15316,7 @@ function _empStopLocationShare(){
 
 function _empSendLocation(lat,lng){
   if(!_empCurrentUser?.id)return;
+  _locLast={lat,lng};
   db.collection('rep_locations').doc(_empCurrentUser.id).set({
     repId:_empCurrentUser.id,
     repName:_empCurrentUser.displayName||_empCurrentUser.username||'مندوب',
@@ -15335,6 +15366,30 @@ function closeRepMap(){
   _repMapInitialFit=false;
 }
 
+// الطزاجة بالدقائق — العلامة isActive وحدها تكذب: الجهاز الذي أُغلق فجأة
+// يبقى موسوماً «نشط» إلى الأبد، فيظهر دبّوس عمره أسابيع كأنّه مندوب يتحرّك.
+const _REP_FRESH_MIN=5;
+function _repAgeMin(r){
+  const ms=r&&r.updatedAt&&r.updatedAt.toDate?r.updatedAt.toDate().getTime():0;
+  return ms?Math.floor((Date.now()-ms)/60000):999999;
+}
+function _repAgoStr(m){
+  return m<1?'الآن':m<60?`${m} د`:m<1440?`${Math.floor(m/60)} س`:`${Math.floor(m/1440)} يوم`;
+}
+let _repStaleIds=[];
+async function clearStaleReps(){
+  if(!_repStaleIds.length)return;
+  if(!confirm(`إخفاء ${_repStaleIds.length} مندوب منقطع من الخريطة؟\nما بينحذف شي — بس بيتوقّف عرضهم لحد ما يشاركوا موقعهم من جديد.`))return;
+  try{
+    const batch=db.batch();
+    _repStaleIds.forEach(id=>batch.set(db.collection('rep_locations').doc(id),
+      {isActive:false},{merge:true}));
+    await batch.commit();
+    toast('🧹 تم إخفاء المنقطعين');
+  }catch(e){toast('❌ '+e.message);}
+}
+window.clearStaleReps=clearStaleReps;
+
 function _updateRepMapMarkers(reps){
   if(!_repMapInstance)return;
   _repMapMarkers.forEach(m=>m.remove());
@@ -15342,12 +15397,17 @@ function _updateRepMapMarkers(reps){
   const countEl=document.getElementById('repMapActiveCount');
   const legend=document.getElementById('repMapLegend');
   const active=reps.filter(r=>r.lat&&r.lng);
+  const liveCount=active.filter(r=>_repAgeMin(r)<=_REP_FRESH_MIN).length;
+  _repStaleIds=active.filter(r=>_repAgeMin(r)>_REP_FRESH_MIN).map(r=>r.id).filter(Boolean);
   if(countEl){
-    if(active.length){countEl.textContent=active.length+' نشط';countEl.style.display='inline-block';}
-    else countEl.style.display='none';
+    countEl.style.display='inline-block';
+    if(liveCount){countEl.textContent='🟢 '+liveCount+' مباشر';
+      countEl.style.background='#dcfce7';countEl.style.color='#166534';}
+    else{countEl.textContent='⚪ لا أحد مباشر';
+      countEl.style.background='#f3f4f6';countEl.style.color='#6b7280';}
   }
   if(!active.length){
-    if(legend)legend.textContent='لا يوجد مناديب نشطين حالياً';
+    if(legend)legend.textContent='لا يوجد مناديب يشاركون موقعهم';
     return;
   }
   const bounds=[];
@@ -15355,13 +15415,13 @@ function _updateRepMapMarkers(reps){
     const name=rep.repName||'مندوب';
     const initials=name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2)||'م';
     const updatedMs=rep.updatedAt?.toDate?rep.updatedAt.toDate().getTime():0;
-    const ageMin=updatedMs?Math.floor((Date.now()-updatedMs)/60000):999;
-    const isStale=ageMin>5;
+    const ageMin=_repAgeMin(rep);
+    const isStale=ageMin>_REP_FRESH_MIN;
     const color=isStale?'#9ca3af':_repMapColors[i%_repMapColors.length];
     const timeStr=updatedMs
       ?rep.updatedAt.toDate().toLocaleTimeString('ar-JO',{timeStyle:'short'}):'—';
-    const agoStr=ageMin<1?'الآن':ageMin<60?`منذ ${ageMin} د`:`منذ ${Math.floor(ageMin/60)} س`;
-    const staleWarning=isStale?`<div style="margin-top:5px;font-size:0.72rem;color:#ef4444;font-weight:600;">⚠️ موقع قديم — قد يكون الجهاز في الخلفية</div>`:'';
+    const agoStr='منذ '+_repAgoStr(ageMin);
+    const staleWarning=isStale?`<div style="margin-top:5px;font-size:0.72rem;color:#ef4444;font-weight:600;">⚠️ منقطع — الجهاز مقفل أو التطبيق مسكّر. هذا آخر مكان وصله.</div>`:'';
     const icon=L.divIcon({
       html:`<div style="background:${color};color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.75rem;border:3px solid ${isStale?'#d1d5db':'#fff'};box-shadow:0 2px 8px rgba(0,0,0,0.35);font-family:'Tajawal',sans-serif;opacity:${isStale?'0.7':'1'};">${initials}</div>`,
       className:'',iconSize:[34,34],iconAnchor:[17,17]
@@ -15378,13 +15438,14 @@ function _updateRepMapMarkers(reps){
     else if(bounds.length===1)_repMapInstance.setView(bounds[0],14);
   }
   if(legend){
-    legend.innerHTML=active.map((r,i)=>{
-      const ageMin=r.updatedAt?.toDate?Math.floor((Date.now()-r.updatedAt.toDate().getTime())/60000):999;
-      const isStale=ageMin>5;
+    const chips=active.map((r,i)=>{
+      const ageMin=_repAgeMin(r);
+      const isStale=ageMin>_REP_FRESH_MIN;
       const color=isStale?'#9ca3af':_repMapColors[i%_repMapColors.length];
-      const agoStr=ageMin<1?'الآن':ageMin<60?`${ageMin}د`:`${Math.floor(ageMin/60)}س`;
-      return `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#fff;border-radius:20px;border:1px solid ${isStale?'#fca5a5':'#e5e7eb'};"><span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span><span style="font-size:0.78rem;font-weight:600;color:${isStale?'#9ca3af':'#374151'};">${r.repName||'مندوب'} <span style="font-weight:400;font-size:0.7rem;">${agoStr}</span></span></span>`;
+      return `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#fff;border-radius:20px;border:1px solid ${isStale?'#e5e7eb':'#86efac'};"><span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span><span style="font-size:0.78rem;font-weight:600;color:${isStale?'#9ca3af':'#166534'};">${r.repName||'مندوب'} <span style="font-weight:400;font-size:0.7rem;">${isStale?'منقطع · '+_repAgoStr(ageMin):'مباشر'}</span></span></span>`;
     }).join('');
+    const clr=_repStaleIds.length?`<button onclick="clearStaleReps()" style="padding:3px 10px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:20px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">🧹 إخفاء المنقطعين (${_repStaleIds.length})</button>`:'';
+    legend.innerHTML=chips+clr;
   }
 }
 
