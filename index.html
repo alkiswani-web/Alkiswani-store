@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v258"></script>
+<script defer src="app.js?v259"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2983,6 +2983,21 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                   style="flex:1;min-width:100px;padding:8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
                 <button onclick="ewRecordPayment()" style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✅ تسجيل</button>
               </div>
+            </div>
+            <div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:12px;padding:11px;margin-bottom:14px;">
+              <div style="font-size:0.75rem;font-weight:700;color:#6b21a8;margin-bottom:8px;">⚖️ تعديل الحساب — إضافة مبلغ على حسابه</div>
+              <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
+                <select id="ewAdjSign" style="width:140px;padding:8px 4px;border:1.5px solid #e9d5ff;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;background:#fff;cursor:pointer;">
+                  <option value="1">➕ إضافة لحسابه</option>
+                  <option value="-1">➖ خصم من حسابه</option>
+                </select>
+                <input type="number" id="ewAdjAmt" placeholder="المبلغ د.أ" min="0" step="0.5"
+                  style="flex:1;min-width:90px;padding:8px;border:1.5px solid #e9d5ff;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+                <input type="text" id="ewAdjNotes" placeholder="السبب (تزبيط حساب، مكافأة...)"
+                  style="flex:1;min-width:120px;padding:8px;border:1.5px solid var(--border);border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;">
+                <button onclick="recordEmpWageAdjustment()" style="padding:8px 16px;background:#9333ea;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✅ تعديل</button>
+              </div>
+              <div style="font-size:0.68rem;color:#a855f7;margin-top:7px;">هاد بيزيد أو بينقّص <b>المستحق</b> للموظف فقط — ما بيخصم من الكاش ولا من رصيد روزميري. لما تدفعله فعلياً سجّلها «دفعة» فوق.</div>
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
               <div style="font-size:0.85rem;font-weight:800;color:var(--text-dark);">📋 كشف الحساب</div>
