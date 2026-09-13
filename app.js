@@ -1311,11 +1311,12 @@ async function ewOpenStore(storeId){
   const list=document.getElementById('ewEmpList');
   list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">⏳</div>';
   try{
-    const [workersSnap,ordersSnap,paymentsSnap,ratesSnap]=await Promise.all([
+    const [workersSnap,ordersSnap,paymentsSnap,ratesSnap,adjSnap]=await Promise.all([
       db.collection('employee_workers').get(),
       db.collection('employee_orders').where('pageId','==',_ewStore.pageId||'').get(),
       db.collection('emp_wage_payments').where('storeId','==',storeId).get(),
-      db.collection('emp_wage_rates').get()
+      db.collection('emp_wage_rates').get(),
+      db.collection('emp_wage_adjustments').where('storeId','==',storeId).get().catch(()=>({docs:[]}))
     ]);
     const workers=workersSnap.docs.map(d=>({id:d.id,...d.data()}));
     _ewAllWorkers=workers;
@@ -1327,15 +1328,20 @@ async function ewOpenStore(storeId){
     const ratesMap={};
     ratesSnap.docs.forEach(d=>{ratesMap[d.id]=d.data().rates||{};});
     // الموظفون الظاهرون: يلي عندهم طلبات + يلي محدد إلهم أجر يدوي لهذا المتجر (حتى لو ما عندهم طلبات بعد)
+    const adjs=(adjSnap.docs||[]).map(d=>d.data());
     const withRate=Object.keys(ratesMap).filter(wid=>parseFloat(ratesMap[wid]?.[storeId]||0)>0);
-    const workerIds=[...new Set([...orders.map(o=>o.workerId).filter(Boolean),...withRate])];
+    // يظهر كمان كل موظف إله دفعة أو تعديل حساب هون — ولولا هيك بيختفي من
+    // القائمة الموظفُ اللي ما إله أجر طلب محدد، ومعه حساب مفتوح فعلاً.
+    const workerIds=[...new Set([...orders.map(o=>o.workerId).filter(Boolean),...withRate,
+      ...payments.map(p=>p.workerId).filter(Boolean),...adjs.map(a=>a.workerId).filter(Boolean)])];
     const addBtn=`<button onclick="ewShowAddWorkerPicker()" style="background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:14px;padding:13px 16px;cursor:pointer;color:#1d4ed8;font-family:'Tajawal',sans-serif;font-weight:800;font-size:0.85rem;width:100%;">➕ أضف موظف لهذا المتجر</button>`;
     if(!workerIds.length){list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px 10px 14px;">لا يوجد موظفين لهذا المتجر بعد — أضف موظف وحدد له أجر الطلب.</div>'+addBtn;return;}
     list.innerHTML=workerIds.map(wid=>{
       const w=workers.find(x=>x.id===wid)||{id:wid,name:wid};
       const rate=parseFloat(ratesMap[wid]?.[storeId]||0);
       const count=orders.filter(o=>o.workerId===wid).length;
-      const earned=count*rate;
+      const adj=Math.round(adjs.filter(a=>a.workerId===wid).reduce((s,a)=>s+(parseFloat(a.amount)||0),0)*100)/100;
+      const earned=count*rate+adj;
       const paid=payments.filter(p=>p.workerId===wid).reduce((s,p)=>s+parseFloat(p.amount||0),0);
       const bal=earned-paid;
       const balColor=bal>0.01?'#ef4444':bal<-0.01?'#f59e0b':'#22c55e';
@@ -1345,7 +1351,7 @@ async function ewOpenStore(storeId){
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-weight:800;color:#111;font-size:0.9rem;">👤 ${name}</div>
-            <div style="font-size:0.72rem;color:#9ca3af;margin-top:3px;">${count} طلب × ${rate.toFixed(2)} د.أ = ${earned.toFixed(2)} · مدفوع ${paid.toFixed(2)}</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-top:3px;">${count} طلب × ${rate.toFixed(2)} د.أ${Math.abs(adj)>0.001?` ${adj>0?'+':'−'} ${Math.abs(adj).toFixed(2)} تعديل`:''} = ${earned.toFixed(2)} · مدفوع ${paid.toFixed(2)}</div>
           </div>
           <div style="font-weight:800;color:${balColor};font-size:0.85rem;">${balLabel}</div>
         </div>
@@ -1408,7 +1414,7 @@ async function _ewRefreshEmployee(){
     dateFrom=`${_ewMonth}-01`;dateTo=`${_ewMonth}-${String(lastDay).padStart(2,'0')}`;
   }
   try{
-    const [ordersSnap,paymentsSnap,rateDoc,attSnap]=await Promise.all([
+    const [ordersSnap,paymentsSnap,rateDoc,attSnap,adjSnap]=await Promise.all([
       isMashghal
         ? Promise.resolve({docs:[]})
         : db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
@@ -1424,7 +1430,11 @@ async function _ewRefreshEmployee(){
         byId.docs.forEach(d=>{m[d.id]=d.data();});
         byName.docs.forEach(d=>{m[d.id]=d.data();});
         return {docs:Object.keys(m).map(id=>({id,data:()=>m[id]}))};
-      })()
+      })(),
+      // تعديلات الحساب اليدوية — مجموعة مستقلة عن الدفعات عمداً، عشان ما
+      // يعدّها أيُّ حساب كاش (التحصيل/رصيد روزميري/مركز الدفعات) دفعةً خرجت.
+      db.collection('emp_wage_adjustments').where('workerId','==',_ewWorker.id).where('storeId','==',_ewStore.id).get()
+        .catch(()=>({docs:[]}))
     ]);
 
     const rates=(rateDoc.exists?rateDoc.data().rates:{})||{};
@@ -1454,7 +1464,12 @@ async function _ewRefreshEmployee(){
     const orderCount=countedOrders.length;
     const orderEarned=orderCount*_ewRate;
 
-    const totalEarned=attEarned+orderEarned;
+    // التعديلات اليدوية تدخل على جهة «المستحق» لا على جهة «المدفوع» — بالموجب
+    // تزيد اللي إله، وبالسالب تنقّصه.
+    const adjArr=(adjSnap.docs||[]).map(d=>({id:d.id,...d.data()})).filter(a=>{if(!hasMonth)return true;const dt=a.date||'';return dt>=dateFrom&&dt<=dateTo;});
+    const adjTotal=Math.round(adjArr.reduce((s,a)=>s+(parseFloat(a.amount)||0),0)*100)/100;
+
+    const totalEarned=Math.round((attEarned+orderEarned+adjTotal)*100)/100;
     // الدفعات مفلترة حسب الشهر المختار (مثل الدوام) — عشان كل شهر يكون حسابه مستقل
     const paymentsArr=paymentsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>{if(!hasMonth)return true;const dt=p.date||'';return dt>=dateFrom&&dt<=dateTo;});
     const paid=paymentsArr.reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -1466,7 +1481,7 @@ async function _ewRefreshEmployee(){
       <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:1.15rem;font-weight:900;color:#1d4ed8;">${totalEarned.toFixed(2)}</div>
         <div style="font-size:0.68rem;color:#6b7280;">مُستحق</div>
-        <div style="font-size:0.62rem;color:#93c5fd;">${attEarned>0?`${attEarned.toFixed(2)} دوام`:''}${orderEarned>0?(attEarned>0?' + ':'')+orderEarned.toFixed(2)+' طلب':''}</div>
+        <div style="font-size:0.62rem;color:#93c5fd;">${(()=>{const p=[];if(attEarned>0)p.push(attEarned.toFixed(2)+' دوام');if(orderEarned>0)p.push(orderEarned.toFixed(2)+' طلب');if(Math.abs(adjTotal)>0.001)p.push((adjTotal>0?'+':'−')+Math.abs(adjTotal).toFixed(2)+' تعديل');return p.join(' + ').replace(/\+ −/g,'− ');})()}</div>
       </div>
       <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:1.15rem;font-weight:900;color:#16a34a;">${paid.toFixed(2)}</div>
@@ -1499,6 +1514,11 @@ async function _ewRefreshEmployee(){
           ts:new Date((d||'1970-01-01')+'T12:00:00').getTime()});
       });
     }
+    // adjustments
+    adjArr.forEach(a=>{
+      const ts=(a.createdAt&&typeof a.createdAt.toMillis==='function')?a.createdAt.toMillis():(a.createdAt&&a.createdAt.seconds?a.createdAt.seconds*1000:new Date((a.date||'1970-01-01')+'T12:00:00').getTime());
+      entries.push({type:'adj',date:a.date||'',amount:parseFloat(a.amount)||0,notes:a.notes||'',id:a.id,addedBy:a.addedBy||'',ts});
+    });
     // payments
     paymentsArr.forEach(p=>{
       const ts=(p.createdAt&&typeof p.createdAt.toMillis==='function')?p.createdAt.toMillis():(p.createdAt&&p.createdAt.seconds?p.createdAt.seconds*1000:new Date((p.date||'1970-01-01')+'T12:00:00').getTime());
@@ -1539,6 +1559,19 @@ async function _ewRefreshEmployee(){
             <span style="color:#9ca3af;font-size:0.7rem;margin-right:6px;">× ${_ewRate.toFixed(2)}</span>
           </div>
           <span style="font-size:0.82rem;font-weight:900;color:#1d4ed8;text-align:left;">+${e.earned.toFixed(2)}</span>
+        </div>`;
+      } else if(e.type==='adj'){
+        const up=e.amount>=0;
+        html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;background:#fdfaff;${border}">
+          <span style="font-size:0.78rem;color:#374151;font-weight:700;">${(e.date||'—').slice(5)||'—'}</span>
+          <div style="font-size:0.78rem;color:#374151;">
+            <span style="color:#7e22ce;">⚖️ تعديل حساب</span>${e.notes?' · '+e.notes:''}
+            <span style="font-size:0.68rem;color:#9ca3af;display:block;">${e.addedBy}</span>
+          </div>
+          <div style="text-align:left;">
+            <span style="font-size:0.82rem;font-weight:900;color:${up?'#7e22ce':'#dc2626'};">${up?'+':'−'}${Math.abs(e.amount).toFixed(2)}</span>
+            <button onclick="ewDeleteAdjustment('${e.id}')" style="display:block;margin-top:3px;background:#f3e8ff;border:none;border-radius:6px;color:#7e22ce;padding:2px 7px;cursor:pointer;font-size:0.72rem;">🗑</button>
+          </div>
         </div>`;
       } else {
         html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;background:#fafffe;${border}">
@@ -1614,6 +1647,42 @@ async function _ewRefreshAccounting(){
   try{ if(typeof _loadOpSessionData==='function'&&_opCurrentSession) await _loadOpSessionData(); }catch(e){}
 }
 
+// تعديل يدوي على حساب الموظف — لتزبيط حساب قديم أو مكافأة أو خصم. يزيد
+// أو ينقّص «المستحق» فقط: ما بيلمس التحصيل ولا رصيد روزميري، لأنه ما في
+// كاش تحرّك. الكاش بينحرك لما يتسجّل «دفعة».
+async function recordEmpWageAdjustment(){
+  if(!_ewWorker||!_ewStore)return;
+  const raw=parseFloat(document.getElementById('ewAdjAmt').value)||0;
+  if(!raw){toast('⚠️ أدخل المبلغ');return;}
+  const sign=parseFloat(document.getElementById('ewAdjSign').value)||1;
+  const amt=Math.round(Math.abs(raw)*sign*100)/100;
+  const notes=(document.getElementById('ewAdjNotes').value||'').trim();
+  try{
+    await db.collection('emp_wage_adjustments').add({
+      workerId:_ewWorker.id,workerName:_ewWorker.name,
+      storeId:_ewStore.id,storeName:_ewStore.name,
+      amount:amt,notes,
+      date:jordanDateStr(),addedBy:_currentAdminUser||'أدمن',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast(amt>0?`✅ انضاف ${amt.toFixed(2)} على حساب ${_ewWorker.name}`:`✅ انخصم ${Math.abs(amt).toFixed(2)} من حساب ${_ewWorker.name}`);
+    document.getElementById('ewAdjAmt').value='';
+    document.getElementById('ewAdjNotes').value='';
+    try{ _payHubWagesCache=null; }catch(e){}
+    await _ewRefreshEmployee();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function ewDeleteAdjustment(docId){
+  if(!confirm('حذف هذا التعديل؟'))return;
+  try{
+    await db.collection('emp_wage_adjustments').doc(docId).delete();
+    toast('🗑 تم حذف التعديل');
+    try{ _payHubWagesCache=null; }catch(e){}
+    await _ewRefreshEmployee();
+  }catch(e){toast('❌ '+e.message);}
+}
+
 async function ewDeletePayment(docId){
   if(!confirm('حذف هذه الدفعة؟'))return;
   try{
@@ -1633,7 +1702,6 @@ function saveEmpWageRates(){}
 function recordEmpWagePayment(){}
 function closeEmpWageDetail(){}
 function settleEmpPage(){}
-function recordEmpWageAdjustment(){}
 
 // ===== FRAME GALLERY =====
 let _frameSelectMode=false;
@@ -10609,14 +10677,19 @@ async function _payHubWages(){
   if(_payHubWagesCache) return _payHubWagesCache;
   const rows=[];
   try{
-    const [ratesSnap,paysSnap,workersSnap]=await Promise.all([
+    const [ratesSnap,paysSnap,workersSnap,adjSnap]=await Promise.all([
       db.collection('emp_wage_rates').get(),
       db.collection('emp_wage_payments').get(),
-      db.collection('employee_workers').get()
+      db.collection('employee_workers').get(),
+      db.collection('emp_wage_adjustments').get().catch(()=>({docs:[]}))
     ]);
     const wname={};workersSnap.docs.forEach(d=>{const w=d.data();wname[d.id]=w.name||w.username||d.id;});
     const paid={};
     paysSnap.docs.forEach(d=>{const p=d.data();const k=(p.workerId||'')+'|'+(p.storeId||'');paid[k]=(paid[k]||0)+(parseFloat(p.amount)||0);});
+    const adjMap={},adjMeta={};
+    (adjSnap.docs||[]).forEach(d=>{const a=d.data()||{};const k=(a.workerId||'')+'|'+(a.storeId||'');
+      adjMap[k]=(adjMap[k]||0)+(parseFloat(a.amount)||0);
+      adjMeta[k]={wid:a.workerId||'',sid:a.storeId||'',name:a.workerName||'',store:a.storeName||''};});
     const stores=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:_opStoresList)||[];
     const jobs=[];
     ratesSnap.docs.forEach(d=>{
@@ -10629,20 +10702,30 @@ async function _payHubWages(){
       const hr=parseFloat(r.hourlyRate||0)||0;
       if(hr>0) jobs.push({wid,sid:'__mashghal__',name:wname[wid]||r.workerName||wid,store:'المشغل',hourly:hr});
     });
+    // موظف محسوب عليه تعديل حساب بلا أجر محدد ما إله «وظيفة» فوق، فكان
+    // مستحقّه يغيب عن مركز الدفعات كلياً. نفتحله صفّاً بنفسه.
+    Object.keys(adjMap).forEach(k=>{
+      const m=adjMeta[k]||{};if(!m.wid)return;
+      if(jobs.some(j=>j.wid===m.wid&&j.sid===m.sid))return;
+      jobs.push({wid:m.wid,sid:m.sid,name:wname[m.wid]||m.name||m.wid,
+        store:m.store||(m.sid==='__mashghal__'?'المشغل':''),rate:0,pageId:null,adjOnly:true});
+    });
     await Promise.all(jobs.map(async j=>{
-      let earned=0;
-      if(j.hourly){
+      let earned=Math.round((adjMap[j.wid+'|'+j.sid]||0)*100)/100;
+      if(j.adjOnly){
+        // لا دوام ولا طلبات تُحسب — المستحق هو التعديل وحده
+      }else if(j.hourly){
         try{
           const a=await db.collection('attendance').where('employeeId','==',j.wid).get();
           const secs=a.docs.reduce((s,d)=>s+_ewSecs(d.data()),0);
-          earned=Math.round(_secsToDecimalHrs(secs)*j.hourly*100)/100;
+          earned+=Math.round(_secsToDecimalHrs(secs)*j.hourly*100)/100;
         }catch(e){}
       }else{
         const q=db.collection('employee_orders').where('workerId','==',j.wid).where('pageId','==',j.pageId);
         let n=null;
         try{ if(typeof q.count==='function'){const s=await q.count().get();n=s&&s.data?s.data().count:null;} }catch(e){}
         if(n==null){ try{ n=(await q.get()).size; }catch(e){ n=0; } }
-        earned=(n||0)*j.rate;
+        earned+=(n||0)*j.rate;
       }
       const bal=Math.round((earned-(paid[j.wid+'|'+j.sid]||0))*100)/100;
       if(bal>0.009) rows.push({icon:'👷',name:j.name,sub:j.store,amount:bal,
