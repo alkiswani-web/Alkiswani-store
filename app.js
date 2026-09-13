@@ -5306,9 +5306,7 @@ async function _handleDeliveredCancel(orderId, orderData, reason){
       await addPageRefundEntry(orderId,orderData,reason);
       return;
     }
-    const saleSessionId=snap.docs[0].data().sessionId||null;
-    const currentSessionId=_opCurrentSession?.id||null;
-    if(saleSessionId&&currentSessionId&&saleSessionId===currentSessionId){
+    if(_saleInOpenKashf(snap.docs[0].data()||{})){
       // Same session: reverse the delivery — delete the sales records, no refund entry needed
       const batch=db.batch();
       snap.docs.forEach(d=>batch.delete(d.ref));
@@ -5454,6 +5452,18 @@ async function savePartialReturn(){
 // أثر الإرجاع على حساب المتجر — بنفس قاعدة الإرجاع الكامل الموجودة:
 // مبيعة في الكشف المفتوح ⇒ نُعدّل صفّها. مبيعة في كشف مغلق ⇒ لا نمسّ كشفاً
 // قديماً، بل نُسجّل قيد مرتجع لهذا البند وحده في الكشف الحالي.
+// هل هذه المبيعة ضمن الكشف المفتوح؟ كثير من الصفوف انكتبت بلا معرّف جلسة،
+// وكان غيابه يُقرأ «كشف مقفل» فيُسجَّل قيد مرتجع بدل تعديل الصفّ — والقيد
+// يشيل تكلفة الطلب كلّه لا البند الراجع وحده. والكشف نادراً ما يُقفل، فالحكم
+// بالتاريخ أصدق: مبيعةٌ تاريخها بعد فتح الكشف هي منه.
+function _saleInOpenKashf(sale){
+  const sid=_opCurrentSession?.id||null;
+  if(!sid) return false;
+  if(sale.sessionId) return sale.sessionId===sid;
+  const open=(_opCurrentSession&&_opCurrentSession.openedDate)||'0000-00-00';
+  return (sale.date||'9999')>=open;
+}
+
 // صفّ المبيعة الخاص ببندٍ من الطلب. المعرّف الثابت `${orderId}_${idx}` اصطلاحٌ
 // حديث؛ صفوف الطلبات الأقدم انكتبت بمعرّفات عشوائية، فالبحث بالمعرّف وحده
 // كان يخطئها ويمرّ الإرجاع بلا أيّ أثر على الحساب — لا تكلفة تُشال ولا خبر.
@@ -5490,7 +5500,7 @@ async function _applyReturnToAccounting(order,idx,qty,remAfter,reason){
     }
     const ref=found.ref;
     const sale=found.data;
-    const sameSession=sale.sessionId&&_opCurrentSession?.id&&sale.sessionId===_opCurrentSession.id;
+    const sameSession=_saleInOpenKashf(sale);
     if(sameSession){
       if(remAfter>0) await ref.update({qty:remAfter});
       else await ref.delete();
