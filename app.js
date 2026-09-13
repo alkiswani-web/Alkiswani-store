@@ -5454,13 +5454,42 @@ async function savePartialReturn(){
 // أثر الإرجاع على حساب المتجر — بنفس قاعدة الإرجاع الكامل الموجودة:
 // مبيعة في الكشف المفتوح ⇒ نُعدّل صفّها. مبيعة في كشف مغلق ⇒ لا نمسّ كشفاً
 // قديماً، بل نُسجّل قيد مرتجع لهذا البند وحده في الكشف الحالي.
+// صفّ المبيعة الخاص ببندٍ من الطلب. المعرّف الثابت `${orderId}_${idx}` اصطلاحٌ
+// حديث؛ صفوف الطلبات الأقدم انكتبت بمعرّفات عشوائية، فالبحث بالمعرّف وحده
+// كان يخطئها ويمرّ الإرجاع بلا أيّ أثر على الحساب — لا تكلفة تُشال ولا خبر.
+async function _findSaleRowForItem(orderId,idx,product){
+  try{
+    const ref=db.collection('operator_sales').doc(`${orderId}_${idx}`);
+    const snap=await ref.get();
+    if(snap.exists) return {ref,data:snap.data()||{}};
+  }catch(e){}
+  try{
+    const q=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
+    if(q.empty) return null;
+    const rows=q.docs.map(d=>({ref:d.ref,id:d.id,data:d.data()||{}}));
+    const pid=(product&&product.id)||'',pname=(product&&product.name)||'';
+    let hit=pid?rows.find(r=>(r.data.productId||'')===pid):null;
+    if(!hit&&pname) hit=rows.find(r=>(r.data.productName||'')===pname);
+    if(!hit&&rows.length===1) hit=rows[0];
+    return hit?{ref:hit.ref,data:hit.data}:null;
+  }catch(e){}
+  return null;
+}
+
 async function _applyReturnToAccounting(order,idx,qty,remAfter,reason){
   try{
     const orderId=order.id;
-    const ref=db.collection('operator_sales').doc(`${orderId}_${idx}`);
-    const snap=await ref.get();
-    if(!snap.exists) return;
-    const sale=snap.data()||{};
+    const p0=(order.products||[])[idx]||{};
+    const found=await _findSaleRowForItem(orderId,idx,p0);
+    if(!found){
+      // ما في صفّ نشيله — نسجّل قيد مرتجع كي تخرج تكلفته (شجرُه وخامُه) من
+      // المستهلك بدل ما تظلّ محسوبةً عليّ إلى الأبد.
+      await addPageRefundEntry(orderId,order,reason||'إرجاع جزئي',[{...p0,qty}]);
+      toast('↩️ ما لقيت صفّ المبيعة — سجّلت قيد مرتجع بدلاً منه');
+      return;
+    }
+    const ref=found.ref;
+    const sale=found.data;
     const sameSession=sale.sessionId&&_opCurrentSession?.id&&sale.sessionId===_opCurrentSession.id;
     if(sameSession){
       if(remAfter>0) await ref.update({qty:remAfter});
@@ -16553,10 +16582,12 @@ async function loadBalanceTab(){
     // «ملغي». الاستثناء يتم على مستوى المبيعة نفسها، فتُطرح تكلفتها المسجّلة
     // وقت البيع بالضبط، لا تكلفة المنتج الحالية التي قد تكون تغيّرت.
     const cancelledOrders=new Set();
+    let refundDocs=[];
     try{
       // مرتجع مبيعةٍ داخل الفترة يُسجَّل بتاريخ الفترة أو بعده، فلا حاجة لما قبلها
       const rsnap=await _pRefundsP;
-      rsnap.docs.forEach(d=>{const r=d.data();if(r.orderId)cancelledOrders.add(r.orderId);});
+      refundDocs=rsnap.docs.map(d=>({id:d.id,...d.data()}));
+      refundDocs.forEach(r=>{if(r.orderId)cancelledOrders.add(r.orderId);});
     }catch(e){}
     try{
       // تبقى بلا تقييد تاريخي عمداً: تاريخ الطلب قد يسبق تاريخ مبيعته بكثير،
@@ -16572,6 +16603,12 @@ async function loadBalanceTab(){
     let rawSold=0,treeSold=0,treeProfit=0;
     let tpMine=0,tpStorePrice=0,tpItsCost=0;
     const treeRows=[];const treeProfitRows=[];
+    // طلبات لها صفوف مبيعة داخل هذه الفترة — قبل استثناء الملغى. من كان منها
+    // مرتجعاً فصفُّه يُستثنى تحت، فلا يجوز طرح قيد مرتجعه كمان (طرحٌ مرّتين).
+    const winOrderIds=new Set();
+    snap.docs.forEach(d=>{const s=d.data();
+      if(s.delivered!==false&&(s.date||'9999')>=_matStart&&(!s.sessionId||s.sessionId===_matSid)&&s.fromOrderId)
+        winOrderIds.add(s.fromOrderId);});
     snap.docs.filter(d=>{const s=d.data();
       return s.delivered!==false
         &&!(s.fromOrderId&&cancelledOrders.has(s.fromOrderId))
@@ -16599,6 +16636,26 @@ async function loadBalanceTab(){
       if(t>0)treeRows.push({date:s.date||'',name:s.productName||'—',store:s.storeName||'',
         qty:q,unit:t,total:t*q,ord:s.fromOrderId||'',id:d.id});
     });
+    // ── قيود المرتجع: بندٌ رجع بعد ما أُقفل كشفُه ──
+    // مبيعتُه ليست في هذه الفترة فما في صفّ نشيله، وتكلفة شجره كانت تبقى
+    // محسوبةً عليّ للأبد رغم أنّ البضاعة رجعت. كنّا نحفظ unitTree/unitRaw
+    // وقت الإرجاع ولا نقرأهما أبداً — هنا نقرأهما ونطرحهما.
+    (refundDocs||[]).forEach(r=>{
+      if((r.date||'0000')<_matStart) return;
+      if(_matSid&&r.sessionId&&r.sessionId!==_matSid) return;
+      if(r.orderId&&winOrderIds.has(r.orderId)) return;   // صفُّه مُستثنى أصلاً
+      (r.items||[]).forEach(it=>{
+        const q=it.qty||1,t=it.unitTree||0,rw=it.unitRaw||0;
+        if(rw>0) rawSold-=rw*q;
+        if(t>0){
+          treeSold-=t*q;
+          treeRows.push({date:r.date||'',name:it.name||'—',store:r.storeName||'',
+            qty:q,unit:-t,total:-t*q,ord:r.orderId||'',id:'ref_'+r.id,refund:true});
+        }
+      });
+    });
+    if(rawSold<0) rawSold=0;
+    if(treeSold<0) treeSold=0;
     treeRows.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     _opBalTreeRows=treeRows;
     // الصفوف الزائدة فعلاً — بنفس تعريف أداة التنظيف، فما يُعلَّم هو ما يُحذف.
@@ -16749,12 +16806,13 @@ function renderBalanceSummary(){
   const treeCostHtml=treeByDay.map(g=>`<div style="border-bottom:1px solid rgba(255,255,255,.06);padding:6px 2px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span style="font-size:0.72rem;font-weight:800;color:#d7ebe0;">📅 ${g.date||'—'}</span>
-        <span style="font-weight:800;font-size:0.78rem;color:#6ee7a8;font-variant-numeric:tabular-nums;">+${g.total.toFixed(2)}</span>
+        <span style="font-weight:800;font-size:0.78rem;color:${g.total<0?'#e7c66b':'#6ee7a8'};font-variant-numeric:tabular-nums;">${g.total<0?'−':'+'}${Math.abs(g.total).toFixed(2)}</span>
       </div>
       ${g.items.map(it=>{const dup=_dupIds.has(it.id);
+        const col=dup?'#f2a6a0':it.refund?'#e7c66b':'#9fc7b4';
         return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0 2px 10px;">
-        <span style="font-size:0.67rem;color:${dup?'#f2a6a0':'#9fc7b4'};">${dup?'⚠️ ':''}${it.name}${it.store?' · '+it.store:''}${it.ord?` <span style="opacity:.6;">#${String(it.ord).slice(-5).toUpperCase()}</span>`:''}</span>
-        <span style="font-size:0.67rem;color:${dup?'#f2a6a0':'#9fc7b4'};font-variant-numeric:tabular-nums;flex-shrink:0;">${it.qty} × ${it.unit.toFixed(2)} = ${it.total.toFixed(2)}</span>
+        <span style="font-size:0.67rem;color:${col};">${dup?'⚠️ ':it.refund?'↩️ ':''}${it.name}${it.store?' · '+it.store:''}${it.ord?` <span style="opacity:.6;">#${String(it.ord).slice(-5).toUpperCase()}</span>`:''}</span>
+        <span style="font-size:0.67rem;color:${col};font-variant-numeric:tabular-nums;flex-shrink:0;">${it.qty} × ${Math.abs(it.unit).toFixed(2)} = ${it.refund?'−':''}${Math.abs(it.total).toFixed(2)}</span>
       </div>`;}).join('')}
     </div>`).join('');
   const treeRow=`<div style="background:rgba(90,168,120,.08);border:1px solid rgba(110,231,168,.28);border-radius:14px;padding:12px 14px;margin-bottom:9px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
