@@ -2893,6 +2893,8 @@ async function _autoColorStatus(){
     }
     const q=Number(c.qty);
     if(!isFinite(q)) return;
+    // رصيدٌ سالب ما إله معنى — بيصفّر مهما كان الطريق اللي وصّله
+    if(q<0){batch.update(ref,{qty:0,status:'out',outAuto:true});n++;return;}
     if(q<=0&&c.status!=='out'){batch.update(ref,{status:'out',outAuto:true});n++;}
     else if(q>0&&c.status==='out'&&c.outAuto===true){batch.update(ref,{status:'active',outAuto:false});n++;}
   });
@@ -3318,10 +3320,17 @@ window.cbSave=cbSave;
 // الجرد بيكتب الرقم النهائي، والوارد بيضيف عليه. الفرق مش شكلي: إجتك بضاعة
 // وإنت بتحسب ٩+١٠ براسك وبتكتب ١٩ — ولو نزل طلب بهاي اللحظة بتمسح خصمه.
 // الوارد بيزيد بـincrement، فما بيضيع ولا قطعة مهما كان في طلبات ماشية.
-async function openColorIntake(){
+let _clrIntakeMode='in';   // in = وارد يزيد · out = صرف ينقص
+function clrIntakeMode(m){
+  _clrIntakeMode=m;
+  openColorIntake(true);
+}
+async function openColorIntake(keepMode){
+  if(!keepMode)_clrIntakeMode='in';
   await loadColorLibrary(true);
   const rows=_colorLib.filter(c=>c.status!=='retired');
   if(!rows.length){toast('⚠️ المكتبة فاضية');return;}
+  const OUT=_clrIntakeMode==='out';
   document.getElementById('clrIntakeModal')?.remove();
   const ov=document.createElement('div');
   ov.id='clrIntakeModal';
@@ -3329,10 +3338,14 @@ async function openColorIntake(){
   ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
     <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <div>
-        <div style="font-weight:900;font-size:1rem;color:#1e40af;">📥 وارد جديد</div>
-        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">اكتب <b>اللي إجاك بس</b> — البرنامج بيجمعه على الموجود</div>
+        <div style="font-weight:900;font-size:1rem;color:${OUT?'#b45309':'#1e40af'};">${OUT?'📤 صرف من المخزون':'📥 وارد جديد'}</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">اكتب <b>${OUT?'اللي طلع بس':'اللي إجاك بس'}</b> — البرنامج ${OUT?'بينقّصه من':'بيجمعه على'} الموجود</div>
       </div>
       <button onclick="document.getElementById('clrIntakeModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+      <button onclick="clrIntakeMode('in')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#e5e7eb':'#2563eb'};background:${OUT?'#fff':'#2563eb'};color:${OUT?'#6b7280':'#fff'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📥 وارد (+)</button>
+      <button onclick="clrIntakeMode('out')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#b45309':'#e5e7eb'};background:${OUT?'#b45309':'#fff'};color:${OUT?'#fff':'#6b7280'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📤 صرف (−)</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:10px 12px;">
       ${rows.map(c=>{const cur=c.counted===true?(Number(c.qty)||0):0;
@@ -3342,33 +3355,44 @@ async function openColorIntake(){
           <div style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'—'}</div>
           <div style="font-size:0.67rem;color:#9ca3af;">${c.counted===true?'عندك '+cur:'ما انجرد — بيبلّش من صفر'}</div>
         </div>
-        <span style="color:#16a34a;font-weight:900;font-size:0.9rem;">+</span>
+        <span style="color:${OUT?'#b45309':'#16a34a'};font-weight:900;font-size:0.9rem;">${OUT?'−':'+'}</span>
         <input id="clri_${c.id}" data-cur="${cur}" type="number" min="0" placeholder="0" oninput="_clrIntakePrev('${c.id}')"
-          style="width:66px;padding:8px;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
+          style="width:66px;padding:8px;border:1.5px solid ${OUT?'#fde68a':'#bfdbfe'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
         <span id="clrit_${c.id}" style="font-size:0.78rem;font-weight:800;color:#d1d5db;min-width:38px;text-align:center;">—</span>
       </div>`;}).join('')}
     </div>
     <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
       <div id="clrIntakeSum" style="font-size:0.74rem;color:#6b7280;text-align:center;margin-bottom:8px;">ما دخّلت ولا رقم بعد</div>
-      <button onclick="clrIntakeSave()" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">📥 ضيف الوارد</button>
+      ${OUT?'<div style="font-size:0.66rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 9px;margin-bottom:8px;line-height:1.7;">⚠️ الصرف بينقّص المخزون بس — ما بيسجّل طلب ولا مبيعة ولا مصاري. لو البيعة لازم تنحسب عليك، سجّلها طلب عادي.</div>':''}
+      <button onclick="clrIntakeSave()" style="width:100%;padding:13px;background:${OUT?'#b45309':'#2563eb'};color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">${OUT?'📤 انقص من المخزون':'📥 ضيف الوارد'}</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
 }
 function _clrIntakePrev(id){
+  const OUT=_clrIntakeMode==='out';
   const el=document.getElementById('clri_'+id),out=document.getElementById('clrit_'+id);
   if(!el||!out)return;
   const cur=Number(el.getAttribute('data-cur'))||0;
   const v=parseInt(el.value);
   if(isNaN(v)||v<=0){out.textContent='—';out.style.color='#d1d5db';}
-  else{out.textContent='= '+(cur+v);out.style.color='#16a34a';}
+  else if(!OUT){out.textContent='= '+(cur+v);out.style.color='#16a34a';}
+  else{
+    // ما بننزل تحت الصفر: بنوريه إنّه رح يصفّر بدل ما يطلع رقم سالب
+    const res=cur-v;
+    out.textContent=res<0?'= 0 ⚠️':'= '+res;
+    out.style.color=res<0?'#dc2626':res===0?'#dc2626':'#b45309';
+  }
   let n=0,t=0;
   _colorLib.forEach(c=>{const e=document.getElementById('clri_'+c.id);
     const x=e?parseInt(e.value):NaN;if(!isNaN(x)&&x>0){n++;t+=x;}});
   const sum=document.getElementById('clrIntakeSum');
-  if(sum)sum.innerHTML=n?`وارد <b style="color:#16a34a;">${t}</b> قطعة على <b>${n}</b> لون`:'ما دخّلت ولا رقم بعد';
+  if(sum)sum.innerHTML=n
+    ?`${OUT?'صرف':'وارد'} <b style="color:${OUT?'#b45309':'#16a34a'};">${t}</b> قطعة على <b>${n}</b> لون`
+    :'ما دخّلت ولا رقم بعد';
 }
 async function clrIntakeSave(){
+  const OUT=_clrIntakeMode==='out';
   const add=[];
   _colorLib.forEach(c=>{
     const el=document.getElementById('clri_'+c.id);
@@ -3377,13 +3401,21 @@ async function clrIntakeSave(){
     if(isNaN(v)||v<=0)return;
     add.push({c,v});
   });
-  if(!add.length){toast('⚠️ اكتب الوارد لواحد على الأقل');return;}
+  if(!add.length){toast(OUT?'⚠️ اكتب المصروف لواحد على الأقل':'⚠️ اكتب الوارد لواحد على الأقل');return;}
   try{
     const batch=db.batch();
+    let capped=0;
     add.forEach(({c,v})=>{
       const ref=db.collection('color_library').doc(c.id);
+      if(OUT){
+        // ما بنصرف أكثر من الموجود — بنصفّره وبنقوله
+        const cur=c.counted===true?(Number(c.qty)||0):0;
+        const take=Math.min(v,cur);
+        if(take<v)capped++;
+        batch.update(ref,{qty:firebase.firestore.FieldValue.increment(-take),counted:true});
+      }
       // لون ما انجرد قبل: الوارد نفسه بيصير رصيده، وبينعلّم «معدود»
-      if(c.counted===true) batch.update(ref,{qty:firebase.firestore.FieldValue.increment(v),counted:true});
+      else if(c.counted===true) batch.update(ref,{qty:firebase.firestore.FieldValue.increment(v),counted:true});
       else batch.update(ref,{qty:v,counted:true});
     });
     await batch.commit();
@@ -3392,10 +3424,12 @@ async function clrIntakeSave(){
     document.getElementById('clrIntakeModal')?.remove();
     renderColorLib();
     const tot=add.reduce((s,x)=>s+x.v,0);
-    toast(`📥 انضاف ${tot} قطعة على ${add.length} لون`);
+    toast(OUT?`📤 انصرف ${tot} قطعة من ${add.length} لون${capped?` — ${capped} صفّرناه لأنّه ما كان فيه هالقد`:''}`
+             :`📥 انضاف ${tot} قطعة على ${add.length} لون`);
   }catch(e){toast('❌ '+e.message);}
 }
 window.openColorIntake=openColorIntake; window._clrIntakePrev=_clrIntakePrev;
+window.clrIntakeMode=clrIntakeMode;
 window.clrIntakeSave=clrIntakeSave;
 
 // ─────────── جرد سريع ───────────
