@@ -2802,24 +2802,47 @@ async function clrClearImage(id){
 
 // أرقام الألوان التي يعرضها هذا المنتج. المكتبة الفاضية ⇒ نرجع للسلوك
 // القديم (١..N) فلا ينكسر شيء قبل الترحيل.
+// منتجٌ إله كتالوج ألوانه الخاص: رقم ٧ عنده مش رقم ٧ بالمكتبة. فأسماء
+// المكتبة وصورها ومخزونها غلطٌ عليه — يتبع ترقيمه وحده ١..N، وما يمسّ
+// مخزون المكتبة ولا ينقفل بـ«خلص» تبعها.
+function _prodOwnColors(p){return !!(p&&p.ownColorNumbers);}
+function _prodById(id){
+  if(!id)return null;
+  return (_opProductsList||[]).find(x=>x.id===id)
+      ||(_empSharedProducts||[]).find(x=>x.id===id)||null;
+}
 function _prodColorCodes(p){
-  if(Array.isArray(p.colorCodes)&&p.colorCodes.length) return p.colorCodes.map(Number).filter(n=>n>0);
+  const n=Math.max(0,parseInt(p&&p.colorNumbersCount)||0);
+  if(_prodOwnColors(p)) return Array.from({length:n},(_,k)=>k+1);
+  if(Array.isArray(p.colorCodes)&&p.colorCodes.length) return p.colorCodes.map(Number).filter(x=>x>0);
   if(_colorLib.length) return _colorLib.map(c=>c.code);
-  return Array.from({length:p.colorNumbersCount||0},(_,k)=>k+1);
+  return Array.from({length:n},(_,k)=>k+1);
 }
 
-function _fmtCN(cn){
+function _fmtCN(cn,prodId){
   if(!Array.isArray(cn)||!cn.length) return '';
+  const own=_prodOwnColors(_prodById(prodId));
   return '🎨 '+cn.map(c=>{
-    const k=_clr(c.num);
+    const k=own?null:_clr(c.num);
     return (k&&k.name?`${k.name} (${c.num})`:`لون ${c.num}`)+`×${c.qty}`;
   }).join('، ');
 }
 
 // شبكة اختيار اللون — مشتركة بين سلّة الطلب وسلّة التعديل، فالشكل واحد
 // والسلوك واحد. المتوقّف لا يظهر إلا إذا كان مختاراً في طلب قائم.
-function _cnGridHtml(codes,sel,fn,i,small){
+function _cnGridHtml(codes,sel,fn,i,small,own){
   const box=small?38:44;
+  if(own) return codes.map(n=>{
+    const q=sel[n]||0,on=q>0;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <button onclick="${fn}(${i},${n},1)" style="width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;">${n}</button>
+      ${on?`<div style="display:flex;align-items:center;gap:3px;">
+        <button onclick="${fn}(${i},${n},-1)" style="width:17px;height:17px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.68rem;line-height:1;">−</button>
+        <span style="font-size:0.7rem;font-weight:800;color:#2563eb;min-width:11px;text-align:center;">${q}</span>
+        <button onclick="${fn}(${i},${n},1)" style="width:17px;height:17px;border:none;background:#dbeafe;color:#1e40af;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.68rem;line-height:1;">+</button>
+      </div>`:'<div style="height:17px;"></div>'}
+    </div>`;
+  }).join('');
   return codes.filter(n=>_clrSt(n)!=='retired'||(sel[n]||0)>0).map(n=>{
     const q=sel[n]||0,on=q>0;
     const c=_clr(n),st=_clrSt(n),hex=(c&&c.hex)||'';
@@ -2839,8 +2862,8 @@ function _cnGridHtml(codes,sel,fn,i,small){
   }).join('');
 }
 // لون خلص = لا يُضاف من جديد، لكن ما هو مختار في طلب قائم ينقص بحرّية
-function _cnBlocked(num,cur,delta){
-  if(delta<=0) return false;
+function _cnBlocked(num,cur,delta,own){
+  if(delta<=0||own) return false;
   const st=_clrSt(num);
   if(st==='active') return false;
   toast(`⚠️ ${_clrName(num)} ${st==='out'?'خلص مؤقتاً':'متوقّف'} — اختر لوناً غيره`);
@@ -2854,6 +2877,8 @@ function _cnBlocked(num,cur,delta){
 function _cnMapOf(products){
   const m={};
   (products||[]).forEach(p=>{
+    // ترقيمه الخاص ما إله علاقة بأرقام المكتبة — فلا يُخصم من مخزونها
+    if(_prodOwnColors(_prodById(p.id))) return;
     (Array.isArray(p.colorNumbers)?p.colorNumbers:[]).forEach(c=>{
       const n=Number(c.num)||0,q=Number(c.qty)||0;
       if(n>0&&q>0) m[n]=(m[n]||0)+q;
@@ -3653,6 +3678,12 @@ let _oppColorCodes=[];
 function renderOppCNPicker(){
   const w=document.getElementById('opp_cn_pick');if(!w)return;
   const leg=document.getElementById('opp_cn_legacy');
+  // ترقيم مستقلّ: المنتج إله كتالوجه الخاص، فما منعرض إله ألوان المكتبة
+  if(document.getElementById('opp_own_colors')?.checked){
+    w.innerHTML='<div style="font-size:0.74rem;color:#3730a3;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:8px 10px;line-height:1.7;">🔢 هذا المنتج بترقيمه الخاص — أرقام سادة من ١ لآخر رقم، بلا أسماء ولا صور ولا مخزون من المكتبة، وبلا «خلص» تبعها.</div>';
+    if(leg)leg.style.display='block';
+    return;
+  }
   if(!_colorLib.length){
     w.innerHTML='<div style="font-size:0.74rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;line-height:1.7;">المكتبة فاضية — افتح <b>🎨 مكتبة الألوان</b> واضغط «⚡ عبّي المكتبة». لَهلق بيشتغل بالعدد القديم.</div>';
     if(leg)leg.style.display='block';
@@ -3686,7 +3717,7 @@ window.clrStockSave=clrStockSave;
 // اختيار/تعديل عدد رقم لون لمنتج بأرقام ألوان — الكمية = مجموع الأعداد
 function empCartCN(idx,num,delta){
   const item=_empOrderCart[idx];if(!item)return;
-  if(_cnBlocked(num,item,delta))return;
+  if(_cnBlocked(num,item,delta,_prodOwnColors(_prodById(item.id))))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const i=cns.findIndex(c=>c.num===num);
   if(i>=0){const q=(cns[i].qty||0)+delta;if(q<=0)cns.splice(i,1);else cns[i]={num,qty:q};}
@@ -3930,7 +3961,7 @@ function renderEmpOrderCart(){
     if(hasCN&&cnCodes.length){
       const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
       const totalCN=cns.reduce((s,c)=>s+(c.qty||0),0);
-      const grid=_cnGridHtml(cnCodes,sel,'empCartCN',i,false);
+      const grid=_cnGridHtml(cnCodes,sel,'empCartCN',i,false,_prodOwnColors(prod));
       colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اختر اللون والعدد ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
     }
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateCartItemPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
@@ -4898,7 +4929,7 @@ function _showOpOrderDetail(o){
             ${_ret>0?`<div style="font-size:0.72rem;color:#7c2d12;background:#ffedd5;border:1px solid #fdba74;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;font-weight:800;">↩️ مرتجع ${_ret}${_gone?' — كامل':''}</div>`:''}
             ${p.priceLabel?`<div style="font-size:0.72rem;color:#854d0e;background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block;font-weight:700;">🏷 ${p.priceLabel}</div>`:''}
             ${p.color?`<div style="font-size:0.72rem;color:#555;margin-top:2px;">اللون: ${p.color}</div>`:''}
-            ${p.colorNumbers?`<div style="font-size:0.72rem;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;font-weight:700;">${_fmtCN(p.colorNumbers)}</div>`:''}
+            ${p.colorNumbers?`<div style="font-size:0.72rem;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;font-weight:700;">${_fmtCN(p.colorNumbers,p.id)}</div>`:''}
             ${p.writing?`<div style="font-size:0.72rem;color:#555;background:#fafafa;border-right:2.5px solid #111;border-radius:6px;padding:3px 8px;margin-top:4px;display:inline-block;">✎ ${p.writing}</div>`:''}
           </div>
           <div style="text-align:left;flex-shrink:0;">
@@ -5170,7 +5201,7 @@ function renderEmpEditCart(){
       if(hasCN&&cnCodes.length){
         const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
         const total=cns.reduce((s,c)=>s+(c.qty||0),0);
-        const grid=_cnGridHtml(cnCodes,sel,'empEditCN',i,true);
+        const grid=_cnGridHtml(cnCodes,sel,'empEditCN',i,true,_prodOwnColors(pr));
         cnHtml=`<div><div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اللون والعدد ${total?`<span style="color:#166534;">(${total})</span>`:'<span style="color:#dc2626;font-weight:800;">*</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:7px;max-height:230px;overflow-y:auto;padding:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">${grid}</div></div>`;
       }
       const qtyCtl=hasCN?`<div style="font-weight:800;color:#1e40af;font-size:0.85rem;min-width:40px;text-align:center;">🎨 ${item.qty||1}</div>`:`<div style="display:flex;align-items:center;gap:4px;">
@@ -5197,7 +5228,7 @@ function renderEmpEditCart(){
 
 function empEditCN(i,num,delta){
   const item=_empEditCart[i];if(!item)return;
-  if(_cnBlocked(num,item,delta))return;
+  if(_cnBlocked(num,item,delta,_prodOwnColors(_prodById(item.id))))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const j=cns.findIndex(c=>c.num===num);
   if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
@@ -5443,7 +5474,7 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
   const chips=prods.map(p=>{
     const im=_roImg(p);
     const qty=p.qty||p.quantity||1;
-    const cn=(p.colorNumbers&&p.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(p.colorNumbers):'';
+    const cn=(p.colorNumbers&&p.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(p.colorNumbers,p.id):'';
     return `<span class="ro-chip"><span class="th">${im?`<img loading="lazy" decoding="async" src="${im}" alt="" onerror="${_RO_IMGERR}">`:'🪵'}</span>`
       +`<b>${_roEsc(p.name||'—')}</b>`
       +(p.color?`<span class="at">${_roEsc(p.color)}</span>`:'')
@@ -6082,7 +6113,7 @@ async function _printOrderLabels(orders){
     let idx=0;
     pieces.forEach(pr=>{
       const qty=Math.max(1,parseInt(pr.qty||pr.quantity||1)||1);
-      const cn=(pr.colorNumbers&&pr.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(pr.colorNumbers):'';
+      const cn=(pr.colorNumbers&&pr.colorNumbers.length&&typeof _fmtCN==='function')?_fmtCN(pr.colorNumbers,pr.id):'';
       const extra=[pr.color?'اللون: '+pr.color:'',pr.writing?'✍ '+pr.writing:'',cn].filter(Boolean).join(' · ');
       for(let k=0;k<qty;k++){
         idx++;
@@ -7423,7 +7454,7 @@ function renderOrdersByStatus(keepPage){
         <span style="background:${statusColors[o.status||'جديد']};color:${statusText[o.status||'جديد']};padding:3px 10px;border-radius:8px;font-size:0.75rem;font-weight:600;">${o.status||'جديد'}</span>
       </div>
       <div style="font-size:0.85rem;color:var(--text-mid);">👤 ${o.name} · <a href="https://wa.me/962${(o.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'')}" target="_blank" style="color:#25D366;font-weight:700;text-decoration:none;">📱 ${o.phone}</a> · 📍 ${o.area||''}</div>
-      <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.colorNumbers?' '+_fmtCN(i.colorNumbers):''}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
+      <div style="font-size:0.82rem;color:var(--text-dark);">${(o.items||[]).map(i=>`${i.name} ×${i.qty}${i.colorNumbers?' '+_fmtCN(i.colorNumbers,i.id):''}${i.writing?' ✍️ '+i.writing:''}`).join(' · ')}</div>
       <div style="font-weight:700;color:var(--brown);font-size:0.9rem;">💰 الإجمالي: ${o.total}</div>
       ${o.notes?`<div style="font-size:0.78rem;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;">📝 ${o.notes}</div>`:''}
       ${o.cancelReason?`<div style="font-size:0.78rem;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:6px;">🚫 سبب الإلغاء: ${o.cancelReason}</div>`:''}
@@ -8062,7 +8093,7 @@ function saveCartEdit(){
   toast('✅ تم حفظ التعديل!');
 }
 function notifyAdminWA(order){
-  const items=order.items.map(function(i){return '• '+i.name+' ×'+i.qty+' — '+i.price+' د.أ'+(i.colorNumbers?' '+_fmtCN(i.colorNumbers):'')+(i.writing?' ✍️ '+i.writing:'');}).join('\n');
+  const items=order.items.map(function(i){return '• '+i.name+' ×'+i.qty+' — '+i.price+' د.أ'+(i.colorNumbers?' '+_fmtCN(i.colorNumbers,i.id):'')+(i.writing?' ✍️ '+i.writing:'');}).join('\n');
   const msg='🔔 *طلب جديد - الكسواني روزميري*\n\n'
     +'رقم الطلب: '+order.orderNum+'\n\n'
     +'👤 الاسم: '+order.name+'\n'
@@ -9212,6 +9243,8 @@ function editOpProduct(id){
   _oppColors=Array.isArray(p.colors)?[...p.colors]:[];
   renderOppColorChips();
   _oppColorCodes=Array.isArray(p.colorCodes)?p.colorCodes.map(Number).filter(n=>n>0):[];
+  const oc=document.getElementById('opp_own_colors');
+  if(oc) oc.checked=!!p.ownColorNumbers;
   renderOppCNPicker();
   _oppPriceOptions=Array.isArray(p.priceOptions)?p.priceOptions.map(o=>({label:o.label,price:o.price})):[];
   renderOppPriceOptionChips();
@@ -9264,6 +9297,8 @@ function cancelEditProduct(){
   const hcnCount=document.getElementById('opp_color_numbers_count');
   if(hcnCount) hcnCount.value='';
   _oppColorCodes=[];
+  const oc2=document.getElementById('opp_own_colors');
+  if(oc2) oc2.checked=false;
   renderOppCNPicker();
   const catEl=document.getElementById('opp_category');
   if(catEl) catEl.value='';
@@ -9291,7 +9326,9 @@ async function saveOpProduct(){
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
     const isTree=document.getElementById('opp_is_tree')?.checked||false;
     const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
+    const ownColorNumbers=hasColorNumbers&&(document.getElementById('opp_own_colors')?.checked||false);
     const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
+    if(hasColorNumbers&&ownColorNumbers&&colorNumbersCount<1){toast('⚠️ اكتب عدد الأرقام للترقيم المستقل');return;}
     const category=(document.getElementById('opp_category')?.value||'').trim();
     // صورة المنتج → التخزين السحابي (رابط خفيف بدل base64 داخل الوثيقة)، مع fallback آمن
     if(_oppCurrentImageUrl&&_oppCurrentImageUrl.startsWith('data:')){
@@ -9302,14 +9339,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,colorCodes:hasColorNumbers?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,ownColorNumbers,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,colorCodes:hasColorNumbers?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,ownColorNumbers,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
