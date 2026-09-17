@@ -2679,6 +2679,77 @@ function _clrInk(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return (0.299*r+0.587*g+0.114*b)>150?'#111827':'#ffffff';
 }
+// وجه اللون: صورة الشنيل نفسه إن وُجدت، وإلا مربّع اللون. العين بتعرف
+// الفرق بين الزيتي والزيتوني بالصورة، ما بتعرفه بمربّع مصمت.
+function _clrFace(code){
+  const c=typeof code==='object'?code:_clr(code);
+  if(c&&c.img) return `background-image:url('${c.img}');background-size:cover;background-position:center;`;
+  return `background:${(c&&c.hex)||'#f3f4f6'};`;
+}
+// الرقم فوق صورة = حبّة بخلفية مصمتة (الصورة ما بتضمن تباين)؛ وفوق مربّع
+// لون = رقم بلون مقروء عليه.
+function _clrNumChip(code,n,fs){
+  const c=typeof code==='object'?code:_clr(code);
+  if(c&&c.img) return `<span style="position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.93);color:#111827;border-radius:6px;padding:0 4px;font-size:${fs};font-weight:900;line-height:1.35;">${n}</span>`;
+  const hex=(c&&c.hex)||'';
+  return `<span style="color:${hex?_clrInk(hex):'#6b7280'};font-size:${fs};font-weight:900;">${n}</span>`;
+}
+// صورة صغيرة (١٢٠ بكسل) تنحفظ جوّا الوثيقة نفسها فتظهر فوراً بلا رحلة
+// للتخزين — ٤-٨ كيلو للّون الواحد. ومنها نشتقّ لون تقريبي يضمن أنّ الرقم
+// يبقى مقروءاً في الأماكن الضيّقة.
+function _clrThumb(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>rej(new Error('تعذّرت قراءة الصورة'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>rej(new Error('صورة غير صالحة'));
+      im.onload=()=>{
+        const S=120,cv=document.createElement('canvas');
+        cv.width=S;cv.height=S;
+        const cx=cv.getContext('2d');
+        const side=Math.min(im.width,im.height);
+        cx.drawImage(im,(im.width-side)/2,(im.height-side)/2,side,side,0,0,S,S);
+        let hex='';
+        try{
+          const d=cx.getImageData(0,0,S,S).data;
+          let r=0,g=0,b=0,n=0;
+          for(let i=0;i<d.length;i+=16){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+          const h=v=>Math.round(v/n).toString(16).padStart(2,'0');
+          hex='#'+h(r)+h(g)+h(b);
+        }catch(e){}
+        res({dataUrl:cv.toDataURL('image/jpeg',0.72),hex});
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+function clrPickImage(id){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    toast('⏳ جاري تجهيز الصورة...');
+    try{
+      const t=await _clrThumb(f);
+      await db.collection('color_library').doc(id).update({img:t.dataUrl,...(t.hex?{hex:t.hex}:{})});
+      await loadColorLibrary(true);
+      renderColorLib();
+      toast('📷 انحفظت صورة الشنيل');
+    }catch(e){toast('❌ '+e.message);}
+  };
+  inp.click();
+}
+async function clrClearImage(id){
+  try{
+    await db.collection('color_library').doc(id).update({img:''});
+    await loadColorLibrary(true);
+    renderColorLib();
+    toast('🗑 انشالت الصورة');
+  }catch(e){toast('❌ '+e.message);}
+}
+
 // أرقام الألوان التي يعرضها هذا المنتج. المكتبة الفاضية ⇒ نرجع للسلوك
 // القديم (١..N) فلا ينكسر شيء قبل الترحيل.
 function _prodColorCodes(p){
@@ -2703,11 +2774,9 @@ function _cnGridHtml(codes,sel,fn,i,small){
     const q=sel[n]||0,on=q>0;
     const c=_clr(n),st=_clrSt(n),hex=(c&&c.hex)||'';
     const dead=st!=='active';
-    const face=hex||'#ffffff';
-    const ink=hex?_clrInk(hex):'#374151';
     return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${dead&&!on?'opacity:.58;':''}">
-      <button onclick="${fn}(${i},${n},1)" title="${_clrName(n)}" style="position:relative;width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':hex?'rgba(0,0,0,.18)':'#cbd5e1'};background:${face};color:${ink};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;box-shadow:${on?'0 0 0 2px #bfdbfe':'none'};">
-        ${n}${dead?`<span style="position:absolute;top:-6px;left:-6px;font-size:0.72rem;line-height:1;filter:drop-shadow(0 0 1px #fff);">${st==='out'?'🟡':'⚫️'}</span>`:''}
+      <button onclick="${fn}(${i},${n},1)" title="${_clrName(n)}" style="position:relative;display:grid;place-items:center;width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':(hex||(c&&c.img))?'rgba(0,0,0,.18)':'#cbd5e1'};${_clrFace(c)}cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;box-shadow:${on?'0 0 0 2px #bfdbfe':'none'};overflow:hidden;">
+        ${_clrNumChip(c,n,small?'0.66rem':'0.78rem')}${dead?`<span style="position:absolute;top:1px;left:1px;font-size:0.68rem;line-height:1;filter:drop-shadow(0 0 1px #fff);">${st==='out'?'🟡':'⚫️'}</span>`:''}
       </button>
       <div style="font-size:0.6rem;color:${dead?'#9ca3af':'#4b5563'};max-width:${box+14}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;${dead?'text-decoration:line-through;':''}">${(c&&c.name)?c.name:'—'}</div>
       ${on?`<div style="display:flex;align-items:center;gap:3px;">
@@ -2869,7 +2938,7 @@ function renderColorLib(){
     const open=_clrOpenId===c.id;
     return `<div style="border:1.5px solid ${open?'#93c5fd':'#e5e7eb'};border-radius:12px;padding:9px 10px;margin-bottom:7px;background:${open?'#f8fbff':'#fff'};">
       <div style="display:flex;align-items:center;gap:9px;">
-        <div style="width:40px;height:40px;border-radius:10px;background:${hex||'#f3f4f6'};border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;font-weight:900;font-size:0.82rem;color:${hex?_clrInk(hex):'#6b7280'};flex-shrink:0;">${c.code}</div>
+        <div onclick="clrPickImage('${c.id}')" title="غيّر صورة الشنيل" style="position:relative;width:44px;height:44px;border-radius:10px;${_clrFace(c)}border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;flex-shrink:0;cursor:pointer;overflow:hidden;">${_clrNumChip(c,c.code,'0.78rem')}${c.img?'':'<span style="position:absolute;bottom:1px;left:2px;font-size:0.6rem;opacity:.65;">📷</span>'}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:800;font-size:0.86rem;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'<span style="color:#d1d5db;">بلا اسم</span>'}</div>
           <div style="font-size:0.68rem;color:${s.color};font-weight:700;">${s.icon} ${s.label}${isFinite(q)?` · <span style="color:${lowOn?'#b45309':'#6b7280'};">${q} قطعة${lowOn?' ⚠️':''}</span>`:''}</div>
@@ -2881,10 +2950,13 @@ function renderColorLib(){
         </div>
       </div>
       ${open?`<div style="margin-top:9px;padding-top:9px;border-top:1px dashed #d1d5db;display:flex;flex-direction:column;gap:8px;">
+        <input id="clr_name_${c.id}" value="${_clrEsc(c.name)}" placeholder="اسم اللون (فوشي، زيتي...)" style="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;">
         <div style="display:flex;gap:7px;align-items:center;">
-          <input type="color" id="clr_hex_${c.id}" value="${/^#[0-9a-f]{6}$/i.test(hex)?hex:'#cccccc'}" style="width:44px;height:38px;border:1.5px solid #e5e7eb;border-radius:9px;background:#fff;cursor:pointer;padding:2px;">
-          <input id="clr_name_${c.id}" value="${_clrEsc(c.name)}" placeholder="اسم اللون (فوشي، زيتي...)" style="flex:1;min-width:90px;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;">
+          <button onclick="clrPickImage('${c.id}')" style="flex:1;padding:9px;background:${c.img?'#eff6ff':'#2563eb'};color:${c.img?'#1e40af':'#fff'};border:1.5px solid ${c.img?'#bfdbfe':'#2563eb'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📷 ${c.img?'بدّل صورة الشنيل':'صوّر الشنيل'}</button>
+          ${c.img?`<button onclick="clrClearImage('${c.id}')" style="padding:9px 11px;background:#fee2e2;color:#dc2626;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🗑</button>`:''}
+          <input type="color" id="clr_hex_${c.id}" value="${/^#[0-9a-f]{6}$/i.test(hex)?hex:'#cccccc'}" title="لون احتياطي" style="width:44px;height:38px;border:1.5px solid #e5e7eb;border-radius:9px;background:#fff;cursor:pointer;padding:2px;flex-shrink:0;">
         </div>
+        <div style="font-size:0.66rem;color:#9ca3af;line-height:1.7;">صوّر الشليلة نفسها — بتظهر للموظف بدل المربّع. قصّ الصورة على اللون الواحد قبل ما ترفعها.</div>
         <div style="display:flex;gap:7px;align-items:center;">
           <input id="clr_low_${c.id}" type="number" min="0" value="${c.lowAt||''}" placeholder="حدّ التنبيه" style="width:110px;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;">
           <span style="font-size:0.68rem;color:#9ca3af;flex:1;">بينبّهك لمّا الكمية تنزل لهاد الرقم</span>
@@ -3012,12 +3084,12 @@ async function openColorStock(){
       <button onclick="document.getElementById('clrStockModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:10px 12px;">
-      ${rows.map(c=>{const hex=c.hex||'';return `<div style="display:flex;align-items:center;gap:9px;padding:6px 2px;border-bottom:1px solid #f3f4f6;">
-        <div style="width:32px;height:32px;border-radius:8px;background:${hex||'#f3f4f6'};border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;font-weight:900;font-size:0.72rem;color:${hex?_clrInk(hex):'#6b7280'};flex-shrink:0;">${c.code}</div>
+      ${rows.map(c=>`<div style="display:flex;align-items:center;gap:9px;padding:6px 2px;border-bottom:1px solid #f3f4f6;">
+        <div style="position:relative;width:34px;height:34px;border-radius:8px;${_clrFace(c)}border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;flex-shrink:0;overflow:hidden;">${_clrNumChip(c,c.code,'0.7rem')}</div>
         <div style="flex:1;min-width:0;font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'—'}</div>
         <span style="font-size:0.68rem;color:#9ca3af;">حالياً ${Number(c.qty)||0}</span>
         <input id="clrq_${c.id}" type="number" min="0" placeholder="—" style="width:74px;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
-      </div>`;}).join('')}
+      </div>`).join('')}
     </div>
     <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
       <button onclick="clrStockSave()" style="width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 احفظ الجرد</button>
@@ -3067,9 +3139,9 @@ function renderOppCNPicker(){
       كل ألوان المكتبة (${_colorLib.length}) — والجديد بيوصله لحاله
     </label>
     ${all?'':`<div style="display:flex;flex-wrap:wrap;gap:5px;">${_colorLib.map(c=>{
-      const on=_oppColorCodes.includes(c.code),hex=c.hex||'';
+      const on=_oppColorCodes.includes(c.code);
       return `<button type="button" onclick="oppCNToggle(${c.code})" style="display:flex;align-items:center;gap:5px;padding:4px 9px;border:1.5px solid ${on?'#2563eb':'#e5e7eb'};background:${on?'#eff6ff':'#fff'};border-radius:18px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;color:#374151;cursor:pointer;">
-        <span style="width:13px;height:13px;border-radius:4px;background:${hex||'#e5e7eb'};border:1px solid rgba(0,0,0,.15);"></span>${c.code}${c.name?' '+_clrEsc(c.name):''}</button>`;}).join('')}</div>`}`;
+        <span style="width:15px;height:15px;border-radius:4px;${_clrFace(c)}border:1px solid rgba(0,0,0,.15);flex-shrink:0;"></span>${c.code}${c.name?' '+_clrEsc(c.name):''}</button>`;}).join('')}</div>`}`;
 }
 function oppCNAll(on){_oppColorCodes=on?[]:_colorLib.map(c=>c.code);renderOppCNPicker();}
 function oppCNToggle(code){
@@ -3083,6 +3155,7 @@ window.openColorLib=openColorLib; window.closeColorLib=closeColorLib;
 window.clrToggle=clrToggle; window.clrAdd=clrAdd; window.clrSave=clrSave;
 window.clrSetStatus=clrSetStatus; window.clrMove=clrMove; window.clrDelete=clrDelete;
 window.seedColorLibrary=seedColorLibrary; window.openColorStock=openColorStock;
+window.clrPickImage=clrPickImage; window.clrClearImage=clrClearImage;
 window.clrStockSave=clrStockSave;
 // اختيار/تعديل عدد رقم لون لمنتج بأرقام ألوان — الكمية = مجموع الأعداد
 function empCartCN(idx,num,delta){
