@@ -2983,6 +2983,7 @@ function renderColorLib(){
   if(tools) tools.innerHTML=
     `<button onclick="clrAdd()" style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">➕ لون جديد</button>`+
     `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
+    (_colorLib.length?`<button onclick="openColorIntake()" style="padding:7px 12px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📥 وارد جديد</button>`:'')+
     (_colorLib.length?`<button onclick="openColorBulk()" style="padding:7px 12px;background:#1f2937;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📷 صورة وحدة للكل</button>`:'')+
     (_colorLib.length?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
 
@@ -3313,6 +3314,90 @@ window.cbPickPhoto=cbPickPhoto; window.cbTap=cbTap; window.cbUndo=cbUndo;
 window.cbSkip=cbSkip; window.cbGo=cbGo; window.cbSize=cbSize; window.cbZoom=cbZoom;
 window.cbSave=cbSave;
 
+// ─────────── وارد جديد ───────────
+// الجرد بيكتب الرقم النهائي، والوارد بيضيف عليه. الفرق مش شكلي: إجتك بضاعة
+// وإنت بتحسب ٩+١٠ براسك وبتكتب ١٩ — ولو نزل طلب بهاي اللحظة بتمسح خصمه.
+// الوارد بيزيد بـincrement، فما بيضيع ولا قطعة مهما كان في طلبات ماشية.
+async function openColorIntake(){
+  await loadColorLibrary(true);
+  const rows=_colorLib.filter(c=>c.status!=='retired');
+  if(!rows.length){toast('⚠️ المكتبة فاضية');return;}
+  document.getElementById('clrIntakeModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='clrIntakeModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#1e40af;">📥 وارد جديد</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">اكتب <b>اللي إجاك بس</b> — البرنامج بيجمعه على الموجود</div>
+      </div>
+      <button onclick="document.getElementById('clrIntakeModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px 12px;">
+      ${rows.map(c=>{const cur=c.counted===true?(Number(c.qty)||0):0;
+        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid #f3f4f6;">
+        <div style="position:relative;width:34px;height:34px;border-radius:8px;${_clrFace(c)}border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;flex-shrink:0;overflow:hidden;">${_clrNumChip(c,c.code,'0.7rem')}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'—'}</div>
+          <div style="font-size:0.67rem;color:#9ca3af;">${c.counted===true?'عندك '+cur:'ما انجرد — بيبلّش من صفر'}</div>
+        </div>
+        <span style="color:#16a34a;font-weight:900;font-size:0.9rem;">+</span>
+        <input id="clri_${c.id}" data-cur="${cur}" type="number" min="0" placeholder="0" oninput="_clrIntakePrev('${c.id}')"
+          style="width:66px;padding:8px;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
+        <span id="clrit_${c.id}" style="font-size:0.78rem;font-weight:800;color:#d1d5db;min-width:38px;text-align:center;">—</span>
+      </div>`;}).join('')}
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
+      <div id="clrIntakeSum" style="font-size:0.74rem;color:#6b7280;text-align:center;margin-bottom:8px;">ما دخّلت ولا رقم بعد</div>
+      <button onclick="clrIntakeSave()" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">📥 ضيف الوارد</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _clrIntakePrev(id){
+  const el=document.getElementById('clri_'+id),out=document.getElementById('clrit_'+id);
+  if(!el||!out)return;
+  const cur=Number(el.getAttribute('data-cur'))||0;
+  const v=parseInt(el.value);
+  if(isNaN(v)||v<=0){out.textContent='—';out.style.color='#d1d5db';}
+  else{out.textContent='= '+(cur+v);out.style.color='#16a34a';}
+  let n=0,t=0;
+  _colorLib.forEach(c=>{const e=document.getElementById('clri_'+c.id);
+    const x=e?parseInt(e.value):NaN;if(!isNaN(x)&&x>0){n++;t+=x;}});
+  const sum=document.getElementById('clrIntakeSum');
+  if(sum)sum.innerHTML=n?`وارد <b style="color:#16a34a;">${t}</b> قطعة على <b>${n}</b> لون`:'ما دخّلت ولا رقم بعد';
+}
+async function clrIntakeSave(){
+  const add=[];
+  _colorLib.forEach(c=>{
+    const el=document.getElementById('clri_'+c.id);
+    if(!el||el.value==='')return;
+    const v=parseInt(el.value);
+    if(isNaN(v)||v<=0)return;
+    add.push({c,v});
+  });
+  if(!add.length){toast('⚠️ اكتب الوارد لواحد على الأقل');return;}
+  try{
+    const batch=db.batch();
+    add.forEach(({c,v})=>{
+      const ref=db.collection('color_library').doc(c.id);
+      // لون ما انجرد قبل: الوارد نفسه بيصير رصيده، وبينعلّم «معدود»
+      if(c.counted===true) batch.update(ref,{qty:firebase.firestore.FieldValue.increment(v),counted:true});
+      else batch.update(ref,{qty:v,counted:true});
+    });
+    await batch.commit();
+    await _autoColorStatus();
+    await loadColorLibrary(true);
+    document.getElementById('clrIntakeModal')?.remove();
+    renderColorLib();
+    const tot=add.reduce((s,x)=>s+x.v,0);
+    toast(`📥 انضاف ${tot} قطعة على ${add.length} لون`);
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openColorIntake=openColorIntake; window._clrIntakePrev=_clrIntakePrev;
+window.clrIntakeSave=clrIntakeSave;
+
 // ─────────── جرد سريع ───────────
 async function openColorStock(){
   await loadColorLibrary(true);
@@ -3326,7 +3411,7 @@ async function openColorStock(){
     <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <div>
         <div style="font-weight:900;font-size:1rem;color:#166534;">🔢 جرد سريع</div>
-        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">عدّ الموجود واكتبه — اللي بتتركه فاضي ما بيتغيّر</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">اكتب <b>الرقم النهائي</b> اللي عدّيته — مش الوارد. اللي بتتركه فاضي ما بيتغيّر</div>
       </div>
       <button onclick="document.getElementById('clrStockModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button>
     </div>
