@@ -2923,6 +2923,7 @@ function renderColorLib(){
   if(tools) tools.innerHTML=
     `<button onclick="clrAdd()" style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">➕ لون جديد</button>`+
     `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
+    (_colorLib.length?`<button onclick="openColorBulk()" style="padding:7px 12px;background:#1f2937;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📷 صورة وحدة للكل</button>`:'')+
     (_colorLib.length?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
 
   if(!_colorLib.length){
@@ -3065,6 +3066,192 @@ async function seedColorLibrary(){
     toast(`✅ انعملت ${max} لون — عبّي الأسماء والألوان`);
   }catch(e){toast('❌ '+e.message);}
 }
+
+// ─────────── صورة وحدة لكل الألوان ───────────
+// بدل ما يصوّر ٣٦ شليلة ويقصّهم واحد واحد: صورة وحدة للكل، ونقرة على كل
+// شليلة. النقرة بتقصّ مربّعاً حواليها وبتلزقه على اللون الحالي وبتنتقل
+// للي بعده. وبتضلّ علامة مرقّمة مكان كل نقرة، فما بيضيع مكانه.
+let _cbImg=null,_cbCrop=0,_cbIdx=0,_cbList=[],_cbDone={},_cbZoom=1;
+
+async function openColorBulk(){
+  await loadColorLibrary(true);
+  _cbList=_colorLib.filter(c=>c.status!=='retired');
+  if(!_cbList.length){toast('⚠️ المكتبة فاضية');return;}
+  _cbImg=null;_cbIdx=0;_cbDone={};_cbZoom=1;_cbCrop=0;
+  document.getElementById('clrBulkModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='clrBulkModal';
+  ov.style.cssText='position:fixed;inset:0;background:#111827;z-index:100003;display:flex;flex-direction:column;font-family:\'Tajawal\',sans-serif;';
+  ov.innerHTML=`
+    <div style="padding:11px 13px;background:#1f2937;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;">
+      <div>
+        <div style="font-weight:900;font-size:0.92rem;color:#fff;">📷 صورة وحدة لكل الألوان</div>
+        <div style="font-size:0.66rem;color:#9ca3af;margin-top:1px;">انقر على كل شليلة بالصورة — بينتقل للي بعده لحاله</div>
+      </div>
+      <button onclick="closeColorBulk()" style="background:#374151;border:none;border-radius:9px;width:30px;height:30px;color:#fff;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div id="cbTools" style="padding:8px 12px;background:#1f2937;border-top:1px solid #374151;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0;"></div>
+    <div id="cbStage" style="flex:1;overflow:auto;background:#0b0f16;position:relative;-webkit-overflow-scrolling:touch;"></div>
+    <div id="cbFoot" style="background:#1f2937;border-top:1px solid #374151;padding:9px 12px 12px;flex-shrink:0;"></div>`;
+  document.body.appendChild(ov);
+  _cbRender();
+  cbPickPhoto();
+}
+function closeColorBulk(){
+  if(Object.keys(_cbDone).length&&!confirm('في ألوان ما انحفظت — تطلع وتفقدها؟'))return;
+  _cbImg=null;_cbDone={};
+  document.getElementById('clrBulkModal')?.remove();
+}
+
+function cbPickPhoto(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const im=new Image();
+      im.onload=()=>{
+        _cbImg=im;
+        // القصّة الافتراضية ثُمن أقصر ضلع — قريبة من حجم شليلة بصورة جماعية
+        _cbCrop=Math.max(24,Math.round(Math.min(im.naturalWidth,im.naturalHeight)/8));
+        _cbRender();
+      };
+      im.onerror=()=>toast('❌ صورة غير صالحة');
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+function _cbCur(){return _cbList[_cbIdx]||null;}
+
+function _cbRender(){
+  const tools=document.getElementById('cbTools'),stage=document.getElementById('cbStage'),foot=document.getElementById('cbFoot');
+  if(!tools||!stage||!foot)return;
+  const nDone=Object.keys(_cbDone).length;
+
+  tools.innerHTML=`<button onclick="cbPickPhoto()" style="padding:6px 10px;background:#374151;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.73rem;font-weight:700;cursor:pointer;white-space:nowrap;">🖼 الصورة</button>`+
+    (_cbImg?`<span style="color:#6b7280;font-size:0.7rem;">✂️</span>
+      <button onclick="cbSize(-1)" style="width:27px;height:27px;background:#374151;color:#fff;border:none;border-radius:7px;font-weight:900;cursor:pointer;">−</button>
+      <span style="color:#fff;font-size:0.73rem;font-weight:800;min-width:32px;text-align:center;">${_cbCrop}</span>
+      <button onclick="cbSize(1)" style="width:27px;height:27px;background:#374151;color:#fff;border:none;border-radius:7px;font-weight:900;cursor:pointer;">+</button>
+      <span style="color:#6b7280;font-size:0.7rem;margin-right:4px;">🔍</span>
+      ${[1,2,3].map(z=>`<button onclick="cbZoom(${z})" style="padding:5px 8px;background:${_cbZoom===z?'#2563eb':'#374151'};color:#fff;border:none;border-radius:7px;font-size:0.71rem;font-weight:800;cursor:pointer;">${z}×</button>`).join('')}`:'');
+
+  if(!_cbImg){
+    stage.innerHTML='<div style="padding:40px 22px;text-align:center;color:#9ca3af;font-size:0.85rem;line-height:2;">اختر صورة فيها كل الشليلات<br><span style="font-size:0.74rem;color:#6b7280;">نفس صورة المجموعة اللي عندك بتظبط</span></div>';
+    foot.innerHTML='';
+    return;
+  }
+
+  const marks=Object.keys(_cbDone).map(code=>{
+    const d=_cbDone[code];
+    return `<div style="position:absolute;left:${d.px}%;top:${d.py}%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:rgba(37,99,235,.92);border:2px solid #fff;color:#fff;font-size:0.64rem;font-weight:900;display:grid;place-items:center;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.5);">${code}</div>`;
+  }).join('');
+  stage.innerHTML=`<div id="cbWrap" style="position:relative;width:${100*_cbZoom}%;">
+      <img id="cbPhoto" src="${_cbImg.src}" onclick="cbTap(event)" style="display:block;width:100%;height:auto;cursor:crosshair;">
+      ${marks}
+    </div>`;
+
+  const cur=_cbCur();
+  const strip=_cbList.map((c,i)=>{
+    const d=_cbDone[c.code];
+    const face=d?`background-image:url('${d.img}');background-size:cover;background-position:center;`:_clrFace(c);
+    return `<button onclick="cbGo(${i})" title="${_clrEsc(c.name)||('لون '+c.code)}" style="position:relative;flex:0 0 auto;width:36px;height:36px;border-radius:8px;${face}border:2px solid ${i===_cbIdx?'#facc15':d?'#22c55e':'rgba(255,255,255,.22)'};cursor:pointer;padding:0;overflow:hidden;">
+      <span style="position:absolute;bottom:0;right:0;background:rgba(255,255,255,.92);color:#111;font-size:0.56rem;font-weight:900;padding:0 3px;border-radius:5px 0 0 0;">${c.code}</span>
+    </button>`;}).join('');
+
+  foot.innerHTML=`
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px;">
+      <div style="width:38px;height:38px;border-radius:9px;${cur?_clrFace(cur):''}border:2px solid #facc15;flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="color:#facc15;font-size:0.7rem;font-weight:700;">هلق:</div>
+        <div style="color:#fff;font-weight:800;font-size:0.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${cur?(_clrEsc(cur.name)||'بلا اسم')+' ('+cur.code+')':'خلّصت الكل ✅'}</div>
+      </div>
+      <button onclick="cbUndo()" ${nDone?'':'disabled'} style="padding:7px 10px;background:#374151;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;${nDone?'':'opacity:.35;'}">↩️ تراجع</button>
+      <button onclick="cbSkip()" ${cur?'':'disabled'} style="padding:7px 10px;background:#374151;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;${cur?'':'opacity:.35;'}">⏭ تخطّي</button>
+    </div>
+    <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:7px;">${strip}</div>
+    <button onclick="cbSave()" ${nDone?'':'disabled'} style="width:100%;padding:12px;background:${nDone?'#16a34a':'#374151'};color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;${nDone?'':'opacity:.45;'}">💾 احفظ ${nDone} من ${_cbList.length}</button>`;
+}
+
+function cbZoom(z){_cbZoom=z;_cbRender();}
+function cbSize(d){
+  if(!_cbImg)return;
+  const mx=Math.min(_cbImg.naturalWidth,_cbImg.naturalHeight);
+  const step=Math.max(6,Math.round(mx/40));
+  _cbCrop=Math.max(20,Math.min(mx,_cbCrop+d*step));
+  _cbRender();
+}
+function cbGo(i){_cbIdx=Math.max(0,Math.min(_cbList.length-1,i));_cbRender();}
+function cbSkip(){if(_cbIdx<_cbList.length)_cbIdx++;_cbRender();}
+function cbUndo(){
+  const codes=Object.keys(_cbDone);
+  if(!codes.length)return;
+  const last=codes[codes.length-1];
+  delete _cbDone[last];
+  const i=_cbList.findIndex(c=>String(c.code)===String(last));
+  if(i>=0)_cbIdx=i;
+  _cbRender();
+}
+
+function cbTap(ev){
+  const cur=_cbCur();
+  if(!cur){toast('✅ خلّصت كل الألوان — اضغط احفظ');return;}
+  const el=ev.currentTarget;
+  const r=el.getBoundingClientRect();
+  const fx=(ev.clientX-r.left)/r.width, fy=(ev.clientY-r.top)/r.height;
+  if(fx<0||fx>1||fy<0||fy>1)return;
+  const nw=_cbImg.naturalWidth,nh=_cbImg.naturalHeight;
+  const side=Math.min(_cbCrop,nw,nh);
+  const sx=Math.max(0,Math.min(nw-side,fx*nw-side/2));
+  const sy=Math.max(0,Math.min(nh-side,fy*nh-side/2));
+  try{
+    const S=120,cv=document.createElement('canvas');
+    cv.width=S;cv.height=S;
+    const cx=cv.getContext('2d');
+    cx.drawImage(_cbImg,sx,sy,side,side,0,0,S,S);
+    let hex='';
+    try{
+      const d=cx.getImageData(0,0,S,S).data;
+      let r2=0,g=0,b=0,n=0;
+      for(let i=0;i<d.length;i+=16){r2+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+      const h=v=>Math.round(v/n).toString(16).padStart(2,'0');
+      hex='#'+h(r2)+h(g)+h(b);
+    }catch(e){}
+    _cbDone[cur.code]={img:cv.toDataURL('image/jpeg',0.72),hex,px:fx*100,py:fy*100};
+    _cbIdx++;
+    _cbRender();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function cbSave(){
+  const codes=Object.keys(_cbDone);
+  if(!codes.length)return;
+  try{
+    const batch=db.batch();
+    codes.forEach(code=>{
+      const c=_cbList.find(x=>String(x.code)===String(code));
+      if(!c)return;
+      const d=_cbDone[code];
+      batch.update(db.collection('color_library').doc(c.id),{img:d.img,...(d.hex?{hex:d.hex}:{})});
+    });
+    await batch.commit();
+    const n=codes.length;
+    _cbDone={};
+    await loadColorLibrary(true);
+    document.getElementById('clrBulkModal')?.remove();
+    renderColorLib();
+    toast(`✅ انحفظت صور ${n} لون`);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+window.openColorBulk=openColorBulk; window.closeColorBulk=closeColorBulk;
+window.cbPickPhoto=cbPickPhoto; window.cbTap=cbTap; window.cbUndo=cbUndo;
+window.cbSkip=cbSkip; window.cbGo=cbGo; window.cbSize=cbSize; window.cbZoom=cbZoom;
+window.cbSave=cbSave;
 
 // ─────────── جرد سريع ───────────
 async function openColorStock(){
