@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v261"></script>
+<script defer src="app.js?v262"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2533,6 +2533,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
       <!-- ========== QUICK DELIVER SUB-TAB ========== -->
       <!-- ========== PRODUCTS SUB-TAB ========== -->
       <div id="optab-products" style="display:none;">
+        <button onclick="openColorLib()" style="width:100%;margin-bottom:12px;padding:12px;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">🎨 مكتبة الألوان — الأسماء والمخزون و«خلص»</button>
         <div class="form-card" style="margin-bottom:16px;">
           <div id="opp_form_title" style="font-size:0.9rem;font-weight:700;color:var(--green-dark);margin-bottom:14px;">➕ إضافة منتج جديد</div>
           <div class="form-row">
@@ -2619,15 +2620,22 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
           <!-- Color numbers toggle -->
           <div style="margin-bottom:14px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px 14px;">
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-              <input type="checkbox" id="opp_has_color_numbers" onchange="document.getElementById('opp_color_numbers_wrap').style.display=this.checked?'block':'none'" style="width:18px;height:18px;accent-color:#2563eb;cursor:pointer;flex-shrink:0;">
+              <input type="checkbox" id="opp_has_color_numbers" onchange="document.getElementById('opp_color_numbers_wrap').style.display=this.checked?'block':'none';if(this.checked)renderOppCNPicker();" style="width:18px;height:18px;accent-color:#2563eb;cursor:pointer;flex-shrink:0;">
               <div>
                 <div style="font-size:0.88rem;font-weight:700;color:#1e40af;">🎨 منتج بأرقام ألوان</div>
                 <div style="font-size:0.74rem;color:#2563eb;margin-top:2px;">الموظف يختار رقم اللون والعدد عند الطلب (إلزامي)</div>
               </div>
             </label>
             <div id="opp_color_numbers_wrap" style="display:none;margin-top:10px;">
-              <label style="font-size:0.78rem;font-weight:700;color:#1e40af;display:block;margin-bottom:4px;">عدد الأرقام (الألوان)</label>
-              <input type="number" id="opp_color_numbers_count" min="1" max="200" placeholder="مثال: 28" style="width:120px;padding:8px 10px;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                <label style="font-size:0.78rem;font-weight:700;color:#1e40af;">الألوان اللي بيجي فيها هذا المنتج</label>
+                <button type="button" onclick="openColorLib()" style="padding:5px 11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:800;cursor:pointer;">🎨 مكتبة الألوان</button>
+              </div>
+              <div id="opp_cn_pick"></div>
+              <div id="opp_cn_legacy" style="display:none;margin-top:8px;">
+                <label style="font-size:0.78rem;font-weight:700;color:#1e40af;display:block;margin-bottom:4px;">عدد الأرقام (الألوان)</label>
+                <input type="number" id="opp_color_numbers_count" min="1" max="200" placeholder="مثال: 28" style="width:120px;padding:8px 10px;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;">
+              </div>
             </div>
           </div>
           <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
