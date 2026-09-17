@@ -10087,9 +10087,12 @@ async function saveSaleEntry(){
   const stOpt=stSel.options[stSel.selectedIndex];
   const prOpt=prSel.options[prSel.selectedIndex];
   const today=jordanDateStr();
-  // السعر الرسمي = سعر المتجر الخاص أو سعر المنتج العام. customSell = السعر الفعلي المُدخل.
   const prodObj=_opProductsList.find(p=>p.id===prSel.value);
-  const officialUnit=(prodObj&&(prodObj.storePrices?.[stSel.value]||prodObj.sellPrice))||customSell;
+  // هون في سعرٌ واحد وعنوانه «سعر البيع لهذا المتجر» — فاللي بتكتبه هو
+  // مستحقُّ المتجر نفسه. كان يُكتب السعر المخزَّن في sellPrice (وهو اللي
+  // بيتحسّب عليه المتجر) واللي بتكتبه يروح لـsoldPrice وحده، فتعديلُك ما
+  // بيغيّر مستحقّه ولا فلس — وأسوأ: لو كتبتَ أقلّ من المخزَّن، الفرق
+  // بينتسجّل «خصماً تتحمّله الصفحة» بلا ما تطلب.
   try{
     await db.collection('operator_sales').add({
       storeId:stSel.value, storeName:stOpt.text,
@@ -10099,16 +10102,30 @@ async function saveSaleEntry(){
       treeCost:parseFloat(prOpt.dataset.tree)||0,
       machineWorkerWage:parseFloat(prOpt.dataset.machine)||0,
       assemblyWorkerWage:parseFloat(prOpt.dataset.assembly)||0,
-      sellPrice:officialUnit,
+      sellPrice:customSell,
       soldPrice:customSell,
       notes, date:today,
       delivered:false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+    // وإذا طلبتَ: خلّيه سعر هذا المتجر لهذا المنتج من هلق ورايح
+    const _keep=document.getElementById('opsale_keep_price')?.checked;
+    if(_keep&&prodObj){
+      try{
+        await db.collection('operator_products').doc(prodObj.id)
+          .update({['storePrices.'+stSel.value]:customSell});
+        prodObj.storePrices=prodObj.storePrices||{};
+        prodObj.storePrices[stSel.value]=customSell;
+        _empSharedProducts=null;
+        toast(`💾 وصار ${customSell.toFixed(2)} سعر «${prOpt.text}» لـ«${stOpt.text}»`);
+      }catch(e){toast('⚠️ انحفظت المبيعة بس ما قدرت أثبّت السعر');}
+    }
     stSel.value=''; prSel.value='';
     document.getElementById('opsale_qty').value='1';
     document.getElementById('opsale_sell').value='';
     document.getElementById('opsale_notes').value='';
+    const _kp=document.getElementById('opsale_keep_price');
+    if(_kp)_kp.checked=false;
     const infoBox=document.getElementById('opsale_cost_info');
     if(infoBox) infoBox.style.display='none';
     toast('✅ تم حفظ المبيعة');
