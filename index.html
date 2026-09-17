@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v270"></script>
+<script defer src="app.js?v271"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2775,9 +2775,16 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             </div>
             <div class="fg">
               <label>💰 سعر البيع لهذا المتجر (د.أ)</label>
-              <input type="number" id="opsale_sell" min="0" step="0.5" placeholder="0.00" style="width:100%;padding:11px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
+              <input type="number" id="opsale_sell" min="0" step="0.5" placeholder="0.00" oninput="_recalcSaleInfo()" style="width:100%;padding:11px 12px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;background:#fefce8;color:var(--text-dark);">
             </div>
           </div>
+          <label style="display:flex;align-items:flex-start;gap:9px;padding:9px 11px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:9px;margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" id="opsale_keep_price" style="width:17px;height:17px;accent-color:#166534;cursor:pointer;flex-shrink:0;margin-top:1px;">
+            <div>
+              <div style="font-size:0.82rem;font-weight:700;color:#166534;">💾 خلّيه سعر هذا المتجر دايماً</div>
+              <div style="font-size:0.7rem;color:#15803d;margin-top:1px;line-height:1.6;">بيتثبّت على المنتج فيطلع جاهزاً كل مرّة — بدونها بينطبّق على هاي المبيعة بس</div>
+            </div>
+          </label>
           <!-- Price options (shown when product has multiple prices) -->
           <div id="opsale_price_options" style="display:none;margin-bottom:10px;">
             <div style="font-size:0.75rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 اختر السعر</div>
