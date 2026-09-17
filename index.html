@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v266"></script>
+<script defer src="app.js?v267"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -3412,6 +3412,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_operator" style="accent-color:var(--green-dark);"> مشغل (تغيير حالة)</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_viewAll" style="accent-color:var(--green-dark);"> عرض كل الطلبات</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_print" checked style="accent-color:var(--green-dark);"> طباعة الفاتورة</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_isDelivery" style="accent-color:var(--green-dark);"> 🚀 تسليم مبيعات (شاشة بديلة)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;"><input type="checkbox" id="perm_isQRViewer" style="accent-color:var(--green-dark);"> 📷 ماسح QR فقط (شاشة بديلة)</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isDelivery" style="accent-color:#c9a84c;"> 🚀 موظف تسليم (مبيعات مباشرة)</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#374151;cursor:pointer;grid-column:1/-1;"><input type="checkbox" id="perm_isQRViewer" style="accent-color:#0ea5e9;"> 📷 موظف مسح QR (مشاهدة فقط)</label>
             </div>
@@ -3897,7 +3899,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
     <!-- Normal order form (hidden for delivery workers) -->
     <div id="empNormalOrderSection">
-    <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+    <div id="empAddOrderCard" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
       <div style="font-size:0.95rem;font-weight:700;color:#1a3a2a;margin-bottom:14px;">➕ طلب جديد</div>
 
       <!-- Page selector -->
@@ -4051,7 +4053,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
     <!-- My orders — كل الطلبات من «جديد» حتى «تم التوصيل» -->
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-      <div style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">📦 طلباتي</div>
+      <div id="empMyOrdersTitle" style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">📦 طلباتي</div>
       <div id="empMyCount" style="font-size:0.72rem;color:#9ca3af;font-weight:700;"></div>
     </div>
     <input id="empMySearch" type="search" inputmode="search" placeholder="🔎 ابحث برقم الزبون أو الاسم أو رقم الطلب" oninput="setEmpMySearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;margin-bottom:8px;" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e5e7eb'">

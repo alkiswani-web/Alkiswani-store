@@ -2462,6 +2462,10 @@ async function openEmpPanel(){
   const titleEl=document.querySelector('#empPanel [style*="c9a84c"]');
   if(titleEl)titleEl.textContent=isQRViewer?'📷 ماسح الطلبات':isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
   document.getElementById('empNormalOrderSection').style.display=(!isDelivery&&!isQRViewer)?'block':'none';
+  const _addCard=document.getElementById('empAddOrderCard');
+  if(_addCard)_addCard.style.display=_empCan('canAddOrders')?'':'none';
+  const _myTitle=document.getElementById('empMyOrdersTitle');
+  if(_myTitle)_myTitle.textContent=_empCan('canViewAll')?'📦 كل الطلبات':'📦 طلباتي';
   document.getElementById('empDeliverySection').style.display=isDelivery?'block':'none';
   document.getElementById('empQRViewerSection').style.display=isQRViewer?'block':'none';
   if(isQRViewer){
@@ -3912,7 +3916,10 @@ function loadEmpTodayOrders(){
   if(!wrap||!_empCurrentUser)return;
   if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
   wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">⏳</div>';
-  const base=db.collection('employee_orders').where('workerId','==',_empCurrentUser.id);
+  // «عرض الكل» = بلا حصر بصاحب الطلب
+  const base=_empCan('canViewAll')
+    ? db.collection('employee_orders')
+    : db.collection('employee_orders').where('workerId','==',_empCurrentUser.id);
   const onData=snap=>{
     window._empMyOrdersCache=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
@@ -4014,8 +4021,17 @@ function _renderEmpMyOrders(){
             ${o.editHistory?.length?`<div style="font-size:0.7rem;color:#f97316;margin-bottom:6px;">✏️ تم التعديل ${o.editHistory.length} مرة</div>`:''}
             <!-- Action buttons — موظف تسجيل الطلبات لا يغيّر حالة الطلب، فقط تعديل أو إلغاء -->
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${canEdit?`<button onclick="openEmpOrderEdit('${o.id}')" style="flex:1;padding:7px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>`:''}
+              ${canEdit&&_empCan('canEditOrders')?`<button onclick="openEmpOrderEdit('${o.id}')" style="flex:1;padding:7px 10px;background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">✏️ تعديل</button>`:''}
+              ${_empCan('canPrint')?`<button onclick="printEmpOrder('${o.id}',false)" style="padding:7px 12px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">🖨 طباعة</button>`:''}
               ${canCancel?`<button onclick="cancelEmpOrder('${o.id}')" style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">🚫 ملغي</button>`:''}
+            </div>
+            ${_empCan('isOperator')?`<div style="margin-top:7px;">
+              <select onchange="if(this.value){updateEmpOrderStatus('${o.id}',this.value);this.selectedIndex=0;}" style="width:100%;padding:8px;border:1.5px solid #c7d2fe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;background:#eef2ff;color:#3730a3;font-weight:700;cursor:pointer;">
+                <option value="">🔧 غيّر الحالة...</option>
+                ${['pending','preparing','prepared','waiting_rep','delivering','delivered','onhold','cancelled','returned','refused'].filter(x=>x!==o.status).map(x=>`<option value="${x}">${_empSt(x).label}</option>`).join('')}
+              </select>
+            </div>`:''}
+            <div style="display:none;">
             </div>
           </div>
         </div>`;
@@ -4229,6 +4245,25 @@ function loadEmpDlvTodayList(){
     },()=>{});
 }
 
+// ===== صلاحيات الموظفين =====
+// الافتراضات تُبقي الموظف القديم — اللي مستنده بلا حقل صلاحيات — يشتغل
+// تماماً زي ما كان: يضيف ويعدّل ويطبع، وما يشوف طلبات غيره.
+const EMP_PERMS=[
+  {k:'canAddOrders', lbl:'📝 إضافة طلبات', def:true,  desc:'يفتح نموذج «طلب جديد». لو شلته بيشوف طلباته بس'},
+  {k:'canEditOrders',lbl:'✏️ تعديل الطلبات',def:true, desc:'زرّ التعديل على طلباته'},
+  {k:'canPrint',     lbl:'🖨 طباعة',        def:true,  desc:'زرّ طباعة الطلب'},
+  {k:'canViewAll',   lbl:'👁 عرض كل الطلبات',def:false,desc:'يشوف طلبات كل الموظفين لا طلباته وحده'},
+  {k:'isOperator',   lbl:'🔧 مشغل (تغيير حالة)',def:false,desc:'يغيّر حالة الطلب من شاشته'},
+  {k:'isDelivery',   lbl:'🚀 تسليم مبيعات', def:false, desc:'شاشة تسليم بدل شاشة تسجيل الطلبات'},
+  {k:'isQRViewer',   lbl:'📷 ماسح QR فقط',  def:false, desc:'شاشة مسح الباركود وحدها — ما بيشوف ولا بيسجّل طلبات'}
+];
+const EMP_PERM_DEF={};EMP_PERMS.forEach(p=>{EMP_PERM_DEF[p.k]=p.def;});
+function _empCan(k,w){
+  const u=w||_empCurrentUser;
+  const p=(u&&u.permissions)||{};
+  return p[k]===undefined?!!EMP_PERM_DEF[k]:!!p[k];
+}
+
 // ===== EMPLOYEE WORKERS ADMIN =====
 async function loadEmpWorkers(){
   const wrap=document.getElementById('empWorkersList');
@@ -4281,6 +4316,7 @@ async function addEmpWorker(){
     isDelivery:document.getElementById('perm_isDelivery')?.checked||false,
     isQRViewer:document.getElementById('perm_isQRViewer')?.checked||false,
   };
+  if(permissions.isQRViewer&&permissions.isDelivery){toast('⚠️ اختر «تسليم» أو «QR فقط» — مش الاثنين');return;}
   try{
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
     if(!exists.empty){toast('⚠️ اسم المستخدم موجود مسبقاً');return;}
@@ -4405,20 +4441,78 @@ async function deleteEmpProduct(id){
 }
 
 // ===== EDIT WORKERS / PAGES / PRODUCTS =====
+// كان التعديل نافذتَي prompt للاسم وكلمة المرور فقط — فالصلاحيات تُحدَّد
+// مرّة عند إنشاء الموظف ولا تتغيّر بعدها أبداً.
 async function editEmpWorker(id){
-  const snap=await db.collection('employee_workers').doc(id).get();
-  if(!snap.exists)return;
-  const w=snap.data();
-  const name=prompt('الاسم الكامل:',w.name||'');
-  if(name===null)return;
-  const password=prompt('كلمة المرور:',w.password||'');
-  if(password===null)return;
-  if(!name.trim()||!password.trim()){toast('⚠️ الاسم وكلمة المرور مطلوبان');return;}
+  let w;
   try{
-    await db.collection('employee_workers').doc(id).update({name:name.trim(),password:password.trim()});
-    toast('✅ تم التعديل');loadEmpWorkers();
+    const snap=await db.collection('employee_workers').doc(id).get();
+    if(!snap.exists){toast('❌ الموظف غير موجود');return;}
+    w={id,...snap.data()};
+  }catch(e){toast('❌ '+e.message);return;}
+  const P=w.permissions||{};
+  const F="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;";
+  document.getElementById('empWorkerModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='empWorkerModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100004;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 11px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#1a3a2a;">👤 ${_clrEsc(w.name||w.username)}</div>
+        <div style="font-size:0.7rem;color:#9ca3af;margin-top:1px;">@${_clrEsc(w.username)}</div>
+      </div>
+      <button onclick="document.getElementById('empWorkerModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:13px 15px;">
+      <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الاسم الكامل</label>
+      <input id="ew_name" value="${_clrEsc(w.name||'')}" style="${F}margin-bottom:11px;">
+      <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">كلمة المرور</label>
+      <input id="ew_pass" value="${_clrEsc(w.password||'')}" style="${F}margin-bottom:11px;">
+      <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الصفحة الافتراضية <span style="color:#9ca3af;font-weight:400;">(اختياري)</span></label>
+      <input id="ew_page" value="${_clrEsc(w.defaultPage||'')}" style="${F}margin-bottom:15px;">
+      <div style="font-size:0.85rem;font-weight:800;color:#1a3a2a;margin-bottom:8px;">🔑 الصلاحيات</div>
+      ${EMP_PERMS.map(pm=>{
+        const on=P[pm.k]===undefined?pm.def:!!P[pm.k];
+        return `<label style="display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1.5px solid ${on?'#bbf7d0':'#e5e7eb'};background:${on?'#f0fdf4':'#fff'};border-radius:10px;margin-bottom:7px;cursor:pointer;">
+          <input type="checkbox" id="ewp_${pm.k}" ${on?'checked':''} onchange="_ewPermPaint(this)" style="width:18px;height:18px;accent-color:#166534;cursor:pointer;flex-shrink:0;margin-top:1px;">
+          <div style="min-width:0;">
+            <div style="font-size:0.84rem;font-weight:700;color:#1a3a2a;">${pm.lbl}</div>
+            <div style="font-size:0.7rem;color:#6b7280;line-height:1.6;">${pm.desc}</div>
+          </div>
+        </label>`;}).join('')}
+    </div>
+    <div style="padding:12px 15px;border-top:1px solid #e5e7eb;display:flex;gap:8px;">
+      <button onclick="saveEmpWorkerEdit('${id}')" style="flex:1;padding:13px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">💾 حفظ</button>
+      <button onclick="document.getElementById('empWorkerModal').remove()" style="padding:13px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">إلغاء</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function _ewPermPaint(cb){
+  const l=cb.closest('label');
+  if(!l)return;
+  l.style.borderColor=cb.checked?'#bbf7d0':'#e5e7eb';
+  l.style.background=cb.checked?'#f0fdf4':'#fff';
+}
+async function saveEmpWorkerEdit(id){
+  const name=(document.getElementById('ew_name')?.value||'').trim();
+  const password=(document.getElementById('ew_pass')?.value||'').trim();
+  const defaultPage=(document.getElementById('ew_page')?.value||'').trim();
+  if(!name||!password){toast('⚠️ الاسم وكلمة المرور مطلوبان');return;}
+  const permissions={};
+  EMP_PERMS.forEach(pm=>{permissions[pm.k]=document.getElementById('ewp_'+pm.k)?.checked||false;});
+  // الشاشتان بديلتان لشاشة تسجيل الطلبات، فلا تجتمعان
+  if(permissions.isQRViewer&&permissions.isDelivery){toast('⚠️ اختر «تسليم» أو «QR فقط» — مش الاثنين');return;}
+  try{
+    await db.collection('employee_workers').doc(id).update({name,password,defaultPage,permissions});
+    document.getElementById('empWorkerModal')?.remove();
+    toast('✅ انحفظت الصلاحيات — بتشتغل لمّا يسجّل دخول من جديد');
+    loadEmpWorkers();
   }catch(e){toast('❌ '+e.message);}
 }
+window._ewPermPaint=_ewPermPaint; window.saveEmpWorkerEdit=saveEmpWorkerEdit;
 
 async function editEmpPage(id,currentName){
   const raw=prompt('اسم الصفحة:',currentName);
