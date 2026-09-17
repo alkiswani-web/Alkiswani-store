@@ -2657,17 +2657,55 @@ const CLR_ST={
   retired:{label:'متوقّف',    icon:'⚫️',color:'#6b7280',bg:'#f9fafb',bd:'#e5e7eb'}
 };
 
+function _setColorLib(docs){
+  _colorLib=docs.map(d=>({id:d.id,...d.data(),code:Number(d.data().code)||0}))
+    .filter(c=>c.code>0)
+    .sort((a,b)=>((a.sort==null?a.code:a.sort)-(b.sort==null?b.code:b.sort))||a.code-b.code);
+  _colorLibMap={};_colorLib.forEach(c=>{_colorLibMap[c.code]=c;});
+  _colorLibLoaded=true;
+}
 async function loadColorLibrary(force){
-  if(_colorLibLoaded&&!force) return _colorLib;
+  if(_colorLibLoaded&&!force){_startColorLibLive();return _colorLib;}
   try{
-    const snap=await db.collection('color_library').get();
-    _colorLib=snap.docs.map(d=>({id:d.id,...d.data(),code:Number(d.data().code)||0}))
-      .filter(c=>c.code>0)
-      .sort((a,b)=>((a.sort==null?a.code:a.sort)-(b.sort==null?b.code:b.sort))||a.code-b.code);
-    _colorLibMap={};_colorLib.forEach(c=>{_colorLibMap[c.code]=c;});
-    _colorLibLoaded=true;
+    _setColorLib((await db.collection('color_library').get()).docs);
   }catch(e){_colorLib=[];_colorLibMap={};}
+  _startColorLibLive();
   return _colorLib;
+}
+
+// المخزون رقمٌ مشترك: موظفان على جهازين بيبيعوا من نفس الصندوق. بلا بثّ
+// مباشر كل واحد بيشوف رقماً قديماً، وبيبيعوا آخر قطعة مرّتين. المستمع
+// بيخلّي الرقم اللي قدّام الاثنين هو الرقم الحقيقي.
+let _clrUnsub=null;
+function _startColorLibLive(){
+  if(_clrUnsub)return;
+  try{
+    _clrUnsub=db.collection('color_library').onSnapshot(snap=>{
+      _setColorLib(snap.docs);
+      _cnLiveRefresh();
+    },()=>{});
+  }catch(e){}
+}
+// تحديثٌ موضعي للرقم بس. إعادة بناء السلّة كاملةً بتضيّع تركيز الموظف وهو
+// بيكتب اسم الزبونة، فما منعيد البناء إلا لمّا تتغيّر حالة لون فعلاً، وبس
+// لمّا ما يكون حدا بيكتب.
+function _cnBusyTyping(){
+  const a=document.activeElement;
+  return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+}
+function _cnLiveRefresh(){
+  let needFull=false;
+  document.querySelectorAll('button[data-cn]').forEach(btn=>{
+    const code=Number(btn.getAttribute('data-cn'))||0;
+    if(btn.getAttribute('data-st')!==_clrSt(code)) needFull=true;
+    const q=btn.parentElement&&btn.parentElement.querySelector('[data-cnq]');
+    if(q) q.outerHTML=_clrQtyLine(_clr(code));
+  });
+  if(_cnBusyTyping())return;
+  try{ if(needFull&&document.getElementById('empCartItems')) renderEmpOrderCart(); }catch(e){}
+  try{ if(needFull&&document.getElementById('empEditCartWrap')) renderEmpEditCart(); }catch(e){}
+  try{ if(document.getElementById('colorLibModal')) renderColorLib(); }catch(e){}
+  try{ if(document.getElementById('opp_cn_pick')) renderOppCNPicker(); }catch(e){}
 }
 function _clr(code){return _colorLibMap[Number(code)]||null;}
 function _clrName(code){const c=_clr(code);return (c&&c.name)?c.name:('لون '+code);}
@@ -2676,10 +2714,10 @@ function _clrIsLow(c){const q=Number(c.qty),l=Number(c.lowAt)||0;return c&&c.cou
 // الكمية المتوفّرة تحت اسم اللون. اللون اللي ما انجرد ما منكتبله صفر —
 // صفرٌ يعني عدّيتَه ولقيتَه خالصاً، لا «لسا ما عدّيته».
 function _clrQtyLine(c){
-  if(!c||c.counted!==true) return '<div style="height:11px;"></div>';
+  if(!c||c.counted!==true) return '<div data-cnq style="height:11px;"></div>';
   const q=Number(c.qty)||0;
   const col=q<=0?'#dc2626':_clrIsLow(c)?'#b45309':'#15803d';
-  return `<div style="font-size:0.58rem;font-weight:800;color:${col};line-height:1.2;">${q<=0?'خلص':q}</div>`;
+  return `<div data-cnq style="font-size:0.58rem;font-weight:800;color:${col};line-height:1.2;">${q<=0?'خلص':q}</div>`;
 }
 // رقمٌ مقروء فوق أي خلفية — الأصفر الفاتح والكحلي ما بيرضوا بنفس لون الخطّ
 function _clrInk(hex){
@@ -2783,7 +2821,7 @@ function _cnGridHtml(codes,sel,fn,i,small){
     const c=_clr(n),st=_clrSt(n),hex=(c&&c.hex)||'';
     const dead=st!=='active';
     return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${dead&&!on?'opacity:.58;':''}">
-      <button onclick="${fn}(${i},${n},1)" title="${_clrName(n)}" style="position:relative;display:grid;place-items:center;width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':(hex||(c&&c.img))?'rgba(0,0,0,.18)':'#cbd5e1'};${_clrFace(c)}cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;box-shadow:${on?'0 0 0 2px #bfdbfe':'none'};overflow:hidden;">
+      <button onclick="${fn}(${i},${n},1)" data-cn="${n}" data-st="${st}" title="${_clrName(n)}" style="position:relative;display:grid;place-items:center;width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':(hex||(c&&c.img))?'rgba(0,0,0,.18)':'#cbd5e1'};${_clrFace(c)}cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;box-shadow:${on?'0 0 0 2px #bfdbfe':'none'};overflow:hidden;">
         ${_clrNumChip(c,n,small?'0.66rem':'0.78rem')}${dead?`<span style="position:absolute;top:1px;left:1px;font-size:0.68rem;line-height:1;filter:drop-shadow(0 0 1px #fff);">${st==='out'?'🟡':'⚫️'}</span>`:''}
       </button>
       <div style="font-size:0.6rem;color:${dead?'#9ca3af':'#4b5563'};max-width:${box+14}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;${dead?'text-decoration:line-through;':''}">${(c&&c.name)?c.name:'—'}</div>
