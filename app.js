@@ -3316,6 +3316,164 @@ window.cbPickPhoto=cbPickPhoto; window.cbTap=cbTap; window.cbUndo=cbUndo;
 window.cbSkip=cbSkip; window.cbGo=cbGo; window.cbSize=cbSize; window.cbZoom=cbZoom;
 window.cbSave=cbSave;
 
+// ═══════════ أسعار متجر — دفعة وحدة ═══════════
+// متجر جديد يعني سعرٌ لكل منتج. تفتح كل منتج وتكتب رقماً واحداً وتحفظ —
+// شغل ساعة لمتجر واحد. هون كل المنتجات بشاشة وحدة، ومعها تعبئة سريعة:
+// انسخ أسعار متجر قائم، أو خُذ التكلفة، أو سعر البيع — ونسبةٌ فوقهم.
+let _spStoreId='',_spSrcId='',_spOver=false,_spQ='';
+function _spCost(p){
+  return (Number(p.rawMaterialCost)||0)+(Number(p.treeCost)||0)
+       + (Number(p.machineWorkerWage)||0)+(Number(p.assemblyWorkerWage)||0);
+}
+async function openStorePrices(){
+  if(!_opProductsList.length) await loadOpProducts(true);
+  if(!_opStoresList.length){toast('⚠️ ما في متاجر — ضيف متجر أولاً');return;}
+  if(!_opProductsList.length){toast('⚠️ ما في منتجات');return;}
+  _spStoreId=_spStoreId||_opStoresList[0].id;
+  _spSrcId='';_spOver=false;_spQ='';
+  document.getElementById('storePricesModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='storePricesModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#1a3a2a;">🏪 أسعار متجر — دفعة وحدة</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">كل المنتجات بشاشة وحدة — عبّي واحفظ مرّة</div>
+      </div>
+      <button onclick="document.getElementById('storePricesModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div id="spTools" style="padding:10px 14px;background:#fafafa;border-bottom:1px solid #e5e7eb;"></div>
+    <div id="spList" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
+    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      <div id="spSum" style="font-size:0.73rem;color:#6b7280;text-align:center;margin-bottom:8px;"></div>
+      <button onclick="spSave()" style="width:100%;padding:13px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 احفظ أسعار المتجر</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  _spRender();
+}
+function _spRender(){
+  const tools=document.getElementById('spTools'),list=document.getElementById('spList');
+  if(!tools||!list)return;
+  const others=_opStoresList.filter(s=>s.id!==_spStoreId);
+  tools.innerHTML=`
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px;">
+      <span style="font-size:0.76rem;font-weight:700;color:#374151;flex-shrink:0;">المتجر</span>
+      <select onchange="spPickStore(this.value)" style="flex:1;min-width:0;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:700;background:#f0fdf4;color:#166534;outline:none;cursor:pointer;">
+        ${_opStoresList.map(s=>`<option value="${s.id}" ${s.id===_spStoreId?'selected':''}>${_clrEsc(s.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:0.7rem;font-weight:700;color:#6b7280;margin-bottom:5px;">⚡ تعبئة سريعة</div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px;">
+      ${others.length?`<select id="spSrc" style="padding:7px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;background:#fff;outline:none;cursor:pointer;max-width:140px;">
+        <option value="">انسخ من متجر...</option>
+        ${others.map(s=>`<option value="${s.id}">${_clrEsc(s.name)}</option>`).join('')}
+      </select>
+      <button onclick="spFill('copy')" style="padding:7px 11px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;cursor:pointer;">📋 انسخ</button>`:''}
+      <button onclick="spFill('cost')" style="padding:7px 11px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;cursor:pointer;">= التكلفة</button>
+      <button onclick="spFill('sell')" style="padding:7px 11px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;cursor:pointer;">= سعر البيع</button>
+      <span style="font-size:0.72rem;color:#6b7280;">+</span>
+      <input id="spPct" type="number" step="5" placeholder="0" style="width:52px;padding:7px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.75rem;text-align:center;outline:none;">
+      <span style="font-size:0.72rem;color:#6b7280;">%</span>
+    </div>
+    <label style="display:flex;align-items:center;gap:7px;font-size:0.72rem;color:#374151;cursor:pointer;margin-bottom:8px;">
+      <input type="checkbox" ${_spOver?'checked':''} onchange="_spOver=this.checked" style="width:16px;height:16px;accent-color:#166534;cursor:pointer;">
+      اكتب فوق الأسعار الموجودة كمان <span style="color:#9ca3af;">(بدونها بيعبّي الفاضي بس)</span>
+    </label>
+    <input type="search" value="${_clrEsc(_spQ)}" oninput="spSearch(this.value)" placeholder="🔎 دوّر على منتج"
+      style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;">`;
+
+  const q=_spQ.trim();
+  const rows=_opProductsList.filter(p=>!q||String(p.name||'').includes(q));
+  if(!rows.length){list.innerHTML='<div style="padding:22px;text-align:center;color:#9ca3af;font-size:0.84rem;">ما في منتج بهاد الاسم</div>';_spSum();return;}
+  list.innerHTML=rows.map(p=>{
+    const cur=(p.storePrices&&p.storePrices[_spStoreId])||'';
+    const cost=_spCost(p),sell=Number(p.sellPrice)||0;
+    return `<div style="display:flex;align-items:center;gap:9px;padding:7px 3px;border-bottom:1px solid #f3f4f6;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(p.name)}</div>
+        <div style="font-size:0.66rem;color:#9ca3af;">تكلفة ${cost.toFixed(2)}${sell?' · بيع '+sell.toFixed(2):''}</div>
+      </div>
+      <input id="sp_${p.id}" data-cost="${cost}" data-sell="${sell}" type="number" min="0" step="0.25"
+        value="${cur}" placeholder="—" oninput="_spSum()"
+        style="width:78px;padding:8px;border:1.5px solid ${cur?'#bbf7d0':'#e5e7eb'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;background:${cur?'#f0fdf4':'#fff'};">
+    </div>`;}).join('');
+  _spSum();
+}
+function spPickStore(id){_spStoreId=id;_spRender();}
+function spSearch(v){_spQ=v;_spRender();}
+function _spSum(){
+  let filled=0,total=_opProductsList.length,shown=0;
+  _opProductsList.forEach(p=>{
+    const el=document.getElementById('sp_'+p.id);
+    if(el){shown++;const v=parseFloat(el.value);if(!isNaN(v)&&v>0)filled++;
+      el.style.borderColor=(!isNaN(v)&&v>0)?'#bbf7d0':'#e5e7eb';
+      el.style.background=(!isNaN(v)&&v>0)?'#f0fdf4':'#fff';}
+  });
+  const el=document.getElementById('spSum');
+  if(el)el.innerHTML=`معبّى <b style="color:#166534;">${filled}</b> من ${shown}${shown<total?` <span style="color:#9ca3af;">(مفلتَر من ${total})</span>`:''}`;
+}
+// التعبئة السريعة تلمس الظاهر على الشاشة فقط — فالبحث بيصير أداة استهداف
+function spFill(mode){
+  const pct=parseFloat(document.getElementById('spPct')?.value)||0;
+  const f=1+pct/100;
+  const src=document.getElementById('spSrc')?.value||'';
+  if(mode==='copy'&&!src){toast('⚠️ اختار المتجر اللي بدك تنسخ منه');return;}
+  let n=0;
+  _opProductsList.forEach(p=>{
+    const el=document.getElementById('sp_'+p.id);
+    if(!el)return;
+    const has=!isNaN(parseFloat(el.value))&&parseFloat(el.value)>0;
+    if(has&&!_spOver)return;
+    let base=0;
+    if(mode==='copy') base=Number((p.storePrices||{})[src])||0;
+    else if(mode==='cost') base=Number(el.getAttribute('data-cost'))||0;
+    else base=Number(el.getAttribute('data-sell'))||0;
+    if(base<=0)return;
+    el.value=(Math.round(base*f*100)/100).toString();
+    n++;
+  });
+  _spSum();
+  toast(n?`⚡ انعبّى ${n} منتج${pct?` +${pct}%`:''}`:'ما في إشي ينعبّى — جرّب «اكتب فوق الموجود»');
+}
+async function spSave(){
+  const store=_opStoresList.find(s=>s.id===_spStoreId);
+  const changes=[];
+  _opProductsList.forEach(p=>{
+    const el=document.getElementById('sp_'+p.id);
+    if(!el)return;   // مفلتَر بالبحث — ما منلمسه
+    const raw=el.value.trim();
+    const old=Number((p.storePrices||{})[_spStoreId])||0;
+    if(raw===''){ if(old>0) changes.push({p,del:true}); return; }
+    const v=parseFloat(raw);
+    if(isNaN(v)||v<0)return;
+    if(Math.abs(v-old)>0.001) changes.push({p,v});
+  });
+  if(!changes.length){toast('ما في إشي تغيّر');return;}
+  try{
+    for(let i=0;i<changes.length;i+=400){
+      const batch=db.batch();
+      changes.slice(i,i+400).forEach(({p,v,del})=>{
+        batch.update(db.collection('operator_products').doc(p.id),
+          {['storePrices.'+_spStoreId]:del?firebase.firestore.FieldValue.delete():v});
+      });
+      await batch.commit();
+    }
+    // نحدّث النسخة بالذاكرة فوراً — الشاشة والطلبات تقرأ منها
+    changes.forEach(({p,v,del})=>{
+      p.storePrices=p.storePrices||{};
+      if(del)delete p.storePrices[_spStoreId];else p.storePrices[_spStoreId]=v;
+    });
+    _empSharedProducts=null;
+    document.getElementById('storePricesModal')?.remove();
+    toast(`✅ انحفظ ${changes.length} سعر لـ«${store?store.name:''}»`);
+    loadOpProducts(true);
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openStorePrices=openStorePrices; window.spPickStore=spPickStore;
+window.spSearch=spSearch; window.spFill=spFill; window.spSave=spSave; window._spSum=_spSum;
+
 // ─────────── وارد جديد ───────────
 // الجرد بيكتب الرقم النهائي، والوارد بيضيف عليه. الفرق مش شكلي: إجتك بضاعة
 // وإنت بتحسب ٩+١٠ براسك وبتكتب ١٩ — ولو نزل طلب بهاي اللحظة بتمسح خصمه.
