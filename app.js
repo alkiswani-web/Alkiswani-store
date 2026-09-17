@@ -2672,7 +2672,15 @@ async function loadColorLibrary(force){
 function _clr(code){return _colorLibMap[Number(code)]||null;}
 function _clrName(code){const c=_clr(code);return (c&&c.name)?c.name:('لون '+code);}
 function _clrSt(code){const c=_clr(code);return (c&&c.status)||'active';}
-function _clrIsLow(c){const q=Number(c.qty),l=Number(c.lowAt)||0;return l>0&&isFinite(q)&&q>0&&q<=l;}
+function _clrIsLow(c){const q=Number(c.qty),l=Number(c.lowAt)||0;return c&&c.counted===true&&l>0&&isFinite(q)&&q>0&&q<=l;}
+// الكمية المتوفّرة تحت اسم اللون. اللون اللي ما انجرد ما منكتبله صفر —
+// صفرٌ يعني عدّيتَه ولقيتَه خالصاً، لا «لسا ما عدّيته».
+function _clrQtyLine(c){
+  if(!c||c.counted!==true) return '<div style="height:11px;"></div>';
+  const q=Number(c.qty)||0;
+  const col=q<=0?'#dc2626':_clrIsLow(c)?'#b45309':'#15803d';
+  return `<div style="font-size:0.58rem;font-weight:800;color:${col};line-height:1.2;">${q<=0?'خلص':q}</div>`;
+}
 // رقمٌ مقروء فوق أي خلفية — الأصفر الفاتح والكحلي ما بيرضوا بنفس لون الخطّ
 function _clrInk(hex){
   if(!/^#[0-9a-f]{6}$/i.test(hex||'')) return '#374151';
@@ -2779,6 +2787,7 @@ function _cnGridHtml(codes,sel,fn,i,small){
         ${_clrNumChip(c,n,small?'0.66rem':'0.78rem')}${dead?`<span style="position:absolute;top:1px;left:1px;font-size:0.68rem;line-height:1;filter:drop-shadow(0 0 1px #fff);">${st==='out'?'🟡':'⚫️'}</span>`:''}
       </button>
       <div style="font-size:0.6rem;color:${dead?'#9ca3af':'#4b5563'};max-width:${box+14}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;${dead?'text-decoration:line-through;':''}">${(c&&c.name)?c.name:'—'}</div>
+      ${_clrQtyLine(c)}
       ${on?`<div style="display:flex;align-items:center;gap:3px;">
         <button onclick="${fn}(${i},${n},-1)" style="width:17px;height:17px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.68rem;line-height:1;">−</button>
         <span style="font-size:0.7rem;font-weight:800;color:#2563eb;min-width:11px;text-align:center;">${q}</span>
@@ -2814,8 +2823,10 @@ async function _applyColorStock(delta){
   const keys=Object.keys(delta||{}).filter(k=>Math.abs(delta[k])>0.0001);
   if(!keys.length) return;
   await loadColorLibrary();
-  const known=keys.filter(k=>!!_clr(k));
-  if(!known.length) return;   // مكتبة فاضية ⇒ لا مخزون بعد
+  // بس الألوان اللي انعدّت فعلاً. اللون اللي ما جردتَه ما إله رصيد نعرفه،
+  // وخصمٌ من مجهول بيولّد أرقاماً سالبة بتعلّمه «خلص» وهو مليان.
+  const known=keys.filter(k=>{const c=_clr(k);return c&&c.counted===true;});
+  if(!known.length) return;
   try{
     const batch=db.batch();
     known.forEach(k=>batch.update(db.collection('color_library').doc(_clr(k).id),
@@ -2831,9 +2842,15 @@ async function _autoColorStatus(){
   const batch=db.batch();let n=0;
   _colorLib.forEach(c=>{
     if(c.status==='retired') return;
+    const ref=db.collection('color_library').doc(c.id);
+    // لون ما انعدّ وانعلّم «خلص» تلقائياً = تعليمٌ على غير أساس، نرجّعه.
+    // (كان الترحيل يكتب كمية صفر، فيقرأها البرنامج «خالص» ويقفل كل الألوان.)
+    if(c.counted!==true){
+      if(c.status==='out'&&c.outAuto===true){batch.update(ref,{status:'active',outAuto:false});n++;}
+      return;
+    }
     const q=Number(c.qty);
     if(!isFinite(q)) return;
-    const ref=db.collection('color_library').doc(c.id);
     if(q<=0&&c.status!=='out'){batch.update(ref,{status:'out',outAuto:true});n++;}
     else if(q>0&&c.status==='out'&&c.outAuto===true){batch.update(ref,{status:'active',outAuto:false});n++;}
   });
@@ -2907,6 +2924,7 @@ async function openColorLib(){
   ov.addEventListener('click',e=>{if(e.target===ov)closeColorLib();});
   document.getElementById('clrList').innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:0.85rem;">⏳ جاري التحميل...</div>';
   await loadColorLibrary(true);
+  await _autoColorStatus();   // يرجّع أي لون انعلّم «خلص» بلا جرد
   renderColorLib();
 }
 function closeColorLib(){_clrOpenId=null;document.getElementById('colorLibModal')?.remove();}
@@ -2942,7 +2960,7 @@ function renderColorLib(){
         <div onclick="clrPickImage('${c.id}')" title="غيّر صورة الشنيل" style="position:relative;width:44px;height:44px;border-radius:10px;${_clrFace(c)}border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;flex-shrink:0;cursor:pointer;overflow:hidden;">${_clrNumChip(c,c.code,'0.78rem')}${c.img?'':'<span style="position:absolute;bottom:1px;left:2px;font-size:0.6rem;opacity:.65;">📷</span>'}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:800;font-size:0.86rem;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'<span style="color:#d1d5db;">بلا اسم</span>'}</div>
-          <div style="font-size:0.68rem;color:${s.color};font-weight:700;">${s.icon} ${s.label}${isFinite(q)?` · <span style="color:${lowOn?'#b45309':'#6b7280'};">${q} قطعة${lowOn?' ⚠️':''}</span>`:''}</div>
+          <div style="font-size:0.68rem;color:${s.color};font-weight:700;">${s.icon} ${s.label} · ${c.counted===true?`<span style="color:${lowOn?'#b45309':q<=0?'#dc2626':'#6b7280'};">${q||0} قطعة${lowOn?' ⚠️':''}</span>`:'<span style="color:#d1d5db;">لسا ما انجرد</span>'}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button onclick="clrMove('${c.id}',-1)" ${i===0?'disabled':''} style="width:26px;height:26px;border:1px solid #e5e7eb;background:#fff;border-radius:7px;cursor:pointer;font-size:0.7rem;${i===0?'opacity:.3;':''}">▲</button>
@@ -2982,7 +3000,7 @@ async function clrAdd(){
   if(name===null)return;
   try{
     await db.collection('color_library').doc('c'+next).set({
-      code:next,name:(name||'').trim(),hex:'',status:'active',qty:0,lowAt:0,
+      code:next,name:(name||'').trim(),hex:'',status:'active',lowAt:0,
       sort:(_colorLib.length?Math.max(..._colorLib.map(c=>c.sort==null?c.code:c.sort)):0)+1,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -3057,7 +3075,7 @@ async function seedColorLibrary(){
       const batch=db.batch();
       for(let n=s+1;n<=Math.min(max,s+400);n++){
         batch.set(db.collection('color_library').doc('c'+n),
-          {code:n,name:'',hex:'',status:'active',qty:0,lowAt:0,sort:n},{merge:true});
+          {code:n,name:'',hex:'',status:'active',lowAt:0,sort:n},{merge:true});
       }
       await batch.commit();
     }
@@ -3274,7 +3292,7 @@ async function openColorStock(){
       ${rows.map(c=>`<div style="display:flex;align-items:center;gap:9px;padding:6px 2px;border-bottom:1px solid #f3f4f6;">
         <div style="position:relative;width:34px;height:34px;border-radius:8px;${_clrFace(c)}border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;flex-shrink:0;overflow:hidden;">${_clrNumChip(c,c.code,'0.7rem')}</div>
         <div style="flex:1;min-width:0;font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'—'}</div>
-        <span style="font-size:0.68rem;color:#9ca3af;">حالياً ${Number(c.qty)||0}</span>
+        <span style="font-size:0.68rem;color:#9ca3af;">${c.counted===true?'حالياً '+(Number(c.qty)||0):'ما انجرد'}</span>
         <input id="clrq_${c.id}" type="number" min="0" placeholder="—" style="width:74px;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
       </div>`).join('')}
     </div>
@@ -3292,12 +3310,14 @@ async function clrStockSave(){
     if(!el||el.value==='')return;
     const v=parseInt(el.value);
     if(isNaN(v)||v<0)return;
-    if(v!==(Number(c.qty)||0)) upd.push({id:c.id,qty:v});
+    // لونٌ ما انجرد قبل لازم ينحفظ حتى لو كتبتَ نفس رقمه الظاهر — لأنّ
+    // الجرد هو اللي بيعلّمه «معدود»، وبدونه بيضلّ رصيده مجهولاً.
+    if(c.counted!==true||v!==(Number(c.qty)||0)) upd.push({id:c.id,qty:v});
   });
   if(!upd.length){toast('ما في إشي تغيّر');document.getElementById('clrStockModal')?.remove();return;}
   try{
     const batch=db.batch();
-    upd.forEach(u=>batch.update(db.collection('color_library').doc(u.id),{qty:u.qty}));
+    upd.forEach(u=>batch.update(db.collection('color_library').doc(u.id),{qty:u.qty,counted:true}));
     await batch.commit();
     await _autoColorStatus();
     await loadColorLibrary(true);
