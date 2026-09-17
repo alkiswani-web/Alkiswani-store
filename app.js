@@ -2515,6 +2515,7 @@ async function onEmpPageChange(){
       _empSharedProducts=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.isRawMaterial);
     }catch(e){_empSharedProducts=[];}
   }
+  await loadColorLibrary();
   renderEmpProductPicker();
 }
 
@@ -2641,13 +2642,452 @@ function updateCartItemColor(idx,color){
 }
 
 // تنسيق أرقام الألوان للعرض: «🎨 لون 5×3، لون 12×2»
+// ═══════════════════ مكتبة الألوان ═══════════════════
+// الرقم يُولد مرّة ويبقى لصاحبه إلى الأبد: اللونُ الذي يتوقّف يتقاعد رقمُه
+// معه ولا يأخذه غيره. فطلبٌ قديم مكتوب فيه «لون ٧» يظلّ يعني نفس اللون بعد
+// سنة. والترتيب المعروض حقلٌ منفصل (sort) — رتّب الشبكة كما تشاء دون أن
+// يتحرّك رقمُ لونٍ واحد.
+let _colorLib=[];        // [{id,code,name,hex,status,qty,lowAt,sort}]
+let _colorLibMap={};     // code → اللون
+let _colorLibLoaded=false;
+
+const CLR_ST={
+  active :{label:'متوفّر',    icon:'🟢',color:'#16a34a',bg:'#f0fdf4',bd:'#bbf7d0'},
+  out    :{label:'خلص مؤقتاً',icon:'🟡',color:'#b45309',bg:'#fffbeb',bd:'#fde68a'},
+  retired:{label:'متوقّف',    icon:'⚫️',color:'#6b7280',bg:'#f9fafb',bd:'#e5e7eb'}
+};
+
+async function loadColorLibrary(force){
+  if(_colorLibLoaded&&!force) return _colorLib;
+  try{
+    const snap=await db.collection('color_library').get();
+    _colorLib=snap.docs.map(d=>({id:d.id,...d.data(),code:Number(d.data().code)||0}))
+      .filter(c=>c.code>0)
+      .sort((a,b)=>((a.sort==null?a.code:a.sort)-(b.sort==null?b.code:b.sort))||a.code-b.code);
+    _colorLibMap={};_colorLib.forEach(c=>{_colorLibMap[c.code]=c;});
+    _colorLibLoaded=true;
+  }catch(e){_colorLib=[];_colorLibMap={};}
+  return _colorLib;
+}
+function _clr(code){return _colorLibMap[Number(code)]||null;}
+function _clrName(code){const c=_clr(code);return (c&&c.name)?c.name:('لون '+code);}
+function _clrSt(code){const c=_clr(code);return (c&&c.status)||'active';}
+function _clrIsLow(c){const q=Number(c.qty),l=Number(c.lowAt)||0;return l>0&&isFinite(q)&&q>0&&q<=l;}
+// رقمٌ مقروء فوق أي خلفية — الأصفر الفاتح والكحلي ما بيرضوا بنفس لون الخطّ
+function _clrInk(hex){
+  if(!/^#[0-9a-f]{6}$/i.test(hex||'')) return '#374151';
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return (0.299*r+0.587*g+0.114*b)>150?'#111827':'#ffffff';
+}
+// أرقام الألوان التي يعرضها هذا المنتج. المكتبة الفاضية ⇒ نرجع للسلوك
+// القديم (١..N) فلا ينكسر شيء قبل الترحيل.
+function _prodColorCodes(p){
+  if(Array.isArray(p.colorCodes)&&p.colorCodes.length) return p.colorCodes.map(Number).filter(n=>n>0);
+  if(_colorLib.length) return _colorLib.map(c=>c.code);
+  return Array.from({length:p.colorNumbersCount||0},(_,k)=>k+1);
+}
+
 function _fmtCN(cn){
   if(!Array.isArray(cn)||!cn.length) return '';
-  return '🎨 '+cn.map(c=>`لون ${c.num}×${c.qty}`).join('، ');
+  return '🎨 '+cn.map(c=>{
+    const k=_clr(c.num);
+    return (k&&k.name?`${k.name} (${c.num})`:`لون ${c.num}`)+`×${c.qty}`;
+  }).join('، ');
 }
+
+// شبكة اختيار اللون — مشتركة بين سلّة الطلب وسلّة التعديل، فالشكل واحد
+// والسلوك واحد. المتوقّف لا يظهر إلا إذا كان مختاراً في طلب قائم.
+function _cnGridHtml(codes,sel,fn,i,small){
+  const box=small?38:44;
+  return codes.filter(n=>_clrSt(n)!=='retired'||(sel[n]||0)>0).map(n=>{
+    const q=sel[n]||0,on=q>0;
+    const c=_clr(n),st=_clrSt(n),hex=(c&&c.hex)||'';
+    const dead=st!=='active';
+    const face=hex||'#ffffff';
+    const ink=hex?_clrInk(hex):'#374151';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${dead&&!on?'opacity:.58;':''}">
+      <button onclick="${fn}(${i},${n},1)" title="${_clrName(n)}" style="position:relative;width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':hex?'rgba(0,0,0,.18)':'#cbd5e1'};background:${face};color:${ink};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;box-shadow:${on?'0 0 0 2px #bfdbfe':'none'};">
+        ${n}${dead?`<span style="position:absolute;top:-6px;left:-6px;font-size:0.72rem;line-height:1;filter:drop-shadow(0 0 1px #fff);">${st==='out'?'🟡':'⚫️'}</span>`:''}
+      </button>
+      <div style="font-size:0.6rem;color:${dead?'#9ca3af':'#4b5563'};max-width:${box+14}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;${dead?'text-decoration:line-through;':''}">${(c&&c.name)?c.name:'—'}</div>
+      ${on?`<div style="display:flex;align-items:center;gap:3px;">
+        <button onclick="${fn}(${i},${n},-1)" style="width:17px;height:17px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.68rem;line-height:1;">−</button>
+        <span style="font-size:0.7rem;font-weight:800;color:#2563eb;min-width:11px;text-align:center;">${q}</span>
+        <button onclick="${fn}(${i},${n},1)" style="width:17px;height:17px;border:none;background:#dbeafe;color:#1e40af;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.68rem;line-height:1;">+</button>
+      </div>`:'<div style="height:17px;"></div>'}
+    </div>`;
+  }).join('');
+}
+// لون خلص = لا يُضاف من جديد، لكن ما هو مختار في طلب قائم ينقص بحرّية
+function _cnBlocked(num,cur,delta){
+  if(delta<=0) return false;
+  const st=_clrSt(num);
+  if(st==='active') return false;
+  toast(`⚠️ ${_clrName(num)} ${st==='out'?'خلص مؤقتاً':'متوقّف'} — اختر لوناً غيره`);
+  return true;
+}
+
+// ── المخزون ──
+// نُطبّق الفرق لا المجموع: الطلب يحمل علماً (colorStockApplied) يقول هل
+// خُصم مخزونه أم لا، فالتعديل والإلغاء والرجوع عن الإلغاء كلّها تمرّ من
+// دالّة واحدة ولا ينخصم شيء مرّتين.
+function _cnMapOf(products){
+  const m={};
+  (products||[]).forEach(p=>{
+    (Array.isArray(p.colorNumbers)?p.colorNumbers:[]).forEach(c=>{
+      const n=Number(c.num)||0,q=Number(c.qty)||0;
+      if(n>0&&q>0) m[n]=(m[n]||0)+q;
+    });
+  });
+  return m;
+}
+async function _applyColorStock(delta){
+  const keys=Object.keys(delta||{}).filter(k=>Math.abs(delta[k])>0.0001);
+  if(!keys.length) return;
+  await loadColorLibrary();
+  const known=keys.filter(k=>!!_clr(k));
+  if(!known.length) return;   // مكتبة فاضية ⇒ لا مخزون بعد
+  try{
+    const batch=db.batch();
+    known.forEach(k=>batch.update(db.collection('color_library').doc(_clr(k).id),
+      {qty:firebase.firestore.FieldValue.increment(delta[k])}));
+    await batch.commit();
+    _colorLibLoaded=false;
+  }catch(e){console.error('color stock:',e);}
+}
+// «خلص» تلقائي عند الصفر، ورجوعٌ تلقائي عند الوارد — لكن فقط لما كان
+// التعليم تلقائياً. اللون اللي علّمتَه «خلص» بيدك يظلّ كما علّمتَه.
+async function _autoColorStatus(){
+  await loadColorLibrary(true);
+  const batch=db.batch();let n=0;
+  _colorLib.forEach(c=>{
+    if(c.status==='retired') return;
+    const q=Number(c.qty);
+    if(!isFinite(q)) return;
+    const ref=db.collection('color_library').doc(c.id);
+    if(q<=0&&c.status!=='out'){batch.update(ref,{status:'out',outAuto:true});n++;}
+    else if(q>0&&c.status==='out'&&c.outAuto===true){batch.update(ref,{status:'active',outAuto:false});n++;}
+  });
+  if(n){try{await batch.commit();_colorLibLoaded=false;}catch(e){}}
+}
+// ما يحجزه الطلب من المخزون فعلاً = ألوانه ناقص ما رجع منها بإرجاع جزئي.
+// نُسجّل المُرجَع على الطلب (colorStockReturned) بدل ما نعدّل products —
+// فالبنود تبقى كما طُلبت، ولو أُلغي الطلب بعدها لا يرجع اللون مرّتين.
+function _orderCnFootprint(o){
+  const m=_cnMapOf((o&&o.products)||[]);
+  const back=(o&&o.colorStockReturned)||{};
+  Object.keys(back).forEach(k=>{
+    const v=(m[k]||0)-(Number(back[k])||0);
+    if(v>0) m[k]=v; else delete m[k];
+  });
+  return m;
+}
+// نقطة الدخول الوحيدة: انقل الطلب من حالة مخزون إلى حالة مخزون
+async function _orderStockSync(orderId,prevOrder,nextOrder,wasApplied,shouldApply){
+  try{
+    await loadColorLibrary();
+    if(!_colorLib.length) return;
+    const oldM=wasApplied?_orderCnFootprint(prevOrder):{};
+    const newM=shouldApply?_orderCnFootprint(nextOrder):{};
+    const d={};
+    new Set([...Object.keys(oldM),...Object.keys(newM)]).forEach(k=>{
+      const v=(oldM[k]||0)-(newM[k]||0);   // القديم يرجع والجديد ينخصم
+      if(v) d[k]=v;
+    });
+    await _applyColorStock(d);
+    if(orderId&&wasApplied!==shouldApply){
+      try{await db.collection('employee_orders').doc(orderId).update({colorStockApplied:!!shouldApply});}catch(e){}
+    }
+    await _autoColorStatus();
+  }catch(e){console.error('_orderStockSync:',e);}
+}
+const _CN_DEAD=['cancelled','returned','refused'];
+function _cnShouldHold(status){return !_CN_DEAD.includes(status);}
+// أي لونٍ رجع بالإرجاع الجزئي؟ لو رجع البند كلّه فكل ألوانه، ولو رجع بعضُه
+// وهو لون واحد فلا لبس. أمّا بندٌ فيه ألوان عدّة ورجع بعضه فلا أحد يعرف أيّ
+// لونٍ في الكيس — فلا نخمّن، ونقول له يصحّحها من الجرد.
+function _cnReturnDelta(p,qty,remAfter){
+  const cns=Array.isArray(p&&p.colorNumbers)?p.colorNumbers:[];
+  if(!cns.length) return {map:{},note:''};
+  if(remAfter<=0) return {map:_cnMapOf([p]),note:''};
+  if(cns.length===1) return {map:{[cns[0].num]:Math.min(qty,cns[0].qty||qty)},note:''};
+  return {map:{},note:'⚠️ البند فيه أكثر من لون — صحّح مخزون الألوان من «🔢 جرد»'};
+}
+
+// ─────────── شاشة إدارة المكتبة ───────────
+let _clrOpenId=null;   // الصفّ المفتوح للتعديل
+const _clrEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+async function openColorLib(){
+  document.getElementById('colorLibModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='colorLibModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100001;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="font-weight:900;font-size:1rem;color:#1e3a8a;">🎨 مكتبة الألوان</div>
+        <button onclick="closeColorLib()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button>
+      </div>
+      <div id="clrHeadStats" style="font-size:0.7rem;color:#6b7280;margin-top:4px;"></div>
+      <div id="clrTools" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;"></div>
+    </div>
+    <div id="clrList" style="flex:1;overflow-y:auto;padding:10px 12px 20px;"></div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)closeColorLib();});
+  document.getElementById('clrList').innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:0.85rem;">⏳ جاري التحميل...</div>';
+  await loadColorLibrary(true);
+  renderColorLib();
+}
+function closeColorLib(){_clrOpenId=null;document.getElementById('colorLibModal')?.remove();}
+
+function renderColorLib(){
+  const list=document.getElementById('clrList');if(!list)return;
+  const n={active:0,out:0,retired:0};
+  _colorLib.forEach(c=>{n[c.status||'active']=(n[c.status||'active']||0)+1;});
+  const low=_colorLib.filter(c=>c.status!=='retired'&&_clrIsLow(c));
+  const st=document.getElementById('clrHeadStats');
+  if(st) st.innerHTML=`🟢 ${n.active} متوفّر · 🟡 ${n.out} خلص · ⚫️ ${n.retired} متوقّف`+
+    (low.length?` · <span style="color:#b45309;font-weight:800;">⚠️ ${low.length} قرب يخلص</span>`:'');
+  const tools=document.getElementById('clrTools');
+  if(tools) tools.innerHTML=
+    `<button onclick="clrAdd()" style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">➕ لون جديد</button>`+
+    `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
+    (_colorLib.length?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
+
+  if(!_colorLib.length){
+    list.innerHTML=`<div style="padding:22px 16px;text-align:center;color:#6b7280;font-size:0.85rem;line-height:1.9;">
+      المكتبة فاضية.<br>اضغط <b>⚡ عبّي المكتبة</b> ليصير عندك سطر لكل رقم موجود حالياً — طلباتك القديمة بتضلّ صحيحة زي ما هي — وبعدها عبّي الأسماء والألوان على راحتك.</div>`;
+    return;
+  }
+  list.innerHTML=_colorLib.map((c,i)=>{
+    const s=CLR_ST[c.status||'active']||CLR_ST.active;
+    const hex=c.hex||'';
+    const q=Number(c.qty);
+    const lowOn=_clrIsLow(c);
+    const open=_clrOpenId===c.id;
+    return `<div style="border:1.5px solid ${open?'#93c5fd':'#e5e7eb'};border-radius:12px;padding:9px 10px;margin-bottom:7px;background:${open?'#f8fbff':'#fff'};">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:${hex||'#f3f4f6'};border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;font-weight:900;font-size:0.82rem;color:${hex?_clrInk(hex):'#6b7280'};flex-shrink:0;">${c.code}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:800;font-size:0.86rem;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'<span style="color:#d1d5db;">بلا اسم</span>'}</div>
+          <div style="font-size:0.68rem;color:${s.color};font-weight:700;">${s.icon} ${s.label}${isFinite(q)?` · <span style="color:${lowOn?'#b45309':'#6b7280'};">${q} قطعة${lowOn?' ⚠️':''}</span>`:''}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button onclick="clrMove('${c.id}',-1)" ${i===0?'disabled':''} style="width:26px;height:26px;border:1px solid #e5e7eb;background:#fff;border-radius:7px;cursor:pointer;font-size:0.7rem;${i===0?'opacity:.3;':''}">▲</button>
+          <button onclick="clrMove('${c.id}',1)" ${i===_colorLib.length-1?'disabled':''} style="width:26px;height:26px;border:1px solid #e5e7eb;background:#fff;border-radius:7px;cursor:pointer;font-size:0.7rem;${i===_colorLib.length-1?'opacity:.3;':''}">▼</button>
+          <button onclick="clrToggle('${c.id}')" style="width:26px;height:26px;border:1px solid ${open?'#2563eb':'#e5e7eb'};background:${open?'#2563eb':'#fff'};color:${open?'#fff':'#374151'};border-radius:7px;cursor:pointer;font-size:0.72rem;">✏️</button>
+        </div>
+      </div>
+      ${open?`<div style="margin-top:9px;padding-top:9px;border-top:1px dashed #d1d5db;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:7px;align-items:center;">
+          <input type="color" id="clr_hex_${c.id}" value="${/^#[0-9a-f]{6}$/i.test(hex)?hex:'#cccccc'}" style="width:44px;height:38px;border:1.5px solid #e5e7eb;border-radius:9px;background:#fff;cursor:pointer;padding:2px;">
+          <input id="clr_name_${c.id}" value="${_clrEsc(c.name)}" placeholder="اسم اللون (فوشي، زيتي...)" style="flex:1;min-width:90px;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;">
+        </div>
+        <div style="display:flex;gap:7px;align-items:center;">
+          <input id="clr_low_${c.id}" type="number" min="0" value="${c.lowAt||''}" placeholder="حدّ التنبيه" style="width:110px;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;">
+          <span style="font-size:0.68rem;color:#9ca3af;flex:1;">بينبّهك لمّا الكمية تنزل لهاد الرقم</span>
+          <button onclick="clrSave('${c.id}')" style="padding:9px 16px;background:#16a34a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💾 حفظ</button>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          ${['active','out','retired'].map(k=>{const v=CLR_ST[k];const on=(c.status||'active')===k;
+            return `<button onclick="clrSetStatus('${c.id}','${k}')" style="flex:1;min-width:92px;padding:8px 6px;border:1.5px solid ${on?v.color:v.bd};background:${on?v.color:v.bg};color:${on?'#fff':v.color};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;">${v.icon} ${v.label}</button>`;}).join('')}
+        </div>
+        <div style="font-size:0.66rem;color:#9ca3af;line-height:1.7;">⚫️ المتوقّف ما بيظهر بالطلبات الجديدة، بس بيضلّ يبيّن بالطلبات القديمة — ورقمه ما بياخده حدا غيره أبداً.</div>
+        <button onclick="clrDelete('${c.id}')" style="align-self:flex-start;background:none;border:none;color:#dc2626;font-family:'Tajawal',sans-serif;font-size:0.72rem;cursor:pointer;padding:2px;text-decoration:underline;">🗑 احذف اللون نهائياً</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function clrToggle(id){_clrOpenId=_clrOpenId===id?null:id;renderColorLib();}
+
+async function clrAdd(){
+  const next=_colorLib.reduce((m,c)=>Math.max(m,c.code),0)+1;
+  const name=prompt(`اسم اللون الجديد (رقمه رح يكون ${next}):`,'');
+  if(name===null)return;
+  try{
+    await db.collection('color_library').doc('c'+next).set({
+      code:next,name:(name||'').trim(),hex:'',status:'active',qty:0,lowAt:0,
+      sort:(_colorLib.length?Math.max(..._colorLib.map(c=>c.sort==null?c.code:c.sort)):0)+1,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await loadColorLibrary(true);
+    _clrOpenId='c'+next;
+    renderColorLib();
+    toast(`✅ انضاف اللون رقم ${next}`);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function clrSave(id){
+  const name=(document.getElementById('clr_name_'+id)?.value||'').trim();
+  const hex=document.getElementById('clr_hex_'+id)?.value||'';
+  const lowAt=parseInt(document.getElementById('clr_low_'+id)?.value)||0;
+  try{
+    await db.collection('color_library').doc(id).update({name,hex,lowAt});
+    await loadColorLibrary(true);
+    _clrOpenId=null;
+    renderColorLib();
+    toast('✅ انحفظ');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function clrSetStatus(id,status){
+  try{
+    await db.collection('color_library').doc(id).update({status,outAuto:false});
+    await loadColorLibrary(true);
+    renderColorLib();
+    toast(`${CLR_ST[status].icon} ${CLR_ST[status].label}`);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// الترتيب حقلٌ منفصل عن الرقم عمداً: بتحرّك اللون بالشبكة وين ما بدك،
+// ورقمه ما بيتحرّك معه — فطلباتك القديمة ما بتتأثر.
+async function clrMove(id,dir){
+  const i=_colorLib.findIndex(c=>c.id===id);
+  const j=i+dir;
+  if(i<0||j<0||j>=_colorLib.length)return;
+  const a=_colorLib[i],b=_colorLib[j];
+  try{
+    const batch=db.batch();
+    batch.update(db.collection('color_library').doc(a.id),{sort:(b.sort==null?b.code:b.sort)});
+    batch.update(db.collection('color_library').doc(b.id),{sort:(a.sort==null?a.code:a.sort)});
+    await batch.commit();
+    await loadColorLibrary(true);
+    renderColorLib();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function clrDelete(id){
+  const c=_colorLib.find(x=>x.id===id);if(!c)return;
+  if(!confirm(`حذف «${c.name||'لون '+c.code}» نهائياً؟\n\nالطلبات القديمة اللي فيها هاد اللون رح تعرضه «لون ${c.code}» بدون اسم.\nلو بدك بس توقفه عن البيع اختار ⚫️ متوقّف بدل الحذف.`))return;
+  try{
+    await db.collection('color_library').doc(id).delete();
+    await loadColorLibrary(true);
+    _clrOpenId=null;
+    renderColorLib();
+    toast('🗑 انحذف');
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// ⚡ الترحيل: سطرٌ لكل رقم موجود حالياً بنفس ترتيبه، فالطلبات القديمة تبقى
+// صحيحة حرفياً — الرقم ٧ يظلّ الرقم ٧ — وتُملأ الأسماء لاحقاً على مهل.
+async function seedColorLibrary(){
+  await loadOpProducts(true);
+  const max=(_opProductsList||[]).filter(p=>p.hasColorNumbers)
+    .reduce((m,p)=>Math.max(m,parseInt(p.colorNumbersCount)||0),0);
+  if(max<1){toast('⚠️ ما في منتج بأرقام ألوان — حدّد العدد بالمنتج أولاً');return;}
+  if(!confirm(`رح نعمل ${max} لون بالأرقام من ١ لـ${max}، بنفس ترتيبهم الحالي وبدون أسماء.\nطلباتك القديمة ما بتتأثر.\n\nنكمّل؟`))return;
+  try{
+    for(let s=0;s<max;s+=400){
+      const batch=db.batch();
+      for(let n=s+1;n<=Math.min(max,s+400);n++){
+        batch.set(db.collection('color_library').doc('c'+n),
+          {code:n,name:'',hex:'',status:'active',qty:0,lowAt:0,sort:n},{merge:true});
+      }
+      await batch.commit();
+    }
+    await loadColorLibrary(true);
+    renderColorLib();
+    toast(`✅ انعملت ${max} لون — عبّي الأسماء والألوان`);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// ─────────── جرد سريع ───────────
+async function openColorStock(){
+  await loadColorLibrary(true);
+  const rows=_colorLib.filter(c=>c.status!=='retired');
+  if(!rows.length){toast('⚠️ المكتبة فاضية');return;}
+  document.getElementById('clrStockModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='clrStockModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">🔢 جرد سريع</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">عدّ الموجود واكتبه — اللي بتتركه فاضي ما بيتغيّر</div>
+      </div>
+      <button onclick="document.getElementById('clrStockModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px 12px;">
+      ${rows.map(c=>{const hex=c.hex||'';return `<div style="display:flex;align-items:center;gap:9px;padding:6px 2px;border-bottom:1px solid #f3f4f6;">
+        <div style="width:32px;height:32px;border-radius:8px;background:${hex||'#f3f4f6'};border:1.5px solid rgba(0,0,0,.14);display:grid;place-items:center;font-weight:900;font-size:0.72rem;color:${hex?_clrInk(hex):'#6b7280'};flex-shrink:0;">${c.code}</div>
+        <div style="flex:1;min-width:0;font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name)||'—'}</div>
+        <span style="font-size:0.68rem;color:#9ca3af;">حالياً ${Number(c.qty)||0}</span>
+        <input id="clrq_${c.id}" type="number" min="0" placeholder="—" style="width:74px;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
+      </div>`;}).join('')}
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
+      <button onclick="clrStockSave()" style="width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 احفظ الجرد</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+async function clrStockSave(){
+  const upd=[];
+  _colorLib.forEach(c=>{
+    const el=document.getElementById('clrq_'+c.id);
+    if(!el||el.value==='')return;
+    const v=parseInt(el.value);
+    if(isNaN(v)||v<0)return;
+    if(v!==(Number(c.qty)||0)) upd.push({id:c.id,qty:v});
+  });
+  if(!upd.length){toast('ما في إشي تغيّر');document.getElementById('clrStockModal')?.remove();return;}
+  try{
+    const batch=db.batch();
+    upd.forEach(u=>batch.update(db.collection('color_library').doc(u.id),{qty:u.qty}));
+    await batch.commit();
+    await _autoColorStatus();
+    await loadColorLibrary(true);
+    document.getElementById('clrStockModal')?.remove();
+    renderColorLib();
+    toast(`✅ انحفظ جرد ${upd.length} لون`);
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// ─────────── أي ألوان يعرضها هذا المنتج (داخل نموذج المنتج) ───────────
+// فاضي = كل ألوان المكتبة. هيك لون جديد بينضاف بيوصل لكل المنتجات لحاله،
+// بدل ما تفتح كل منتج وتضيفه له بالإيد.
+let _oppColorCodes=[];
+function renderOppCNPicker(){
+  const w=document.getElementById('opp_cn_pick');if(!w)return;
+  const leg=document.getElementById('opp_cn_legacy');
+  if(!_colorLib.length){
+    w.innerHTML='<div style="font-size:0.74rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;line-height:1.7;">المكتبة فاضية — افتح <b>🎨 مكتبة الألوان</b> واضغط «⚡ عبّي المكتبة». لَهلق بيشتغل بالعدد القديم.</div>';
+    if(leg)leg.style.display='block';
+    return;
+  }
+  if(leg)leg.style.display='none';
+  const all=_oppColorCodes.length===0;
+  w.innerHTML=`<label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;font-size:0.8rem;font-weight:700;color:#1e40af;">
+      <input type="checkbox" ${all?'checked':''} onchange="oppCNAll(this.checked)" style="width:17px;height:17px;accent-color:#2563eb;cursor:pointer;">
+      كل ألوان المكتبة (${_colorLib.length}) — والجديد بيوصله لحاله
+    </label>
+    ${all?'':`<div style="display:flex;flex-wrap:wrap;gap:5px;">${_colorLib.map(c=>{
+      const on=_oppColorCodes.includes(c.code),hex=c.hex||'';
+      return `<button type="button" onclick="oppCNToggle(${c.code})" style="display:flex;align-items:center;gap:5px;padding:4px 9px;border:1.5px solid ${on?'#2563eb':'#e5e7eb'};background:${on?'#eff6ff':'#fff'};border-radius:18px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;color:#374151;cursor:pointer;">
+        <span style="width:13px;height:13px;border-radius:4px;background:${hex||'#e5e7eb'};border:1px solid rgba(0,0,0,.15);"></span>${c.code}${c.name?' '+_clrEsc(c.name):''}</button>`;}).join('')}</div>`}`;
+}
+function oppCNAll(on){_oppColorCodes=on?[]:_colorLib.map(c=>c.code);renderOppCNPicker();}
+function oppCNToggle(code){
+  const i=_oppColorCodes.indexOf(code);
+  if(i>=0)_oppColorCodes.splice(i,1);else _oppColorCodes.push(code);
+  _oppColorCodes.sort((a,b)=>a-b);
+  renderOppCNPicker();
+}
+window.renderOppCNPicker=renderOppCNPicker; window.oppCNAll=oppCNAll; window.oppCNToggle=oppCNToggle;
+window.openColorLib=openColorLib; window.closeColorLib=closeColorLib;
+window.clrToggle=clrToggle; window.clrAdd=clrAdd; window.clrSave=clrSave;
+window.clrSetStatus=clrSetStatus; window.clrMove=clrMove; window.clrDelete=clrDelete;
+window.seedColorLibrary=seedColorLibrary; window.openColorStock=openColorStock;
+window.clrStockSave=clrStockSave;
 // اختيار/تعديل عدد رقم لون لمنتج بأرقام ألوان — الكمية = مجموع الأعداد
 function empCartCN(idx,num,delta){
   const item=_empOrderCart[idx];if(!item)return;
+  if(_cnBlocked(num,item,delta))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const i=cns.findIndex(c=>c.num===num);
   if(i>=0){const q=(cns[i].qty||0)+delta;if(q<=0)cns.splice(i,1);else cns[i]={num,qty:q};}
@@ -2887,21 +3327,12 @@ function renderEmpOrderCart(){
     const cns=Array.isArray(item.colorNumbers)?item.colorNumbers:[];
     const showExtras=colors.length||req||priceOpts.length||hasCN;
     let colorNumbersHtml='';
-    if(hasCN&&cnCount>0){
+    const cnCodes=hasCN?_prodColorCodes(prod):[];
+    if(hasCN&&cnCodes.length){
       const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
       const totalCN=cns.reduce((s,c)=>s+(c.qty||0),0);
-      const grid=Array.from({length:cnCount},(_,k)=>k+1).map(n=>{
-        const q=sel[n]||0;const on=q>0;
-        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-          <button onclick="empCartCN(${i},${n},1)" style="width:34px;height:34px;border-radius:9px;border:1.5px solid ${on?'#2563eb':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:800;font-size:0.8rem;cursor:pointer;font-family:'Tajawal',sans-serif;">${n}</button>
-          ${on?`<div style="display:flex;align-items:center;gap:3px;">
-            <button onclick="empCartCN(${i},${n},-1)" style="width:18px;height:18px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">−</button>
-            <span style="font-size:0.72rem;font-weight:800;color:#2563eb;min-width:12px;text-align:center;">${q}</span>
-            <button onclick="empCartCN(${i},${n},1)" style="width:18px;height:18px;border:none;background:#dbeafe;color:#1e40af;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">+</button>
-          </div>`:'<div style="height:16px;"></div>'}
-        </div>`;
-      }).join('');
-      colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اختر رقم اللون والعدد ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:7px;max-height:210px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
+      const grid=_cnGridHtml(cnCodes,sel,'empCartCN',i,false);
+      colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اختر اللون والعدد ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
     }
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateCartItemPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
     const colorHtml=colors.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#374151;margin-bottom:5px;">🎨 اللون</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${colors.map(c=>`<button onclick="updateCartItemColor(${i},'${c.replace(/'/g,"\\'")}')" style="padding:4px 12px;border:1.5px solid ${item.color===c?'#1a3a2a':'#cbd5e1'};border-radius:20px;background:${item.color===c?'#1a3a2a':'#fff'};color:${item.color===c?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">${c}</button>`).join('')}</div></div>`:'';
@@ -3064,11 +3495,12 @@ async function submitEmpOrder(){
     // ضغط الصور لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
     _empCurrentImages=await _compressImagesForDoc(_empCurrentImages);
     _empCurrentImages=await _uploadImagesToStorage(_empCurrentImages,'order-images');
-    await db.collection('employee_orders').add({
+    const _newProducts=_empOrderCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(Array.isArray(i.colorNumbers)&&i.colorNumbers.length?{colorNumbers:i.colorNumbers}:{}),...(pl?{priceLabel:pl}:{})};});
+    const _newRef=await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
       pageId,pageName,
-      products:_empOrderCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(Array.isArray(i.colorNumbers)&&i.colorNumbers.length?{colorNumbers:i.colorNumbers}:{}),...(pl?{priceLabel:pl}:{})};}),
+      products:_newProducts,
       customerPhone:phone,
       ...(customerName?{customerName}:{}),
       address,notes,
@@ -3082,6 +3514,8 @@ async function submitEmpOrder(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
+    // مخزون الألوان ينخصم على إدخال الطلب — الشنيل انحجز للزبونة من هلق
+    _orderStockSync(_newRef.id,null,{products:_newProducts},false,true);
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
     toast('✅ تم تسجيل الطلب بنجاح');
     _empOrderCart=[];_empDeliveryFee=2;_empCurrentImages=[];
@@ -3862,6 +4296,7 @@ async function _cancelOpOrderFromDetail(id){
     // إذا كان الطلب دخل الكشف (قيد التوصيل) — نشيل تاريخه ونزيل المبيعة من حساب المتجر
     if(data.status==='delivering') upd.deliveredDate=firebase.firestore.FieldValue.delete();
     await docRef.update(upd);
+    _orderStockSync(id,data,data,data.colorStockApplied===true,false);
     if(data.status==='delivering') await unsyncOrderFromAccounting(id);
     toast('🚫 تم إلغاء الطلب');
     if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
@@ -3891,6 +4326,7 @@ async function _returnOpOrderFromDetail(id){
     };
     if(isDelivering) upd.deliveredDate=firebase.firestore.FieldValue.delete();
     await docRef.update(upd);
+    _orderStockSync(id,data,data,data.colorStockApplied===true,false);
     if(isDelivering){
       // قيد التوصيل: نشيل المبيعة نهائياً (ما دخلت البضاعة أصلاً) — ما يتسجّل تكلفة على المتجر
       await unsyncOrderFromAccounting(id);
@@ -4041,17 +4477,12 @@ function renderEmpEditCart(){
       const po=_productPriceChoices(pr);
       const poHtml=po.length?`<div style="margin-bottom:7px;"><div style="font-size:0.72rem;font-weight:700;color:#854d0e;margin-bottom:4px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${po.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateEmpEditPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 11px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:18px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
       let cnHtml='';
-      if(hasCN&&cnCount>0){
+      const cnCodes=hasCN?_prodColorCodes(pr):[];
+      if(hasCN&&cnCodes.length){
         const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
         const total=cns.reduce((s,c)=>s+(c.qty||0),0);
-        const grid=Array.from({length:cnCount},(_,k)=>k+1).map(n=>{
-          const q=sel[n]||0;const on=q>0;
-          return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-            <button onclick="empEditCN(${i},${n},1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid ${on?'#2563eb':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:800;font-size:0.78rem;cursor:pointer;font-family:'Tajawal',sans-serif;">${n}</button>
-            ${on?`<div style="display:flex;align-items:center;gap:2px;"><button onclick="empEditCN(${i},${n},-1)" style="width:16px;height:16px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.66rem;line-height:1;">−</button><span style="font-size:0.68rem;font-weight:800;color:#2563eb;min-width:10px;text-align:center;">${q}</span><button onclick="empEditCN(${i},${n},1)" style="width:16px;height:16px;border:none;background:#dbeafe;color:#1e40af;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.66rem;line-height:1;">+</button></div>`:'<div style="height:14px;"></div>'}
-          </div>`;
-        }).join('');
-        cnHtml=`<div><div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 رقم اللون والعدد ${total?`<span style="color:#166534;">(${total})</span>`:'<span style="color:#dc2626;font-weight:800;">*</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:6px;max-height:190px;overflow-y:auto;padding:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">${grid}</div></div>`;
+        const grid=_cnGridHtml(cnCodes,sel,'empEditCN',i,true);
+        cnHtml=`<div><div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اللون والعدد ${total?`<span style="color:#166534;">(${total})</span>`:'<span style="color:#dc2626;font-weight:800;">*</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:7px;max-height:230px;overflow-y:auto;padding:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">${grid}</div></div>`;
       }
       const qtyCtl=hasCN?`<div style="font-weight:800;color:#1e40af;font-size:0.85rem;min-width:40px;text-align:center;">🎨 ${item.qty||1}</div>`:`<div style="display:flex;align-items:center;gap:4px;">
             <button onclick="changeEmpEditQty(${i},-1)" style="width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
@@ -4077,6 +4508,7 @@ function renderEmpEditCart(){
 
 function empEditCN(i,num,delta){
   const item=_empEditCart[i];if(!item)return;
+  if(_cnBlocked(num,item,delta))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const j=cns.findIndex(c=>c.num===num);
   if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
@@ -4219,6 +4651,9 @@ async function saveEmpOrderEdit(){
     updateData.imageDataUrls=_empEditImages;
     updateData.imageDataUrl=_empEditImages[0]||'';
     await docRef.update(updateData);
+    // فرق الألوان بين القديم والجديد — لا المجموع، فلا ينخصم شي مرّتين
+    _orderStockSync(_empEditOrderId,prev,{products:updateData.products,colorStockReturned:prev.colorStockReturned},
+      prev.colorStockApplied===true,_cnShouldHold(prev.status));
     toast('✅ تم حفظ التعديلات');
     closeEmpOrderEdit();
   }catch(e){toast('❌ '+e.message);}
@@ -5129,6 +5564,8 @@ async function updateEmpOrderStatus(id,newStatus){
       _deleteFields.push('deliveryRepName','deliveryRepPhone','assignedAt');
     }
     await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    // إلغاء/إرجاع ⇒ الشنيل يرجع للمخزون. والرجوع عن الإلغاء ⇒ ينخصم ثانيةً.
+    _orderStockSync(id,data,data,data.colorStockApplied===true,_cnShouldHold(newStatus));
     toast('✅ تم تحديث الحالة');
     // Update local cache immediately (don't wait for snapshot)
     const _patchLocal=(arr)=>{
@@ -5428,7 +5865,20 @@ async function savePartialReturn(){
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     };
     if(allBack){upd.status='returned';upd.returnReason=reason||'إرجاع كل البنود';}
+    // مخزون الألوان للبند الراجع
+    const _cnBack=_cnReturnDelta(p,qty,remAfter);
+    if(Object.keys(_cnBack.map).length){
+      const acc={...(d.colorStockReturned||{})};
+      Object.keys(_cnBack.map).forEach(k=>{acc[k]=(Number(acc[k])||0)+_cnBack.map[k];});
+      upd.colorStockReturned=acc;
+      nextOrder.colorStockReturned=acc;
+    }
     await ref.update(upd);
+    if(d.colorStockApplied===true&&Object.keys(_cnBack.map).length){
+      await _applyColorStock(_cnBack.map);
+      await _autoColorStatus();
+    }
+    if(_cnBack.note) toast(_cnBack.note);
 
     // المجاميع الجديدة لازمة للمحاسبة (يُشتقّ منها ما قبضه مشغل الشجر)،
     // فنحدّث النسخة المُمرَّرة لا نمرّر أرقام ما قبل الإرجاع.
@@ -7934,6 +8384,8 @@ async function loadOpProducts(useCache){
       _opStoresList=snap.docs.map(d=>({id:d.id,...d.data()}));
     }catch(e){}
   }
+  await loadColorLibrary(!useCache);
+  renderOppCNPicker();
   renderOpProductsList();
   renderStorePricesForm();
   // Populate category datalist
@@ -8070,6 +8522,8 @@ function editOpProduct(id){
   });
   _oppColors=Array.isArray(p.colors)?[...p.colors]:[];
   renderOppColorChips();
+  _oppColorCodes=Array.isArray(p.colorCodes)?p.colorCodes.map(Number).filter(n=>n>0):[];
+  renderOppCNPicker();
   _oppPriceOptions=Array.isArray(p.priceOptions)?p.priceOptions.map(o=>({label:o.label,price:o.price})):[];
   renderOppPriceOptionChips();
   const rw=document.getElementById('opp_requires_writing');
@@ -8120,6 +8574,8 @@ function cancelEditProduct(){
   if(hcnWrap) hcnWrap.style.display='none';
   const hcnCount=document.getElementById('opp_color_numbers_count');
   if(hcnCount) hcnCount.value='';
+  _oppColorCodes=[];
+  renderOppCNPicker();
   const catEl=document.getElementById('opp_category');
   if(catEl) catEl.value='';
   document.getElementById('opp_form_title').textContent='➕ إضافة منتج جديد';
@@ -8157,14 +8613,14 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,colorCodes:hasColorNumbers?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
       await db.collection('operator_products').add({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
-        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,colorCodes:hasColorNumbers?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
