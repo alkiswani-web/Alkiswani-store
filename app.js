@@ -11929,9 +11929,13 @@ function _payHubRows(){
     // مشغل الشجر — بدّك منه
     // شركات التوصيل الماسكة كاشك
     Object.values(_opCourierNets||{}).forEach(c=>{
-      if(c.bal>0.009) inn.push({icon:'🚚',name:c.name,
-        sub:`ماسكة ${c.held.toFixed(2)}${c.paid>0.009?` · قبضتَ ${c.paid.toFixed(2)}`:''}`,
-        amount:c.bal,act:`paySupplier('${_payEsc(CRR+c.name)}','${_payEsc(c.name)}')`});
+      const act=`paySupplier('${_payEsc(CRR+c.name)}','${_payEsc(c.name)}')`;
+      const sub=`ماسكة ${c.held.toFixed(2)}${c.paid>0.009?` · قبضتَ ${c.paid.toFixed(2)}`:''}`;
+      if(c.bal>0.009) inn.push({icon:'🚚',name:c.name,sub,amount:c.bal,act});
+      // قبضتَ أكثر من المستحق ⇒ في غلط. لو خبّينا الصفّ ما بيضلّ إله طريق.
+      else if(c.bal<-0.009) inn.push({icon:'⚠️',name:c.name,
+        sub:`${sub} — قبضتَ أكثر من المستحق بـ${Math.abs(c.bal).toFixed(2)}! صحّح من السجلّ تحت`,
+        amount:0,act});
     });
     const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
     const tpBal=(_opBalTreeProfit||0)-tpPaid;
@@ -12011,26 +12015,52 @@ async function _payHubWages(){
 // سجلّ دفعات الكشف — كل مصادره محمّلة أصلاً في الذاكرة، بلا جلبة إضافية
 function _payHubLedger(){
   const L=[];
-  const push=(date,icon,label,amount,dir)=>{if(amount)L.push({date:date||'',icon,label,amount,dir});};
+  // كل قيد بيحمل دالّة حذفه: قيدٌ انتسجّل بالغلط لازم ينحذف من نفس المكان
+  // اللي بتشوفه فيه، لا إنّك تدوّر على قسمه. وبالذات قبضةٌ فوق المستحق —
+  // صفُّها بيختفي من «إلك تقبض» فما بيضلّ إلها طريقٌ إطلاقاً.
+  const push=(date,icon,label,amount,dir,del)=>{if(amount)L.push({date:date||'',icon,label,amount,dir,del:del||''});};
   (_opSessionSupPays||[]).forEach(p=>{
     const isCr=_isCourierId(p.supplierId);
     const isIn=p.supplierId==='__treeprofit__'||isCr;
     push(p.date,isCr?'🚚':isIn?'🌲':'🏭',
       (isCr?'قبضتُ من شركة التوصيل':isIn?'قبضة من مشغل الشجر':'دفعة مورد')
-      +(p.supplierName?' · '+p.supplierName:'')+(p.noCash?' (بدون كاش)':''),p.amount,isIn?'in':'out');
+      +(p.supplierName?' · '+p.supplierName:'')+(p.noCash?' (بدون كاش)':''),p.amount,isIn?'in':'out',
+      p.id?`deleteSupplierPayment('${_payEsc(p.id)}')`:'');
   });
-  (_opSessionRentPays||[]).forEach(p=>push(p.date,'🏠','دفعة إجار',p.amount,'out'));
-  (_opSessionDebtPays||[]).forEach(p=>push(p.date,'🤝','سداد'+(p.personName?' · '+p.personName:''),p.amount,'out'));
-  (_opSessionWagePays||[]).forEach(p=>push(p.date,'👷','راتب'+(p.workerName?' · '+p.workerName:''),p.amount,'out'));
+  (_opSessionRentPays||[]).forEach(p=>push(p.date,'🏠','دفعة إجار',p.amount,'out',
+    p.id?`deleteRentTx('${_payEsc(p.id)}')`:''));
+  (_opSessionDebtPays||[]).forEach(p=>push(p.date,'🤝','سداد'+(p.personName?' · '+p.personName:''),p.amount,'out',
+    p.id?`deleteDebtPayment('${_payEsc(p.id)}')`:''));
+  (_opSessionWagePays||[]).forEach(p=>push(p.date,'👷','راتب'+(p.workerName?' · '+p.workerName:''),p.amount,'out',
+    p.id?`ewDeletePayment('${_payEsc(p.id)}')`:''));
   (_opWithdrawals||[]).forEach(w=>{
     const isPay=w.withdrawalType==='payment';
-    push(w.date,isPay?'💳':'💸',(isPay?'دفعة متجر':'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),w.amount,isPay?'in':'out');
+    push(w.date,isPay?'💳':'💸',(isPay?'دفعة متجر':'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),w.amount,isPay?'in':'out',
+      w.id?`deleteOperatorWithdrawal('${_payEsc(w.id)}')`:'');
   });
-  (_opDayExpenses||[]).forEach(e=>push(e.date,'🧾','مصروف'+(e.category&&e.category!=='أخرى'?' · '+e.category:''),e.amount,'out'));
-  (_opRawBuys||[]).forEach(r=>push(r.date,'🧱','شراء مواد خام',r.amount,'out'));
+  (_opDayExpenses||[]).forEach(e=>push(e.date,'🧾','مصروف'+(e.category&&e.category!=='أخرى'?' · '+e.category:''),e.amount,'out',
+    e.id?`deleteExpense('${_payEsc(e.id)}')`:''));
+  (_opRawBuys||[]).forEach(r=>push(r.date,'🧱','شراء مواد خام',r.amount,'out',
+    r.id?`deleteRawBuy('${_payEsc(r.id)}')`:''));
   L.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   return L;
 }
+
+// حذف قيد من السجلّ: تأكيدٌ باسمه ومبلغه، ثم دالّة القسم نفسها — فالمحاسبة
+// كلّها ترجع مثل ما كانت بلا مسارٍ جديد يخالف القديم.
+function _payDelEntry(act,label,amount){
+  if(!act)return;
+  if(!confirm(`حذف هذا القيد؟\n\n${label} — ${Number(amount||0).toFixed(2)} د.أ\n\nالحساب بيرجع زي ما كان قبله.`))return;
+  // دالّة كل قسم بتسأل تأكيداً ثانياً بنصٍّ عام. سألنا مرّة بنصٍّ يسمّي القيد
+  // ومبلغه، فما منخلّيه يسأل مرّتين — السؤال المكرّر بيخلّي الناس تضغط «موافق»
+  // بلا ما تقرأ. نرجّع confirm بعد ما يمرّ الفحص المتزامن بأوّل الدالّة.
+  const _c=window.confirm;
+  window.confirm=()=>true;
+  try{ (new Function(act))(); }
+  catch(e){ toast('❌ '+e.message); }
+  finally{ setTimeout(()=>{window.confirm=_c;},0); }
+}
+window._payDelEntry=_payDelEntry;
 
 async function renderPaymentsHub(){
   const el=document.getElementById('cc-pay');
@@ -12060,10 +12090,16 @@ async function renderPaymentsHub(){
       <div>
         <div style="font-size:0.9rem;font-weight:800;color:#eafff4;margin:4px 2px 9px;">📜 سجلّ دفعات الكشف <span style="font-size:0.72rem;color:#9fc7b4;font-weight:600;">(${led.length})</span></div>
         <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.16);border-radius:16px;overflow:hidden;">
-          ${led.length?led.map(x=>_ccFlow(x.icon,`${x.label} <span style="color:#9fc7b4;font-size:0.7rem;">${x.date}</span>`,x.amount,x.dir)).join('')
+          ${led.length?led.map(x=>{
+              const esc=String(x.label).replace(/<[^>]*>/g,'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+              const del=x.del?`<button onclick="event.stopPropagation();_payDelEntry('${String(x.del).replace(/'/g,"\\'")}','${esc}',${x.amount})" title="احذف هذا القيد" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:7px;width:24px;height:24px;font-size:0.76rem;cursor:pointer;font-weight:900;line-height:1;flex-shrink:0;">×</button>`:'';
+              return `<div style="display:flex;align-items:center;gap:6px;">
+                <div style="flex:1;min-width:0;">${_ccFlow(x.icon,`${x.label} <span style="color:#9fc7b4;font-size:0.7rem;">${x.date}</span>`,x.amount,x.dir)}</div>
+                <div style="padding-left:11px;">${del}</div>
+              </div>`;}).join('')
             :'<div style="padding:16px;text-align:center;color:#9fc7b4;font-size:0.78rem;">ما في دفعات في هذا الكشف بعد</div>'}
         </div>
-        <div style="font-size:0.68rem;color:#9fc7b4;margin:8px 4px;line-height:1.7;">الحذف يبقى في قسم كل بند — هون عرض فقط حتى لا يُحذف قيد بالخطأ.</div>
+        <div style="font-size:0.68rem;color:#9fc7b4;margin:8px 4px;line-height:1.7;">× بتحذف القيد ترجع الحسابات زي ما كانت قبله — بيسألك يتأكّد أولاً.</div>
       </div>`;
   };
   draw(_payHubWagesCache,!_payHubWagesCache);
