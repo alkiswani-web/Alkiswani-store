@@ -11267,7 +11267,6 @@ function renderOperatorDailyView(){
   // (أُزيلت «رواتب موظفين المشغل» من لوحة الأرباح — صارت في تبويب «💰 رواتب» المخصّص)
   // ===== Delivered orders + per-store balance =====
   if(_opDayOrders.length){
-    const excludedRepNames=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
     const courierHeld={};
     const byStore={};
     _opDayOrders.forEach(o=>{
@@ -11277,17 +11276,16 @@ function renderOperatorDailyView(){
         byStore[sname]={name:sname,storeId:storeObj?.id||null,group:storeObj?.group||null,orders:[],total:0,eligibleTotal:0};
       }
       const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
-      const isExcl=!!(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName));
+      const isExcl=_crStillHeld(o);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
       // البضاعة انباعت ⇒ مستحقّ المتجر ثابت، مين ماسك الكاش شي ثاني.
       // (كان يُستثنى، فيظهر مستحقّ المتجر ناقصاً بلا سبب يفهمه.)
       byStore[sname].eligibleTotal+=amt;
-      if(isExcl){
+      if(_crIsCourier(o.deliveryRepName)){
         const nm=o.deliveryRepName;
         if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
-        const st=_crStart(nm);
-        if(!st||_crOrderDate(o)>=st) courierHeld[nm]+=amt;
+        if(isExcl) courierHeld[nm]+=amt;
       }
     });
     // حساب كل شركة محاسبة عن نفس فترة الكشف
@@ -11529,8 +11527,7 @@ function renderOperatorDailyView(){
     // نستثني المناديب المستبعدين (شركات التوصيل الخارجية) — إنت ما بتستلم كاش منهم
     // طلبات أخرجها مشغل الشجر: هو شحنها ودفع توصيلها وقبض ثمنها — ولا فلس
     // مرّ من عندي. تُستثنى بغضّ النظر عن المندوب المسجّل (إن سُجّل للمتابعة).
-    const _collOrders=_opDayOrders.filter(o=>
-      !_isTreeFulfilled(o) && !(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName)));
+    const _collOrders=_opDayOrders.filter(o=>!_isTreeFulfilled(o)&&!_crStillHeld(o));
     const _collTreeMadeCount=_opDayOrders.filter(_isTreeFulfilled).length;
     const _collExcludedCount=_opDayOrders.length-_collOrders.length-_collTreeMadeCount;
     const _collCustomer=_collOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
@@ -11900,6 +11897,18 @@ async function _loadCourierCfg(force){
 function _crStart(n){return (_courierCfg[n]&&_courierCfg[n].startDate)||'';}
 function _crOpen(n){return Number(_courierCfg[n]&&_courierCfg[n].opening)||0;}
 function _crOrderDate(o){return o.deliveredDate||o.date||'';}
+function _crIsCourier(name){
+  return !!(name&&(_deliveryRepsCache||[]).some(r=>r.excludeFromBalance&&r.name===name));
+}
+// هل كاش هذا الطلب لسا عند الشركة؟ قبل نقطة البداية = حاسبتْك عليه واستلمتَ
+// كاشه، فهو كاشٌ دخل فعلاً. وبدون هذا التمييز كان الطلب القديم يختفي من
+// الطرفين — لا بالكاش ولا بحسابها — فيطلع صافي الكاش ناقصاً بمقداره.
+function _crStillHeld(o){
+  const nm=o&&o.deliveryRepName;
+  if(!_crIsCourier(nm)) return false;
+  const st=_crStart(nm);
+  return !st||_crOrderDate(o)>=st;
+}
 // الطلبات المعدودة على الشركة — بعد نقطة البداية
 function _crOrders(name){
   const st=_crStart(name);
