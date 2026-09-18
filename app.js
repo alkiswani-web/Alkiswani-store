@@ -11268,6 +11268,7 @@ function renderOperatorDailyView(){
   // ===== Delivered orders + per-store balance =====
   if(_opDayOrders.length){
     const excludedRepNames=new Set((_deliveryRepsCache||[]).filter(r=>r.excludeFromBalance).map(r=>r.name));
+    const courierHeld={};
     const byStore={};
     _opDayOrders.forEach(o=>{
       const sname=o.pageName||o.storeName||o.source||'الموقع الإلكتروني';
@@ -11279,7 +11280,20 @@ function renderOperatorDailyView(){
       const isExcl=!!(o.deliveryRepName&&excludedRepNames.has(o.deliveryRepName));
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
-      if(!isExcl) byStore[sname].eligibleTotal+=amt;
+      // البضاعة انباعت ⇒ مستحقّ المتجر ثابت، مين ماسك الكاش شي ثاني.
+      // (كان يُستثنى، فيظهر مستحقّ المتجر ناقصاً بلا سبب يفهمه.)
+      byStore[sname].eligibleTotal+=amt;
+      if(isExcl) courierHeld[o.deliveryRepName]=(courierHeld[o.deliveryRepName]||0)+amt;
+    });
+    // حساب كل شركة محاسبة عن نفس فترة الكشف
+    _opCourierNets={};
+    Object.keys(courierHeld).forEach(nm=>{
+      const paid=(_opSessionSupPays||[])
+        .filter(x=>x.supplierId===CRR+nm)
+        .reduce((t,x)=>t+(Number(x.amount)||0),0);
+      const held=Math.round(courierHeld[nm]*100)/100;
+      _opCourierNets[nm]={name:nm,held,paid:Math.round(paid*100)/100,
+        bal:Math.round((held-paid)*100)/100};
     });
     const orderStoreNames=new Set(Object.keys(byStore));
 
@@ -11314,7 +11328,7 @@ function renderOperatorDailyView(){
         </div>`;}).join('');
       const exclBlocks=Object.values(excludedReps).length?`
         <div style="background:rgba(231,198,107,.06);border-top:1px dashed rgba(231,198,107,.24);padding:7px 15px;">
-          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات توصيل — لا تدخل بالرصيد</div>
+          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — محسوبة على المتجر، بس كاشها لسا عندها</div>
           ${Object.values(excludedReps).map(rep=>{
             const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
@@ -11526,7 +11540,9 @@ function renderOperatorDailyView(){
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
     // خصم دفعات الموردين (كاش دفعته لموردينك)
-    const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId!=='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
+    const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId!=='__treeprofit__'&&!_isCourierId(p.supplierId)).reduce((s,p)=>s+(p.amount||0),0);
+    // مقبوضات شركات التوصيل: كاشٌ دخل فعلاً لمّا حاسبتك الشركة
+    const _collCourierIn=(_opSessionSupPays||[]).filter(p=>!p.noCash&&_isCourierId(p.supplierId)).reduce((s,p)=>s+(p.amount||0),0);
     // مرابح الشجر: كاش يدخل من مشغل الشجر لا يخرج إليه
     const _collTreeProfitIn=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
     // رواتب المشغل المدفوعة فعلياً — كاش خرج من نفس الصندوق
@@ -11537,7 +11553,7 @@ function renderOperatorDailyView(){
     const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
     // دفعات السداد (ديون علينا لأشخاص) — كاش خرج من نفس الصندوق تماماً كالإجار
     const _collDebt=(_opSessionDebtPays||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
+    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collCourierIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
     ccNet=_collNet;
     ccIn=_collOrdersNet+_collStorePayments+_collTreeProfitIn+Math.max(0,_collAdjust);
     ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
@@ -11555,6 +11571,7 @@ function renderOperatorDailyView(){
         ${_collSupPays>0?_ccFlow('🏭','دفعات الموردين',_collSupPays,'out'):''}
         ${_collWages>0?_ccFlow('👷','رواتب المشغل',_collWages,'out'):''}
         ${_collRent>0?_ccFlow('🏠','إجار المحل',_collRent,'out'):''}
+        ${_collCourierIn>0?_ccFlow('🚚','مقبوضات شركات التوصيل',_collCourierIn,'in'):''}
         ${_collDebt>0?_ccFlow('🤝','سداد ديون',_collDebt,'out'):''}
         ${_collAdjust!==0?_ccFlow('⚖️','تسوية الكاش',Math.abs(_collAdjust),_collAdjust>0?'in':'out'):''}
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,rgba(231,198,107,0.16),transparent);border-top:1px solid rgba(231,198,107,.14);">
@@ -11855,6 +11872,16 @@ function _payGroup(title,total,rows,tone){
 }
 
 // ما عليك وما إلك — كلّه مشتقّ من متغيّرات محمّلة أصلاً، بلا استعلام واحد
+// شركة توصيل «محاسبة»: بتقبض من الزبونة وبتمسك الكاش، وبتحاسبك بعدين.
+// فالطلب ما بيدخل التحصيل ساعة التسليم، بس بيتجمّع عليها دَين. ولما تعطيك
+// مبلغاً منسجّله فيدخل الكاش ساعتها. نُخزّن دفعاتها في نفس مجموعة دفعات
+// الموردين بمعرّف مسبوق بـ__courier__، فتشتغل نافذة الدفع والكشف والحذف
+// الموجودة كما هي — بس اتجاهها داخل لا خارج.
+const CRR='__courier__';
+function _isCourierId(id){return typeof id==='string'&&id.indexOf(CRR)===0;}
+function _courierName(id){return _isCourierId(id)?id.slice(CRR.length):'';}
+let _opCourierNets={};   // اسم الشركة → {name,held,paid,bal,orders}
+
 function _payHubRows(){
   const out=[],inn=[];
   try{
@@ -11900,6 +11927,12 @@ function _payHubRows(){
       else if(n.safi<-0.009) inn.push({icon,name:nm,sub,amount:-n.safi,acts});
     });
     // مشغل الشجر — بدّك منه
+    // شركات التوصيل الماسكة كاشك
+    Object.values(_opCourierNets||{}).forEach(c=>{
+      if(c.bal>0.009) inn.push({icon:'🚚',name:c.name,
+        sub:`ماسكة ${c.held.toFixed(2)}${c.paid>0.009?` · قبضتَ ${c.paid.toFixed(2)}`:''}`,
+        amount:c.bal,act:`paySupplier('${_payEsc(CRR+c.name)}','${_payEsc(c.name)}')`});
+    });
     const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
     const tpBal=(_opBalTreeProfit||0)-tpPaid;
     if(tpBal>0.009) inn.push({icon:'🌲',name:'مشغل الشجر',sub:'ربحك من طلباته',amount:tpBal,
@@ -11980,8 +12013,11 @@ function _payHubLedger(){
   const L=[];
   const push=(date,icon,label,amount,dir)=>{if(amount)L.push({date:date||'',icon,label,amount,dir});};
   (_opSessionSupPays||[]).forEach(p=>{
-    const isIn=p.supplierId==='__treeprofit__';
-    push(p.date,isIn?'🌲':'🏭',(isIn?'قبضة من مشغل الشجر':'دفعة مورد')+(p.supplierName?' · '+p.supplierName:'')+(p.noCash?' (بدون كاش)':''),p.amount,isIn?'in':'out');
+    const isCr=_isCourierId(p.supplierId);
+    const isIn=p.supplierId==='__treeprofit__'||isCr;
+    push(p.date,isCr?'🚚':isIn?'🌲':'🏭',
+      (isCr?'قبضتُ من شركة التوصيل':isIn?'قبضة من مشغل الشجر':'دفعة مورد')
+      +(p.supplierName?' · '+p.supplierName:'')+(p.noCash?' (بدون كاش)':''),p.amount,isIn?'in':'out');
   });
   (_opSessionRentPays||[]).forEach(p=>push(p.date,'🏠','دفعة إجار',p.amount,'out'));
   (_opSessionDebtPays||[]).forEach(p=>push(p.date,'🤝','سداد'+(p.personName?' · '+p.personName:''),p.amount,'out'));
@@ -15380,11 +15416,11 @@ async function renderOpRepsPanelList(){
     return `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1.5px solid ${borderColor};border-radius:10px;margin-bottom:6px;">
       <div>
-        <div style="font-weight:700;color:#0c4a6e;font-size:0.86rem;">${r.name}${r.role==='supervisor'?' <span style="font-size:0.68rem;background:#ede9fe;color:#7c3aed;padding:2px 6px;border-radius:6px;font-weight:800;">مشرف</span>':''}${r.excludeFromBalance?' <span style="font-size:0.68rem;background:#fee2e2;color:#dc2626;padding:2px 6px;border-radius:6px;font-weight:800;">خارج الرصيد</span>':''}</div>
+        <div style="font-weight:700;color:#0c4a6e;font-size:0.86rem;">${r.name}${r.role==='supervisor'?' <span style="font-size:0.68rem;background:#ede9fe;color:#7c3aed;padding:2px 6px;border-radius:6px;font-weight:800;">مشرف</span>':''}${r.excludeFromBalance?' <span style="font-size:0.68rem;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:6px;font-weight:800;">🚚 محاسبة</span>':' <span style="font-size:0.68rem;background:#dcfce7;color:#166534;padding:2px 6px;border-radius:6px;font-weight:800;">💵 مباشر</span>'}</div>
         <div style="font-size:0.75rem;color:#6b7280;direction:ltr;text-align:right;">${r.phone||'<span style="color:#9ca3af;font-style:italic;font-size:0.7rem;">بدون رقم</span>'}</div>
       </div>
       <div style="display:flex;gap:5px;">
-        <button onclick="toggleRepExcludeBalance(${i})" style="padding:6px 10px;background:${r.excludeFromBalance?'#fee2e2':'#f0fdf4'};color:${r.excludeFromBalance?'#dc2626':'#166534'};border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;" title="${r.excludeFromBalance?'مستبعد من حساب الرصيد':'مضمّن في حساب الرصيد'}">${r.excludeFromBalance?'🚚':'💰'}</button>
+        <button onclick="toggleRepExcludeBalance(${i})" style="padding:6px 10px;background:${r.excludeFromBalance?'#fee2e2':'#f0fdf4'};color:${r.excludeFromBalance?'#dc2626':'#166534'};border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;" title="${r.excludeFromBalance?'محاسبة — بتمسك الكاش وبتحاسبك بعدين':'مباشر — بيجيب الكاش معه'}">${r.excludeFromBalance?'🚚':'💰'}</button>
         <button onclick="toggleRepSupervisor(${i})" style="padding:6px 10px;background:${r.role==='supervisor'?'#ede9fe':'#f3f4f6'};color:${r.role==='supervisor'?'#7c3aed':'#6b7280'};border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;" title="مشرف مناديب">🗂</button>
         ${r.phone?`<a href="https://wa.me/${r.phone.replace(/[^\d+]/g,'')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:6px 11px;background:#25D366;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;text-decoration:none;">📱</a>`:''}
         <button onclick="removeRepFromPanel(${i})" style="padding:6px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-family:'Tajawal',sans-serif;font-weight:700;">🗑</button>
@@ -15435,7 +15471,7 @@ async function toggleRepExcludeBalance(idx){
   reps[idx].excludeFromBalance=!reps[idx].excludeFromBalance;
   await _saveDeliveryReps(reps);
   renderOpRepsPanelList();
-  toast(reps[idx].excludeFromBalance?'🚚 سيُستبعد من حساب الرصيد':'💰 سيُضمَّن في حساب الرصيد');
+  toast(reps[idx].excludeFromBalance?'🚚 محاسبة — كاشها بيدخل لمّا تحاسبك':'💵 مباشر — كاشه بيدخل ساعة التسليم');
 }
 
 async function toggleRepBalanceByName(name){
@@ -15444,7 +15480,7 @@ async function toggleRepBalanceByName(name){
   if(!rep){toast('⚠️ المندوب غير موجود بالقائمة');return;}
   rep.excludeFromBalance=!rep.excludeFromBalance;
   await _saveDeliveryReps(reps);
-  toast(rep.excludeFromBalance?`🚚 "${name}" خارج الرصيد الآن`:`💰 "${name}" ضمن الرصيد الآن`);
+  toast(rep.excludeFromBalance?`🚚 "${name}" صارت محاسبة`:`💵 "${name}" صار مباشر`);
   renderOperatorDailyView();
 }
 
@@ -18318,10 +18354,11 @@ function paySupplier(supplierId,name){
   const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
   const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
   // مرابح الشجر اتجاهها معاكس: أنا أقبض منه لا أدفع له
-  const _in=supplierId==='__treeprofit__';
+  const _cr=_isCourierId(supplierId);
+  const _in=supplierId==='__treeprofit__'||_cr;
   _supModal(`
-    <div style="font-weight:800;font-size:1.05rem;color:${_in?'#166534':'#b8912f'};margin-bottom:4px;text-align:center;">${_in?'💰 قبضة من مشغل الشجر':'💳 دفعة للمورد'}</div>
-    <div style="text-align:center;font-size:0.85rem;color:#6b7280;margin-bottom:16px;">${_in?'🌲':'🏭'} ${name}</div>
+    <div style="font-weight:800;font-size:1.05rem;color:${_in?'#166534':'#b8912f'};margin-bottom:4px;text-align:center;">${_cr?'💰 قبضتُ من شركة التوصيل':_in?'💰 قبضة من مشغل الشجر':'💳 دفعة للمورد'}</div>
+    <div style="text-align:center;font-size:0.85rem;color:#6b7280;margin-bottom:16px;">${_cr?'🚚':_in?'🌲':'🏭'} ${name}</div>
     <input type="hidden" id="sup_pay_id" value="${supplierId}"><input type="hidden" id="sup_pay_name" value="${name.replace(/"/g,'&quot;')}">
     <label style="${L}">المبلغ (د.أ)</label><input id="sup_pay_amt" type="number" min="0" step="0.5" placeholder="0.00" style="${F}">
     <label style="${L}">ملاحظة (اختياري)</label><input id="sup_pay_notes" type="text" placeholder="..." style="${F}">
