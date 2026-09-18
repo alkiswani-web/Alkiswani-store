@@ -11970,15 +11970,33 @@ function _crPreview(name){
   const sum=orders.reduce((t,o)=>t+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
   const paid=(_opSessionSupPays||[]).filter(x=>x.supplierId===CRR+name).reduce((t,x)=>t+(Number(x.amount)||0),0);
   const held=Math.round((sum+op)*100)/100, bal=Math.round((held-paid)*100)/100;
+  // صفرٌ بلا سبب بيحيّر: لو التاريخ بعد آخر طلب إلها، نقولها صراحةً ونقترح
+  // الحلّ — بدل ما يظلّ يجرّب تواريخ ويشوف صفراً كل مرّة.
+  const all=(_opDayOrders||[]).filter(o=>o.deliveryRepName===name);
+  const allDates=all.map(_crOrderDate).filter(Boolean).sort();
+  const last=allDates[allDates.length-1]||'';
+  const tooLate=st&&all.length&&!orders.length&&last&&st>last;
+  if(tooLate){
+    el.style.background='#fffbeb';el.style.borderColor='#fde68a';
+    el.innerHTML=`<div style="font-size:0.8rem;font-weight:800;color:#92400e;">ما في ولا طلب من ${st}</div>
+      <div style="font-size:0.72rem;color:#b45309;margin-top:5px;line-height:1.8;">
+        آخر طلب إلها كان <b>${last}</b> — فالتاريخ اللي اخترتَه بعد كل طلباتها.<br>
+        يعني حسابها بيصير <b>صفر</b>. لو لسا إلك عندها مصاري، اختار تاريخاً أقدم أو اكتب المبلغ بالرصيد الافتتاحي.</div>
+      ${allDates.length?`<button type="button" onclick="document.getElementById('cr_start').value='${allDates[0]}';_crPreview('${_clrEsc(name)}')" style="margin-top:9px;padding:7px 12px;background:#fff;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:800;cursor:pointer;">↩️ ابدأ من أول طلب (${allDates[0]})</button>`:''}`;
+    return;
+  }
+  el.style.background='#f0fdf4';el.style.borderColor='#bbf7d0';
   el.innerHTML=`<div style="font-size:0.72rem;color:#166534;font-weight:700;">رح يصير «ماسكة إلك»</div>
     <div style="font-size:1.5rem;font-weight:900;color:#15803d;font-variant-numeric:tabular-nums;margin:2px 0;">${held.toFixed(2)}</div>
-    <div style="font-size:0.68rem;color:#6b7280;">${orders.length} طلب${op?` + ${op.toFixed(2)} افتتاحي`:''}${paid>0.009?` · قبضتَ ${paid.toFixed(2)} ⇒ الباقي ${bal.toFixed(2)}`:''}</div>`;
+    <div style="font-size:0.68rem;color:#6b7280;">${orders.length} طلب${op?` + ${op.toFixed(2)} افتتاحي`:''}${paid>0.009?` · قبضتَ ${paid.toFixed(2)} ⇒ الباقي ${bal.toFixed(2)}`:''}</div>
+    ${st&&orders.length?`<div style="font-size:0.66rem;color:#9ca3af;margin-top:4px;">${all.length-orders.length} طلب قبل ${st} اعتبرناه مُحاسَباً عليه</div>`:''}`;
 }
 function crSetToday(name){
   const el=document.getElementById('cr_start');
-  if(el){el.value=jordanDateStr();_crPreview(name);}
   const op=document.getElementById('cr_open');
-  if(op){op.value='';_crPreview(name);}
+  if(op)op.value='';
+  if(el)el.value=jordanDateStr();
+  _crPreview(name);
 }
 async function crSaveSettings(name){
   const startDate=document.getElementById('cr_start')?.value||'';
