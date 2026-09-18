@@ -11283,7 +11283,12 @@ function renderOperatorDailyView(){
       // البضاعة انباعت ⇒ مستحقّ المتجر ثابت، مين ماسك الكاش شي ثاني.
       // (كان يُستثنى، فيظهر مستحقّ المتجر ناقصاً بلا سبب يفهمه.)
       byStore[sname].eligibleTotal+=amt;
-      if(isExcl) courierHeld[o.deliveryRepName]=(courierHeld[o.deliveryRepName]||0)+amt;
+      if(isExcl){
+        const nm=o.deliveryRepName;
+        if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
+        const st=_crStart(nm);
+        if(!st||_crOrderDate(o)>=st) courierHeld[nm]+=amt;
+      }
     });
     // حساب كل شركة محاسبة عن نفس فترة الكشف
     _opCourierNets={};
@@ -11291,9 +11296,10 @@ function renderOperatorDailyView(){
       const paid=(_opSessionSupPays||[])
         .filter(x=>x.supplierId===CRR+nm)
         .reduce((t,x)=>t+(Number(x.amount)||0),0);
-      const held=Math.round(courierHeld[nm]*100)/100;
+      const held=Math.round((courierHeld[nm]+_crOpen(nm))*100)/100;
       _opCourierNets[nm]={name:nm,held,paid:Math.round(paid*100)/100,
-        bal:Math.round((held-paid)*100)/100};
+        bal:Math.round((held-paid)*100)/100,
+        start:_crStart(nm),opening:_crOpen(nm)};
     });
     const orderStoreNames=new Set(Object.keys(byStore));
 
@@ -11878,9 +11884,104 @@ function _payGroup(title,total,rows,tone){
 // الموردين بمعرّف مسبوق بـ__courier__، فتشتغل نافذة الدفع والكشف والحذف
 // الموجودة كما هي — بس اتجاهها داخل لا خارج.
 const CRR='__courier__';
+// «ماسكة إلك» مجموعُ طلبات الشركة من أول الكشف. والكشف ما بيتقفل، فالمجموع
+// بيتراكم من أول السنة ويحسب طلبات حاسبتك عليها من زمان — قبل ما يصير
+// للشركات حساب أصلاً. فلكل شركة نقطةُ بداية: من أي تاريخ نبلّش نعدّ، وشو
+// كان باقياً عليها وقتها.
+let _courierCfg={};
+async function _loadCourierCfg(force){
+  if(!force&&Object.keys(_courierCfg).length) return _courierCfg;
+  try{
+    const d=await db.collection('operator_config').doc('courier_settings').get();
+    _courierCfg=(d.exists&&d.data().cfg)||{};
+  }catch(e){_courierCfg={};}
+  return _courierCfg;
+}
+function _crStart(n){return (_courierCfg[n]&&_courierCfg[n].startDate)||'';}
+function _crOpen(n){return Number(_courierCfg[n]&&_courierCfg[n].opening)||0;}
+function _crOrderDate(o){return o.deliveredDate||o.date||'';}
+// الطلبات المعدودة على الشركة — بعد نقطة البداية
+function _crOrders(name){
+  const st=_crStart(name);
+  return (_opDayOrders||[]).filter(o=>o.deliveryRepName===name
+    &&(!st||_crOrderDate(o)>=st));
+}
 function _isCourierId(id){return typeof id==='string'&&id.indexOf(CRR)===0;}
 function _courierName(id){return _isCourierId(id)?id.slice(CRR.length):'';}
 let _opCourierNets={};   // اسم الشركة → {name,held,paid,bal,orders}
+
+// ضبط حساب شركة التوصيل: من أي تاريخ نبلّش نعدّ، وشو كان باقياً عليها
+// وقتها. مع معاينة حيّة للرقم قبل الحفظ — الرقم محسوب لا مكتوب، فلازم
+// يشوف أثر اختياره قبل ما يثبّته.
+async function openCourierSettings(name){
+  await _loadCourierCfg(true);
+  const orders=(_opDayOrders||[]).filter(o=>o.deliveryRepName===name);
+  const F="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;outline:none;";
+  const L="font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;";
+  const dates=orders.map(_crOrderDate).filter(Boolean).sort();
+  document.getElementById('crSetModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='crSetModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100003;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:18px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;font-family:'Tajawal',sans-serif;">
+    <div style="font-weight:900;font-size:1rem;color:#1a3a2a;text-align:center;">⚙️ حساب «${_clrEsc(name)}»</div>
+    <div style="font-size:0.72rem;color:#6b7280;text-align:center;margin:4px 0 14px;line-height:1.7;">
+      الرقم محسوب من طلباتها، مش مكتوب بالإيد.<br>لو طلع أكبر من الحقيقة، يعني عمّ يعدّ طلبات حاسبتك عليها من قبل.</div>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:9px 11px;margin-bottom:13px;font-size:0.73rem;color:#6b7280;line-height:1.8;">
+      عندها <b style="color:#111;">${orders.length}</b> طلب بالكشف${dates.length?` — من <b style="color:#111;">${dates[0]}</b> لـ<b style="color:#111;">${dates[dates.length-1]}</b>`:''}
+    </div>
+    <label style="${L}">📅 ابدأ العدّ من تاريخ</label>
+    <input type="date" id="cr_start" value="${_crStart(name)}" oninput="_crPreview('${_clrEsc(name)}')" style="${F}margin-bottom:5px;">
+    <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:11px;line-height:1.7;">الطلبات اللي قبل هاد التاريخ ما بتنعدّ — يعني حاسبتك عليها خلاص. اتركه فاضي عشان يعدّ من أول الكشف.</div>
+    <label style="${L}">💰 رصيد افتتاحي <span style="color:#9ca3af;font-weight:400;">(اختياري)</span></label>
+    <input type="number" id="cr_open" step="0.5" value="${_crOpen(name)||''}" placeholder="0.00" oninput="_crPreview('${_clrEsc(name)}')" style="${F}margin-bottom:5px;">
+    <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:13px;line-height:1.7;">لو كان باقي إلك عندها مبلغ بهاد التاريخ، اكتبه هون.</div>
+    <div id="cr_prev" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px;text-align:center;margin-bottom:14px;"></div>
+    <button onclick="crSetToday('${_clrEsc(name)}')" style="width:100%;padding:10px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;margin-bottom:12px;">✅ حاسبتني على كل القديم — ابدأ من اليوم</button>
+    <div style="display:flex;gap:9px;">
+      <button onclick="crSaveSettings('${_clrEsc(name)}')" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">💾 حفظ</button>
+      <button onclick="document.getElementById('crSetModal').remove()" style="padding:12px 16px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">إلغاء</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  _crPreview(name);
+}
+function _crPreview(name){
+  const el=document.getElementById('cr_prev');if(!el)return;
+  const st=document.getElementById('cr_start')?.value||'';
+  const op=parseFloat(document.getElementById('cr_open')?.value)||0;
+  const orders=(_opDayOrders||[]).filter(o=>o.deliveryRepName===name&&(!st||_crOrderDate(o)>=st));
+  const sum=orders.reduce((t,o)=>t+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
+  const paid=(_opSessionSupPays||[]).filter(x=>x.supplierId===CRR+name).reduce((t,x)=>t+(Number(x.amount)||0),0);
+  const held=Math.round((sum+op)*100)/100, bal=Math.round((held-paid)*100)/100;
+  el.innerHTML=`<div style="font-size:0.72rem;color:#166534;font-weight:700;">رح يصير «ماسكة إلك»</div>
+    <div style="font-size:1.5rem;font-weight:900;color:#15803d;font-variant-numeric:tabular-nums;margin:2px 0;">${held.toFixed(2)}</div>
+    <div style="font-size:0.68rem;color:#6b7280;">${orders.length} طلب${op?` + ${op.toFixed(2)} افتتاحي`:''}${paid>0.009?` · قبضتَ ${paid.toFixed(2)} ⇒ الباقي ${bal.toFixed(2)}`:''}</div>`;
+}
+function crSetToday(name){
+  const el=document.getElementById('cr_start');
+  if(el){el.value=jordanDateStr();_crPreview(name);}
+  const op=document.getElementById('cr_open');
+  if(op){op.value='';_crPreview(name);}
+}
+async function crSaveSettings(name){
+  const startDate=document.getElementById('cr_start')?.value||'';
+  const opening=parseFloat(document.getElementById('cr_open')?.value)||0;
+  try{
+    await _loadCourierCfg(true);
+    const cfg={..._courierCfg};
+    if(!startDate&&!opening) delete cfg[name];
+    else cfg[name]={startDate,opening};
+    await db.collection('operator_config').doc('courier_settings').set({cfg},{merge:false});
+    _courierCfg=cfg;
+    document.getElementById('crSetModal')?.remove();
+    toast('✅ انضبط حساب الشركة');
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openCourierSettings=openCourierSettings; window._crPreview=_crPreview;
+window.crSetToday=crSetToday; window.crSaveSettings=crSaveSettings;
 
 function _payHubRows(){
   const out=[],inn=[];
@@ -11929,13 +12030,18 @@ function _payHubRows(){
     // مشغل الشجر — بدّك منه
     // شركات التوصيل الماسكة كاشك
     Object.values(_opCourierNets||{}).forEach(c=>{
-      const act=`paySupplier('${_payEsc(CRR+c.name)}','${_payEsc(c.name)}')`;
-      const sub=`ماسكة ${c.held.toFixed(2)}${c.paid>0.009?` · قبضتَ ${c.paid.toFixed(2)}`:''}`;
-      if(c.bal>0.009) inn.push({icon:'🚚',name:c.name,sub,amount:c.bal,act});
+      const nm=_payEsc(c.name);
+      const acts=[{label:'💰 اقبض',act:`paySupplier('${_payEsc(CRR+c.name)}','${nm}')`,tone:'in'},
+                  {label:'⚙️ ضبط',act:`openCourierSettings('${nm}')`,tone:'out'}];
+      const sub=`ماسكة ${c.held.toFixed(2)}${c.paid>0.009?` · قبضتَ ${c.paid.toFixed(2)}`:''}`
+        +(c.start?` · من ${c.start}`:'')+(c.opening?` · افتتاحي ${c.opening.toFixed(2)}`:'');
+      if(c.bal>0.009) inn.push({icon:'🚚',name:c.name,sub,amount:c.bal,acts});
       // قبضتَ أكثر من المستحق ⇒ في غلط. لو خبّينا الصفّ ما بيضلّ إله طريق.
       else if(c.bal<-0.009) inn.push({icon:'⚠️',name:c.name,
         sub:`${sub} — قبضتَ أكثر من المستحق بـ${Math.abs(c.bal).toFixed(2)}! صحّح من السجلّ تحت`,
-        amount:0,act});
+        amount:0,acts});
+      else if(c.held>0.009||c.paid>0.009) inn.push({icon:'✅',name:c.name,
+        sub:`${sub} — الحساب مسوّى`,amount:0,acts});
     });
     const tpPaid=(_opSupplierPayments||[]).filter(p=>p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
     const tpBal=(_opBalTreeProfit||0)-tpPaid;
@@ -15243,6 +15349,7 @@ let _deliveryBatchOrders=[];
 let _deliveryRepsCache=null; // null = not loaded yet
 
 async function _loadDeliveryReps(){
+  try{ _loadCourierCfg(); }catch(e){}
   if(_deliveryRepsCache!==null)return _deliveryRepsCache;
   try{
     const snap=await db.collection('operator_config').doc('delivery_reps').get();
