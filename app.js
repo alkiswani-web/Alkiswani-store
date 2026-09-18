@@ -11279,9 +11279,11 @@ function renderOperatorDailyView(){
       const isExcl=_crStillHeld(o);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
-      // البضاعة انباعت ⇒ مستحقّ المتجر ثابت، مين ماسك الكاش شي ثاني.
-      // (كان يُستثنى، فيظهر مستحقّ المتجر ناقصاً بلا سبب يفهمه.)
-      byStore[sname].eligibleTotal+=amt;
+      // «قابل للسحب» = الكاش اللي بإيدك فعلاً لهذا المتجر. فطلبٌ كاشُه لسا
+      // عند شركة المحاسبة ما بينحسب — ما بتقدر تدفع للمتجر من مصاري ما
+      // استلمتَها. ولمّا تحاسبك الشركة وتحرّك نقطة بدايتها، طلباتها بتصير
+      // «مُحاسَباً عليها» فبتدخل الكاش وقابل السحب معاً.
+      if(!isExcl) byStore[sname].eligibleTotal+=amt;
       if(_crIsCourier(o.deliveryRepName)){
         const nm=o.deliveryRepName;
         if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
@@ -11332,7 +11334,7 @@ function renderOperatorDailyView(){
         </div>`;}).join('');
       const exclBlocks=Object.values(excludedReps).length?`
         <div style="background:rgba(231,198,107,.06);border-top:1px dashed rgba(231,198,107,.24);padding:7px 15px;">
-          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — محسوبة على المتجر، بس كاشها لسا عندها</div>
+          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — كاشها لسا عندها فما بتدخل «قابل للسحب»</div>
           ${Object.values(excludedReps).map(rep=>{
             const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
@@ -11945,7 +11947,11 @@ async function openCourierSettings(name){
     <label style="${L}">💰 رصيد افتتاحي <span style="color:#9ca3af;font-weight:400;">(اختياري)</span></label>
     <input type="number" id="cr_open" step="0.5" value="${_crOpen(name)||''}" placeholder="0.00" oninput="_crPreview('${_clrEsc(name)}')" style="${F}margin-bottom:5px;">
     <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:13px;line-height:1.7;">لو كان باقي إلك عندها مبلغ بهاد التاريخ، اكتبه هون.</div>
-    <div id="cr_prev" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px;text-align:center;margin-bottom:14px;"></div>
+    <div id="cr_prev" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px;text-align:center;margin-bottom:10px;"></div>
+    <div style="font-size:0.68rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 10px;margin-bottom:14px;line-height:1.75;">
+      ⚠️ التاريخ نقطة بداية <b>مرّة وحدة</b> — لتصفية القديم اللي حاسبتْك عليه قبل ما يصير إلها حساب.<br>
+      المحاسبة الدورية بزرّ <b>«💰 اقبض»</b>. لو حرّكتَ التاريخ لقدّام بعد ما سجّلتَ قبضات، المبلغ بينعدّ مرّتين.
+    </div>
     <button onclick="crSetToday('${_clrEsc(name)}')" style="width:100%;padding:10px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;margin-bottom:12px;">✅ حاسبتني على كل القديم — ابدأ من اليوم</button>
     <div style="display:flex;gap:9px;">
       <button onclick="crSaveSettings('${_clrEsc(name)}')" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">💾 حفظ</button>
