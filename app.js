@@ -11279,11 +11279,12 @@ function renderOperatorDailyView(){
       const isExcl=_crStillHeld(o);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
-      // «قابل للسحب» = الكاش اللي بإيدك فعلاً لهذا المتجر. فطلبٌ كاشُه لسا
-      // عند شركة المحاسبة ما بينحسب — ما بتقدر تدفع للمتجر من مصاري ما
-      // استلمتَها. ولمّا تحاسبك الشركة وتحرّك نقطة بدايتها، طلباتها بتصير
-      // «مُحاسَباً عليها» فبتدخل الكاش وقابل السحب معاً.
-      if(!isExcl) byStore[sname].eligibleTotal+=amt;
+      // حساب المتجر بيشمل كل طلباته بغضّ النظر مين ماسك الكاش الآن: الشركة
+      // بتحاسب أوّلاً بأوّل فالمصاري عمليّاً عنده. وكان يُستثنى من «قابل
+      // للسحب» وحده بينما «المستحق» يشمله — فالصافي ينقص بمقدار طلبات
+      // الشركة كلّها وينقلب سالباً، فيظهر المتجرُ مديناً وهو دائن.
+      // حساب الشركة (ماسكة إلك) بيضلّ للمتابعة، وأثرُه على «التحصيل» وحده.
+      byStore[sname].eligibleTotal+=amt;
       if(_crIsCourier(o.deliveryRepName)){
         const nm=o.deliveryRepName;
         if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
@@ -11334,7 +11335,7 @@ function renderOperatorDailyView(){
         </div>`;}).join('');
       const exclBlocks=Object.values(excludedReps).length?`
         <div style="background:rgba(231,198,107,.06);border-top:1px dashed rgba(231,198,107,.24);padding:7px 15px;">
-          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — كاشها لسا عندها فما بتدخل «قابل للسحب»</div>
+          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — محسوبة على المتجر، بس كاشها لسا عندها (بتشوفه بالتحصيل)</div>
           ${Object.values(excludedReps).map(rep=>{
             const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
