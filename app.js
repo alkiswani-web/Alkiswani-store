@@ -11273,18 +11273,19 @@ function renderOperatorDailyView(){
       const sname=o.pageName||o.storeName||o.source||'الموقع الإلكتروني';
       if(!byStore[sname]){
         const storeObj=(_opStoresList||[]).find(s=>s.name===sname);
-        byStore[sname]={name:sname,storeId:storeObj?.id||null,group:storeObj?.group||null,orders:[],total:0,eligibleTotal:0};
+        byStore[sname]={name:sname,storeId:storeObj?.id||null,group:storeObj?.group||null,orders:[],total:0,eligibleTotal:0,courierHeld:0};
       }
       const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
       const isExcl=_crStillHeld(o);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
-      // حساب المتجر بيشمل كل طلباته بغضّ النظر مين ماسك الكاش الآن: الشركة
-      // بتحاسب أوّلاً بأوّل فالمصاري عمليّاً عنده. وكان يُستثنى من «قابل
-      // للسحب» وحده بينما «المستحق» يشمله — فالصافي ينقص بمقدار طلبات
-      // الشركة كلّها وينقلب سالباً، فيظهر المتجرُ مديناً وهو دائن.
-      // حساب الشركة (ماسكة إلك) بيضلّ للمتابعة، وأثرُه على «التحصيل» وحده.
-      byStore[sname].eligibleTotal+=amt;
+      // «قابل للسحب» = الكاش اللي وصلك من طلبات هذا المتجر. طلبٌ كاشُه لسا
+      // عند شركة المحاسبة ما وصل، فما بينحسب — حساب المتجر ماشي كما كان
+      // وأثرُ الشركة على «التحصيل» وحده.
+      if(!isExcl) byStore[sname].eligibleTotal+=amt;
+      // بس منتذكّر كم من كاش هذا المتجر عند الشركة، عشان «الصافي» السالب
+      // ما يُقرأ «المتجر مدين إلك» وهو في الحقيقة كاشٌ بالطريق.
+      if(isExcl) byStore[sname].courierHeld=(byStore[sname].courierHeld||0)+amt;
       if(_crIsCourier(o.deliveryRepName)){
         const nm=o.deliveryRepName;
         if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
@@ -11335,7 +11336,7 @@ function renderOperatorDailyView(){
         </div>`;}).join('');
       const exclBlocks=Object.values(excludedReps).length?`
         <div style="background:rgba(231,198,107,.06);border-top:1px dashed rgba(231,198,107,.24);padding:7px 15px;">
-          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — محسوبة على المتجر، بس كاشها لسا عندها (بتشوفه بالتحصيل)</div>
+          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — كاشها لسا عندها فما بيدخل «قابل للسحب»</div>
           ${Object.values(excludedReps).map(rep=>{
             const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
@@ -11398,9 +11399,11 @@ function renderOperatorDailyView(){
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
       const stSafi=store.eligibleTotal-stMatloub-storeWdTotal;
+      const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
-        inGroup:!!inGroup};
+        held:stHeld,inGroup:!!inGroup};
+      const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
       const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
@@ -11431,6 +11434,7 @@ function renderOperatorDailyView(){
               ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
               ${_ccStat('🧾 المستحق',stMatloub,'amber')}
               ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
+              ${stHeldNote}
             </div>
           </div>
           ${storeWds.length?`<button onclick="toggleBalSection('stwd_${store.storeId||store.name.length}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:11px;color:#f2a6a0;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;margin-bottom:10px;"><span>💸 المسحوبات (${storeWds.length})</span><span style="font-size:0.72rem;">▼</span></button>
@@ -12049,7 +12053,13 @@ function _payHubRows(){
     // بأنّها حسابات مستقلّة — ودفعةٌ لفرع تُقاصّ دَين فرع آخر في نفس المجموعة.
     Object.entries(_opStoreNets||{}).forEach(([sid,n])=>{
       if(n.inGroup) return;
-      const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`;
+      const held=Number(n.held)||0;
+      const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`
+        +(held>0.009?` · ⏳ ${held.toFixed(2)} لسا عند شركة التوصيل`:'');
+      // صافٍ سالبٌ سببُه كاشٌ لسا عند شركة التوصيل مش دَيناً على المتجر —
+      // فالاتجاه يُحسب بعد ما نرجّع المبلغ اللي بالطريق، وإلا ظهر المتجرُ
+      // الدائنُ مديناً وطلع بـ«إلك تقبض» وهو مالُه بإيدك.
+      const dir=(Number(n.safi)||0)+held;
       const icon=n.isGroup?'👥':'🏪';
       const nm=(n.name||'متجر')+(n.isGroup?' (مجموعة)':'');
       const g=_payEsc(n.name);
@@ -12058,8 +12068,8 @@ function _payHubRows(){
       // الزرَّان معاً على كل صفّ متجر: يقبض منه اليوم ويسحب منه غداً
       const acts=[{label:'💰 اقبض',act:act('payment'),tone:'in'},
                   {label:'💸 مسحوب',act:act('withdrawal'),tone:'out'}];
-      if(n.safi>0.009) out.push({icon,name:nm,sub,amount:n.safi,acts});
-      else if(n.safi<-0.009) inn.push({icon,name:nm,sub,amount:-n.safi,acts});
+      if(dir>0.009) out.push({icon,name:nm,sub,amount:dir,acts});
+      else if(dir<-0.009) inn.push({icon,name:nm,sub,amount:-dir,acts});
     });
     // مشغل الشجر — بدّك منه
     // شركات التوصيل الماسكة كاشك
