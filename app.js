@@ -11326,7 +11326,9 @@ function renderOperatorDailyView(){
       // «قابل للسحب» = الكاش اللي وصلك من طلبات هذا المتجر. طلبٌ كاشُه لسا
       // عند شركة المحاسبة ما وصل، فما بينحسب — حساب المتجر ماشي كما كان
       // وأثرُ الشركة على «التحصيل» وحده.
-      if(!isExcl) byStore[sname].eligibleTotal+=amt;
+      // «جميع المناديب بتحاسب المشغل، والمشغل هو يلي بحاسب المتاجر» — فحساب
+      // المتجر ما إله دخل بمين وصّل ولا إذا وصلني كاشه. كل طلباته بتنحسب.
+      byStore[sname].eligibleTotal+=amt;
       // بس منتذكّر كم من كاش هذا المتجر عند الشركة، عشان «الصافي» السالب
       // ما يُقرأ «المتجر مدين إلك» وهو في الحقيقة كاشٌ بالطريق.
       if(isExcl) byStore[sname].courierHeld=(byStore[sname].courierHeld||0)+amt;
@@ -11381,7 +11383,7 @@ function renderOperatorDailyView(){
         </div>`;}).join('');
       const exclBlocks=Object.values(excludedReps).length?`
         <div style="background:rgba(231,198,107,.06);border-top:1px dashed rgba(231,198,107,.24);padding:7px 15px;">
-          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — كاشها لسا عندها فما بيدخل «قابل للسحب»</div>
+          <div style="font-size:0.66rem;color:#e7c66b;margin-bottom:4px;font-weight:700;">🚚 شركات محاسبة — محسوبة بحساب المتجر فوق، بس كاشها لسا عندها</div>
           ${Object.values(excludedReps).map(rep=>{
             const safeName=(rep.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
@@ -11448,7 +11450,7 @@ function renderOperatorDailyView(){
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
         held:stHeld,inGroup:!!inGroup};
-      const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
+      const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ حساب المتجر فوق كامل — قبضتَ أو ما قبضتَ. بس <b>${stHeld.toFixed(2)}</b> من كاشه لسا عند شركة التوصيل، فبتشوفه ناقصاً في «التحصيل» وحده</div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
       const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
@@ -12102,11 +12104,11 @@ function _payHubRows(){
       if(n.inGroup) return;
       const held=Number(n.held)||0;
       const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`
-        +(held>0.009?` · ⏳ ${held.toFixed(2)} لسا عند شركة التوصيل`:'');
+        +(held>0.009?` · ⏳ منها ${held.toFixed(2)} لسا كاشُه عند شركة التوصيل`:'');
       // صافٍ سالبٌ سببُه كاشٌ لسا عند شركة التوصيل مش دَيناً على المتجر —
       // فالاتجاه يُحسب بعد ما نرجّع المبلغ اللي بالطريق، وإلا ظهر المتجرُ
       // الدائنُ مديناً وطلع بـ«إلك تقبض» وهو مالُه بإيدك.
-      const dir=(Number(n.safi)||0)+held;
+      const dir=Number(n.safi)||0;
       const icon=n.isGroup?'👥':'🏪';
       const nm=(n.name||'متجر')+(n.isGroup?' (مجموعة)':'');
       const g=_payEsc(n.name);
