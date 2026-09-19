@@ -8404,16 +8404,21 @@ async function sendDailyReport(){
 const OP_FAM=[
   {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
   {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['account','📋 كشف']]},
-  {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],['stores','🏪 إدارة المتاجر']]},   // ثنتان فبتسعهما الشاشة
+  // «@» = وجهةٌ بتفتح نافذة لا لوحة. الألوان والمخزون كانوا مدفونين جوّا
+  // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
+  {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
+                                      ['@colors','🎨 ألوان ومخزون','openColorLib()'],
+                                      ['stores','🏪 المتاجر']]},
   {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات']]}
 ];
 function _opFamOf(tab){
-  return OP_FAM.find(f=>f.tabs.some(t=>t[0]===tab))
+  return OP_FAM.find(f=>f.tabs.some(t=>t[0]===tab&&t[0][0]!=='@'))
       ||(tab==='empwages'?OP_FAM[1]:null)||OP_FAM[0];
 }
 function opFamily(k){
   const f=OP_FAM.find(x=>x.k===k);
-  if(f) switchOpTab(f.tabs[0][0]);
+  const first=f&&f.tabs.find(t=>t[0][0]!=='@');
+  if(first) switchOpTab(first[0]);
 }
 function _renderOpTabs(active){
   const fam=_opFamOf(active);
@@ -8424,9 +8429,11 @@ function _renderOpTabs(active){
   }).join('');
   const tb=document.getElementById('opTabBar');
   const fs=fam.tabs.length>=4?'0.76rem':'0.84rem';   // ما ينقصّ اسم لمّا تكثر الوجهات
-  if(tb) tb.innerHTML=fam.tabs.map(([t,lbl],i)=>{
+  if(tb) tb.innerHTML=fam.tabs.map(([t,lbl,act],i)=>{
     const on=t===active;
-    return `<button id="optab-btn-${t}" onclick="switchOpTab('${t}')" style="flex:1 1 0;min-width:0;padding:12px 5px;border:none;background:${on?'var(--green-dark)':'var(--card-bg)'};color:${on?'#fff':'var(--text-mid)'};font-family:'Tajawal',sans-serif;font-size:${fs};font-weight:${on?'700':'400'};cursor:pointer;${i?'border-right:1px solid var(--border);':''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lbl}</button>`;
+    const id=t[0]==='@'?'':`id="optab-btn-${t}" `;
+    const go=act?act.replace(/"/g,'&quot;'):`switchOpTab('${t}')`;
+    return `<button ${id}onclick="${go}" style="flex:1 1 0;min-width:0;padding:12px 5px;border:none;background:${on?'var(--green-dark)':'var(--card-bg)'};color:${on?'#fff':'var(--text-mid)'};font-family:'Tajawal',sans-serif;font-size:${fs};font-weight:${on?'700':'400'};cursor:pointer;${i?'border-right:1px solid var(--border);':''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lbl}</button>`;
   }).join('');
 }
 window.opFamily=opFamily;
