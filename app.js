@@ -11401,6 +11401,16 @@ function renderOperatorDailyView(){
           </div>
         </div>`).join('');
       const safeStoreName=store.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // كرت المتجر عن المتجر لا عن التوصيل: تفصيل المناديب انطوى تحت زرّ،
+      // وضلّ ظاهراً سطرٌ واحد يشرح الفرق بين إجمالي الطلبات و«قابل للسحب»
+      // — لأنّ إخفاءه بيخلّي الفرق بلا تفسير.
+      const _repCount=Object.values(eligibleReps).length+Object.values(excludedReps).length;
+      const _dlvKey='dlv_'+(store.storeId||String(store.name).length)+(inGroup?'_g':'');
+      const _dlvFold=_repCount?`
+        <button onclick="toggleBalSection('${_dlvKey}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:rgba(0,0,0,.12);border:none;border-top:1px solid rgba(231,198,107,.08);font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;color:#9fc7b4;cursor:pointer;">
+          <span>🚚 تفصيل التوصيل (${_repCount})</span><span style="font-size:0.68rem;">▼</span>
+        </button>
+        <div id="${_dlvKey}" style="display:none;">${eligBlocks}${exclBlocks}</div>`:'';
       // Session refunds for this store
       const storeRefunds=(_opSessionRefunds||[]).filter(r=>r.storeId===store.storeId);
       const storeRefundTotal=storeRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
@@ -11448,6 +11458,7 @@ function renderOperatorDailyView(){
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
         held:stHeld,inGroup:!!inGroup};
+      const _heldLine=stHeld>0.009?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر كاشها عند شركة التوصيل — فما بتدخل «قابل للسحب»</div>`:'';
       const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
@@ -11460,8 +11471,8 @@ function renderOperatorDailyView(){
             <div style="color:#f2e9d3;font-weight:700;font-size:0.84rem;">🏪 ${store.name} <span style="font-size:0.68rem;font-weight:400;color:#bcd8c9;">(${store.orders.length} طلب)</span></div>
             <div style="color:#f3e0a6;font-weight:900;font-size:0.84rem;font-variant-numeric:tabular-nums;">${store.eligibleTotal.toFixed(2)}</div>
           </div>
-          ${eligBlocks}
-          ${exclBlocks}
+          ${_heldLine}
+          ${_dlvFold}
         </div>`;
       }
       return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.2);border-radius:18px;overflow:hidden;margin-bottom:12px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 12px 30px rgba(0,0,0,.26);">
@@ -11469,8 +11480,8 @@ function renderOperatorDailyView(){
           <div style="color:#f2e9d3;font-weight:800;font-size:0.9rem;">🏪 ${store.name} <span style="font-size:0.7rem;font-weight:400;color:#bcd8c9;">(${store.orders.length} طلب)</span></div>
           <div style="color:#f3e0a6;font-weight:900;font-size:0.92rem;font-variant-numeric:tabular-nums;">${store.total.toFixed(2)}</div>
         </div>
-        ${eligBlocks}
-        ${exclBlocks}
+        ${_heldLine}
+        ${_dlvFold}
         <div style="padding:12px 15px;border-top:1px solid rgba(231,198,107,.1);">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
             ${_ccRing(acctOwed>0?acctPaid/acctOwed:(store.eligibleTotal>0?1:0),'محصّل')}
