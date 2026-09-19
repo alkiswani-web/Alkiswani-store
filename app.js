@@ -11318,7 +11318,9 @@ function renderOperatorDailyView(){
         byStore[sname]={name:sname,storeId:storeObj?.id||null,group:storeObj?.group||null,orders:[],total:0,eligibleTotal:0,courierHeld:0};
       }
       const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
-      const isExcl=_crStillHeld(o);
+      // شركة محاسبة = كاشها ما وصل. الطلب برّا الكاش وبرّا «قابل للسحب»
+      // بغضّ النظر عن تاريخه — القبضة وحدها بتزيد الكاش.
+      const isExcl=_crIsCourier(o.deliveryRepName);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
       // «قابل للسحب» = الكاش اللي وصلك من طلبات هذا المتجر. طلبٌ كاشُه لسا
@@ -11328,10 +11330,11 @@ function renderOperatorDailyView(){
       // بس منتذكّر كم من كاش هذا المتجر عند الشركة، عشان «الصافي» السالب
       // ما يُقرأ «المتجر مدين إلك» وهو في الحقيقة كاشٌ بالطريق.
       if(isExcl) byStore[sname].courierHeld=(byStore[sname].courierHeld||0)+amt;
-      if(_crIsCourier(o.deliveryRepName)){
+      if(isExcl){
         const nm=o.deliveryRepName;
         if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
-        if(isExcl) courierHeld[nm]+=amt;
+        // «ماسكة إلك» وحدها بتحترم نقطة البداية: اللي قبلها حاسبتْك عليه
+        if(_crStillHeld(o)) courierHeld[nm]+=amt;
       }
     });
     // حساب كل شركة محاسبة عن نفس فترة الكشف
@@ -11576,7 +11579,9 @@ function renderOperatorDailyView(){
     // نستثني المناديب المستبعدين (شركات التوصيل الخارجية) — إنت ما بتستلم كاش منهم
     // طلبات أخرجها مشغل الشجر: هو شحنها ودفع توصيلها وقبض ثمنها — ولا فلس
     // مرّ من عندي. تُستثنى بغضّ النظر عن المندوب المسجّل (إن سُجّل للمتابعة).
-    const _collOrders=_opDayOrders.filter(o=>!_isTreeFulfilled(o)&&!_crStillHeld(o));
+    // كاشُ طلبات شركة المحاسبة ما وصل — بيوصل لمّا تسجّل قبضةً منها، وهي
+    // تُحسب في _collCourierIn. فلو عددنا الطلب هون كمان انعدّ المال مرّتين.
+    const _collOrders=_opDayOrders.filter(o=>!_isTreeFulfilled(o)&&!_crIsCourier(o.deliveryRepName));
     const _collTreeMadeCount=_opDayOrders.filter(_isTreeFulfilled).length;
     const _collExcludedCount=_opDayOrders.length-_collOrders.length-_collTreeMadeCount;
     const _collCustomer=_collOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
