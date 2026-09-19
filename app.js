@@ -3341,6 +3341,85 @@ window.cbPickPhoto=cbPickPhoto; window.cbTap=cbTap; window.cbUndo=cbUndo;
 window.cbSkip=cbSkip; window.cbGo=cbGo; window.cbSize=cbSize; window.cbZoom=cbZoom;
 window.cbSave=cbSave;
 
+// ═══════════ إعادة ضبط حسابات المتاجر ═══════════
+async function openStoreReset(){
+  if(!_opStoresList.length) await loadOpStores(true);
+  await _loadStoreReset(true);
+  const rows=(_opStoresList||[]).filter(x=>!x.archived);
+  if(!rows.length){toast('⚠️ ما في متاجر');return;}
+  const F="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;";
+  document.getElementById('srModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='srModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">♻️ إعادة ضبط حسابات المتاجر</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">بداية حساب جديدة — القديم بينطوي ومحلّه رقم واحد تكتبه</div>
+      </div>
+      <button onclick="document.getElementById('srModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:9px 14px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;font-size:0.68rem;color:#166534;line-height:1.8;">
+      ✅ ما بينحذف ولا سجلّ — بينطوي بس. بتشيل التاريخ وبيرجع كل شي.<br>
+      ✅ <b>رأس المال ما بيتأثّر</b> — حسابه (المتفق + المشتريات − الخام) ما إله علاقة بالمتاجر.<br>
+      ✅ ومن تاريخ البداية، كل طلبات المتجر بتدخل حسابه <b>بلا نظر للمندوب</b>.
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:8px 12px;">
+      ${rows.map(st=>{
+        const f=_srFrom(st.id),op=_srOpening(st.id);
+        return `<div style="border:1.5px solid ${f?'#bbf7d0':'#e5e7eb'};background:${f?'#f7fdf9':'#fff'};border-radius:12px;padding:10px;margin-bottom:8px;">
+          <div style="font-weight:800;font-size:0.87rem;color:#111827;margin-bottom:7px;">🏪 ${_clrEsc(st.name)}</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
+            <input type="date" id="sr_f_${st.id}" value="${f}" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:132px;">
+            <input type="number" step="0.01" id="sr_o_${st.id}" value="${op||''}" placeholder="باقي إلهم عندك" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:120px;">
+          </div>
+          <div id="sr_p_${st.id}" style="font-size:0.68rem;color:#6b7280;margin-top:6px;line-height:1.7;"></div>
+        </div>`;}).join('')}
+    </div>
+    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      <button onclick="srSave()" style="width:100%;padding:13px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 احفظ إعادة الضبط</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  rows.forEach(st=>_srPrev(st.id));
+}
+function _srPrev(id){
+  const el=document.getElementById('sr_p_'+id);if(!el)return;
+  const f=document.getElementById('sr_f_'+id)?.value||'';
+  const op=parseFloat(document.getElementById('sr_o_'+id)?.value)||0;
+  if(!f){el.innerHTML='<span style="color:#9ca3af;">بلا تاريخ = الحساب زي ما هو، ما بيتغيّر إشي.</span>';return;}
+  const st=(_opStoresList||[]).find(x=>x.id===id)||{};
+  const ords=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName)===st.name&&_srDate(o)>=f);
+  const amt=o=>Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+  const elig=ords.reduce((t,o)=>t+amt(o),0);
+  const wd=(_opWithdrawals||[]).filter(w=>_wdForStore(w,st.name,id)&&w.withdrawalType!=='payment'&&_srDate(w)>=f)
+    .reduce((t,w)=>t+(w.amount||0),0);
+  // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
+  const matloub=_srOwedFrom(id,f,op);
+  const safi=elig-matloub-wd;
+  el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق <b>${matloub.toFixed(2)}</b> ⇒ الصافي <b style="color:${safi>=0?'#166534':'#dc2626'};">${safi.toFixed(2)}</b>`;
+}
+async function srSave(){
+  try{
+    await _loadStoreReset(true);
+    const cfg={};
+    (_opStoresList||[]).forEach(st=>{
+      const f=document.getElementById('sr_f_'+st.id)?.value||'';
+      const op=parseFloat(document.getElementById('sr_o_'+st.id)?.value)||0;
+      if(f) cfg[st.id]={from:f,opening:op};
+    });
+    await db.collection('operator_config').doc('store_reset').set({cfg},{merge:false});
+    _storeReset=cfg;
+    document.getElementById('srModal')?.remove();
+    const n=Object.keys(cfg).length;
+    toast(n?`♻️ انضبط ${n} متجر`:'♻️ انشالت إعادة الضبط — الحسابات رجعت كاملة');
+    if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openStoreReset=openStoreReset; window._srPrev=_srPrev; window.srSave=srSave;
+
 // ═══════════ أسعار متجر — دفعة وحدة ═══════════
 // متجر جديد يعني سعرٌ لكل منتج. تفتح كل منتج وتكتب رقماً واحداً وتحفظ —
 // شغل ساعة لمتجر واحد. هون كل المنتجات بشاشة وحدة، ومعها تعبئة سريعة:
@@ -10812,6 +10891,39 @@ let _opDayExpenses=[];
 let _opRawBuys=[]; // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
 let _opSessionSupPays=[]; // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
 let _opDayRecord=null;
+// ═══ إعادة ضبط حساب المتجر ═══
+// بدايةُ حسابٍ جديدة لا حذفٌ للبيانات: من تاريخٍ تختاره، ورصيدٌ افتتاحي
+// تكتبه بيدك. كل ما قبل التاريخ يُطوى خارج الحساب ويحلّ محلّه رقمٌ واحد
+// تثق فيه. والسجلات تبقى كما هي — نقدر نرجع عنها بشيل التاريخ.
+// ورأس المال لا يتأثّر: صيغتُه (المتفق + المشتريات − الخام المستهلك) ما
+// إلها علاقة بحسابات المتاجر ولا المناديب.
+let _storeReset={};
+async function _loadStoreReset(force){
+  if(!force&&Object.keys(_storeReset).length) return _storeReset;
+  try{
+    const d=await db.collection('operator_config').doc('store_reset').get();
+    _storeReset=(d.exists&&d.data().cfg)||{};
+  }catch(e){_storeReset={};}
+  return _storeReset;
+}
+function _srFrom(id){return (id&&_storeReset[id]&&_storeReset[id].from)||'';}
+function _srOpening(id){return Number(id&&_storeReset[id]&&_storeReset[id].opening)||0;}
+function _srOn(id){return !!_srFrom(id);}
+// تاريخ السجلّ — المبيعة والدفعة والمسحوب كلّها تحمل date
+function _srDate(x){return (x&&(x.date||x.deliveredDate))||'';}
+function _srIn(id,x){const f=_srFrom(id);return !f||_srDate(x)>=f;}
+// سجلّ مختصر بكل حركات الحساب مع تاريخها — عشان شاشة إعادة الضبط تقدر
+// تحسب المستحق لأي تاريخ تجرّبه قبل ما تحفظ. [تاريخ, نوع, مبلغ]
+let _srRaw={};
+function _srRawPush(id,d,k,v){if(!id||!v)return;(_srRaw[id]=_srRaw[id]||[]).push([d||'',k,v]);}
+// المستحق لو بلّشنا الحساب من هذا التاريخ برصيد افتتاحي op
+function _srOwedFrom(id,f,op){
+  let owed=op||0,paid=0,ref=0;
+  (_srRaw[id]||[]).forEach(r=>{if(r[0]<f)return;
+    if(r[1]==='o')owed+=r[2];else if(r[1]==='p')paid+=r[2];else ref+=r[2];});
+  return owed-paid-ref;
+}
+
 let _opAcctOwed={};
 let _opAcctPaid={};
 let _opAcctRefund={};
@@ -11040,8 +11152,15 @@ async function _loadOpSessionData(){
       db.collection('page_refunds').get(),
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
-    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};
+    await _loadStoreReset();
+    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_srRaw={};
+    // الرصيد الافتتاحي يحلّ محلّ كل ما قبل تاريخ البداية
+    Object.keys(_storeReset).forEach(id=>{
+      if(_srOn(id)) _opAcctOwed[id]=_srOpening(id);
+    });
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
+      _srRawPush(s.storeId,_srDate(s),'o',(s.sellPrice||0)*(s.qty||1)); // للمعاينة قبل الحفظ
+      if(!_srIn(s.storeId,s))return;   // قبل بداية الحساب — مطويّ
       const qty=s.qty||1;
       // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
       const official=(s.sellPrice||0);
@@ -11058,12 +11177,17 @@ async function _loadOpSessionData(){
       // فنتعرّف عليها بوجود sourceWithdrawalId ما لم تكن دفعة صريحة.
       const isWdMirror=p.withdrawalType==='withdrawal'||(p.sourceWithdrawalId&&p.withdrawalType!=='payment');
       if(isWdMirror)return;
+      _srRawPush(p.storeId,_srDate(p),'p',p.amount||0);
+      if(!_srIn(p.storeId,p))return;
       _opAcctPaid[p.storeId]=(_opAcctPaid[p.storeId]||0)+(p.amount||0);
     });
-    rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);}});
+    rSnap.docs.forEach(d=>{const r=d.data();if(r.storeId){
+      _srRawPush(r.storeId,_srDate(r),'r',r.totalCost||0);
+      if(_srIn(r.storeId,r))_opAcctRefund[r.storeId]=(_opAcctRefund[r.storeId]||0)+(r.totalCost||0);
+    }});
     // Session-specific refunds: those within the session date range (for display in store cards)
     _opSessionRefunds=rSessionSnap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_opSessionRefunds=[];}
+  }catch(e){_opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_srRaw={};_opSessionRefunds=[];}
 
   // Determine the cutoff timestamp: orders updated BEFORE this time belong to a previous session
   // Use openedAt of current session (exact moment it was created)
@@ -11323,9 +11447,12 @@ function renderOperatorDailyView(){
       const isExcl=_crIsCourier(o.deliveryRepName);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
-      // الطلب يدخل حساب المتجر إلا إذا كانت الشركة هي اللي حاسبت المتجر
-      // عليه (أي قبل «تاريخ التحويل») — ساعتها ما مرّ من عندي أصلاً.
-      const inStore=_crInStore(o);
+      // متجرٌ أُعيد ضبطه: كل طلباته من تاريخ البداية تدخل حسابه بلا نظرٍ
+      // للمندوب — «المتاجر ما إلها دخل بالتوصيل». وقبل التاريخ مطويٌّ كلّه.
+      const _sid=byStore[sname].storeId;
+      const inStore=_srOn(_sid)
+        ? _srIn(_sid,o)
+        : _crInStore(o);
       if(inStore) byStore[sname].eligibleTotal+=amt;
       // بس منتذكّر كم من كاش هذا المتجر عند الشركة، عشان «الصافي» السالب
       // ما يُقرأ «المتجر مدين إلك» وهو في الحقيقة كاشٌ بالطريق.
@@ -11367,7 +11494,7 @@ function renderOperatorDailyView(){
           eligibleReps[k].orders.push(o);eligibleReps[k].total+=o.collectAmt;
         }
       });
-      const storeWds=_opWithdrawals.filter(w=>_wdForStore(w,store.name,store.storeId)&&w.withdrawalType!=='payment');
+      const storeWds=_opWithdrawals.filter(w=>_wdForStore(w,store.name,store.storeId)&&w.withdrawalType!=='payment'&&_srIn(store.storeId,w));
       const storeWdTotal=storeWds.reduce((s,w)=>s+(w.amount||0),0);
       const storeBalance=store.eligibleTotal-storeWdTotal;
       const balColor=storeBalance>=0?'#166534':'#dc2626';
@@ -11409,7 +11536,7 @@ function renderOperatorDailyView(){
       // — لأنّ إخفاءه بيخلّي الفرق بلا تفسير.
       const _repCount=Object.values(eligibleReps).length+Object.values(excludedReps).length;
       const _dlvKey='dlv_'+(store.storeId||String(store.name).length)+(inGroup?'_g':'');
-      const _dlvFold=_repCount?`
+      const _dlvFold=(_repCount&&!_srOn(store.storeId))?`
         <button onclick="toggleBalSection('${_dlvKey}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:rgba(0,0,0,.12);border:none;border-top:1px solid rgba(231,198,107,.08);font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;color:#9fc7b4;cursor:pointer;">
           <span>🚚 تفصيل التوصيل (${_repCount})</span><span style="font-size:0.68rem;">▼</span>
         </button>
@@ -11461,7 +11588,8 @@ function renderOperatorDailyView(){
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
         held:stHeld,inGroup:!!inGroup};
-      const _heldLine=stHeld>0.009?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر شركةُ التوصيل حاسبت المتجر عليها — فما بتدخل «قابل للسحب»</div>`:'';
+      const _heldLine=(stHeld>0.009&&!_srOn(store.storeId))?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر شركةُ التوصيل حاسبت المتجر عليها — فما بتدخل «قابل للسحب»</div>`:'';
+      const _srBadge=_srOn(store.storeId)?`<div style="padding:6px 15px;background:rgba(110,231,168,.08);border-top:1px solid rgba(110,231,168,.18);font-size:0.66rem;color:#6ee7a8;">♻️ حساب جديد من <b>${_srFrom(store.storeId)}</b>${_srOpening(store.storeId)?` · رصيد افتتاحي <b>${_srOpening(store.storeId).toFixed(2)}</b>`:''}</div>`:'';
       const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
@@ -11474,7 +11602,7 @@ function renderOperatorDailyView(){
             <div style="color:#f2e9d3;font-weight:700;font-size:0.84rem;">🏪 ${store.name} <span style="font-size:0.68rem;font-weight:400;color:#bcd8c9;">(${store.orders.length} طلب)</span></div>
             <div style="color:#f3e0a6;font-weight:900;font-size:0.84rem;font-variant-numeric:tabular-nums;">${store.eligibleTotal.toFixed(2)}</div>
           </div>
-          ${_heldLine}
+          ${_srBadge}${_heldLine}
           ${_dlvFold}
         </div>`;
       }
@@ -11483,7 +11611,7 @@ function renderOperatorDailyView(){
           <div style="color:#f2e9d3;font-weight:800;font-size:0.9rem;">🏪 ${store.name} <span style="font-size:0.7rem;font-weight:400;color:#bcd8c9;">(${store.orders.length} طلب)</span></div>
           <div style="color:#f3e0a6;font-weight:900;font-size:0.92rem;font-variant-numeric:tabular-nums;">${store.total.toFixed(2)}</div>
         </div>
-        ${_heldLine}
+        ${_srBadge}${_heldLine}
         ${_dlvFold}
         <div style="padding:12px 15px;border-top:1px solid rgba(231,198,107,.1);">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
@@ -17096,6 +17224,7 @@ async function loadRepAccounting(){
   if(!_pointValue)await loadPointValueSetting();
   try{
     const _OWED_STATUSES=['delivered','delivering','queued','waiting_rep','onhold','postponed'];
+    await _loadRepReset();
     const [repSnap,paymentsSnap,ordersSnap,pointsSnap]=await Promise.all([
       db.collection('operator_config').doc('delivery_reps').get(),
       db.collection('rep_payments').get(),
@@ -17108,16 +17237,21 @@ async function loadRepAccounting(){
     // مطلوب منه = كل الطلبات اللي أخذها (معه + مُسلَّمة)، المرتجع/الملغي مستثنى
     // المفتاح = الهاتف إن وُجد وإلا الاسم؛ الهاتف وحده كان يدمج كل من بلا هاتف
     const paidByPhone={};
-    paymentsSnap.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);paidByPhone[k]=(paidByPhone[k]||0)+(p.amount||0);});
+    paymentsSnap.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);
+      if(!_rrIn(k,_srDate(p)))return;                 // قبل بداية الحساب الجديد — مطويّ
+      paidByPhone[k]=(paidByPhone[k]||0)+(p.amount||0);});
     const owedByPhone={};
     const countByPhone={};
     const deliveredCountByPhone={};
+    // «كم بدّي منه» يوم البداية يحلّ محلّ كل ما قبله
+    Object.keys(_repReset).forEach(k=>{if(_rrOn(k))owedByPhone[k]=_rrOpening(k);});
     ordersSnap.docs.forEach(d=>{
       const o=d.data();
       let ph=String(o.deliveryRepPhone||'').trim();
       if(!ph&&o.deliveryRepName){const mr=reps.find(r=>_repNorm(r.name)===_repNorm(o.deliveryRepName));if(mr?.phone)ph=mr.phone;}
       if(!ph&&!o.deliveryRepName)return;              // طلب بلا مندوب أصلاً
       const k=_repKey(ph,o.deliveryRepName);
+      if(!_rrIn(k,_crOrderDate(o)))return;
       owedByPhone[k]=(owedByPhone[k]||0)+_ca(o);
       countByPhone[k]=(countByPhone[k]||0)+1;
       if(o.status==='delivered')deliveredCountByPhone[k]=(deliveredCountByPhone[k]||0)+1;
@@ -17187,6 +17321,7 @@ async function loadRepAccounting(){
           </div>`:''}
         </div>
         <div style="margin-top:8px;font-size:0.72rem;color:#6b7280;text-align:left;">${count} طلب أخذها (${deliveredCount} مُسلَّم · ${count-deliveredCount} معه) ←</div>
+        ${_rrOn(_k)?`<div style="margin-top:7px;padding:5px 9px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:0.66rem;color:#166534;">♻️ حساب جديد من <b>${_rrFrom(_k)}</b>${_rrOpening(_k)?` · بدايته <b>${_rrOpening(_k).toFixed(2)}</b>`:''}</div>`:''}
       </div>`;
     }).join('');
   }catch(e){listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
@@ -17201,6 +17336,85 @@ function _repKey(phone,name){
   const p=String(phone||'').trim();
   return p?('p:'+p):('n:'+_repNorm(name));
 }
+
+// ═══════════ إعادة ضبط حسابات المناديب ═══════════
+// نفس مبدأ المتاجر: تاريخ بداية جديد + «كم بدي منه» بذاك اليوم.
+// القديم بينطوي ولا سجلّ بينحذف — ورأس المال ما إله علاقة بهالحساب أصلاً.
+let _repReset={};
+async function _loadRepReset(force){
+  if(!force&&Object.keys(_repReset).length) return _repReset;
+  try{
+    const d=await db.collection('operator_config').doc('rep_reset').get();
+    _repReset=(d.exists&&d.data().cfg)||{};
+  }catch(e){_repReset={};}
+  return _repReset;
+}
+function _rrFrom(k){return (k&&_repReset[k]&&_repReset[k].from)||'';}
+function _rrOpening(k){return Number(k&&_repReset[k]&&_repReset[k].opening)||0;}
+function _rrOn(k){return !!_rrFrom(k);}
+function _rrIn(k,d){const f=_rrFrom(k);return !f||(d||'')>=f;}
+
+async function openRepReset(){
+  await _loadRepReset(true);
+  let reps=[];
+  try{
+    const s=await db.collection('operator_config').doc('delivery_reps').get();
+    reps=((s.exists&&s.data().reps)||[]).filter(r=>r&&r.name);
+  }catch(e){}
+  if(!reps.length){toast('⚠️ ما في مناديب مسجّلين');return;}
+  const F="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;";
+  document.getElementById('rrModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='rrModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">♻️ إعادة ضبط حسابات المناديب</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">حطّ تاريخ البداية و«كم بدّك منه» بذاك اليوم</div>
+      </div>
+      <button onclick="document.getElementById('rrModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:9px 14px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;font-size:0.68rem;color:#166534;line-height:1.8;">
+      ✅ ما بينحذف ولا سجلّ — بينطوي بس. بتشيل التاريخ وبيرجع كل شي.<br>
+      ✅ <b>رأس المال ما بيتأثّر</b> — ولا حسابات المتاجر.
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:8px 12px;">
+      ${reps.map(r=>{
+        const k=_repKey(r.phone,r.name),f=_rrFrom(k),op=_rrOpening(k);
+        const kk=k.replace(/[^a-zA-Z0-9]/g,'_');
+        return `<div data-rrk="${_clrEsc(k)}" style="border:1.5px solid ${f?'#bbf7d0':'#e5e7eb'};background:${f?'#f7fdf9':'#fff'};border-radius:12px;padding:10px;margin-bottom:8px;">
+          <div style="font-weight:800;font-size:0.87rem;color:#111827;margin-bottom:7px;">🚚 ${_clrEsc(r.name)}${r.phone?` <span style="font-size:0.7rem;font-weight:600;color:#6b7280;">${_clrEsc(r.phone)}</span>`:''}</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
+            <input type="date" id="rr_f_${kk}" value="${f}" style="${F}flex:1;min-width:132px;">
+            <input type="number" step="0.01" id="rr_o_${kk}" value="${op||''}" placeholder="كم بدّك منه" style="${F}flex:1;min-width:120px;">
+          </div>
+        </div>`;}).join('')}
+    </div>
+    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      <button onclick="rrSave()" style="width:100%;padding:13px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 احفظ إعادة الضبط</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function rrSave(){
+  try{
+    const cfg={};
+    document.querySelectorAll('#rrModal [data-rrk]').forEach(box=>{
+      const k=box.getAttribute('data-rrk'),kk=k.replace(/[^a-zA-Z0-9]/g,'_');
+      const f=document.getElementById('rr_f_'+kk)?.value||'';
+      const op=parseFloat(document.getElementById('rr_o_'+kk)?.value)||0;
+      if(f) cfg[k]={from:f,opening:op};
+    });
+    await db.collection('operator_config').doc('rep_reset').set({cfg},{merge:false});
+    _repReset=cfg;
+    document.getElementById('rrModal')?.remove();
+    const n=Object.keys(cfg).length;
+    toast(n?`♻️ انضبط ${n} مندوب`:'♻️ انشالت إعادة الضبط — حسابات المناديب رجعت كاملة');
+    loadRepAccounting();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openRepReset=openRepReset; window.rrSave=rrSave;
 
 async function showRepStatement(phone,name){
   _repAcctRep={phone,name};
@@ -17232,9 +17446,12 @@ async function showRepStatement(phone,name){
     ]);
     // Merge all order results (deduplicate by id)
     const seenIds=new Set();
+    await _loadRepReset();
+    const _rk=_repKey(phone,name);
     const allOrders=orderSnaps.flatMap(s=>s.docs)
       .filter(d=>{if(seenIds.has(d.id))return false;seenIds.add(d.id);return true;})
-      .map(d=>({id:d.id,...d.data()}));
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(o=>_rrIn(_rk,_crOrderDate(o)));   // قبل بداية الحساب الجديد — مطويّ
     const activeOrders=allOrders.filter(o=>['delivering','queued','waiting_rep','onhold','postponed'].includes(o.status))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const orders=allOrders.filter(o=>o.status==='delivered')
@@ -17242,8 +17459,10 @@ async function showRepStatement(phone,name){
     const returnedOrders=allOrders.filter(o=>o.status==='cancelled'||o.status==='returned')
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const payments=paymentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(p=>_rrIn(_rk,_srDate(p)))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const repRefunds=refundsSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(r=>_rrIn(_rk,_srDate(r)))
       .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     // Render points section (non-blocking)
     _renderRepPoints(phone,name,orders.length);
@@ -17251,7 +17470,8 @@ async function showRepStatement(phone,name){
     // NEW MODEL: مطلوب منه = كل الطلبات اللي أخذها (معه الآن + المُسلَّمة)، المرتجع/الملغي مستثنى
     const deliveredTotal=orders.reduce((s,o)=>s+_collectAmt(o),0);
     const activeTotal=activeOrders.reduce((s,o)=>s+_collectAmt(o),0);
-    const totalOwed=deliveredTotal+activeTotal;
+    const rrOpen=_rrOn(_rk)?_rrOpening(_rk):0;   // «كم بدّي منه» يوم البداية
+    const totalOwed=deliveredTotal+activeTotal+rrOpen;
     const totalPaid=payments.reduce((s,p)=>s+(p.amount||0),0);
     const totalReturnOwed=returnedOrders.reduce((s,o)=>s+_collectAmt(o),0);
     const totalReturnPaid=repRefunds.reduce((s,r)=>s+(r.amount||0),0);
@@ -17290,6 +17510,7 @@ async function showRepStatement(phone,name){
       }).join('');
 
       summaryEl.innerHTML=`
+        ${_rrOn(_rk)?`<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:9px 13px;margin-bottom:12px;font-size:0.72rem;color:#166534;line-height:1.8;">♻️ حساب جديد من <b>${_rrFrom(_rk)}</b> — اللي قبله مطويّ${rrOpen?`، وبدايته <b>${rrOpen.toFixed(2)} د.أ</b> مطلوبة منه`:''}</div>`:''}
         ${activeOrders.length>0?`<div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:14px;padding:13px 15px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <span style="font-size:0.88rem;font-weight:800;color:#1e40af;">📦 معه الآن (لم تُسلَّم)</span>
