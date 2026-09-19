@@ -8397,7 +8397,42 @@ async function sendDailyReport(){
 // ===== OPERATOR ACCOUNTING SYSTEM — NEW =====
 
 // --- Sub-tab switcher ---
+// ═══ عائلات حساب المشغل ═══
+// اثنا عشر زرّاً بشريطٍ واحد بيتزحلق يعني إنّك بتدوّر كل مرّة. صاروا أربع
+// عائلات تبين كلّها بالشاشة بلا تزحلق، وكل عائلة بتفتح على شاشتها الرئيسية
+// فوراً — فالشي اليومي لسا بضغطة وحدة — ومعها صفُّ وجهاتها.
+const OP_FAM=[
+  {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
+  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['account','📋 كشف']]},
+  {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],['stores','🏪 إدارة المتاجر']]},   // ثنتان فبتسعهما الشاشة
+  {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات']]}
+];
+function _opFamOf(tab){
+  return OP_FAM.find(f=>f.tabs.some(t=>t[0]===tab))
+      ||(tab==='empwages'?OP_FAM[1]:null)||OP_FAM[0];
+}
+function opFamily(k){
+  const f=OP_FAM.find(x=>x.k===k);
+  if(f) switchOpTab(f.tabs[0][0]);
+}
+function _renderOpTabs(active){
+  const fam=_opFamOf(active);
+  const fb=document.getElementById('opFamilyBar');
+  if(fb) fb.innerHTML=OP_FAM.map(f=>{
+    const on=f.k===fam.k;
+    return `<button onclick="opFamily('${f.k}')" style="flex:1;min-width:0;padding:11px 3px;border:1.5px solid ${on?'var(--green-dark)':'var(--border)'};background:${on?'var(--green-dark)':'var(--card-bg)'};color:${on?'#fff':'var(--text-mid)'};border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:${on?'800':'600'};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.label}</button>`;
+  }).join('');
+  const tb=document.getElementById('opTabBar');
+  const fs=fam.tabs.length>=4?'0.76rem':'0.84rem';   // ما ينقصّ اسم لمّا تكثر الوجهات
+  if(tb) tb.innerHTML=fam.tabs.map(([t,lbl],i)=>{
+    const on=t===active;
+    return `<button id="optab-btn-${t}" onclick="switchOpTab('${t}')" style="flex:1 1 0;min-width:0;padding:12px 5px;border:none;background:${on?'var(--green-dark)':'var(--card-bg)'};color:${on?'#fff':'var(--text-mid)'};font-family:'Tajawal',sans-serif;font-size:${fs};font-weight:${on?'700':'400'};cursor:pointer;${i?'border-right:1px solid var(--border);':''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lbl}</button>`;
+  }).join('');
+}
+window.opFamily=opFamily;
+
 function switchOpTab(tab){
+  _renderOpTabs(tab);
   const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
   allTabs.forEach(t=>{
     const panelId=t==='oporders'?'emp-subtab-operator':
