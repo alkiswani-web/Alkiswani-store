@@ -11323,13 +11323,16 @@ function renderOperatorDailyView(){
       const isExcl=_crIsCourier(o.deliveryRepName);
       byStore[sname].orders.push({...o,collectAmt:amt,excludedFromBalance:isExcl});
       byStore[sname].total+=amt;
-      // «قابل للسحب» = الكاش اللي وصلك من طلبات هذا المتجر. طلبٌ كاشُه لسا
-      // عند شركة المحاسبة ما وصل، فما بينحسب — حساب المتجر ماشي كما كان
-      // وأثرُ الشركة على «التحصيل» وحده.
-      if(!isExcl) byStore[sname].eligibleTotal+=amt;
+      // الطلب يدخل حساب المتجر إلا إذا كانت الشركة هي اللي حاسبت المتجر
+      // عليه (أي قبل «تاريخ التحويل») — ساعتها ما مرّ من عندي أصلاً.
+      const inStore=_crInStore(o);
+      if(inStore) byStore[sname].eligibleTotal+=amt;
       // بس منتذكّر كم من كاش هذا المتجر عند الشركة، عشان «الصافي» السالب
       // ما يُقرأ «المتجر مدين إلك» وهو في الحقيقة كاشٌ بالطريق.
-      if(isExcl) byStore[sname].courierHeld=(byStore[sname].courierHeld||0)+amt;
+      // الفرقُ بين إجمالي طلبات المتجر و«قابل للسحب» — أيّاً كان سببه:
+      // طلبٌ حاسبت الشركةُ المتجرَ عليه، أو طلبٌ يخصّني وكاشُه لسا عندها.
+      // يُشتقّ من الرقمين نفسِهما فلا يفترقان أبداً.
+      if(!inStore) byStore[sname].courierHeld=(byStore[sname].courierHeld||0)+amt;
       if(isExcl){
         const nm=o.deliveryRepName;
         if(courierHeld[nm]===undefined) courierHeld[nm]=0;   // تظهر ولو صفر
@@ -11458,7 +11461,7 @@ function renderOperatorDailyView(){
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
         held:stHeld,inGroup:!!inGroup};
-      const _heldLine=stHeld>0.009?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر كاشها عند شركة التوصيل — فما بتدخل «قابل للسحب»</div>`:'';
+      const _heldLine=stHeld>0.009?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر شركةُ التوصيل حاسبت المتجر عليها — فما بتدخل «قابل للسحب»</div>`:'';
       const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
@@ -11960,6 +11963,17 @@ async function _loadCourierCfg(force){
   return _courierCfg;
 }
 function _crStart(n){return (_courierCfg[n]&&_courierCfg[n].startDate)||'';}
+// «تاريخ التحويل»: قبلَه كانت الشركة تطلّع الطلبات وتحاسب المتجر مباشرةً،
+// فالطلب ما مرّ من عندي ولا يخصّ حسابي. ومنه فصاعداً صرتُ أنا أطلّعها وأحاسب
+// المتجر، فتدخل حسابه كأيّ طلب. فاضياً = السلوك القديم لكل طلباتها.
+function _crStoreFrom(n){return (_courierCfg[n]&&_courierCfg[n].storeFrom)||'';}
+// هل يدخل هذا الطلب حساب المتجر؟
+function _crInStore(o){
+  const nm=o&&o.deliveryRepName;
+  if(!_crIsCourier(nm)) return true;
+  const f=_crStoreFrom(nm);
+  return !!f&&_crOrderDate(o)>=f;
+}
 function _crOpen(n){return Number(_courierCfg[n]&&_courierCfg[n].opening)||0;}
 function _crOrderDate(o){return o.deliveredDate||o.date||'';}
 function _crIsCourier(name){
@@ -12010,6 +12024,15 @@ async function openCourierSettings(name){
     <label style="${L}">💰 رصيد افتتاحي <span style="color:#9ca3af;font-weight:400;">(اختياري)</span></label>
     <input type="number" id="cr_open" step="0.5" value="${_crOpen(name)||''}" placeholder="0.00" oninput="_crPreview('${_clrEsc(name)}')" style="${F}margin-bottom:5px;">
     <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:13px;line-height:1.7;">لو كان باقي إلك عندها مبلغ بهاد التاريخ، اكتبه هون.</div>
+    <div style="height:1px;background:#e5e7eb;margin:4px 0 13px;"></div>
+    <label style="${L}">🏪 من أي تاريخ صرتَ <b>إنت</b> تحاسب المتجر؟ <span style="color:#9ca3af;font-weight:400;">(اختياري)</span></label>
+    <input type="date" id="cr_sfrom" value="${_crStoreFrom(name)}" oninput="_crPreview('${_clrEsc(name)}')" style="${F}margin-bottom:5px;">
+    <div style="font-size:0.68rem;color:#9ca3af;margin-bottom:13px;line-height:1.75;">
+      قبل هاد التاريخ كانت <b>الشركة</b> تحاسب المتجر مباشرةً، فطلباتها ما بتدخل حساب المتجر.<br>
+      ومن التاريخ وطالع صرتَ إنت تحاسبه، فبتدخل حسابه زي أي طلب.<br>
+      <span style="color:#b45309;">اتركه فاضي = كل طلباتها تظلّ خارج حسابات المتاجر (زي ما هو اليوم).</span>
+    </div>
+    <div id="cr_store_prev" style="font-size:0.7rem;margin-bottom:11px;"></div>
     <div id="cr_prev" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px;text-align:center;margin-bottom:10px;"></div>
     <div style="font-size:0.68rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 10px;margin-bottom:14px;line-height:1.75;">
       ⚠️ التاريخ نقطة بداية <b>مرّة وحدة</b> — لتصفية القديم اللي حاسبتْك عليه قبل ما يصير إلها حساب.<br>
@@ -12026,6 +12049,7 @@ async function openCourierSettings(name){
   _crPreview(name);
 }
 function _crPreview(name){
+  try{_crStorePrev(name);}catch(e){}
   const el=document.getElementById('cr_prev');if(!el)return;
   const st=document.getElementById('cr_start')?.value||'';
   const op=parseFloat(document.getElementById('cr_open')?.value)||0;
@@ -12054,6 +12078,16 @@ function _crPreview(name){
     <div style="font-size:0.68rem;color:#6b7280;">${orders.length} طلب${op?` + ${op.toFixed(2)} افتتاحي`:''}${paid>0.009?` · قبضتَ ${paid.toFixed(2)} ⇒ الباقي ${bal.toFixed(2)}`:''}</div>
     ${st&&orders.length?`<div style="font-size:0.66rem;color:#9ca3af;margin-top:4px;">${all.length-orders.length} طلب قبل ${st} اعتبرناه مُحاسَباً عليه</div>`:''}`;
 }
+function _crStorePrev(name){
+  const el=document.getElementById('cr_store_prev');if(!el)return;
+  const f=document.getElementById('cr_sfrom')?.value||'';
+  const all=(_opDayOrders||[]).filter(o=>o.deliveryRepName===name);
+  const amt=o=>Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+  const inn=f?all.filter(o=>_crOrderDate(o)>=f):[];
+  const sum=inn.reduce((t,o)=>t+amt(o),0);
+  if(!f){el.innerHTML='<span style="color:#9ca3af;">ما في طلبات رح تدخل حسابات المتاجر — كل شي زي ما هو.</span>';return;}
+  el.innerHTML=`<span style="color:#166534;">🏪 <b>${inn.length}</b> طلب بـ<b>${sum.toFixed(2)}</b> رح تدخل حسابات المتاجر (تزيد «قابل للسحب» والصافي بنفس المبلغ)، و<b>${all.length-inn.length}</b> طلب أقدم بيضلّوا برّا.</span>`;
+}
 function crSetToday(name){
   const el=document.getElementById('cr_start');
   const op=document.getElementById('cr_open');
@@ -12064,11 +12098,12 @@ function crSetToday(name){
 async function crSaveSettings(name){
   const startDate=document.getElementById('cr_start')?.value||'';
   const opening=parseFloat(document.getElementById('cr_open')?.value)||0;
+  const storeFrom=document.getElementById('cr_sfrom')?.value||'';
   try{
     await _loadCourierCfg(true);
     const cfg={..._courierCfg};
-    if(!startDate&&!opening) delete cfg[name];
-    else cfg[name]={startDate,opening};
+    if(!startDate&&!opening&&!storeFrom) delete cfg[name];
+    else cfg[name]={startDate,opening,storeFrom};
     await db.collection('operator_config').doc('courier_settings').set({cfg},{merge:false});
     _courierCfg=cfg;
     document.getElementById('crSetModal')?.remove();
@@ -12077,7 +12112,7 @@ async function crSaveSettings(name){
   }catch(e){toast('❌ '+e.message);}
 }
 window.openCourierSettings=openCourierSettings; window._crPreview=_crPreview;
-window.crSetToday=crSetToday; window.crSaveSettings=crSaveSettings;
+window.crSetToday=crSetToday; window._crStorePrev=_crStorePrev; window.crSaveSettings=crSaveSettings;
 
 function _payHubRows(){
   const out=[],inn=[];
@@ -12113,7 +12148,7 @@ function _payHubRows(){
       if(n.inGroup) return;
       const held=Number(n.held)||0;
       const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`
-        +(held>0.009?` · ⏳ ${held.toFixed(2)} لسا عند شركة التوصيل`:'');
+        +(held>0.009?` · ⏳ ${held.toFixed(2)} حاسبت شركةُ التوصيل المتجرَ عليها`:'');
       // صافٍ سالبٌ سببُه كاشٌ لسا عند شركة التوصيل مش دَيناً على المتجر —
       // فالاتجاه يُحسب بعد ما نرجّع المبلغ اللي بالطريق، وإلا ظهر المتجرُ
       // الدائنُ مديناً وطلع بـ«إلك تقبض» وهو مالُه بإيدك.
