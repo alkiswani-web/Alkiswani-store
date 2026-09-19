@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v290"></script>
+<script defer src="app.js?v291"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2940,7 +2940,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <!-- PANEL: الدفعات — مركز واحد لكل ما عليك وما إلك -->
         <div class="cc-panel" data-p="pay"><div class="cc-sheet"><div id="cc-pay"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
         <!-- PANEL: المتاجر -->
-        <div class="cc-panel" data-p="stores"><div class="cc-sheet"><div id="cc-stores"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
+        <div class="cc-panel" data-p="stores"><div class="cc-sheet"><button onclick="openStoreReset()" style="width:100%;margin-bottom:10px;padding:11px;background:rgba(110,231,168,.10);color:#6ee7a8;border:1px solid rgba(110,231,168,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;">♻️ إعادة ضبط حسابات المتاجر</button><div id="cc-stores"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
         <!-- PANEL: الأرباح -->
         <div class="cc-panel" data-p="profit"><div class="cc-sheet"><div id="cc-profit"><div class="cc-empty">⏳ تحميل...</div></div></div></div>
 
@@ -3267,7 +3267,10 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
         <div id="repAcctListView">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
             <div style="font-size:0.92rem;font-weight:800;color:#1a3a2a;">🚚 كشف حسابات المناديب</div>
-            <button onclick="loadRepAccounting()" style="padding:6px 14px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">↻ تحديث</button>
+            <div style="display:flex;gap:6px;">
+              <button onclick="openRepReset()" style="padding:6px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:700;">♻️ إعادة ضبط</button>
+              <button onclick="loadRepAccounting()" style="padding:6px 14px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;font-weight:600;">↻ تحديث</button>
+            </div>
           </div>
           <div id="repAcctList"><div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">اضغط تحديث لتحميل الحسابات</div></div>
         </div>
