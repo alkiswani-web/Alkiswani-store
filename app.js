@@ -4089,9 +4089,20 @@ function _productPriceChoices(prod,baseOverride){
   if(!opts.length) return [];
   const base=parseFloat(baseOverride!=null?baseOverride:(prod?.sellPrice||0))||0;
   const list=[];
-  if(base>0&&!opts.some(o=>Math.abs((o.price||0)-base)<0.001)) list.push({label:'أساسي',price:base});
-  opts.forEach(o=>list.push({label:o.label,price:parseFloat(o.price)||0}));
+  if(base>0&&!opts.some(o=>Math.abs((o.price||0)-base)<0.001)) list.push({label:'أساسي',price:base,units:1});
+  opts.forEach(o=>list.push({label:o.label,price:parseFloat(o.price)||0,units:Math.max(1,Number(o.units)||1)}));
   return list;
+}
+// كم حبّة جوّا الخيار اللي اختاره الموظف؟ «دزينة» ١٢، والعادي ١.
+// منطابق بالاسم أولاً لأنّه المحفوظ على البند، وإلا بالسعر.
+function _poUnits(prod,item){
+  const list=_productPriceChoices(prod);
+  if(!list.length) return 1;
+  const lbl=item&&item.priceLabel;
+  let m=lbl?list.find(c=>c.label===lbl):null;
+  if(!m){const pr=parseFloat(item&&item.price)||0;
+    m=list.find(c=>Math.abs((c.price||0)-pr)<0.001);}
+  return Math.max(1,Number(m&&m.units)||1);
 }
 
 function calcEmpOrderTotal(){return _empOrderCart.reduce((s,i)=>s+(i.price*i.qty),0);}
@@ -6709,7 +6720,11 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       // على حاله، وكان يضيع حين كنّا نكتب الربح مكان السعر.
       const sellPrice=storePrice||totalCost||0;
       const _treeMade=_isTreeFulfilled(orderData);
-      const customerUnit=parseFloat(product.price)||0;
+      // خيار السعر ممكن يكون دزينة (١٢ حبّة). سعر المتجر والتكلفة بالحبّة،
+      // فلازم نسجّل عدد الحبّات الحقيقي لا عدد الدزينات — وإلا طلعت تكلفة
+      // دزينةٍ كتكلفة حبّة.
+      const _units=_poUnits(opProd,product);
+      const customerUnit=(parseFloat(product.price)||0)/_units;
       const soldPrice=(customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
       // ما قبضه مشغل الشجر بالنيابة عنّي = قيمة الطلب للزبون − أجرة التوصيل
       // (يدفعها هو). يُكتب على الصفّ الأول فقط كي لا يتضاعف بعدد المنتجات.
@@ -6726,7 +6741,9 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
         storeName:store.name,
         productId:product.id||'',
         productName:product.name||'',
-        qty:product.qty||1,
+        qty:(product.qty||1)*_units,
+        unitsPerItem:_units,
+        priceLabel:(product.priceLabel||''),
         sellPrice,
         soldPrice,
         rawMaterialCost:opProd?(opProd.rawMaterialCost||0):0,
@@ -9388,9 +9405,12 @@ function addOppPriceOption(){
   const price=parseFloat(prInp?.value);
   if(!label){toast('⚠️ اكتب اسم الخيار');return;}
   if(isNaN(price)||price<0){toast('⚠️ أدخل سعراً صحيحاً');return;}
-  _oppPriceOptions.push({label,price});
+  const unInp=document.getElementById('opp_priceopt_units');
+  const units=Math.max(1,parseInt(unInp?.value)||1);   // «دزينة» = ١٢ حبّة
+  _oppPriceOptions.push({label,price,units});
   if(lblInp) lblInp.value='';
   if(prInp) prInp.value='';
+  if(unInp) unInp.value='';
   renderOppPriceOptionChips();
 }
 function removeOppPriceOption(i){
@@ -9402,7 +9422,7 @@ function renderOppPriceOptionChips(){
   if(!wrap)return;
   wrap.innerHTML=_oppPriceOptions.length
     ?_oppPriceOptions.map((o,i)=>`<div style="display:inline-flex;align-items:center;gap:5px;background:#fef9c3;border:1px solid #fde047;border-radius:20px;padding:4px 10px;font-size:0.8rem;color:#854d0e;">
-        <span><strong>${o.label}</strong> — ${(o.price||0).toFixed(2)} د.أ</span>
+        <span><strong>${o.label}</strong> — ${(o.price||0).toFixed(2)} د.أ${(Number(o.units)||1)>1?` · <b>${Number(o.units)} حبّة</b>`:''}</span>
         <button onclick="removeOppPriceOption(${i})" style="background:none;border:none;cursor:pointer;color:#854d0e;font-size:0.85rem;padding:0;line-height:1;">✕</button>
       </div>`).join('')
     :'<div style="font-size:0.75rem;color:#9ca3af;">لا يوجد أسعار متعددة — المنتج بيستخدم سعر البيع العادي</div>';
@@ -9626,7 +9646,7 @@ function editOpProduct(id){
     for(let k=1;k<=parseInt(p.colorNumbersCount);k++) _oppOwnQty[k]=0;
   }
   renderOppCNPicker();
-  _oppPriceOptions=Array.isArray(p.priceOptions)?p.priceOptions.map(o=>({label:o.label,price:o.price})):[];
+  _oppPriceOptions=Array.isArray(p.priceOptions)?p.priceOptions.map(o=>({label:o.label,price:o.price,units:Math.max(1,Number(o.units)||1)})):[];
   renderOppPriceOptionChips();
   const rw=document.getElementById('opp_requires_writing');
   if(rw) rw.checked=!!p.requiresWriting;
