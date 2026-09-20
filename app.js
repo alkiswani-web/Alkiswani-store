@@ -3507,15 +3507,21 @@ function _srPrev(id){
   const st=(_opStoresList||[]).find(x=>x.id===id)||{};
   const wd=(_opWithdrawals||[]).filter(w=>_wdForStore(w,st.name,id)&&w.withdrawalType!=='payment'&&_srDate(w)>=f)
     .reduce((t,w)=>t+(w.amount||0),0);
-  // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
+  // مبيعاته للزبون بعد التاريخ
+  const sales=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName)===st.name&&(_crOrderDate(o)||_srDate(o))>=f)
+    .reduce((t,o)=>t+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
   const matloub=_srOwedFrom(id,f,op);
-  // متجر بدون توصيل: كاش التوصيل برّا الحساب
-  const safi=matloub-wd;
+  // نفكّ الحركات: التكلفة عليه، وما دفعه، وما رجّعه — كلٌّ لحاله
+  let cost=0,paid=0,ref=0;
+  (_srRaw[id]||[]).forEach(r=>{if(r[0]<f)return;
+    if(r[1]==='o')cost+=r[2];else if(r[1]==='p')paid+=r[2];else ref+=r[2];});
+  // الصافي = الافتتاحي + مبيعاته − التكلفة عليه − مدفوع − مرتجع − مسحوب
+  const safi=op+sales-cost-paid-ref-wd;
   const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
   void 0;
   const sTxt=safi>0.009?`<b style="color:#dc2626;">عليك تدفعلهم ${safi.toFixed(2)}</b>`
     :safi<-0.009?`<b style="color:#1e40af;">إلك ${Math.abs(safi).toFixed(2)}</b>`:`<b style="color:#166534;">مسوّى 0.00</b>`;
-  el.innerHTML=`من <b>${f}</b>: المستحق ${mTxt} · مسحوب <b>${wd.toFixed(2)}</b> ⇒ الصافي ${sTxt}`;
+  el.innerHTML=`من <b>${f}</b>: مبيعاته <b style="color:#166534;">${sales.toFixed(2)}</b> · التكلفة عليه <b>${cost.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> ⇒ الصافي ${sTxt}`;
 }
 // «ابدأ من اليوم» — بيحطّ تاريخ اليوم فبيصير كل إشي صفر وما بيضلّ غير الرقم
 function srToday(id){
@@ -11832,7 +11838,7 @@ function renderOperatorDailyView(){
       const acctBal=acctOwed-acctPaid-acctRefund;
       const acctBalColor=acctBal>0?'#e7c66b':acctBal<0?'#6ee7a8':'#9fc7b4';
       const acctLabel=acctBal>0?'📊 ضايل عليه':acctBal<0?'💰 رصيد له':'✅ مسوّى';
-      const acctRow=store.storeId?`
+      const acctRow=(store.storeId&&!_srOn(store.storeId))?`
         <div style="border-top:1px solid rgba(231,198,107,.1);padding:9px 15px;background:rgba(0,0,0,.16);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
           <div style="font-size:0.72rem;font-weight:700;color:#e7c66b;">🗂 رصيد الحساب الكلي</div>
           <div style="display:flex;gap:10px;font-size:0.71rem;flex-wrap:wrap;">
@@ -11844,13 +11850,19 @@ function renderOperatorDailyView(){
         </div>`:'';
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
-      // متجرٌ مُعاد ضبطه = «متجر بدون توصيل»: كاش التوصيل ما إله دخل بحسابه
-      // إطلاقاً، فحسابُه مبيعاتُه وما دفعوه وما سحبوه وبس. وطلبٌ جديد بيزيد
-      // المستحق ⇒ بيزيد الصافي، لا العكس.
-      // وغير المُعاد ضبطه بيضلّ على المعادلة القديمة: المستحق − قابل للسحب − مسحوب.
+      // متجرٌ مُعاد ضبطه: حسابُه بيعُه للزبون ناقص تكلفتي عليه.
+      //   الصافي = الافتتاحي + مبيعاته − التكلفة عليه − مدفوع − مرتجع − مسحوب
+      // «مبيعاته» = سعر الزبون (قيمة الطلب بلا أجرة التوصيل)، و«التكلفة عليه»
+      // = سعر متجره اللي بينكتب بسجلّ المبيعة. والفرق بينهم ربحُه — وهو
+      // اللي بإيدي فصار عليّ. فطلبٌ جديد بيزيد الصافي بمقدار ربح المتجر.
+      // وغير المُعاد ضبطه بيضلّ على المعادلة القديمة.
       const _noDlv=_srOn(store.storeId);
-      const stSafi=_noDlv?(stMatloub-storeWdTotal)
-                         :(stMatloub-store.eligibleTotal-storeWdTotal);
+      const stOpen=_noDlv?_srOpening(store.storeId):0;
+      const stCost=_noDlv?(acctOwed-stOpen):0;            // التكلفة على المتجر
+      const stSales=_noDlv?(store.eligibleTotal||0):0;    // بيعُه للزبون
+      const stSafi=_noDlv
+        ?(stOpen+stSales-stCost-acctPaid-acctRefund-storeWdTotal)
+        :(stMatloub-store.eligibleTotal-storeWdTotal);
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
@@ -11888,9 +11900,10 @@ function renderOperatorDailyView(){
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
             ${_ccRing(acctOwed>0?acctPaid/acctOwed:(store.eligibleTotal>0?1:0),'محصّل')}
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              ${_noDlv?_ccStat('🧾 مبيعاته',acctOwed,'green'):_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
-              ${_noDlv?_ccStat('✅ مدفوع',acctPaid,'green'):_ccStat('💸 مسحوب',storeWdTotal,'red')}
-              ${_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
+              ${_noDlv?_ccStat('🛒 مبيعاته',stSales,'green'):_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
+              ${_noDlv?_ccStat('🧾 التكلفة عليه',stCost,'amber'):_ccStat('💸 مسحوب',storeWdTotal,'red')}
+              ${_noDlv?_ccStat('✅ مدفوع ومسحوب',acctPaid+acctRefund+storeWdTotal,'red')
+                      :_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
               ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
               ${stDirNote}
               ${stHeldNote}
