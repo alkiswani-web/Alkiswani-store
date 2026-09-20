@@ -3516,7 +3516,7 @@ function _srPrev(id){
   (_srRaw[id]||[]).forEach(r=>{if(r[0]<f)return;
     if(r[1]==='o')cost+=r[2];else if(r[1]==='p')paid+=r[2];else ref+=r[2];});
   // الصافي = الافتتاحي + مبيعاته − التكلفة عليه − مدفوع − مرتجع − مسحوب
-  const safi=op+sales-cost-paid-ref-wd;
+  const safi=op+sales-cost-paid-ref+wd;   // المسحوب بينضاف: سحبتَه من كاشهم
   const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
   void 0;
   const sTxt=safi>0.009?`<b style="color:#dc2626;">عليك تدفعلهم ${safi.toFixed(2)}</b>`
@@ -11860,8 +11860,10 @@ function renderOperatorDailyView(){
       const stOpen=_noDlv?_srOpening(store.storeId):0;
       const stCost=_noDlv?(acctOwed-stOpen):0;            // التكلفة على المتجر
       const stSales=_noDlv?(store.eligibleTotal||0):0;    // بيعُه للزبون
+      // «مسحوب» = إنت سحبتَ من كاشهم اللي بإيدك ⇒ صار عليك أكثر، فبينضاف.
+      // و«مدفوع» = دفعتَ إلهم ⇒ نقص اللي عليك، فبينطرح.
       const stSafi=_noDlv
-        ?(stOpen+stSales-stCost-acctPaid-acctRefund-storeWdTotal)
+        ?(stOpen+stSales-stCost-acctPaid-acctRefund+storeWdTotal)
         :(stMatloub-store.eligibleTotal-storeWdTotal);
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
@@ -11902,8 +11904,9 @@ function renderOperatorDailyView(){
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               ${_noDlv?_ccStat('🛒 مبيعاته',stSales,'green'):_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
               ${_noDlv?_ccStat('🧾 التكلفة عليه',stCost,'amber'):_ccStat('💸 مسحوب',storeWdTotal,'red')}
-              ${_noDlv?_ccStat('✅ مدفوع ومسحوب',acctPaid+acctRefund+storeWdTotal,'red')
+              ${_noDlv?_ccStat('✅ دفعتلهم',acctPaid+acctRefund,'green')
                       :_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
+              ${_noDlv?_ccStat('💸 سحبتَ من كاشهم',storeWdTotal,'red'):''}
               ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
               ${stDirNote}
               ${stHeldNote}
