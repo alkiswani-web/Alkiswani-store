@@ -6535,7 +6535,8 @@ async function _enterDeliveringSync(orderId,data,force){
 let _kashfRefreshTimer=null;
 function _refreshKashfIfOpen(){
   try{
-    const view=document.getElementById('opacct-operator-view');
+    // كانت تتحقّق من شاشة الكشف؛ صار المقصد لوحات تاب الرصيد
+    const view=document.getElementById('optab-balance');
     if(!view||view.style.display==='none')return;
     if(!_opCurrentSession||_opCurrentSession.status==='closed')return;
     clearTimeout(_kashfRefreshTimer);
@@ -8493,7 +8494,7 @@ async function sendDailyReport(){
 // فوراً — فالشي اليومي لسا بضغطة وحدة — ومعها صفُّ وجهاتها.
 const OP_FAM=[
   {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
-  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['account','📋 كشف']]},
+  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي']]},
   // «@» = وجهةٌ بتفتح نافذة لا لوحة. الألوان والمخزون كانوا مدفونين جوّا
   // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
   {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
@@ -8530,7 +8531,7 @@ window.opFamily=opFamily;
 
 function switchOpTab(tab){
   _renderOpTabs(tab);
-  const allTabs=['oporders','products','stores','sales','account','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
+  const allTabs=['oporders','products','stores','sales','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
   allTabs.forEach(t=>{
     const panelId=t==='oporders'?'emp-subtab-operator':
                   ['daysheet','workers','empwages','expenses','emppoints','settings'].includes(t)?'emp-subtab-'+t:
@@ -8549,11 +8550,10 @@ function switchOpTab(tab){
   if(tab==='products') loadOpProducts(true);
   if(tab==='stores') loadOpStores(true);
   if(tab==='sales') initSalesTab();
-  if(tab==='account'){loadAcctStoreList();checkOperatorDayStatus();}
   if(tab==='balance') loadBalanceTab();
   if(tab==='oporders'){_opOrdersFilter='all';document.querySelectorAll('#opOrdersChips .order-stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});loadOperatorOrders();}
   if(tab==='daysheet'){const d=document.getElementById('daysheet_date');if(d&&!d.value)d.value=jordanDateStr();loadDaySheet();}
-  if(tab==='workers')loadEmpWorkers();
+  if(tab==='workers'){loadEmpWorkers();if(typeof loadWorkerAccounts==='function')loadWorkerAccounts();}
   if(tab==='empwages')loadEmpWages();
   if(tab==='expenses'){const d=document.getElementById('expDate');if(d&&!d.value)d.value=jordanDateStr();loadExpenses();}
   if(tab==='emppoints')loadAdminEmpPoints();
@@ -10331,7 +10331,6 @@ let _acctCurrentGroupName='';
 async function openAcctDetail(storeId, storeName){
   _acctCurrentStore={id:storeId,name:storeName};
   document.getElementById('opacct_detail_title').textContent='🏪 '+storeName;
-  document.getElementById('opacct-store-list').style.display='none';
   document.getElementById('opacct-detail-view').style.display='block';
   const body=document.getElementById('opacct_detail_body');
   body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
@@ -10364,7 +10363,6 @@ async function openGroupAcctDetail(groupName){
   _acctCurrentGroupName=groupName;
   _acctCurrentStore={id:'__grp__'+groupName,name:groupName,isGroup:true,groupStores};
   document.getElementById('opacct_detail_title').textContent='👥 '+groupName;
-  document.getElementById('opacct-store-list').style.display='none';
   document.getElementById('opacct-detail-view').style.display='block';
   const body=document.getElementById('opacct_detail_body');
   body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">⏳ تحميل...</div>';
@@ -10718,14 +10716,13 @@ async function editStoreSalePrice(id,currentUnitPrice,qty){
   }catch(e){toast('❌ خطأ: '+e.message);}
 }
 
+// إغلاق شاشة كشف حساب المتجر — ما ضلّ في قائمة نرجعلها، فبس منخبّيها.
+// وما منصفّر بيانات الجلسة لأنّ لوحات الرصيد بتقرأ منها.
 function backToAcctList(){
-  document.getElementById('opacct-store-list').style.display='block';
-  document.getElementById('opacct-detail-view').style.display='none';
-  document.getElementById('opacct-operator-view').style.display='none';
+  const d=document.getElementById('opacct-detail-view');
+  if(d) d.style.display='none';
   _acctCurrentStore=null;_acctCurrentSales=[];_acctCurrentPayments=[];_acctCurrentRefunds=[];
   _acctGroupMode=false;_acctCurrentGroupName='';
-  _opDailySales=[];_opDayRecord=null;_opDayOrders=[];
-  checkOperatorDayStatus();
 }
 
 function printAcctStatement(){
@@ -10804,6 +10801,7 @@ function whatsappAcctStatement(){
 }
 
 async function loadAcctStoreList(){
+  if(!document.getElementById('opacct_stores_wrap')) return;   // التاب انحذف
   if(!_opStoresList.length) await loadOpStores();
   const wrap=document.getElementById('opacct_stores_wrap');
   if(!wrap) return;
@@ -11011,8 +11009,7 @@ async function loadSessionArchive(){
 }
 
 async function openOperatorDailyAccount(sessionId){
-  document.getElementById('opacct-store-list').style.display='none';
-  document.getElementById('opacct-operator-view').style.display='block';
+  // شاشة الكشف انحذفت — ضلّت الدالّة لتحميل جلسةٍ بعينها فقط
   if(sessionId&&typeof sessionId==='string'&&sessionId.length>10){
     const snap=await db.collection('operator_sessions').doc(sessionId).get();
     if(snap.exists) _opCurrentSession={id:snap.id,...snap.data()};
@@ -11072,6 +11069,11 @@ async function _loadOpSessionData(){
   const body=document.getElementById('opacct_op_body');
   const actionsWrap=document.getElementById('opacct_op_actions');
   if(body) body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:20px;">⏳ تحميل...</div>';
+  // ما ضلّ في شاشة تفتح كشفاً يدوياً، فمنفتحه لحالنا لمّا ما يكون في —
+  // وإلا وقفت لوحات الرصيد كلّها لأنّها بتقرأ من نفس الجلسة.
+  if(!_opCurrentSession&&typeof _ensureOpenSession==='function'){
+    try{ await _ensureOpenSession(); }catch(e){}
+  }
   if(!_opCurrentSession){
     if(body) body.innerHTML=`<div style="text-align:center;padding:40px;background:var(--card-bg);border:1.5px dashed var(--border);border-radius:14px;"><div style="font-size:2rem;margin-bottom:8px;">📋</div><div style="font-weight:700;color:var(--text-dark);margin-bottom:6px;">لا يوجد كشف مفتوح</div><div style="font-size:0.8rem;color:#9ca3af;margin-bottom:16px;">أنشئ كشفاً جديداً لبدء تسجيل المبيعات</div><button onclick="openNewSession()" style="padding:12px 24px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">➕ فتح كشف جديد</button></div>`;
     if(actionsWrap) actionsWrap.innerHTML='';
@@ -11357,7 +11359,9 @@ function renderOperatorDailyView(){
   const elStores=document.getElementById('cc-stores');
   const elProfit=document.getElementById('cc-profit');
   const actionsWrap=document.getElementById('opacct_op_actions');
-  if(!kashfBody||!actionsWrap) return;
+  // شاشة الكشف انحذفت — اللوحات الثلاث (التحصيل/المتاجر/الأرباح) بتاب الرصيد
+  // هي المقصد. فما منوقف الرسم لو ما لقينا عناصر الكشف.
+  if(!elColl&&!elStores&&!elProfit&&!kashfBody) return;
   const isClosed=_opDayRecord&&_opDayRecord.status==='closed';
   const totExp=(_opDayExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totWages=(_opSessionWagePays||[]).reduce((s,w)=>s+parseFloat(w.amount||0),0);
@@ -11372,12 +11376,12 @@ function renderOperatorDailyView(){
   const cpLbl=document.getElementById('cc_period_lbl'); if(cpLbl) cpLbl.textContent='مباشر';
   // Only skip render when closed and truly nothing to show
   if(isClosed&&!_opDailySales.length&&!_opDayOrders.length&&!_opWithdrawals.length){
-    kashfBody.innerHTML=_warnCC+closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
+    if(kashfBody) kashfBody.innerHTML=_warnCC+closedBanner+'<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:24px;background:var(--card-bg);border-radius:12px;border:1px dashed var(--border);">لا يوجد مبيعات في هذه الفترة</div>';
     if(elColl) elColl.innerHTML=_warnCC+closedBanner+_emptyCC;
     if(elStores) elStores.innerHTML=_emptyCC;
     if(elProfit) elProfit.innerHTML=_emptyCC;
     if(typeof _renderCcGauge==='function')_renderCcGauge(0,0,0);
-    actionsWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الكشف مغلق</div>';
+    if(actionsWrap) actionsWrap.innerHTML='<div style="text-align:center;color:#dc2626;font-size:0.85rem;font-weight:700;padding:10px;">🔒 الكشف مغلق</div>';
     return;
   }
   // ===== الكشف: جدول المبيعات المبسّط (منتج/كمية/سعر البيع/الإجمالي) — لفترة الكشف القابلة للتصفير فقط =====
@@ -11394,7 +11398,7 @@ function renderOperatorDailyView(){
     const srows=pr.map(p=>`<tr style="border-bottom:1px solid var(--border);font-size:0.82rem;"><td style="padding:9px 10px;font-weight:600;color:var(--text-dark);">${p.name}</td><td style="padding:9px 10px;text-align:center;color:var(--text-mid);">${p.qty}</td><td style="padding:9px 10px;text-align:center;color:#166534;">${(p.sell/p.qty).toFixed(2)}</td><td style="padding:9px 10px;text-align:center;font-weight:800;color:#166534;">${p.sell.toFixed(2)}</td></tr>`).join('');
     kashfHtml+=`<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:340px;"><thead><tr style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:#fff;font-size:0.76rem;"><th style="padding:11px 10px;text-align:right;font-weight:700;">🛍 المنتج</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الكمية</th><th style="padding:11px 10px;text-align:center;font-weight:700;">سعر البيع</th><th style="padding:11px 10px;text-align:center;font-weight:700;">الإجمالي</th></tr></thead><tbody>${srows}</tbody><tfoot><tr style="background:#f0fdf4;font-size:0.86rem;font-weight:900;border-top:2px solid #86efac;"><td style="padding:11px 10px;color:#166534;">الإجمالي</td><td style="padding:11px 10px;text-align:center;color:#166534;">${totQty}</td><td style="padding:11px 10px;"></td><td style="padding:11px 10px;text-align:center;color:#166534;">${totSellK.toFixed(2)} د.أ</td></tr></tfoot></table></div></div>`;
   }
-  kashfBody.innerHTML=_warnCC+kashfHtml;
+  if(kashfBody) kashfBody.innerHTML=_warnCC+kashfHtml;
   // ===== الحسابات: ثلاثة بافرات لثلاث لوحات (التحصيل / المتاجر / الأرباح) =====
   let collHtml='';   // لوحة التحصيل
   let storesHtml=''; // لوحة المتاجر
@@ -11649,6 +11653,7 @@ function renderOperatorDailyView(){
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(242,166,160,.14);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر</button>
           </div>`:''}
+          ${store.storeId?`<button onclick="openAcctDetail('${store.storeId}','${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>`:''}
         </div>
         ${refundBlock}
         ${acctRow}
@@ -12018,7 +12023,7 @@ function renderOperatorDailyView(){
   const printBtn=`<button onclick="printOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🖨️ طباعة</button>`;
   const waBtn=`<button onclick="whatsappOperatorDay()" style="flex:1;min-width:100px;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">📱 واتساب</button>`;
   const deliverRepsBtn=`<button onclick="fetchRepDeliveries(this)" style="flex:1;min-width:100px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🚚 جلب طلبات التوصيل</button>`;
-  actionsWrap.innerHTML=`<button onclick="resetKashfPeriod()" style="flex:1;min-width:100px;padding:12px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔄 بدء فترة كشف جديدة</button>${deliverRepsBtn}${printBtn}${waBtn}`;
+  if(actionsWrap) actionsWrap.innerHTML=`<button onclick="resetKashfPeriod()" style="flex:1;min-width:100px;padding:12px;background:#d97706;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">🔄 بدء فترة كشف جديدة</button>${deliverRepsBtn}${printBtn}${waBtn}`;
 }
 
 // تصفير عرض «الكشف» فقط (فترة مبيعات جديدة) — لا يؤثر على مركز الحسابات إطلاقاً
@@ -12627,7 +12632,7 @@ async function removeOrderFromStatement(orderId){
 }
 
 async function fetchRepDeliveries(btn){
-  if(!_opCurrentSession){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   if(btn){btn.disabled=true;btn.textContent='⏳ جاري الجلب...';}
   try{
     const from=_opCurrentSession.openedDate;
@@ -12688,7 +12693,6 @@ async function editSessionStartDate(){
   }catch(e){toast('❌ '+e.message);}
 }
 function showAddWithdrawalModal(){
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   if(!_opStoresList.length){toast('⚠️ جاري تحميل المتاجر...');loadOpStores().then(()=>showAddWithdrawalModal());return;}
   const storeOptions=_opStoresList.map(s=>`<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join('');
   const today=jordanDateStr();
@@ -12719,6 +12723,7 @@ function showAddWithdrawalModal(){
 }
 
 async function saveOperatorWithdrawal(){
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const storeEl=document.getElementById('wd_store');
   const amountEl=document.getElementById('wd_amount');
   const dateEl=document.getElementById('wd_date');
@@ -12781,7 +12786,7 @@ async function deleteOperatorWithdrawal(wid){
 // ضبط صافي التحصيل على الكاش الموجود فعلياً — يسجّل الفرق كتسوية موثّقة
 // (المعادلة تبدأ من صفر ولا تعرف الكاش الذي كان معك قبل فتح الكشف)
 async function adjustCashToActual(){
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const cur=Number(window._ccCurrentNet||0);
   const raw=prompt(`💵 كم الكاش الموجود معك فعلياً الآن؟\n\nالنظام يحسب: ${cur.toFixed(2)} د.أ`);
   if(raw===null)return;
@@ -12818,7 +12823,7 @@ window.deleteCashAdjust=deleteCashAdjust;
 
 // شراء مواد خام يدوي — ينخصم من الكاش (التحصيل المتوقع) فقط، مش من الأرباح ولا مربوط بأبو يحيى
 async function addRawBuy(){
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const raw=prompt('💵 مبلغ شراء المواد الخام (د.أ):');
   if(raw===null)return;
   const amount=parseFloat(raw);
@@ -12851,7 +12856,7 @@ async function addRawBuy(){
 
 // تسجيل مصروف مشغل مباشرة من لوحة التحصيل — يُخصم من الكاش
 async function addOpExpense(){
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const raw=prompt('💵 مبلغ المصروف (د.أ):');
   if(raw===null)return;
   const amount=parseFloat(raw);
@@ -12902,7 +12907,6 @@ function _wdCashToggle(isPayment){
 }
 
 function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const today=jordanDateStr();
   const isPayment=type==='payment';
   const overlay=document.createElement('div');
@@ -12931,6 +12935,7 @@ function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
 }
 
 async function saveGroupWithdrawal(){
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const groupName=document.getElementById('wd_group_name_fixed')?.value||'';
   const withdrawalType=document.getElementById('wd_withdrawal_type')?.value||'withdrawal';
   const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
@@ -12970,7 +12975,6 @@ async function saveGroupWithdrawal(){
 }
 
 function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
-  if(!_opCurrentSession||_opCurrentSession.status==='closed'){toast('⚠️ لا يوجد كشف مفتوح');return;}
   const today=jordanDateStr();
   const isPayment=type==='payment';
   const overlay=document.createElement('div');
@@ -13004,6 +13008,7 @@ function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
 }
 
 async function saveOperatorWithdrawalFixed(){
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const storeId=document.getElementById('wd_store_id_fixed')?.value||'';
   const storeName=document.getElementById('wd_store_name_fixed')?.value||'';
   const withdrawalType=document.getElementById('wd_withdrawal_type')?.value||'withdrawal';
@@ -18496,6 +18501,12 @@ async function _ensureOpenSession(){
   })();
   try{return await _ensureSessionPromise;}finally{_ensureSessionPromise=null;}
 }
+// ما ضلّ في شاشة تفتح الكشف يدوياً، فبدل ما نوقف الحركة منفتح وحدة لحالنا
+async function _needSession(){
+  if(_opCurrentSession&&_opCurrentSession.status!=='closed') return true;
+  try{ await _ensureOpenSession(); }catch(e){}
+  return !!(_opCurrentSession&&_opCurrentSession.status!=='closed');
+}
 
 // ═══ كشف شبحيّ: تحذير وإصلاح ═══
 // حين يوجد أكثر من كشف مفتوح، الأقدم هو حسابك الحقيقي والباقي أُنشئ بالخطأ.
@@ -19483,7 +19494,7 @@ async function addRwTx(){
   const notes=document.getElementById('rw_notes').value.trim();
   if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   if(!date){toast('⚠️ اختر التاريخ');return;}
-  if(!_opCurrentSession||!_opCurrentSession.id){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const txData={
     type:'withdraw',subType:'operator_expense',amount,date,notes,
     sessionId:_opCurrentSession.id,
@@ -19685,7 +19696,7 @@ async function addRentPayment(){
   const notes=(document.getElementById('rent_pay_notes').value||'').trim();
   if(isNaN(amount)||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
   if(!date){toast('⚠️ اختر التاريخ');return;}
-  if(!_opCurrentSession||!_opCurrentSession.id){toast('⚠️ لا يوجد كشف مفتوح');return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   try{
     await db.collection('rosemary_transactions').add({
       type:'rent_payment',amount,date,notes,
