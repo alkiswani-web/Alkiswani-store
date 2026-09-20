@@ -11906,7 +11906,7 @@ function renderOperatorDailyView(){
               ${_noDlv?_ccStat('🧾 التكلفة عليه',stCost,'amber'):_ccStat('💸 مسحوب',storeWdTotal,'red')}
               ${_noDlv?_ccStat('✅ دفعتلهم',acctPaid+acctRefund,'green')
                       :_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
-              ${_noDlv?_ccStat('💸 سحب من كاشي',storeWdTotal,'green'):''}
+              ${(_noDlv&&storeWdTotal>0.009)?_ccStat('💸 سحب من كاشي (قديم)',storeWdTotal,'green'):''}
               ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
               ${stDirNote}
               ${stHeldNote}
@@ -11915,8 +11915,7 @@ function renderOperatorDailyView(){
           ${storeWds.length?`<button onclick="toggleBalSection('stwd_${store.storeId||store.name.length}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:11px;color:#f2a6a0;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;margin-bottom:10px;"><span>💸 المسحوبات (${storeWds.length})</span><span style="font-size:0.72rem;">▼</span></button>
           <div id="stwd_${store.storeId||store.name.length}" style="display:none;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:2px 12px;margin-bottom:12px;">${wdRows}</div>`:''}
           ${!isClosed?`<div style="display:flex;gap:8px;">
-            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(242,166,160,.14);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
-            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر</button>
+            <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر — دفعتلهم أو قبضتُ منهم</button>
           </div>`:''}
           ${!store.storeId?`<button onclick="hideStoreCard('${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(242,166,160,.1);color:#f2a6a0;border:1px solid rgba(242,166,160,.28);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">🗑️ هذا المتجر محذوف — خبّي كرته</button>`:''}
           ${store.storeId?`<button onclick="openAcctDetail('${store.storeId}','${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>`:''}
