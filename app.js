@@ -3563,10 +3563,12 @@ function _spCost(p){
   return (Number(p.rawMaterialCost)||0)+(Number(p.treeCost)||0)
        + (Number(p.machineWorkerWage)||0)+(Number(p.assemblyWorkerWage)||0);
 }
-async function openStorePrices(){
+async function openStorePrices(storeId){
   if(!_opProductsList.length) await loadOpProducts(true);
   if(!_opStoresList.length){toast('⚠️ ما في متاجر — ضيف متجر أولاً');return;}
   if(!_opProductsList.length){toast('⚠️ ما في منتجات');return;}
+  // لمّا تجي من كرت متجر، بتفتح عليه مباشرةً بدل ما تدوّر عليه
+  if(storeId&&_opStoresList.some(x=>x.id===storeId)) _spStoreId=storeId;
   _spStoreId=_spStoreId||_opStoresList[0].id;
   _spSrcId='';_spOver=false;_spQ='';
   document.getElementById('storePricesModal')?.remove();
@@ -11150,6 +11152,9 @@ function _srInOrder(id,o){const f=_srFrom(id);return !f||(_crOrderDate(o)||_srDa
 // سجلّ مختصر بكل حركات الحساب مع تاريخها — عشان شاشة إعادة الضبط تقدر
 // تحسب المستحق لأي تاريخ تجرّبه قبل ما تحفظ. [تاريخ, نوع, مبلغ]
 let _srRaw={};
+// منتجاتٌ انباعت لمتجرٍ بلا «سعر البيع لهذا المتجر» — تكلفتُها وقعت على
+// تكلفة التصنيع بصمت، فالرقم بيطلع غلط والمعلّم ما بيعرف ليش.
+let _srNoPrice={};
 function _srRawPush(id,d,k,v){if(!id||!v)return;(_srRaw[id]=_srRaw[id]||[]).push([d||'',k,v]);}
 // المستحق لو بلّشنا الحساب من هذا التاريخ برصيد افتتاحي op
 function _srOwedFrom(id,f,op){
@@ -11396,7 +11401,7 @@ async function _loadOpSessionData(){
     ]);
     await _loadStoreReset();
     await _loadStoreHidden();
-    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_srRaw={};
+    _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_srRaw={};_srNoPrice={};
     // الرصيد الافتتاحي يحلّ محلّ كل ما قبل تاريخ البداية
     Object.keys(_storeReset).forEach(id=>{
       if(_srOn(id)) _opAcctOwed[id]=_srOpening(id);
@@ -11404,6 +11409,17 @@ async function _loadOpSessionData(){
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
       _srRawPush(s.storeId,_srDate(s),'o',(s.sellPrice||0)*(s.qty||1)); // للمعاينة قبل الحفظ
       if(!_srIn(s.storeId,s))return;   // قبل بداية الحساب — مطويّ
+      // هل هذا المنتج إله سعرٌ لهذا المتجر؟ إذا لأ فتكلفتُه تخمينٌ لا سعر
+      if((_opProductsList||[]).length){
+        const _p=_prodById(s.productId)||(_opProductsList||[]).find(x=>x.name===s.productName);
+        const _sp=_p&&_p.storePrices&&Number(_p.storePrices[s.storeId]);
+        if(!_sp){
+          const b=_srNoPrice[s.storeId]||(_srNoPrice[s.storeId]={n:0,names:[]});
+          b.n++;
+          const nm=s.productName||(_p&&_p.name)||'منتج';
+          if(b.names.indexOf(nm)<0&&b.names.length<6) b.names.push(nm);
+        }
+      }
       const qty=s.qty||1;
       // sellPrice = السعر الرسمي (المستحق دائماً). soldPrice = السعر الفعلي يلي انباع فيه.
       const official=(s.sellPrice||0);
@@ -11879,6 +11895,8 @@ function renderOperatorDailyView(){
       // موجب = عليك تدفعلهم (أحمر)، سالب = إلك تسحبه (أزرق)
       const stSafiBg=stSafi>0.009?'#fee2e2':'#eef2ff';
       const stSafiColor=stSafi>0.009?'#dc2626':'#4338ca';
+      const _np=_noDlv?_srNoPrice[store.storeId]:null;
+      const _npNote=(_np&&_np.n)?`<div style="grid-column:1/-1;font-size:0.68rem;text-align:center;padding:6px 9px;border-radius:9px;line-height:1.8;background:rgba(231,198,107,.1);border:1px solid rgba(231,198,107,.3);color:#e7c66b;">⚠️ <b>${_np.n}</b> مبيعة بلا «سعر البيع لهذا المتجر» — تكلفتها انحسبت من تكلفة التصنيع فالرقم تقريبي<br><span style="color:#f3e0a6;">${_np.names.map(_clrEsc).join(' · ')}</span><br><button onclick="openStorePrices('${store.storeId}')" style="margin-top:5px;padding:5px 12px;background:rgba(231,198,107,.18);color:#f3e0a6;border:1px solid rgba(231,198,107,.35);border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.7rem;font-weight:800;cursor:pointer;">🏪 حدّد أسعارهم</button></div>`:'';
       const stDirNote=Math.abs(stSafi)<0.01?'':`<div style="grid-column:1/-1;font-size:0.68rem;text-align:center;padding:5px 8px;border-radius:9px;line-height:1.7;background:${stSafi>0?'rgba(242,166,160,.1)':'rgba(110,231,168,.1)'};border:1px solid ${stSafi>0?'rgba(242,166,160,.28)':'rgba(110,231,168,.28)'};color:${stSafi>0?'#f2a6a0':'#6ee7a8'};">${stSafi>0?`📤 عليك تدفعلهم <b>${stSafi.toFixed(2)}</b>`:`📥 إلك <b>${Math.abs(stSafi).toFixed(2)}</b>`}</div>`;
       // When inside a group: compact view — no per-store session balance/withdrawals/account balance
       if(inGroup){
@@ -11908,6 +11926,7 @@ function renderOperatorDailyView(){
                       :_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
               ${(_noDlv&&storeWdTotal>0.009)?_ccStat('💸 سحب من كاشي (قديم)',storeWdTotal,'green'):''}
               ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
+              ${_npNote}
               ${stDirNote}
               ${stHeldNote}
             </div>
