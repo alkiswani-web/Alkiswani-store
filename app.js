@@ -3406,9 +3406,11 @@ function _srPrev(id){
     .reduce((t,w)=>t+(w.amount||0),0);
   // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
   const matloub=_srOwedFrom(id,f,op);
-  const safi=elig-Math.abs(matloub)-wd;
+  const safi=matloub-elig+wd;   // موجب = عليك تدفعلهم، سالب = بدّك منهم
   const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
-  el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق ${mTxt} ⇒ الصافي <b style="color:${safi>=0?'#166534':'#dc2626'};">${safi.toFixed(2)}</b>`;
+  const sTxt=safi>0.009?`<b style="color:#dc2626;">عليك تدفعلهم ${safi.toFixed(2)}</b>`
+    :safi<-0.009?`<b style="color:#1e40af;">إلك ${Math.abs(safi).toFixed(2)}</b>`:`<b style="color:#166534;">مسوّى 0.00</b>`;
+  el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق ${mTxt} ⇒ الصافي ${sTxt}`;
 }
 async function srSave(){
   try{
@@ -11592,9 +11594,9 @@ function renderOperatorDailyView(){
         </div>`:'';
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
-      // أي مبلغ لسا مش محسوم بيخصم من الصافي — سواء إلهم عندك أو بدّك منهم،
-      // لأنّه بالحالتين مش كاش بإيدك. فبناخد مقداره بلا نظر لاتجاهه.
-      const stSafi=store.eligibleTotal-Math.abs(stMatloub)-storeWdTotal;
+      // الصافي = «كم عليك تدفعلهم»: موجب ⇒ عليك تدفعلهم، سالب ⇒ إلك/بدّك منهم.
+      // المستحق ناقص اللي قبضتَه من كاشهم وزائد اللي سحبتَه لإلك.
+      const stSafi=stMatloub-store.eligibleTotal+storeWdTotal;
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
@@ -11603,11 +11605,13 @@ function renderOperatorDailyView(){
       const _srOp=_srOpening(store.storeId);
       const _srOpTxt=_srOp?(_srOp<0?` · بدايته <b>بدّك منهم ${Math.abs(_srOp).toFixed(2)}</b>`:` · بدايته <b>إلهم عندك ${_srOp.toFixed(2)}</b>`):'';
       const _srBadge=_srOn(store.storeId)?`<div style="padding:6px 15px;background:rgba(110,231,168,.08);border-top:1px solid rgba(110,231,168,.18);font-size:0.66rem;color:#6ee7a8;">♻️ حساب جديد من <b>${_srFrom(store.storeId)}</b>${_srOpTxt}</div>`:'';
-      const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
+      const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi-stHeld).toFixed(2)}</b></div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
-      const stSafiBg=stSafi>=0?'#eef2ff':'#fee2e2';
-      const stSafiColor=stSafi>=0?'#4338ca':'#dc2626';
+      // موجب = عليك تدفعلهم (أحمر)، سالب = إلك تسحبه (أزرق)
+      const stSafiBg=stSafi>0.009?'#fee2e2':'#eef2ff';
+      const stSafiColor=stSafi>0.009?'#dc2626':'#4338ca';
+      const stDirNote=Math.abs(stSafi)<0.01?'':`<div style="grid-column:1/-1;font-size:0.68rem;text-align:center;padding:5px 8px;border-radius:9px;line-height:1.7;background:${stSafi>0?'rgba(242,166,160,.1)':'rgba(110,231,168,.1)'};border:1px solid ${stSafi>0?'rgba(242,166,160,.28)':'rgba(110,231,168,.28)'};color:${stSafi>0?'#f2a6a0':'#6ee7a8'};">${stSafi>0?`📤 عليك تدفعلهم <b>${stSafi.toFixed(2)}</b>`:`📥 إلك <b>${Math.abs(stSafi).toFixed(2)}</b>`}</div>`;
       // When inside a group: compact view — no per-store session balance/withdrawals/account balance
       if(inGroup){
         return `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(231,198,107,.16);border-radius:15px;overflow:hidden;margin-bottom:8px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
@@ -11633,7 +11637,8 @@ function renderOperatorDailyView(){
               ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
               ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
               ${_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
-              ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
+              ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
+              ${stDirNote}
               ${stHeldNote}
             </div>
           </div>
@@ -11678,11 +11683,11 @@ function renderOperatorDailyView(){
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
       // المربعات الأربعة للمجموعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const grpMatloub=grpAcctBal; // المطلوب للمجموعة (تراكمي)
-      const grpSafi=grpEligible-Math.abs(grpMatloub)-grpWdTotal;
+      const grpSafi=grpMatloub-grpEligible+grpWdTotal;
       // المجموعة حسابٌ واحد: مركز الدفعات يعرض صافيها لا صافي كل متجر فيها
       _opStoreNets['__grp__'+groupName]={name:groupName,isGroup:true,
         eligible:grpEligible||0,wd:grpWdTotal||0,matloub:grpMatloub||0,safi:grpSafi||0};
-      const grpSafiColor=grpSafi>=0?'#fff':'#fca5a5';
+      const grpSafiColor=grpSafi>0.009?'#fca5a5':'#fff';
       const grpWdRows=grpWds.map(w=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:6px;">
           <div style="flex:1;min-width:0;font-size:0.72rem;color:#9fc7b4;">${w.notes?w.notes+' — ':''}${w.date||''}${w.noCash?' <span style="color:#e7c66b;font-weight:700;">(بدون كاش)</span>':''}</div>
@@ -11703,7 +11708,7 @@ function renderOperatorDailyView(){
               ${_ccStat('💰 قابل للسحب',grpEligible,'green')}
               ${_ccStat('💸 مسحوب',grpWdTotal,'red')}
               ${_ccStat(grpMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(grpMatloub),'amber')}
-              ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
+              ${_ccStat(grpSafi>0.009?'📤 الصافي عليك':'✅ الصافي',grpSafi,grpSafi>0.009?'red':'gold')}
             </div>
           </div>
           ${grpWds.length?`<button onclick="toggleBalSection('grpwd_${safeGrpName.replace(/[^a-z0-9؀-ۿ]/gi,'')}',this)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.06);border-radius:11px;color:#f2a6a0;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;margin-bottom:10px;"><span>💸 المسحوبات (${grpWds.length})</span><span style="font-size:0.72rem;">▼</span></button>
@@ -12290,10 +12295,9 @@ function _payHubRows(){
       const held=Number(n.held)||0;
       const sub=`قابل للسحب ${(n.eligible||0).toFixed(2)} − مسحوب ${(n.wd||0).toFixed(2)} − مستحق ${(n.matloub||0).toFixed(2)}`
         +(held>0.009?` · ⏳ ${held.toFixed(2)} حاسبت شركةُ التوصيل المتجرَ عليها`:'');
-      // صافٍ سالبٌ سببُه كاشٌ لسا عند شركة التوصيل مش دَيناً على المتجر —
-      // فالاتجاه يُحسب بعد ما نرجّع المبلغ اللي بالطريق، وإلا ظهر المتجرُ
-      // الدائنُ مديناً وطلع بـ«إلك تقبض» وهو مالُه بإيدك.
-      const dir=(Number(n.safi)||0)+held;
+      // الصافي هون «كم عليك تدفعلهم» (موجب = عليك). والكاش اللي لسا عند شركة
+      // التوصيل بينقص من اللي عليك لمّا تقبضه، وإلا ظهر المتجرُ الدائنُ مديناً.
+      const dir=(Number(n.safi)||0)-held;
       const icon=n.isGroup?'👥':'🏪';
       const nm=(n.name||'متجر')+(n.isGroup?' (مجموعة)':'');
       const g=_payEsc(n.name);
