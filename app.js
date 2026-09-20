@@ -3345,6 +3345,7 @@ window.cbSave=cbSave;
 async function openStoreReset(){
   if(!_opStoresList.length) await loadOpStores(true);
   await _loadStoreReset(true);
+  await _loadStoreHidden(true);
   const rows=(_opStoresList||[]).filter(x=>!x.archived);
   if(!rows.length){toast('⚠️ ما في متاجر');return;}
   const F="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;";
@@ -3386,6 +3387,10 @@ async function openStoreReset(){
           <div id="sr_p_${st.id}" style="font-size:0.68rem;color:#6b7280;margin-top:6px;line-height:1.7;"></div>
         </div>`;}).join('')}
     </div>
+    ${(_storeHidden||[]).length?`<div style="padding:9px 14px;border-top:1px solid #e5e7eb;background:#fafafa;">
+      <div style="font-size:0.7rem;font-weight:800;color:#6b7280;margin-bottom:6px;">🗑️ متاجر مخفيّة (${_storeHidden.length})</div>
+      ${_storeHidden.map(n=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:0.78rem;color:#374151;"><span>${_clrEsc(n)}</span><button onclick="unhideStoreCard('${_clrEsc(n).replace(/'/g,"&#39;")}')" style="padding:4px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">↩️ رجّعه</button></div>`).join('')}
+    </div>`:''}
     <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
       <button onclick="srSave()" style="width:100%;padding:13px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">💾 احفظ إعادة الضبط</button>
     </div>
@@ -9738,9 +9743,21 @@ async function unarchiveOpStore(id){
 async function deleteOpStore(id){
   if(!confirm('حذف نهائي؟\n⚠️ ملاحظة: مبيعات ودفعات المتجر ستبقى محفوظة، والحذف قد يخربط حساب المجموعة. يُفضّل الأرشفة بدل الحذف.\nمتابعة الحذف؟')) return;
   try{
+    // كرت المتجر مبنيٌّ من الطلبات، فحذفُ السجلّ وحده كان بيخلّي كرتاً شبحاً
+    // بكل أرقامه. منسجّل اسمه بالمخفيّين عشان يختفي فعلاً.
+    const nm=((_opAllStoresList||[]).find(x=>x.id===id)||{}).name||'';
     await db.collection('operator_stores').doc(id).delete();
+    if(nm){
+      try{
+        await _loadStoreHidden(true);
+        const list=Array.from(new Set([...(_storeHidden||[]),nm]));
+        await db.collection('operator_config').doc('store_hidden').set({names:list},{merge:false});
+        _storeHidden=list;
+      }catch(e){}
+    }
     toast('✅ تم الحذف');
     loadOpStores();
+    if(typeof renderOperatorDailyView==='function') renderOperatorDailyView();
   }catch(e){toast('❌ خطأ في الحذف');}
 }
 
@@ -10938,6 +10955,39 @@ function _srOn(id){return !!_srFrom(id);}
 // تاريخ السجلّ — المبيعة والدفعة والمسحوب كلّها تحمل date
 function _srDate(x){return (x&&(x.date||x.deliveredDate))||'';}
 function _srIn(id,x){const f=_srFrom(id);return !f||_srDate(x)>=f;}
+// متاجر محذوفة أو مخفيّة: كرت المتجر مبنيٌّ من الطلبات لا من سجلّ المتجر،
+// فحذفُ المتجر ما كان بيشيل كرته. هاي قائمة الأسماء اللي بدنا نخبّيها.
+let _storeHidden=[];
+async function _loadStoreHidden(force){
+  if(!force&&_storeHidden.length) return _storeHidden;
+  try{
+    const d=await db.collection('operator_config').doc('store_hidden').get();
+    _storeHidden=(d.exists&&d.data().names)||[];
+  }catch(e){_storeHidden=[];}
+  return _storeHidden;
+}
+function _shHidden(name){return (_storeHidden||[]).indexOf(String(name||''))>=0;}
+async function hideStoreCard(name){
+  if(!confirm(`إخفاء «${name}» من حسابات المتاجر؟\n\nطلباته ومبيعاته بتضلّ محفوظة وبتضلّ بالكاش — بس كرته ما بيبيّن.\nبتقدر ترجّعه من شاشة «♻️ إعادة ضبط».`)) return;
+  try{
+    const list=Array.from(new Set([...(_storeHidden||[]),String(name)]));
+    await db.collection('operator_config').doc('store_hidden').set({names:list},{merge:false});
+    _storeHidden=list;
+    toast('🗑️ انخفى «'+name+'»');
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+async function unhideStoreCard(name){
+  try{
+    const list=(_storeHidden||[]).filter(n=>n!==String(name));
+    await db.collection('operator_config').doc('store_hidden').set({names:list},{merge:false});
+    _storeHidden=list;
+    toast('↩️ رجع «'+name+'»');
+    const m=document.getElementById('srModal'); if(m){m.remove();openStoreReset();}
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.hideStoreCard=hideStoreCard; window.unhideStoreCard=unhideStoreCard;
 // الطلب تاريخُه تاريخ التسليم أولاً — نفس اللي بيتعرض بالكرت
 function _srInOrder(id,o){const f=_srFrom(id);return !f||(_crOrderDate(o)||_srDate(o))>=f;}
 // سجلّ مختصر بكل حركات الحساب مع تاريخها — عشان شاشة إعادة الضبط تقدر
@@ -11185,6 +11235,7 @@ async function _loadOpSessionData(){
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
     await _loadStoreReset();
+    await _loadStoreHidden();
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_srRaw={};
     // الرصيد الافتتاحي يحلّ محلّ كل ما قبل تاريخ البداية
     Object.keys(_storeReset).forEach(id=>{
@@ -11471,6 +11522,11 @@ function renderOperatorDailyView(){
     const byStore={};
     _opDayOrders.forEach(o=>{
       const sname=o.pageName||o.storeName||o.source||'الموقع الإلكتروني';
+      // متجر مؤرشف («سيختفي من الحسابات») أو خبّيتَه بإيدك ⇒ ما إله كرت.
+      // طلباته بتضلّ بالكاش والتحصيل زي ما هي — بس ما بتعمل كرت متجر.
+      if(_shHidden(sname)) return;
+      const _reg=(_opAllStoresList||[]).find(x=>x.name===sname);
+      if(_reg&&_reg.archived) return;
       if(!byStore[sname]){
         const storeObj=(_opStoresList||[]).find(s=>s.name===sname);
         byStore[sname]={name:sname,storeId:storeObj?.id||null,group:storeObj?.group||null,orders:[],total:0,eligibleTotal:0,courierHeld:0};
@@ -11675,6 +11731,7 @@ function renderOperatorDailyView(){
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(242,166,160,.14);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💸 مسحوب</button>
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر</button>
           </div>`:''}
+          ${!store.storeId?`<button onclick="hideStoreCard('${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(242,166,160,.1);color:#f2a6a0;border:1px solid rgba(242,166,160,.28);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">🗑️ هذا المتجر محذوف — خبّي كرته</button>`:''}
           ${store.storeId?`<button onclick="openAcctDetail('${store.storeId}','${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>`:''}
         </div>
         ${refundBlock}
