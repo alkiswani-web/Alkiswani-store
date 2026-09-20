@@ -3406,7 +3406,7 @@ function _srPrev(id){
     .reduce((t,w)=>t+(w.amount||0),0);
   // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
   const matloub=_srOwedFrom(id,f,op);
-  const safi=elig-matloub-wd;
+  const safi=elig-Math.abs(matloub)-wd;
   const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
   el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق ${mTxt} ⇒ الصافي <b style="color:${safi>=0?'#166534':'#dc2626'};">${safi.toFixed(2)}</b>`;
 }
@@ -11592,7 +11592,9 @@ function renderOperatorDailyView(){
         </div>`:'';
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
-      const stSafi=store.eligibleTotal-stMatloub-storeWdTotal;
+      // أي مبلغ لسا مش محسوم بيخصم من الصافي — سواء إلهم عندك أو بدّك منهم،
+      // لأنّه بالحالتين مش كاش بإيدك. فبناخد مقداره بلا نظر لاتجاهه.
+      const stSafi=store.eligibleTotal-Math.abs(stMatloub)-storeWdTotal;
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
@@ -11630,7 +11632,7 @@ function renderOperatorDailyView(){
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
               ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
-              ${_ccStat('🧾 المستحق',stMatloub,'amber')}
+              ${_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
               ${_ccStat('✅ الصافي',stSafi,stSafi>=0?'gold':'red')}
               ${stHeldNote}
             </div>
@@ -11676,7 +11678,7 @@ function renderOperatorDailyView(){
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
       // المربعات الأربعة للمجموعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const grpMatloub=grpAcctBal; // المطلوب للمجموعة (تراكمي)
-      const grpSafi=grpEligible-grpMatloub-grpWdTotal;
+      const grpSafi=grpEligible-Math.abs(grpMatloub)-grpWdTotal;
       // المجموعة حسابٌ واحد: مركز الدفعات يعرض صافيها لا صافي كل متجر فيها
       _opStoreNets['__grp__'+groupName]={name:groupName,isGroup:true,
         eligible:grpEligible||0,wd:grpWdTotal||0,matloub:grpMatloub||0,safi:grpSafi||0};
@@ -11700,7 +11702,7 @@ function renderOperatorDailyView(){
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               ${_ccStat('💰 قابل للسحب',grpEligible,'green')}
               ${_ccStat('💸 مسحوب',grpWdTotal,'red')}
-              ${_ccStat('🧾 المستحق',grpMatloub,'amber')}
+              ${_ccStat(grpMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(grpMatloub),'amber')}
               ${_ccStat('✅ الصافي',grpSafi,grpSafi>=0?'gold':'red')}
             </div>
           </div>
@@ -12417,7 +12419,10 @@ function _payHubLedger(){
     p.id?`ewDeletePayment('${_payEsc(p.id)}')`:''));
   (_opWithdrawals||[]).forEach(w=>{
     const isPay=w.withdrawalType==='payment';
-    push(w.date,isPay?'💳':'💸',(isPay?'دفعة متجر':'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),w.amount,isPay?'in':'out',
+    const isIn=isPay&&(w.amount||0)<0;   // دفعة بالسالب = قبضتُ من المتجر
+    push(w.date,isPay?(isIn?'💰':'💳'):'💸',
+      (isPay?(isIn?'قبض من متجر':'دفعة متجر'):'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),
+      isIn?-(w.amount||0):w.amount,isPay?'in':'out',
       w.id?`deleteOperatorWithdrawal('${_payEsc(w.id)}')`:'');
   });
   (_opDayExpenses||[]).forEach(e=>push(e.date,'🧾','مصروف'+(e.category&&e.category!=='أخرى'?' · '+e.category:''),e.amount,'out',
@@ -12972,6 +12977,11 @@ function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
       <input type="hidden" id="wd_store_id_fixed" value="${storeId}">
       <input type="hidden" id="wd_store_name_fixed" value="${storeName}">
       <input type="hidden" id="wd_withdrawal_type" value="${type}">
+      ${isPayment?`<label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الاتجاه</label>
+      <select id="wd_pay_dir" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;background:#fff;">
+        <option value="1">💳 دفعتلهم — دفعة للمتجر</option>
+        <option value="-1">💰 قبضتُ منهم — المتجر دفعلي</option>
+      </select>`:''}
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
       <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
@@ -12992,12 +13002,15 @@ async function saveOperatorWithdrawalFixed(){
   const storeId=document.getElementById('wd_store_id_fixed')?.value||'';
   const storeName=document.getElementById('wd_store_name_fixed')?.value||'';
   const withdrawalType=document.getElementById('wd_withdrawal_type')?.value||'withdrawal';
-  const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
+  const amountRaw=parseFloat(document.getElementById('wd_amount')?.value||'0');
   const date=document.getElementById('wd_date')?.value||jordanDateStr();
   const notes=(document.getElementById('wd_notes')?.value||'').trim();
   const noCash=document.getElementById('wd_from_cash')?.checked===false;
   if(!storeName){toast('⚠️ خطأ: لا يوجد متجر');return;}
-  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!amountRaw||amountRaw<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  // «قبضتُ منهم» = دفعة بالسالب: بتنقص المدفوع فبيرجع المستحق لصفر، وبتزيد الكاش
+  const isIn=withdrawalType==='payment'&&document.getElementById('wd_pay_dir')?.value==='-1';
+  const amount=isIn?-amountRaw:amountRaw;
   try{
     const batch=db.batch();
     const wRef=db.collection('operator_withdrawals').doc();
@@ -13019,7 +13032,7 @@ async function saveOperatorWithdrawalFixed(){
     await batch.commit();
     if(withdrawalType==='payment') _opAcctPaid[storeId]=(_opAcctPaid[storeId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
-    toast((withdrawalType==='payment'?'✅ تم تسجيل الدفعة':'✅ تم تسجيل المسحوب')+(noCash?' — بدون مساس بالكاش':''));
+    toast((withdrawalType==='payment'?(isIn?'✅ تم تسجيل القبض':'✅ تم تسجيل الدفعة'):'✅ تم تسجيل المسحوب')+(noCash?' — بدون مساس بالكاش':''));
     await _loadOpWithdrawals();
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
