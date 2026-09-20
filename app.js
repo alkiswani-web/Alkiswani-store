@@ -3505,18 +3505,17 @@ function _srPrev(id){
   const op=_srSigned('sr',id);
   if(!f){el.innerHTML='<span style="color:#9ca3af;">بلا تاريخ = الحساب زي ما هو، ما بيتغيّر إشي.</span>';return;}
   const st=(_opStoresList||[]).find(x=>x.id===id)||{};
-  const ords=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName)===st.name&&(_crOrderDate(o)||_srDate(o))>=f);
-  const amt=o=>Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
-  const elig=ords.reduce((t,o)=>t+amt(o),0);
   const wd=(_opWithdrawals||[]).filter(w=>_wdForStore(w,st.name,id)&&w.withdrawalType!=='payment'&&_srDate(w)>=f)
     .reduce((t,w)=>t+(w.amount||0),0);
   // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
   const matloub=_srOwedFrom(id,f,op);
-  const safi=matloub-elig-wd;   // المستحق − قابل للسحب − مسحوب
+  // متجر بدون توصيل: كاش التوصيل برّا الحساب
+  const safi=matloub-wd;
   const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
+  void 0;
   const sTxt=safi>0.009?`<b style="color:#dc2626;">عليك تدفعلهم ${safi.toFixed(2)}</b>`
     :safi<-0.009?`<b style="color:#1e40af;">إلك ${Math.abs(safi).toFixed(2)}</b>`:`<b style="color:#166534;">مسوّى 0.00</b>`;
-  el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق ${mTxt} ⇒ الصافي ${sTxt}`;
+  el.innerHTML=`من <b>${f}</b>: المستحق ${mTxt} · مسحوب <b>${wd.toFixed(2)}</b> ⇒ الصافي ${sTxt}`;
 }
 // «ابدأ من اليوم» — بيحطّ تاريخ اليوم فبيصير كل إشي صفر وما بيضلّ غير الرقم
 function srToday(id){
@@ -11845,10 +11844,13 @@ function renderOperatorDailyView(){
         </div>`:'';
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
-      // المعادلة زي ما حدّدها المعلّم:
-      //   المستحق (تكاليف) − قابل للسحب − مسحوب = الصافي
-      // موجب ⇒ عليك تدفعلهم · سالب ⇒ إلك · صفر ⇒ مسوّى
-      const stSafi=stMatloub-store.eligibleTotal-storeWdTotal;
+      // متجرٌ مُعاد ضبطه = «متجر بدون توصيل»: كاش التوصيل ما إله دخل بحسابه
+      // إطلاقاً، فحسابُه مبيعاتُه وما دفعوه وما سحبوه وبس. وطلبٌ جديد بيزيد
+      // المستحق ⇒ بيزيد الصافي، لا العكس.
+      // وغير المُعاد ضبطه بيضلّ على المعادلة القديمة: المستحق − قابل للسحب − مسحوب.
+      const _noDlv=_srOn(store.storeId);
+      const stSafi=_noDlv?(stMatloub-storeWdTotal)
+                         :(stMatloub-store.eligibleTotal-storeWdTotal);
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
@@ -11886,8 +11888,8 @@ function renderOperatorDailyView(){
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:${storeWds.length||!isClosed?'12px':'2px'};">
             ${_ccRing(acctOwed>0?acctPaid/acctOwed:(store.eligibleTotal>0?1:0),'محصّل')}
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              ${_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
-              ${_ccStat('💸 مسحوب',storeWdTotal,'red')}
+              ${_noDlv?_ccStat('🧾 مبيعاته',acctOwed,'green'):_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
+              ${_noDlv?_ccStat('✅ مدفوع',acctPaid,'green'):_ccStat('💸 مسحوب',storeWdTotal,'red')}
               ${_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
               ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
               ${stDirNote}
