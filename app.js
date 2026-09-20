@@ -3363,7 +3363,11 @@ async function openStoreReset(){
     <div style="padding:9px 14px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;font-size:0.68rem;color:#166534;line-height:1.8;">
       ✅ ما بينحذف ولا سجلّ — بينطوي بس. بتشيل التاريخ وبيرجع كل شي.<br>
       ✅ <b>رأس المال ما بيتأثّر</b> — حسابه (المتفق + المشتريات − الخام) ما إله علاقة بالمتاجر.<br>
-      ✅ ومن تاريخ البداية، كل طلبات المتجر بتدخل حسابه <b>بلا نظر للمندوب</b>.
+      ✅ ومن تاريخ البداية، كل طلبات المتجر بتدخل حسابه <b>بلا نظر للمندوب</b>.<br>
+      ✅ واللي قبل التاريخ بينطوي كلّه: الطلبات والمبيعات والمسحوبات والمرتجعات ⇒ <b>كل إشي صفر</b>.
+    </div>
+    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;">
+      <button onclick="srAllToday()" style="width:100%;padding:11px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:800;cursor:pointer;">📅 ابدأ كل المتاجر من اليوم</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:8px 12px;">
       ${rows.map(st=>{
@@ -3374,6 +3378,7 @@ async function openStoreReset(){
             <input type="date" id="sr_f_${st.id}" value="${f}" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:132px;">
             <input type="number" step="0.01" min="0" id="sr_o_${st.id}" value="${op?Math.abs(op):''}" placeholder="المبلغ" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:98px;">
           </div>
+          <button onclick="srToday('${st.id}')" style="margin-top:6px;width:100%;padding:8px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📅 ابدأ من اليوم — صفّر كل إشي</button>
           <select id="sr_s_${st.id}" onchange="_srPrev('${st.id}')" style="${F}margin-top:6px;background:#fff;">
             <option value="1"${op<0?'':' selected'}>⬅️ باقي إلهم عندي (مصاريهم معي)</option>
             <option value="-1"${op<0?' selected':''}>➡️ باقي بدّي منهم (مصاريي معهم)</option>
@@ -3399,7 +3404,7 @@ function _srPrev(id){
   const op=_srSigned('sr',id);
   if(!f){el.innerHTML='<span style="color:#9ca3af;">بلا تاريخ = الحساب زي ما هو، ما بيتغيّر إشي.</span>';return;}
   const st=(_opStoresList||[]).find(x=>x.id===id)||{};
-  const ords=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName)===st.name&&_srDate(o)>=f);
+  const ords=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName)===st.name&&(_crOrderDate(o)||_srDate(o))>=f);
   const amt=o=>Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
   const elig=ords.reduce((t,o)=>t+amt(o),0);
   const wd=(_opWithdrawals||[]).filter(w=>_wdForStore(w,st.name,id)&&w.withdrawalType!=='payment'&&_srDate(w)>=f)
@@ -3411,6 +3416,17 @@ function _srPrev(id){
   const sTxt=safi>0.009?`<b style="color:#dc2626;">عليك تدفعلهم ${safi.toFixed(2)}</b>`
     :safi<-0.009?`<b style="color:#1e40af;">إلك ${Math.abs(safi).toFixed(2)}</b>`:`<b style="color:#166534;">مسوّى 0.00</b>`;
   el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق ${mTxt} ⇒ الصافي ${sTxt}`;
+}
+// «ابدأ من اليوم» — بيحطّ تاريخ اليوم فبيصير كل إشي صفر وما بيضلّ غير الرقم
+function srToday(id){
+  const el=document.getElementById('sr_f_'+id);
+  if(!el) return;
+  el.value=jordanDateStr();
+  _srPrev(id);
+}
+function srAllToday(){
+  (_opStoresList||[]).forEach(st=>{ if(document.getElementById('sr_f_'+st.id)) srToday(st.id); });
+  toast('📅 كل المتاجر بلّشت من اليوم — اكتب الأرقام واحفظ');
 }
 async function srSave(){
   try{
@@ -3430,6 +3446,7 @@ async function srSave(){
   }catch(e){toast('❌ '+e.message);}
 }
 window.openStoreReset=openStoreReset; window._srPrev=_srPrev; window.srSave=srSave;
+window.srToday=srToday; window.srAllToday=srAllToday;
 
 // ═══════════ أسعار متجر — دفعة وحدة ═══════════
 // متجر جديد يعني سعرٌ لكل منتج. تفتح كل منتج وتكتب رقماً واحداً وتحفظ —
@@ -10921,6 +10938,8 @@ function _srOn(id){return !!_srFrom(id);}
 // تاريخ السجلّ — المبيعة والدفعة والمسحوب كلّها تحمل date
 function _srDate(x){return (x&&(x.date||x.deliveredDate))||'';}
 function _srIn(id,x){const f=_srFrom(id);return !f||_srDate(x)>=f;}
+// الطلب تاريخُه تاريخ التسليم أولاً — نفس اللي بيتعرض بالكرت
+function _srInOrder(id,o){const f=_srFrom(id);return !f||(_crOrderDate(o)||_srDate(o))>=f;}
 // سجلّ مختصر بكل حركات الحساب مع تاريخها — عشان شاشة إعادة الضبط تقدر
 // تحسب المستحق لأي تاريخ تجرّبه قبل ما تحفظ. [تاريخ, نوع, مبلغ]
 let _srRaw={};
@@ -11456,6 +11475,9 @@ function renderOperatorDailyView(){
         const storeObj=(_opStoresList||[]).find(s=>s.name===sname);
         byStore[sname]={name:sname,storeId:storeObj?.id||null,group:storeObj?.group||null,orders:[],total:0,eligibleTotal:0,courierHeld:0};
       }
+      // «نصفّر كل اشي»: متجرٌ أُعيد ضبطه ما بيشوف ولا طلباً قبل تاريخ البداية —
+      // لا بالعدّ ولا بالإجمالي ولا بـ«عند الشركة». بداية نظيفة فعلاً.
+      if(_srOn(byStore[sname].storeId)&&!_srInOrder(byStore[sname].storeId,o)) return;
       const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
       // شركة محاسبة = كاشها ما وصل. الطلب برّا الكاش وبرّا «قابل للسحب»
       // بغضّ النظر عن تاريخه — القبضة وحدها بتزيد الكاش.
@@ -11466,7 +11488,7 @@ function renderOperatorDailyView(){
       // للمندوب — «المتاجر ما إلها دخل بالتوصيل». وقبل التاريخ مطويٌّ كلّه.
       const _sid=byStore[sname].storeId;
       const inStore=_srOn(_sid)
-        ? _srIn(_sid,o)
+        ? _srInOrder(_sid,o)
         : _crInStore(o);
       if(inStore) byStore[sname].eligibleTotal+=amt;
       // بس منتذكّر كم من كاش هذا المتجر عند الشركة، عشان «الصافي» السالب
@@ -11557,7 +11579,7 @@ function renderOperatorDailyView(){
         </button>
         <div id="${_dlvKey}" style="display:none;">${eligBlocks}${exclBlocks}</div>`:'';
       // Session refunds for this store
-      const storeRefunds=(_opSessionRefunds||[]).filter(r=>r.storeId===store.storeId);
+      const storeRefunds=(_opSessionRefunds||[]).filter(r=>r.storeId===store.storeId&&_srIn(store.storeId,r));
       const storeRefundTotal=storeRefunds.reduce((s,r)=>s+(r.totalCost||0),0);
       const refundBlock=storeRefunds.length?`
         <div style="border-top:1.5px dashed #fecaca;margin:0;">
