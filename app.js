@@ -3406,7 +3406,7 @@ function _srPrev(id){
     .reduce((t,w)=>t+(w.amount||0),0);
   // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
   const matloub=_srOwedFrom(id,f,op);
-  const safi=matloub-elig+wd;   // موجب = عليك تدفعلهم، سالب = بدّك منهم
+  const safi=matloub-elig-wd;   // المستحق − قابل للسحب − مسحوب
   const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
   const sTxt=safi>0.009?`<b style="color:#dc2626;">عليك تدفعلهم ${safi.toFixed(2)}</b>`
     :safi<-0.009?`<b style="color:#1e40af;">إلك ${Math.abs(safi).toFixed(2)}</b>`:`<b style="color:#166534;">مسوّى 0.00</b>`;
@@ -11594,9 +11594,10 @@ function renderOperatorDailyView(){
         </div>`:'';
       // المربعات الأربعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const stMatloub=acctBal; // المطلوب للمتجر (المستحق الباقي تراكمياً)
-      // الصافي = «كم عليك تدفعلهم»: موجب ⇒ عليك تدفعلهم، سالب ⇒ إلك/بدّك منهم.
-      // المستحق ناقص اللي قبضتَه من كاشهم وزائد اللي سحبتَه لإلك.
-      const stSafi=stMatloub-store.eligibleTotal+storeWdTotal;
+      // المعادلة زي ما حدّدها المعلّم:
+      //   المستحق (تكاليف) − قابل للسحب − مسحوب = الصافي
+      // موجب ⇒ عليك تدفعلهم · سالب ⇒ إلك · صفر ⇒ مسوّى
+      const stSafi=stMatloub-store.eligibleTotal-storeWdTotal;
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
@@ -11683,7 +11684,7 @@ function renderOperatorDailyView(){
       const grpAcctColor=grpAcctBal>0?'#fde68a':grpAcctBal<0?'#bbf7d0':'rgba(255,255,255,0.6)';
       // المربعات الأربعة للمجموعة: قابل للسحب − مسحوب − مطلوب = الصافي
       const grpMatloub=grpAcctBal; // المطلوب للمجموعة (تراكمي)
-      const grpSafi=grpMatloub-grpEligible+grpWdTotal;
+      const grpSafi=grpMatloub-grpEligible-grpWdTotal;
       // المجموعة حسابٌ واحد: مركز الدفعات يعرض صافيها لا صافي كل متجر فيها
       _opStoreNets['__grp__'+groupName]={name:groupName,isGroup:true,
         eligible:grpEligible||0,wd:grpWdTotal||0,matloub:grpMatloub||0,safi:grpSafi||0};
