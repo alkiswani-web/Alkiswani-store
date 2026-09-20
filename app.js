@@ -3790,6 +3790,123 @@ async function spSave(){
 window.openStorePrices=openStorePrices; window.spPickStore=spPickStore;
 window.spSearch=spSearch; window.spFill=spFill; window.spSave=spSave; window._spSum=_spSum;
 
+// ─────────── وارد وصرف لمنتجات الترقيم الخاص ───────────
+// نفس نظام الشانيل بالضبط، بس المخزون على المنتج نفسه لا بمكتبة الألوان.
+let _pnMode='in', _pnProdId='';
+function pnMode(m){_pnMode=m;openProdStock(_pnProdId,true);}
+function pnPickProd(id){_pnProdId=id;openProdStock(id,true);}
+async function openProdStock(prodId,keep){
+  if(!keep)_pnMode='in';
+  if(!_opProductsList.length) await loadOpProducts(true);
+  const prods=(_opProductsList||[]).filter(p=>_prodOwnColors(p));
+  if(!prods.length){toast('⚠️ ما في منتجات بترقيم خاص');return;}
+  _pnProdId=(prodId&&prods.some(p=>p.id===prodId))?prodId:(_pnProdId&&prods.some(p=>p.id===_pnProdId)?_pnProdId:prods[0].id);
+  const prod=_prodById(_pnProdId);
+  const nums=_ownNums(prod);
+  const OUT=_pnMode==='out';
+  document.getElementById('pnStockModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='pnStockModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:${OUT?'#b45309':'#1e40af'};">${OUT?'📤 صرف من المخزون':'📥 وارد جديد'}</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">اكتب <b>${OUT?'اللي طلع بس':'اللي إجاك بس'}</b> — البرنامج ${OUT?'بينقّصه من':'بيجمعه على'} الموجود</div>
+      </div>
+      <button onclick="document.getElementById('pnStockModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#f0fdf4;">
+      <select onchange="pnPickProd(this.value)" style="width:100%;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:700;background:#fff;color:#166534;outline:none;cursor:pointer;">
+        ${prods.map(x=>`<option value="${x.id}" ${x.id===_pnProdId?'selected':''}>${_clrEsc(x.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+      <button onclick="pnMode('in')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#e5e7eb':'#2563eb'};background:${OUT?'#fff':'#2563eb'};color:${OUT?'#6b7280':'#fff'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📥 وارد (+)</button>
+      <button onclick="pnMode('out')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#b45309':'#e5e7eb'};background:${OUT?'#b45309':'#fff'};color:${OUT?'#fff':'#6b7280'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📤 صرف (−)</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px 12px;">
+      ${nums.length?nums.map(n=>{const cur=_ownQty(prod,n)||0;
+        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid #f3f4f6;">
+        <div style="width:34px;height:34px;border-radius:8px;background:#f3f4f6;border:1.5px solid #e5e7eb;display:grid;place-items:center;flex-shrink:0;font-weight:900;font-size:0.72rem;color:#374151;">${n}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.84rem;font-weight:700;color:#111827;">لون ${n}</div>
+          <div style="font-size:0.67rem;color:${cur>0?'#9ca3af':'#dc2626'};">${cur>0?'عندك '+cur:'خلص'}</div>
+        </div>
+        <span style="color:${OUT?'#b45309':'#16a34a'};font-weight:900;font-size:0.9rem;">${OUT?'−':'+'}</span>
+        <input id="pni_${n}" data-cur="${cur}" type="number" min="0" placeholder="0" oninput="_pnPrev(${n})"
+          style="width:66px;padding:8px;border:1.5px solid ${OUT?'#fde68a':'#bfdbfe'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
+        <span id="pnt_${n}" style="font-size:0.78rem;font-weight:800;color:#d1d5db;min-width:38px;text-align:center;">—</span>
+      </div>`;}).join('')
+      :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:24px;">ما في أرقام لهذا المنتج — ضيفهم من شاشة المنتج</div>'}
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
+      <div id="pnSum" style="font-size:0.74rem;color:#6b7280;text-align:center;margin-bottom:8px;">ما دخّلت ولا رقم بعد</div>
+      ${OUT?'<div style="font-size:0.66rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 9px;margin-bottom:8px;line-height:1.7;">⚠️ الصرف بينقّص المخزون بس — ما بيسجّل طلب ولا مبيعة ولا مصاري. لو البيعة لازم تنحسب عليك، سجّلها طلب عادي.</div>':''}
+      <button onclick="pnStockSave()" style="width:100%;padding:13px;background:${OUT?'#b45309':'#2563eb'};color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">${OUT?'📤 انقص من المخزون':'📥 ضيف الوارد'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _pnPrev(n){
+  const el=document.getElementById('pni_'+n),out=document.getElementById('pnt_'+n);
+  if(!el||!out)return;
+  const cur=Number(el.getAttribute('data-cur'))||0;
+  const v=parseInt(el.value);
+  if(isNaN(v)||v<=0){out.textContent='—';out.style.color='#d1d5db';}
+  else{
+    const nv=_pnMode==='out'?Math.max(0,cur-v):cur+v;
+    out.textContent='⇒ '+nv;out.style.color=_pnMode==='out'?'#b45309':'#16a34a';
+  }
+  const prod=_prodById(_pnProdId);
+  let cnt=0,tot=0;
+  _ownNums(prod).forEach(k=>{const e=document.getElementById('pni_'+k);
+    const x=e?parseInt(e.value):NaN;if(!isNaN(x)&&x>0){cnt++;tot+=x;}});
+  const sum=document.getElementById('pnSum');
+  if(sum) sum.textContent=cnt?`${cnt} رقم · ${tot} حبّة ${_pnMode==='out'?'بتنقص':'بتزيد'}`:'ما دخّلت ولا رقم بعد';
+}
+async function pnStockSave(){
+  const OUT=_pnMode==='out';
+  const prod=_prodById(_pnProdId);
+  if(!prod){toast('⚠️ اختار منتج');return;}
+  const add=[];
+  _ownNums(prod).forEach(n=>{
+    const el=document.getElementById('pni_'+n);
+    if(!el||el.value==='')return;
+    const v=parseInt(el.value);
+    if(isNaN(v)||v<=0)return;
+    add.push({n,v,cur:Number(el.getAttribute('data-cur'))||0});
+  });
+  if(!add.length){toast(OUT?'⚠️ اكتب المصروف لواحد على الأقل':'⚠️ اكتب الوارد لواحد على الأقل');return;}
+  try{
+    const u={};let capped=0,tot=0;
+    add.forEach(({n,v,cur})=>{
+      // ما بنصرف أكثر من الموجود — بنصفّره وبنقوله
+      const d=OUT?-Math.min(v,cur):v;
+      if(OUT&&v>cur)capped++;
+      u['ownColorQty.'+n]=firebase.firestore.FieldValue.increment(d);
+      tot+=Math.abs(d);
+    });
+    await db.collection('operator_products').doc(_pnProdId).update(u);
+    // القائمتان بتشاركا نفس الكائنات، فبنجمّعهم بمجموعة عشان ما ينعدّ مرّتين
+    const seen=new Set();
+    [_opProductsList,_empSharedProducts].forEach(arr=>{
+      (arr||[]).forEach(pr=>{
+        if(pr.id!==_pnProdId||seen.has(pr)||!pr.ownColorQty)return;
+        seen.add(pr);
+        add.forEach(({n,v,cur})=>{
+          pr.ownColorQty[n]=(Number(pr.ownColorQty[n])||0)+(OUT?-Math.min(v,cur):v);
+        });
+      });
+    });
+    document.getElementById('pnStockModal')?.remove();
+    toast(`${OUT?'📤 انصرف':'📥 انضاف'} ${tot} حبّة على ${add.length} رقم`+(capped?` — ${capped} صفّرناهم لأنّ المطلوب أكثر من الموجود`:''));
+    _invalidateQuery&&_invalidateQuery('operator_products');
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openProdStock=openProdStock; window.pnMode=pnMode; window.pnPickProd=pnPickProd;
+window._pnPrev=_pnPrev; window.pnStockSave=pnStockSave;
+
 // ─────────── وارد جديد ───────────
 // الجرد بيكتب الرقم النهائي، والوارد بيضيف عليه. الفرق مش شكلي: إجتك بضاعة
 // وإنت بتحسب ٩+١٠ براسك وبتكتب ١٩ — ولو نزل طلب بهاي اللحظة بتمسح خصمه.
@@ -8759,6 +8876,7 @@ const OP_FAM=[
   // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
   {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
                                       ['@colors','🎨 ألوان ومخزون','openColorLib()'],
+                                      ['@pnstock','📦 وارد وصرف','openProdStock()'],
                                       ['stores','🏪 المتاجر']]},
   {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات']]}
 ];
