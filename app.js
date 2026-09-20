@@ -3372,8 +3372,12 @@ async function openStoreReset(){
           <div style="font-weight:800;font-size:0.87rem;color:#111827;margin-bottom:7px;">🏪 ${_clrEsc(st.name)}</div>
           <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
             <input type="date" id="sr_f_${st.id}" value="${f}" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:132px;">
-            <input type="number" step="0.01" id="sr_o_${st.id}" value="${op||''}" placeholder="باقي إلهم عندك" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:120px;">
+            <input type="number" step="0.01" min="0" id="sr_o_${st.id}" value="${op?Math.abs(op):''}" placeholder="المبلغ" oninput="_srPrev('${st.id}')" style="${F}flex:1;min-width:98px;">
           </div>
+          <select id="sr_s_${st.id}" onchange="_srPrev('${st.id}')" style="${F}margin-top:6px;background:#fff;">
+            <option value="1"${op<0?'':' selected'}>⬅️ باقي إلهم عندي (مصاريهم معي)</option>
+            <option value="-1"${op<0?' selected':''}>➡️ باقي بدّي منهم (مصاريي معهم)</option>
+          </select>
           <div id="sr_p_${st.id}" style="font-size:0.68rem;color:#6b7280;margin-top:6px;line-height:1.7;"></div>
         </div>`;}).join('')}
     </div>
@@ -3384,10 +3388,15 @@ async function openStoreReset(){
   document.body.appendChild(ov);
   rows.forEach(st=>_srPrev(st.id));
 }
+// المبلغ مع اتجاهه: موجب = مصاريهم عندي، سالب = مصاريي عندهم (بدّي منهم)
+function _srSigned(pfx,key){
+  const v=Math.abs(parseFloat(document.getElementById(pfx+'_o_'+key)?.value)||0);
+  return (document.getElementById(pfx+'_s_'+key)?.value==='-1')?-v:v;
+}
 function _srPrev(id){
   const el=document.getElementById('sr_p_'+id);if(!el)return;
   const f=document.getElementById('sr_f_'+id)?.value||'';
-  const op=parseFloat(document.getElementById('sr_o_'+id)?.value)||0;
+  const op=_srSigned('sr',id);
   if(!f){el.innerHTML='<span style="color:#9ca3af;">بلا تاريخ = الحساب زي ما هو، ما بيتغيّر إشي.</span>';return;}
   const st=(_opStoresList||[]).find(x=>x.id===id)||{};
   const ords=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName)===st.name&&_srDate(o)>=f);
@@ -3398,7 +3407,8 @@ function _srPrev(id){
   // المستحق = الافتتاحي + مبيعات بعد التاريخ − مدفوع ومرتجع بعده
   const matloub=_srOwedFrom(id,f,op);
   const safi=elig-matloub-wd;
-  el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق <b>${matloub.toFixed(2)}</b> ⇒ الصافي <b style="color:${safi>=0?'#166534':'#dc2626'};">${safi.toFixed(2)}</b>`;
+  const mTxt=matloub<0?`<b style="color:#1e40af;">بدّك منهم ${Math.abs(matloub).toFixed(2)}</b>`:`<b>${matloub.toFixed(2)}</b>`;
+  el.innerHTML=`من <b>${f}</b>: قابل للسحب <b style="color:#166534;">${elig.toFixed(2)}</b> · مسحوب <b>${wd.toFixed(2)}</b> · المستحق ${mTxt} ⇒ الصافي <b style="color:${safi>=0?'#166534':'#dc2626'};">${safi.toFixed(2)}</b>`;
 }
 async function srSave(){
   try{
@@ -3406,8 +3416,7 @@ async function srSave(){
     const cfg={};
     (_opStoresList||[]).forEach(st=>{
       const f=document.getElementById('sr_f_'+st.id)?.value||'';
-      const op=parseFloat(document.getElementById('sr_o_'+st.id)?.value)||0;
-      if(f) cfg[st.id]={from:f,opening:op};
+      if(f) cfg[st.id]={from:f,opening:_srSigned('sr',st.id)};
     });
     await db.collection('operator_config').doc('store_reset').set({cfg},{merge:false});
     _storeReset=cfg;
@@ -11589,7 +11598,9 @@ function renderOperatorDailyView(){
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
         held:stHeld,inGroup:!!inGroup};
       const _heldLine=(stHeld>0.009&&!_srOn(store.storeId))?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر شركةُ التوصيل حاسبت المتجر عليها — فما بتدخل «قابل للسحب»</div>`:'';
-      const _srBadge=_srOn(store.storeId)?`<div style="padding:6px 15px;background:rgba(110,231,168,.08);border-top:1px solid rgba(110,231,168,.18);font-size:0.66rem;color:#6ee7a8;">♻️ حساب جديد من <b>${_srFrom(store.storeId)}</b>${_srOpening(store.storeId)?` · رصيد افتتاحي <b>${_srOpening(store.storeId).toFixed(2)}</b>`:''}</div>`:'';
+      const _srOp=_srOpening(store.storeId);
+      const _srOpTxt=_srOp?(_srOp<0?` · بدايته <b>بدّك منهم ${Math.abs(_srOp).toFixed(2)}</b>`:` · بدايته <b>إلهم عندك ${_srOp.toFixed(2)}</b>`):'';
+      const _srBadge=_srOn(store.storeId)?`<div style="padding:6px 15px;background:rgba(110,231,168,.08);border-top:1px solid rgba(110,231,168,.18);font-size:0.66rem;color:#6ee7a8;">♻️ حساب جديد من <b>${_srFrom(store.storeId)}</b>${_srOpTxt}</div>`:'';
       const stHeldNote=stHeld>0.009?`<div style="grid-column:1/-1;font-size:0.66rem;color:#e7c66b;text-align:center;padding:5px 8px;background:rgba(231,198,107,.08);border:1px solid rgba(231,198,107,.2);border-radius:9px;line-height:1.7;">⏳ و<b>${stHeld.toFixed(2)}</b> من كاش هذا المتجر لسا عند شركة التوصيل — لمّا تقبضها بيصير الصافي <b>${(stSafi+stHeld).toFixed(2)}</b></div>`:'';
       const stMatBg=stMatloub>0.01?'#fff7ed':'#f0fdf4';
       const stMatColor=stMatloub>0.01?'#92400e':'#166534';
@@ -17321,7 +17332,7 @@ async function loadRepAccounting(){
           </div>`:''}
         </div>
         <div style="margin-top:8px;font-size:0.72rem;color:#6b7280;text-align:left;">${count} طلب أخذها (${deliveredCount} مُسلَّم · ${count-deliveredCount} معه) ←</div>
-        ${_rrOn(_k)?`<div style="margin-top:7px;padding:5px 9px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:0.66rem;color:#166534;">♻️ حساب جديد من <b>${_rrFrom(_k)}</b>${_rrOpening(_k)?` · بدايته <b>${_rrOpening(_k).toFixed(2)}</b>`:''}</div>`:''}
+        ${_rrOn(_k)?`<div style="margin-top:7px;padding:5px 9px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:0.66rem;color:#166534;">♻️ حساب جديد من <b>${_rrFrom(_k)}</b>${_rrOpening(_k)?` · بدايته <b>${_rrOpening(_k)<0?'إله عندك '+Math.abs(_rrOpening(_k)).toFixed(2):'بدّك منه '+_rrOpening(_k).toFixed(2)}</b>`:''}</div>`:''}
       </div>`;
     }).join('');
   }catch(e){listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
@@ -17387,8 +17398,12 @@ async function openRepReset(){
           <div style="font-weight:800;font-size:0.87rem;color:#111827;margin-bottom:7px;">🚚 ${_clrEsc(r.name)}${r.phone?` <span style="font-size:0.7rem;font-weight:600;color:#6b7280;">${_clrEsc(r.phone)}</span>`:''}</div>
           <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
             <input type="date" id="rr_f_${kk}" value="${f}" style="${F}flex:1;min-width:132px;">
-            <input type="number" step="0.01" id="rr_o_${kk}" value="${op||''}" placeholder="كم بدّك منه" style="${F}flex:1;min-width:120px;">
+            <input type="number" step="0.01" min="0" id="rr_o_${kk}" value="${op?Math.abs(op):''}" placeholder="المبلغ" style="${F}flex:1;min-width:98px;">
           </div>
+          <select id="rr_s_${kk}" style="${F}margin-top:6px;background:#fff;">
+            <option value="1"${op<0?'':' selected'}>➡️ بدّي منه (مصاريي معه)</option>
+            <option value="-1"${op<0?' selected':''}>⬅️ دفعتله زيادة (إله عندي)</option>
+          </select>
         </div>`;}).join('')}
     </div>
     <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
@@ -17403,8 +17418,7 @@ async function rrSave(){
     document.querySelectorAll('#rrModal [data-rrk]').forEach(box=>{
       const k=box.getAttribute('data-rrk'),kk=k.replace(/[^a-zA-Z0-9]/g,'_');
       const f=document.getElementById('rr_f_'+kk)?.value||'';
-      const op=parseFloat(document.getElementById('rr_o_'+kk)?.value)||0;
-      if(f) cfg[k]={from:f,opening:op};
+      if(f) cfg[k]={from:f,opening:_srSigned('rr',kk)};
     });
     await db.collection('operator_config').doc('rep_reset').set({cfg},{merge:false});
     _repReset=cfg;
@@ -17510,7 +17524,7 @@ async function showRepStatement(phone,name){
       }).join('');
 
       summaryEl.innerHTML=`
-        ${_rrOn(_rk)?`<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:9px 13px;margin-bottom:12px;font-size:0.72rem;color:#166534;line-height:1.8;">♻️ حساب جديد من <b>${_rrFrom(_rk)}</b> — اللي قبله مطويّ${rrOpen?`، وبدايته <b>${rrOpen.toFixed(2)} د.أ</b> مطلوبة منه`:''}</div>`:''}
+        ${_rrOn(_rk)?`<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:9px 13px;margin-bottom:12px;font-size:0.72rem;color:#166534;line-height:1.8;">♻️ حساب جديد من <b>${_rrFrom(_rk)}</b> — اللي قبله مطويّ${rrOpen?(rrOpen<0?`، ومبلّشين بـ<b>${Math.abs(rrOpen).toFixed(2)} د.أ</b> إله عندك`:`، ومبلّشين بـ<b>${rrOpen.toFixed(2)} د.أ</b> مطلوبة منه`):''}</div>`:''}
         ${activeOrders.length>0?`<div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:14px;padding:13px 15px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <span style="font-size:0.88rem;font-weight:800;color:#1e40af;">📦 معه الآن (لم تُسلَّم)</span>
