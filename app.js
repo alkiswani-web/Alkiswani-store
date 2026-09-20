@@ -10933,6 +10933,11 @@ let _opWithdrawals=[];
 let _opDayExpenses=[];
 let _opRawBuys=[]; // مشتريات مواد خام يدوية للكشف الحالي — تُخصم من الكاش (التحصيل المتوقع) فقط
 let _opSessionSupPays=[]; // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
+// دفعات المناديب ضمن الفترة. مندوب «💵 مباشر» كاشُه دخل ساعة التسليم فدفعتُه
+// مجرّد تسليمٍ فعليّ لا تزيد الرصيد. ومندوب «🚚 محاسبة» كاشُه ما دخل، فدفعتُه
+// هي لحظة دخول الكاش.
+let _opSessionRepPays=[];
+function _repExcluded(name){return _crIsCourier(name);}
 let _opDayRecord=null;
 // ═══ إعادة ضبط حساب المتجر ═══
 // بدايةُ حسابٍ جديدة لا حذفٌ للبيانات: من تاريخٍ تختاره، ورصيدٌ افتتاحي
@@ -11184,6 +11189,9 @@ async function _loadOpSessionData(){
     // دفعات الموردين ضمن الكشف الحالي — تُخصم من الكاش
     _P(db.collection('operator_supplier_payments').where('sessionId','==',_sid),
        s=>{_opSessionSupPays=s.docs.map(d=>({id:d.id,...d.data()}));},()=>{_opSessionSupPays=[];}),
+    // دفعات المناديب ضمن الفترة — اللي من مندوب «محاسبة» بتزيد الكاش
+    _P(db.collection('rep_payments').where('date','>=',from).where('date','<=',to),
+       s=>{_opSessionRepPays=s.docs.map(d=>({id:d.id,...d.data()}));},()=>{_opSessionRepPays=[];}),
     // تسويات الكاش اليدوية للكشف الحالي
     _P(db.collection('operator_cash_adjust').where('sessionId','==',_sid),
        s=>{_opCashAdjust=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));},()=>{_opCashAdjust=[];}),
@@ -11859,6 +11867,9 @@ function renderOperatorDailyView(){
     const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId!=='__treeprofit__'&&!_isCourierId(p.supplierId)).reduce((s,p)=>s+(p.amount||0),0);
     // مقبوضات شركات التوصيل: كاشٌ دخل فعلاً لمّا حاسبتك الشركة
     const _collCourierIn=(_opSessionSupPays||[]).filter(p=>!p.noCash&&_isCourierId(p.supplierId)).reduce((s,p)=>s+(p.amount||0),0);
+    // دفعات المناديب المحاسبين: كاشٌ دخل فعلاً لمّا سلّمك المندوب
+    const _collRepIn=(_opSessionRepPays||[])
+      .filter(p=>_repExcluded(p.repName)).reduce((s,p)=>s+(Number(p.amount)||0),0);
     // مرابح الشجر: كاش يدخل من مشغل الشجر لا يخرج إليه
     const _collTreeProfitIn=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId==='__treeprofit__').reduce((s,p)=>s+(p.amount||0),0);
     // رواتب المشغل المدفوعة فعلياً — كاش خرج من نفس الصندوق
@@ -11869,9 +11880,9 @@ function renderOperatorDailyView(){
     const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
     // دفعات السداد (ديون علينا لأشخاص) — كاش خرج من نفس الصندوق تماماً كالإجار
     const _collDebt=(_opSessionDebtPays||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collCourierIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
+    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collCourierIn+_collRepIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
     ccNet=_collNet;
-    ccIn=_collOrdersNet+_collStorePayments+_collTreeProfitIn+Math.max(0,_collAdjust);
+    ccIn=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collRepIn+Math.max(0,_collAdjust);
     ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
@@ -12506,6 +12517,10 @@ function _payHubLedger(){
   // اللي بتشوفه فيه، لا إنّك تدوّر على قسمه. وبالذات قبضةٌ فوق المستحق —
   // صفُّها بيختفي من «إلك تقبض» فما بيضلّ إلها طريقٌ إطلاقاً.
   const push=(date,icon,label,amount,dir,del)=>{if(amount)L.push({date:date||'',icon,label,amount,dir,del:del||''});};
+  (_opSessionRepPays||[]).filter(p=>_repExcluded(p.repName)).forEach(p=>{
+    push(p.date,'🛵','قبضتُ من المندوب'+(p.repName?' · '+p.repName:''),p.amount,'in',
+      p.id?`deleteRepPayment('${_payEsc(p.id)}')`:'');
+  });
   (_opSessionSupPays||[]).forEach(p=>{
     const isCr=_isCourierId(p.supplierId);
     const isIn=p.supplierId==='__treeprofit__'||isCr;
