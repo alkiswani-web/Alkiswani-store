@@ -17410,6 +17410,44 @@ function _rrOpening(k){return Number(k&&_repReset[k]&&_repReset[k].opening)||0;}
 function _rrOn(k){return !!_rrFrom(k);}
 function _rrIn(k,d){const f=_rrFrom(k);return !f||(d||'')>=f;}
 
+// سجلّ حركات كل مندوب مع تاريخها — عشان المعاينة تحسب لأي تاريخ تجرّبه
+// قبل الحفظ. نفس منطق loadRepAccounting بالضبط عشان ما تختلف الأرقام.
+let _rrRaw={};
+async function _rrLoadRaw(reps){
+  _rrRaw={};
+  const _OWED=['delivered','delivering','queued','waiting_rep','onhold','postponed'];
+  const push=(k,d,t,v)=>{if(!k||!v)return;(_rrRaw[k]=_rrRaw[k]||[]).push([d||'',t,v]);};
+  try{
+    const [paySnap,ordSnap]=await Promise.all([
+      db.collection('rep_payments').get(),
+      db.collection('employee_orders').where('status','in',_OWED).get()
+    ]);
+    paySnap.docs.forEach(d=>{const p=d.data();
+      push(_repKey(p.repPhone,p.repName),_srDate(p),'p',p.amount||0);});
+    ordSnap.docs.forEach(d=>{const o=d.data();
+      let ph=String(o.deliveryRepPhone||'').trim();
+      if(!ph&&o.deliveryRepName){const mr=reps.find(r=>_repNorm(r.name)===_repNorm(o.deliveryRepName));if(mr&&mr.phone)ph=mr.phone;}
+      if(!ph&&!o.deliveryRepName)return;
+      const t=(o.netPrice!=null?o.netPrice:(o.totalPrice||0));
+      push(_repKey(ph,o.deliveryRepName),_crOrderDate(o),'o',Math.max(0,t-(o.deliveryFee||0)));});
+  }catch(e){}
+}
+function _rrPrev(k,kk){
+  const el=document.getElementById('rr_p_'+kk);if(!el)return;
+  const f=document.getElementById('rr_f_'+kk)?.value||'';
+  if(!f){el.innerHTML='<span style="color:#9ca3af;">بلا تاريخ = الحساب زي ما هو، ما بيتغيّر إشي.</span>';return;}
+  const op=_srSigned('rr',kk);
+  let owed=0,paid=0;
+  (_rrRaw[k]||[]).forEach(r=>{if(r[0]<f)return;if(r[1]==='o')owed+=r[2];else paid+=r[2];});
+  const bal=op+owed-paid;
+  const bTxt=bal>0.009?`<b style="color:#dc2626;">بدّك منه ${bal.toFixed(2)}</b>`
+    :bal<-0.009?`<b style="color:#1e40af;">إله عندك ${Math.abs(bal).toFixed(2)}</b>`
+    :`<b style="color:#166534;">مسوّى 0.00</b>`;
+  el.innerHTML=`من <b>${f}</b>: طلباته <b style="color:#166534;">${owed.toFixed(2)}</b> · دفع <b>${paid.toFixed(2)}</b>`
+    +(op?` · بدايته <b>${Math.abs(op).toFixed(2)}</b>`:'')+` ⇒ ${bTxt}`;
+}
+window._rrPrev=_rrPrev;
+
 async function openRepReset(){
   await _loadRepReset(true);
   let reps=[];
@@ -17418,6 +17456,7 @@ async function openRepReset(){
     reps=((s.exists&&s.data().reps)||[]).filter(r=>r&&r.name);
   }catch(e){}
   if(!reps.length){toast('⚠️ ما في مناديب مسجّلين');return;}
+  await _rrLoadRaw(reps);
   const F="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;outline:none;";
   document.getElementById('rrModal')?.remove();
   const ov=document.createElement('div');
@@ -17442,13 +17481,14 @@ async function openRepReset(){
         return `<div data-rrk="${_clrEsc(k)}" style="border:1.5px solid ${f?'#bbf7d0':'#e5e7eb'};background:${f?'#f7fdf9':'#fff'};border-radius:12px;padding:10px;margin-bottom:8px;">
           <div style="font-weight:800;font-size:0.87rem;color:#111827;margin-bottom:7px;">🚚 ${_clrEsc(r.name)}${r.phone?` <span style="font-size:0.7rem;font-weight:600;color:#6b7280;">${_clrEsc(r.phone)}</span>`:''}</div>
           <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
-            <input type="date" id="rr_f_${kk}" value="${f}" style="${F}flex:1;min-width:132px;">
-            <input type="number" step="0.01" min="0" id="rr_o_${kk}" value="${op?Math.abs(op):''}" placeholder="المبلغ" style="${F}flex:1;min-width:98px;">
+            <input type="date" id="rr_f_${kk}" value="${f}" oninput="_rrPrev('${_clrEsc(k)}','${kk}')" style="${F}flex:1;min-width:132px;">
+            <input type="number" step="0.01" min="0" id="rr_o_${kk}" value="${op?Math.abs(op):''}" placeholder="المبلغ" oninput="_rrPrev('${_clrEsc(k)}','${kk}')" style="${F}flex:1;min-width:98px;">
           </div>
-          <select id="rr_s_${kk}" style="${F}margin-top:6px;background:#fff;">
+          <select id="rr_s_${kk}" onchange="_rrPrev('${_clrEsc(k)}','${kk}')" style="${F}margin-top:6px;background:#fff;">
             <option value="1"${op<0?'':' selected'}>➡️ بدّي منه (مصاريي معه)</option>
             <option value="-1"${op<0?' selected':''}>⬅️ دفعتله زيادة (إله عندي)</option>
           </select>
+          <div id="rr_p_${kk}" style="font-size:0.68rem;color:#6b7280;margin-top:6px;line-height:1.7;"></div>
         </div>`;}).join('')}
     </div>
     <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
@@ -17456,6 +17496,7 @@ async function openRepReset(){
     </div>
   </div>`;
   document.body.appendChild(ov);
+  reps.forEach(r=>{const k=_repKey(r.phone,r.name);_rrPrev(k,k.replace(/[^a-zA-Z0-9]/g,'_'));});
 }
 async function rrSave(){
   try{
