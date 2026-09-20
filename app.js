@@ -11517,7 +11517,10 @@ function renderOperatorDailyView(){
   // (أُزيل قسم «دفعات المتاجر» المنفصل — صار «مطلوب» + زر «دفعة للمتجر» داخل كل كرت متجر/مجموعة)
   // (أُزيلت «رواتب موظفين المشغل» من لوحة الأرباح — صارت في تبويب «💰 رواتب» المخصّص)
   // ===== Delivered orders + per-store balance =====
-  if(_opDayOrders.length){
+  // حتى لو ما في ولا طلب: في متاجر إلها رصيد ابتدائي لازم تبيّن
+  const _storesNeedCard=(_opStoresList||[]).some(st=>st&&st.name&&!st.archived&&!_shHidden(st.name)
+    &&(_srOn(st.id)||Math.abs((_opAcctOwed[st.id]||0)-(_opAcctPaid[st.id]||0)-(_opAcctRefund[st.id]||0))>0.009));
+  if(_opDayOrders.length||_storesNeedCard){
     const courierHeld={};
     const byStore={};
     _opDayOrders.forEach(o=>{
@@ -11559,6 +11562,17 @@ function renderOperatorDailyView(){
         // «ماسكة إلك» وحدها بتحترم نقطة البداية: اللي قبلها حاسبتْك عليه
         if(_crStillHeld(o)) courierHeld[nm]+=amt;
       }
+    });
+    // متجرٌ ما إله ولا طلب بهالفترة كان ما بيطلعله كرت إطلاقاً — حتى لو
+    // حطّيتله رصيداً ابتدائياً بإعادة الضبط، فالرقم ما بيبيّن بمحلّ.
+    // فمنعمله كرتاً فاضياً إذا كان إله رصيد ابتدائي أو حساب مش مسوّى.
+    (_opStoresList||[]).forEach(st=>{
+      if(!st||!st.name||byStore[st.name]) return;
+      if(_shHidden(st.name)||st.archived) return;
+      const bal=(_opAcctOwed[st.id]||0)-(_opAcctPaid[st.id]||0)-(_opAcctRefund[st.id]||0);
+      if(!_srOn(st.id)&&Math.abs(bal)<0.009) return;
+      byStore[st.name]={name:st.name,storeId:st.id,group:st.group||null,
+        orders:[],total:0,eligibleTotal:0,courierHeld:0};
     });
     // حساب كل شركة محاسبة عن نفس فترة الكشف
     _opCourierNets={};
