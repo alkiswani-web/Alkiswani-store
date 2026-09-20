@@ -2668,11 +2668,17 @@ function _setColorLib(docs){
   _colorLibMap={};_colorLib.forEach(c=>{_colorLibMap[c.code]=c;});
   _colorLibLoaded=true;
 }
+let _colorLibError=false;
 async function loadColorLibrary(force){
   if(_colorLibLoaded&&!force){_startColorLibLive();return _colorLib;}
   try{
     _setColorLib((await db.collection('color_library').get()).docs);
-  }catch(e){_colorLib=[];_colorLibMap={};}
+    _colorLibError=false;
+  }catch(e){
+    // قراءةٌ فشلت مش مكتبةٌ فاضية. الفرق مصيري: «فاضية» بتدعوك تعبّيها
+    // فوق ألوانك الحقيقية اللي ما قدرنا نقرأها.
+    _colorLib=[];_colorLibMap={};_colorLibError=true;
+  }
   _startColorLibLive();
   return _colorLib;
 }
@@ -3108,8 +3114,15 @@ function renderColorLib(){
     `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
     (_colorLib.length?`<button onclick="openColorIntake()" style="padding:7px 12px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📥 وارد جديد</button>`:'')+
     (_colorLib.length?`<button onclick="openColorBulk()" style="padding:7px 12px;background:#1f2937;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📷 صورة وحدة للكل</button>`:'')+
-    (_colorLib.length?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
+    ((_colorLib.length||_colorLibError)?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
 
+  if(_colorLibError){
+    list.innerHTML=`<div style="padding:22px 16px;text-align:center;font-size:0.85rem;line-height:1.9;">
+      <div style="color:#dc2626;font-weight:800;margin-bottom:6px;">⚠️ ما قدرتُ أقرا المكتبة</div>
+      <div style="color:#6b7280;">ألوانك محفوظة زي ما هي — بس القراءة فشلت (نت أو اتصال).<br>تأكّد من النت وجرّب كمان مرّة.<br><b style="color:#b45309;">ولا تضغط «عبّي المكتبة» — بتكتب فوق ألوانك.</b></div>
+      <button onclick="openColorLib()" style="margin-top:12px;padding:9px 18px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;">↻ جرّب كمان مرّة</button></div>`;
+    return;
+  }
   if(!_colorLib.length){
     list.innerHTML=`<div style="padding:22px 16px;text-align:center;color:#6b7280;font-size:0.85rem;line-height:1.9;">
       المكتبة فاضية.<br>اضغط <b>⚡ عبّي المكتبة</b> ليصير عندك سطر لكل رقم موجود حالياً — طلباتك القديمة بتضلّ صحيحة زي ما هي — وبعدها عبّي الأسماء والألوان على راحتك.</div>`;
@@ -3234,6 +3247,7 @@ async function seedColorLibrary(){
   await loadOpProducts(true);
   const max=(_opProductsList||[]).filter(p=>p.hasColorNumbers)
     .reduce((m,p)=>Math.max(m,parseInt(p.colorNumbersCount)||0),0);
+  if(_colorLibError){toast('⚠️ ما قدرتُ أقرا المكتبة — ما بعبّيها وأنا مش متأكّد إنّها فاضية');return;}
   if(max<1){toast('⚠️ ما في منتج بأرقام ألوان — حدّد العدد بالمنتج أولاً');return;}
   if(!confirm(`رح نعمل ${max} لون بالأرقام من ١ لـ${max}، بنفس ترتيبهم الحالي وبدون أسماء.\nطلباتك القديمة ما بتتأثر.\n\nنكمّل؟`))return;
   try{
