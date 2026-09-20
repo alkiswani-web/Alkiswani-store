@@ -3812,11 +3812,18 @@ function pnPickProd(id){_pnProdId=id;openProdStock(id,true);}
 async function openProdStock(prodId,keep){
   if(!keep)_pnMode='in';
   if(!_opProductsList.length) await loadOpProducts(true);
-  const prods=(_opProductsList||[]).filter(p=>_prodOwnColors(p));
-  if(!prods.length){toast('⚠️ ما في منتجات بترقيم خاص');return;}
+  await loadColorLibrary();
+  // كل منتج إله أرقام ألوان — ترقيمه الخاص أو من المكتبة — بمحلّ واحد
+  const prods=(_opProductsList||[]).filter(p=>p&&p.hasColorNumbers);
+  if(!prods.length){toast('⚠️ ما في منتجات بأرقام ألوان');return;}
   _pnProdId=(prodId&&prods.some(p=>p.id===prodId))?prodId:(_pnProdId&&prods.some(p=>p.id===_pnProdId)?_pnProdId:prods[0].id);
   const prod=_prodById(_pnProdId);
-  const nums=_ownNums(prod);
+  const own=_prodOwnColors(prod);
+  const nums=own?_ownNums(prod):_prodColorCodes(prod).filter(n=>_clrSt(n)!=='retired');
+  // مخزون المنتج الخاص عليه هو، ومخزون منتج المكتبة بالمكتبة
+  const curOf=n=>own?(_ownQty(prod,n)||0)
+    :(()=>{const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):0;})();
+  const nameOf=n=>own?('لون '+n):(_clrName(n)+' ('+n+')');
   const OUT=_pnMode==='out';
   document.getElementById('pnStockModal')?.remove();
   const ov=document.createElement('div');
@@ -3840,11 +3847,11 @@ async function openProdStock(prodId,keep){
       <button onclick="pnMode('out')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#b45309':'#e5e7eb'};background:${OUT?'#b45309':'#fff'};color:${OUT?'#fff':'#6b7280'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📤 صرف (−)</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:10px 12px;">
-      ${nums.length?nums.map(n=>{const cur=_ownQty(prod,n)||0;
+      ${nums.length?nums.map(n=>{const cur=curOf(n);const c=own?null:_clr(n);
         return `<div style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid #f3f4f6;">
-        <div style="width:34px;height:34px;border-radius:8px;background:#f3f4f6;border:1.5px solid #e5e7eb;display:grid;place-items:center;flex-shrink:0;font-weight:900;font-size:0.72rem;color:#374151;">${n}</div>
+        <div style="position:relative;width:34px;height:34px;border-radius:8px;${own?'background:#f3f4f6;border:1.5px solid #e5e7eb;':_clrFace(c)+'border:1.5px solid rgba(0,0,0,.14);'}display:grid;place-items:center;flex-shrink:0;overflow:hidden;font-weight:900;font-size:0.72rem;color:#374151;">${own?n:_clrNumChip(c,n,'0.7rem')}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:0.84rem;font-weight:700;color:#111827;">لون ${n}</div>
+          <div style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(nameOf(n))}</div>
           <div style="font-size:0.67rem;color:${cur>0?'#9ca3af':'#dc2626'};">${cur>0?'عندك '+cur:'خلص'}</div>
         </div>
         <span style="color:${OUT?'#b45309':'#16a34a'};font-weight:900;font-size:0.9rem;">${OUT?'−':'+'}</span>
@@ -3852,7 +3859,7 @@ async function openProdStock(prodId,keep){
           style="width:66px;padding:8px;border:1.5px solid ${OUT?'#fde68a':'#bfdbfe'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
         <span id="pnt_${n}" style="font-size:0.78rem;font-weight:800;color:#d1d5db;min-width:38px;text-align:center;">—</span>
       </div>`;}).join('')
-      :'<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:24px;">ما في أرقام لهذا المنتج — ضيفهم من شاشة المنتج</div>'}
+      :`<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:24px;">${own?'ما في أرقام لهذا المنتج — ضيفهم من شاشة المنتج':'ما في ألوان بالمكتبة لهذا المنتج'}</div>`}
     </div>
     <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
       <div id="pnSum" style="font-size:0.74rem;color:#6b7280;text-align:center;margin-bottom:8px;">ما دخّلت ولا رقم بعد</div>
@@ -3873,8 +3880,9 @@ function _pnPrev(n){
     out.textContent='⇒ '+nv;out.style.color=_pnMode==='out'?'#b45309':'#16a34a';
   }
   const prod=_prodById(_pnProdId);
+  const nums=_prodOwnColors(prod)?_ownNums(prod):_prodColorCodes(prod);
   let cnt=0,tot=0;
-  _ownNums(prod).forEach(k=>{const e=document.getElementById('pni_'+k);
+  nums.forEach(k=>{const e=document.getElementById('pni_'+k);
     const x=e?parseInt(e.value):NaN;if(!isNaN(x)&&x>0){cnt++;tot+=x;}});
   const sum=document.getElementById('pnSum');
   if(sum) sum.textContent=cnt?`${cnt} رقم · ${tot} حبّة ${_pnMode==='out'?'بتنقص':'بتزيد'}`:'ما دخّلت ولا رقم بعد';
@@ -3883,8 +3891,9 @@ async function pnStockSave(){
   const OUT=_pnMode==='out';
   const prod=_prodById(_pnProdId);
   if(!prod){toast('⚠️ اختار منتج');return;}
+  const own=_prodOwnColors(prod);
   const add=[];
-  _ownNums(prod).forEach(n=>{
+  (own?_ownNums(prod):_prodColorCodes(prod)).forEach(n=>{
     const el=document.getElementById('pni_'+n);
     if(!el||el.value==='')return;
     const v=parseInt(el.value);
@@ -3892,6 +3901,32 @@ async function pnStockSave(){
     add.push({n,v,cur:Number(el.getAttribute('data-cur'))||0});
   });
   if(!add.length){toast(OUT?'⚠️ اكتب المصروف لواحد على الأقل':'⚠️ اكتب الوارد لواحد على الأقل');return;}
+  // منتج بألوان المكتبة: المخزون مشترك، فبنكتب عليها هي بنفس قواعد الشانيل
+  if(!own){
+    try{
+      const batch=db.batch();let capped=0,tot=0;
+      add.forEach(({n,v})=>{
+        const c=_clr(n); if(!c) return;
+        const ref=db.collection('color_library').doc(c.id);
+        const cur=c.counted===true?(Number(c.qty)||0):0;
+        if(OUT){
+          const take=Math.min(v,cur); if(take<v)capped++;
+          batch.update(ref,{qty:firebase.firestore.FieldValue.increment(-take),counted:true});
+          tot+=take;
+        }
+        // لون ما انجرد قبل: الوارد نفسه بيصير رصيده
+        else if(c.counted===true){batch.update(ref,{qty:firebase.firestore.FieldValue.increment(v),counted:true});tot+=v;}
+        else {batch.update(ref,{qty:v,counted:true});tot+=v;}
+      });
+      await batch.commit();
+      await _autoColorStatus();
+      await loadColorLibrary(true);
+      document.getElementById('pnStockModal')?.remove();
+      toast(`${OUT?'📤 انصرف':'📥 انضاف'} ${tot} قطعة على ${add.length} لون`
+        +(capped?` — ${capped} صفّرناه لأنّه ما كان فيه هالقد`:''));
+    }catch(e){toast('❌ '+e.message);}
+    return;
+  }
   try{
     const u={};let capped=0,tot=0;
     add.forEach(({n,v,cur})=>{
