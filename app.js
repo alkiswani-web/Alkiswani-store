@@ -2811,9 +2811,19 @@ function _prodById(id){
   return (_opProductsList||[]).find(x=>x.id===id)
       ||(_empSharedProducts||[]).find(x=>x.id===id)||null;
 }
+// المنتج بترقيمه الخاص بيخزّن أرقامه ومخزونها بخريطة {رقم: كمية} —
+// خريطة لا مصفوفة، عشان increment تشتغل على رقمٍ واحد بلا ما نقرا ونكتب.
+function _ownQtyMap(p){const m=(p&&p.ownColorQty)||{};return (m&&typeof m==='object')?m:{};}
+function _ownNums(p){
+  return Object.keys(_ownQtyMap(p)).map(Number).filter(n=>n>0).sort((a,b)=>a-b);
+}
+function _ownQty(p,num){const v=_ownQtyMap(p)[String(num)];return v==null?null:(Number(v)||0);}
 function _prodColorCodes(p){
   const n=Math.max(0,parseInt(p&&p.colorNumbersCount)||0);
-  if(_prodOwnColors(p)) return Array.from({length:n},(_,k)=>k+1);
+  if(_prodOwnColors(p)){
+    const own=_ownNums(p);
+    return own.length?own:Array.from({length:n},(_,k)=>k+1);
+  }
   if(Array.isArray(p.colorCodes)&&p.colorCodes.length) return p.colorCodes.map(Number).filter(x=>x>0);
   if(_colorLib.length) return _colorLib.map(c=>c.code);
   return Array.from({length:n},(_,k)=>k+1);
@@ -2830,12 +2840,17 @@ function _fmtCN(cn,prodId){
 
 // شبكة اختيار اللون — مشتركة بين سلّة الطلب وسلّة التعديل، فالشكل واحد
 // والسلوك واحد. المتوقّف لا يظهر إلا إذا كان مختاراً في طلب قائم.
-function _cnGridHtml(codes,sel,fn,i,small,own){
+function _cnGridHtml(codes,sel,fn,i,small,own,prod){
   const box=small?38:44;
   if(own) return codes.map(n=>{
     const q=sel[n]||0,on=q>0;
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
-      <button onclick="${fn}(${i},${n},1)" style="width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;">${n}</button>
+    const stock=prod?_ownQty(prod,n):null;      // null = ما انجرد، فما منحكي عنه
+    const left=stock==null?null:stock-q;
+    const dry=left!=null&&left<=0;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${dry&&!on?'opacity:.58;':''}">
+      <button onclick="${fn}(${i},${n},1)" style="width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':dry?'#fca5a5':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;">${n}</button>
+      ${left==null?'<div style="height:11px;"></div>'
+        :`<div style="font-size:0.6rem;font-weight:800;line-height:11px;height:11px;color:${left<=0?'#dc2626':left<=2?'#b45309':'#166534'};">${left<=0?'خلص':'متوفر '+left}</div>`}
       ${on?`<div style="display:flex;align-items:center;gap:3px;">
         <button onclick="${fn}(${i},${n},-1)" style="width:17px;height:17px;border:none;background:#fee2e2;color:#dc2626;border-radius:4px;cursor:pointer;font-weight:900;font-size:0.68rem;line-height:1;">−</button>
         <span style="font-size:0.7rem;font-weight:800;color:#2563eb;min-width:11px;text-align:center;">${q}</span>
@@ -2862,8 +2877,16 @@ function _cnGridHtml(codes,sel,fn,i,small,own){
   }).join('');
 }
 // لون خلص = لا يُضاف من جديد، لكن ما هو مختار في طلب قائم ينقص بحرّية
-function _cnBlocked(num,cur,delta,own){
-  if(delta<=0||own) return false;
+function _cnBlocked(num,cur,delta,own,prod){
+  if(delta<=0) return false;
+  if(own){
+    const stock=prod?_ownQty(prod,num):null;
+    if(stock!=null&&(Number(cur)||0)+delta>stock){
+      toast(`⚠️ لون ${num} المتوفر منه ${stock} بس`);
+      return true;
+    }
+    return false;
+  }
   const st=_clrSt(num);
   if(st==='active') return false;
   toast(`⚠️ ${_clrName(num)} ${st==='out'?'خلص مؤقتاً':'متوقّف'} — اختر لوناً غيره`);
@@ -2928,6 +2951,66 @@ async function _autoColorStatus(){
 // ما يحجزه الطلب من المخزون فعلاً = ألوانه ناقص ما رجع منها بإرجاع جزئي.
 // نُسجّل المُرجَع على الطلب (colorStockReturned) بدل ما نعدّل products —
 // فالبنود تبقى كما طُلبت، ولو أُلغي الطلب بعدها لا يرجع اللون مرّتين.
+// نفس البصمة بس للمنتجات ذات الترقيم الخاص — مخزونها على المنتج نفسه
+function _ownCnMapOf(products){
+  const m={};
+  (products||[]).forEach(p=>{
+    if(!_prodOwnColors(_prodById(p.id))) return;
+    (Array.isArray(p.colorNumbers)?p.colorNumbers:[]).forEach(c=>{
+      const n=Number(c.num)||0,q=Number(c.qty)||0;
+      if(n>0&&q>0){const k=p.id+'|'+n;m[k]=(m[k]||0)+q;}
+    });
+  });
+  return m;
+}
+function _ownCnFootprint(o){
+  const m=_ownCnMapOf((o&&o.products)||[]);
+  const back=(o&&o.colorStockReturned)||{};
+  // المرتجع مسجّل بالرقم وحده، فمنرجّعه لكل منتجٍ يحمل نفس الرقم
+  Object.keys(back).forEach(num=>{
+    let left=Number(back[num])||0;
+    Object.keys(m).forEach(k=>{
+      if(left<=0||k.split('|')[1]!==String(num))return;
+      const take=Math.min(m[k],left);m[k]-=take;left-=take;
+      if(m[k]<=0)delete m[k];
+    });
+  });
+  return m;
+}
+async function _applyOwnColorStock(delta){
+  const keys=Object.keys(delta||{}).filter(k=>Math.abs(delta[k])>0.0001);
+  if(!keys.length) return;
+  try{
+    const batch=db.batch();
+    let n=0;
+    keys.forEach(k=>{
+      const [pid,num]=k.split('|');
+      const pr=_prodById(pid);
+      // بس الأرقام المعدودة فعلاً — خصمٌ من مجهول بيولّد أرقاماً سالبة
+      if(!pr||!_prodOwnColors(pr)||_ownQty(pr,num)===null) return;
+      batch.update(db.collection('operator_products').doc(pid),
+        {['ownColorQty.'+num]:firebase.firestore.FieldValue.increment(delta[k])});
+      n++;
+    });
+    if(!n) return;
+    await batch.commit();
+    // نحدّث النسخة اللي بالذاكرة فوراً عشان العدّاد يبيّن بلا انتظار.
+    // القائمتان بتشاركا نفس الكائنات أحياناً، فمنجمّعهم بمجموعة عشان
+    // ما ننقص من نفس الرقم مرّتين.
+    keys.forEach(k=>{
+      const [pid,num]=k.split('|');
+      const seen=new Set();
+      [_opProductsList,_empSharedProducts].forEach(arr=>{
+        (arr||[]).forEach(pr=>{
+          if(pr.id!==pid||seen.has(pr)||!pr.ownColorQty)return;
+          seen.add(pr);
+          if(pr.ownColorQty[num]!=null)
+            pr.ownColorQty[num]=(Number(pr.ownColorQty[num])||0)+delta[k];
+        });
+      });
+    });
+  }catch(e){console.error('own color stock:',e);}
+}
 function _orderCnFootprint(o){
   const m=_cnMapOf((o&&o.products)||[]);
   const back=(o&&o.colorStockReturned)||{};
@@ -2941,14 +3024,27 @@ function _orderCnFootprint(o){
 async function _orderStockSync(orderId,prevOrder,nextOrder,wasApplied,shouldApply){
   try{
     await loadColorLibrary();
-    if(!_colorLib.length) return;
+    // المنتجات ذات الترقيم الخاص مخزونها عليها هي، فبتشتغل حتى لو المكتبة فاضية
+    const _diff=(oldM,newM)=>{
+      const d={};
+      new Set([...Object.keys(oldM),...Object.keys(newM)]).forEach(k=>{
+        const v=(oldM[k]||0)-(newM[k]||0);   // القديم يرجع والجديد ينخصم
+        if(v) d[k]=v;
+      });
+      return d;
+    };
+    await _applyOwnColorStock(_diff(
+      wasApplied?_ownCnFootprint(prevOrder):{},
+      shouldApply?_ownCnFootprint(nextOrder):{}));
+    if(!_colorLib.length){
+      if(orderId&&wasApplied!==shouldApply){
+        try{await db.collection('employee_orders').doc(orderId).update({colorStockApplied:!!shouldApply});}catch(e){}
+      }
+      return;
+    }
     const oldM=wasApplied?_orderCnFootprint(prevOrder):{};
     const newM=shouldApply?_orderCnFootprint(nextOrder):{};
-    const d={};
-    new Set([...Object.keys(oldM),...Object.keys(newM)]).forEach(k=>{
-      const v=(oldM[k]||0)-(newM[k]||0);   // القديم يرجع والجديد ينخصم
-      if(v) d[k]=v;
-    });
+    const d=_diff(oldM,newM);
     await _applyColorStock(d);
     if(orderId&&wasApplied!==shouldApply){
       try{await db.collection('employee_orders').doc(orderId).update({colorStockApplied:!!shouldApply});}catch(e){}
@@ -3792,8 +3888,26 @@ function renderOppCNPicker(){
   const leg=document.getElementById('opp_cn_legacy');
   // ترقيم مستقلّ: المنتج إله كتالوجه الخاص، فما منعرض إله ألوان المكتبة
   if(document.getElementById('opp_own_colors')?.checked){
-    w.innerHTML='<div style="font-size:0.74rem;color:#3730a3;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:8px 10px;line-height:1.7;">🔢 هذا المنتج بترقيمه الخاص — أرقام سادة من ١ لآخر رقم، بلا أسماء ولا صور ولا مخزون من المكتبة، وبلا «خلص» تبعها.</div>';
-    if(leg)leg.style.display='block';
+    const F="padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;box-sizing:border-box;";
+    const nums=Object.keys(_oppOwnQty).map(Number).filter(n=>n>0).sort((a,b)=>a-b);
+    w.innerHTML=`<div style="font-size:0.74rem;color:#3730a3;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:8px 10px;line-height:1.7;margin-bottom:8px;">🔢 هذا المنتج بترقيمه الخاص — بتكتب رقم اللون زي ما إجا من الشركة وكميته. ما إله علاقة بمكتبة الألوان.</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+        <input type="number" id="opp_own_num" min="1" placeholder="رقم اللون" style="${F}flex:1;min-width:0;">
+        <input type="number" id="opp_own_qty" min="0" placeholder="الكمية" style="${F}flex:1;min-width:0;">
+        <button type="button" onclick="oppOwnAdd()" style="padding:9px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;flex-shrink:0;">➕</button>
+      </div>
+      ${nums.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;">${nums.map(n=>{
+        const q=Number(_oppOwnQty[n])||0;
+        return `<div style="display:flex;align-items:center;gap:5px;border:1.5px solid ${q>0?'#bbf7d0':'#fecaca'};background:${q>0?'#f0fdf4':'#fef2f2'};border-radius:18px;padding:3px 6px 3px 10px;">
+          <span style="font-size:0.78rem;font-weight:900;color:#111827;">${n}</span>
+          <span style="font-size:0.7rem;font-weight:800;color:${q>0?'#166534':'#dc2626'};">${q>0?q:'خلص'}</span>
+          <button type="button" onclick="oppOwnBump(${n},-1)" style="width:19px;height:19px;border:none;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">−</button>
+          <button type="button" onclick="oppOwnBump(${n},1)" style="width:19px;height:19px;border:none;background:#dcfce7;color:#166534;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">+</button>
+          <button type="button" onclick="oppOwnDel(${n})" title="شيل الرقم" style="width:19px;height:19px;border:none;background:#f3f4f6;color:#6b7280;border-radius:5px;cursor:pointer;font-size:0.68rem;line-height:1;">🗑️</button>
+        </div>`;}).join('')}</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:7px;line-height:1.7;">الكمية بتنقص لحالها أول ما الموظف ينزّل الطلب. وللوارد: زيد الرقم من هون.</div>`
+       :'<div style="font-size:0.72rem;color:#9ca3af;padding:8px;text-align:center;">ما في أرقام بعد — اكتب أوّل رقم وكميته فوق.</div>'}`;
+    if(leg)leg.style.display='none';
     return;
   }
   if(!_colorLib.length){
@@ -3812,6 +3926,26 @@ function renderOppCNPicker(){
       return `<button type="button" onclick="oppCNToggle(${c.code})" style="display:flex;align-items:center;gap:5px;padding:4px 9px;border:1.5px solid ${on?'#2563eb':'#e5e7eb'};background:${on?'#eff6ff':'#fff'};border-radius:18px;font-family:'Tajawal',sans-serif;font-size:0.75rem;font-weight:700;color:#374151;cursor:pointer;">
         <span style="width:15px;height:15px;border-radius:4px;${_clrFace(c)}border:1px solid rgba(0,0,0,.15);flex-shrink:0;"></span>${c.code}${c.name?' '+_clrEsc(c.name):''}</button>`;}).join('')}</div>`}`;
 }
+let _oppOwnQty={};
+function oppOwnAdd(){
+  const nEl=document.getElementById('opp_own_num'),qEl=document.getElementById('opp_own_qty');
+  const n=parseInt(nEl?.value)||0;
+  if(n<1){toast('⚠️ اكتب رقم اللون');return;}
+  const q=Math.max(0,parseInt(qEl?.value)||0);
+  _oppOwnQty[n]=(Number(_oppOwnQty[n])||0)+q;
+  if(nEl)nEl.value='';if(qEl)qEl.value='';
+  renderOppCNPicker();
+  document.getElementById('opp_own_num')?.focus();
+}
+function oppOwnBump(n,d){
+  _oppOwnQty[n]=Math.max(0,(Number(_oppOwnQty[n])||0)+d);
+  renderOppCNPicker();
+}
+function oppOwnDel(n){
+  if(!confirm(`شيل الرقم ${n} من هذا المنتج؟`))return;
+  delete _oppOwnQty[n];renderOppCNPicker();
+}
+window.oppOwnAdd=oppOwnAdd; window.oppOwnBump=oppOwnBump; window.oppOwnDel=oppOwnDel;
 function oppCNAll(on){_oppColorCodes=on?[]:_colorLib.map(c=>c.code);renderOppCNPicker();}
 function oppCNToggle(code){
   const i=_oppColorCodes.indexOf(code);
@@ -3829,7 +3963,9 @@ window.clrStockSave=clrStockSave;
 // اختيار/تعديل عدد رقم لون لمنتج بأرقام ألوان — الكمية = مجموع الأعداد
 function empCartCN(idx,num,delta){
   const item=_empOrderCart[idx];if(!item)return;
-  if(_cnBlocked(num,item,delta,_prodOwnColors(_prodById(item.id))))return;
+  const _pr=_prodById(item.id);
+  const _cur=((Array.isArray(item.colorNumbers)?item.colorNumbers:[]).find(c=>c.num===num)||{}).qty||0;
+  if(_cnBlocked(num,_cur,delta,_prodOwnColors(_pr),_pr))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const i=cns.findIndex(c=>c.num===num);
   if(i>=0){const q=(cns[i].qty||0)+delta;if(q<=0)cns.splice(i,1);else cns[i]={num,qty:q};}
@@ -4073,7 +4209,7 @@ function renderEmpOrderCart(){
     if(hasCN&&cnCodes.length){
       const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
       const totalCN=cns.reduce((s,c)=>s+(c.qty||0),0);
-      const grid=_cnGridHtml(cnCodes,sel,'empCartCN',i,false,_prodOwnColors(prod));
+      const grid=_cnGridHtml(cnCodes,sel,'empCartCN',i,false,_prodOwnColors(prod),prod);
       colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اختر اللون والعدد ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
     }
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateCartItemPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
@@ -5313,7 +5449,7 @@ function renderEmpEditCart(){
       if(hasCN&&cnCodes.length){
         const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
         const total=cns.reduce((s,c)=>s+(c.qty||0),0);
-        const grid=_cnGridHtml(cnCodes,sel,'empEditCN',i,true,_prodOwnColors(pr));
+        const grid=_cnGridHtml(cnCodes,sel,'empEditCN',i,true,_prodOwnColors(pr),pr);
         cnHtml=`<div><div style="font-size:0.72rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اللون والعدد ${total?`<span style="color:#166534;">(${total})</span>`:'<span style="color:#dc2626;font-weight:800;">*</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:7px;max-height:230px;overflow-y:auto;padding:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;">${grid}</div></div>`;
       }
       const qtyCtl=hasCN?`<div style="font-weight:800;color:#1e40af;font-size:0.85rem;min-width:40px;text-align:center;">🎨 ${item.qty||1}</div>`:`<div style="display:flex;align-items:center;gap:4px;">
@@ -5340,7 +5476,9 @@ function renderEmpEditCart(){
 
 function empEditCN(i,num,delta){
   const item=_empEditCart[i];if(!item)return;
-  if(_cnBlocked(num,item,delta,_prodOwnColors(_prodById(item.id))))return;
+  const _pr=_prodById(item.id);
+  const _cur=((Array.isArray(item.colorNumbers)?item.colorNumbers:[]).find(c=>c.num===num)||{}).qty||0;
+  if(_cnBlocked(num,_cur,delta,_prodOwnColors(_pr),_pr))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const j=cns.findIndex(c=>c.num===num);
   if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
@@ -9399,6 +9537,11 @@ function editOpProduct(id){
   _oppColorCodes=Array.isArray(p.colorCodes)?p.colorCodes.map(Number).filter(n=>n>0):[];
   const oc=document.getElementById('opp_own_colors');
   if(oc) oc.checked=!!p.ownColorNumbers;
+  _oppOwnQty=Object.assign({},(p.ownColorQty&&typeof p.ownColorQty==='object')?p.ownColorQty:{});
+  // منتجٌ قديم بترقيم ١..ن بلا جرد: منعبّي أرقامه بلا كميات كبداية
+  if(p.ownColorNumbers&&!Object.keys(_oppOwnQty).length&&(parseInt(p.colorNumbersCount)||0)>0){
+    for(let k=1;k<=parseInt(p.colorNumbersCount);k++) _oppOwnQty[k]=0;
+  }
   renderOppCNPicker();
   _oppPriceOptions=Array.isArray(p.priceOptions)?p.priceOptions.map(o=>({label:o.label,price:o.price})):[];
   renderOppPriceOptionChips();
@@ -9425,6 +9568,7 @@ function editOpProduct(id){
 
 function cancelEditProduct(){
   _editingProductId=null;
+  _oppOwnQty={};
   ['opp_name','opp_raw','opp_tree','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
     const el=document.getElementById(id);if(el) el.value='';
   });
@@ -9482,7 +9626,10 @@ async function saveOpProduct(){
     const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
     const ownColorNumbers=hasColorNumbers&&(document.getElementById('opp_own_colors')?.checked||false);
     const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
-    if(hasColorNumbers&&ownColorNumbers&&colorNumbersCount<1){toast('⚠️ اكتب عدد الأرقام للترقيم المستقل');return;}
+    const ownColorQty=(hasColorNumbers&&ownColorNumbers)?Object.assign({},_oppOwnQty):{};
+    const _ownCount=Object.keys(ownColorQty).length;
+    if(hasColorNumbers&&ownColorNumbers&&!_ownCount&&colorNumbersCount<1){
+      toast('⚠️ أضف رقم لون واحد ع الأقل للترقيم المستقل');return;}
     const category=(document.getElementById('opp_category')?.value||'').trim();
     // صورة المنتج → التخزين السحابي (رابط خفيف بدل base64 داخل الوثيقة)، مع fallback آمن
     if(_oppCurrentImageUrl&&_oppCurrentImageUrl.startsWith('data:')){
@@ -9493,7 +9640,7 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount,ownColorNumbers,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount:(_ownCount?_ownCount:colorNumbersCount),ownColorNumbers,ownColorQty,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
       });
       toast('✅ تم حفظ التعديلات');
     } else {
