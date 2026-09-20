@@ -3534,6 +3534,73 @@ function srAllToday(){
   (_opStoresList||[]).forEach(st=>{ if(document.getElementById('sr_f_'+st.id)) srToday(st.id); });
   toast('📅 كل المتاجر بلّشت من اليوم — اكتب الأرقام واحفظ');
 }
+// ═══ إعادة تسجيل التكلفة للمتاجر ═══
+// سجلّ المبيعة بيحمل «سعر البيع لهذا المتجر» ساعة التسجيل. لمّا تحدّث
+// الأسعار بعدين، السجلات القديمة بتضلّ على سعرها القديم. هاي بتعيد
+// حسابها كلّها من الأسعار الحالية — بنفس القاعدة تماماً اللي بتسجّل فيها
+// المبيعة أصلاً: سعر المتجر، وإلا تكلفة التصنيع.
+function _recalcPriceFor(sale,prod){
+  const sp=prod&&prod.storePrices&&Number(prod.storePrices[sale.storeId]);
+  if(sp) return sp;
+  if(!prod) return null;                       // ما لقينا المنتج — ما منخمّن
+  return (Number(prod.rawMaterialCost)||0)+(Number(prod.treeCost)||0)
+        +(Number(prod.machineWorkerWage)||0)+(Number(prod.assemblyWorkerWage)||0);
+}
+async function recalcStoreCosts(){
+  try{
+    if(!_opProductsList.length) await loadOpProducts(true);
+    if(!_opProductsList.length){toast('⚠️ ما في منتجات');return;}
+    toast('⏳ عم أفحص السجلات...');
+    const snap=await db.collection('operator_sales').get();
+    const rows=[];
+    let noProd=0,tree=0;
+    snap.docs.forEach(d=>{
+      const s={id:d.id,...d.data()};
+      if(!s.storeId) return;
+      if(s.fulfilledBy==='tree'){tree++;return;}   // حساب الشجر إله منطقه الخاص
+      const prod=_prodById(s.productId)||(_opProductsList||[]).find(x=>x.name===s.productName);
+      if(!prod){noProd++;return;}
+      const np=_recalcPriceFor(s,prod);
+      if(np==null){noProd++;return;}
+      const old=Number(s.sellPrice)||0;
+      if(Math.abs(np-old)<0.005) return;
+      rows.push({id:s.id,old,np,qty:Number(s.qty)||1,
+        name:s.productName||prod.name||'منتج',store:s.storeName||'',
+        // السعر الفعلي ينتقل معه إلا إذا كان خصماً حقيقياً (أقلّ من الرسمي)
+        moveSold:(Number(s.soldPrice)||0)>=old-0.005});
+    });
+    if(!rows.length){
+      toast('✅ كل السجلات مظبوطة — ما في إشي بدّه تصحيح'+(noProd?` (${noProd} بلا منتج)`:''));
+      return;
+    }
+    const delta=rows.reduce((t,r)=>t+(r.np-r.old)*r.qty,0);
+    const names=Array.from(new Set(rows.map(r=>r.name))).slice(0,6).join(' · ');
+    const msg=`🔁 إعادة تسجيل التكلفة للمتاجر\n\n`
+      +`${rows.length} مبيعة تكلفتها رح تتغيّر.\n`
+      +`${names}${rows.length>6?' …':''}\n\n`
+      +`مجموع الفرق: ${delta>=0?'+':''}${delta.toFixed(2)} د.أ على المتاجر\n`
+      +(noProd?`${noProd} سجلّ ما لقيتله منتج — رح أتركه زي ما هو.\n`:'')
+      +(tree?`${tree} سجلّ شجر — خارج الحساب.\n`:'')
+      +`\nبنفّذ؟`;
+    if(!confirm(msg)) return;
+    toast('⏳ عم أصحّح...');
+    for(let i=0;i<rows.length;i+=400){
+      const b=db.batch();
+      rows.slice(i,i+400).forEach(r=>{
+        const u={sellPrice:r.np};
+        if(r.moveSold) u.soldPrice=r.np;
+        b.update(db.collection('operator_sales').doc(r.id),u);
+      });
+      await b.commit();
+    }
+    _invalidateQuery&&_invalidateQuery('operator_sales');
+    toast(`✅ انصحّحت ${rows.length} مبيعة`);
+    if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.recalcStoreCosts=recalcStoreCosts;
+
 async function srSave(){
   try{
     await _loadStoreReset(true);
