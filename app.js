@@ -3727,22 +3727,31 @@ function spFill(mode){
   const f=1+pct/100;
   const src=document.getElementById('spSrc')?.value||'';
   if(mode==='copy'&&!src){toast('⚠️ اختار المتجر اللي بدك تنسخ منه');return;}
-  let n=0;
+  let n=0,skipFull=0,noBase=0;
   _opProductsList.forEach(p=>{
     const el=document.getElementById('sp_'+p.id);
     if(!el)return;
     const has=!isNaN(parseFloat(el.value))&&parseFloat(el.value)>0;
-    if(has&&!_spOver)return;
+    if(has&&!_spOver){skipFull++;return;}
     let base=0;
     if(mode==='copy') base=Number((p.storePrices||{})[src])||0;
     else if(mode==='cost') base=Number(el.getAttribute('data-cost'))||0;
     else base=Number(el.getAttribute('data-sell'))||0;
-    if(base<=0)return;
+    if(base<=0){noBase++;return;}
     el.value=(Math.round(base*f*100)/100).toString();
     n++;
   });
   _spSum();
-  toast(n?`⚡ انعبّى ${n} منتج${pct?` +${pct}%`:''}`:'ما في إشي ينعبّى — جرّب «اكتب فوق الموجود»');
+  if(n){toast(`⚡ انعبّى ${n} منتج${pct?` +${pct}%`:''}`);return;}
+  // ما انعبّى ولا واحد — الرسالة لازم تقول ليش بالضبط، لا «جرّب هيك»
+  const srcName=mode==='copy'
+    ? ((_opStoresList.find(x=>x.id===src)||{}).name||'المتجر')
+    : (mode==='cost'?'التكلفة':'سعر البيع');
+  let why='ما في إشي ينعبّى';
+  if(skipFull&&!noBase) why=`كل الـ${skipFull} خانة معبّاة — علّم «اكتب فوق الأسعار الموجودة» لو بدّك تستبدلها بأسعار «${srcName}»`;
+  else if(noBase&&!skipFull) why=`الـ${noBase} خانة الفاضية ما إلها سعر عند «${srcName}» كمان — جرّب «= التكلفة» أو «= سعر البيع»`;
+  else if(noBase&&skipFull) why=`${skipFull} خانة معبّاة (علّم «اكتب فوق الموجود» لتستبدلها)، و${noBase} فاضية ما إلها سعر عند «${srcName}»`;
+  toast('⚠️ '+why);
 }
 async function spSave(){
   const store=_opStoresList.find(s=>s.id===_spStoreId);
