@@ -4097,10 +4097,11 @@ async function bcSet(num,code){
     _invalidateQuery&&_invalidateQuery('opproducts');
     const pend=_bcPending; _bcPending='';
     toast(c?('✅ انربط بـ«'+(p.name||'')+(num?' · لون '+num:'')+'»'):'🧹 انشال الباركود');
-    // جايٌ من شاشة البيع: بنسكّر ومنكمّل البيعة بدل ما نضيّعه بشاشة الأكواد
-    if(pend&&c===pend&&document.getElementById('posModal')){
+    // جايٌ من شاشة تانية: بنسكّر ومنكمّل شغله بدل ما نضيّعه بشاشة الأكواد
+    if(pend&&c===pend&&(document.getElementById('posModal')||document.getElementById('pnStockModal'))){
+      const pos=!!document.getElementById('posModal');
       document.getElementById('bcModal')?.remove();
-      posScan(c);
+      if(pos) posScan(c); else pnScan(c);
       return;
     }
     openBarcodes(_bcProdId);
@@ -4475,6 +4476,11 @@ async function openProdStock(prodId,keep){
       <select onchange="pnPickProd(this.value)" style="width:100%;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:700;background:#fff;color:#166534;outline:none;cursor:pointer;">
         ${prods.map(x=>`<option value="${x.id}" ${x.id===_pnProdId?'selected':''}>${_clrEsc(x.name)}</option>`).join('')}
       </select>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <input id="pnQ" type="text" placeholder="🏷️ امسح الباركود أو اكتبه" onkeydown="if(event.key==='Enter'){event.preventDefault();pnScanInput();}"
+          style="flex:1;min-width:0;box-sizing:border-box;padding:8px 10px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;background:#fff;outline:none;">
+        <button onclick="pnScanBtn()" title="امسح باركود" style="flex-shrink:0;width:42px;background:#111827;color:#fff;border:none;border-radius:9px;font-size:0.95rem;cursor:pointer;">📷</button>
+      </div>
     </div>
     <div style="display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
       <button onclick="pnMode('in')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#e5e7eb':'#2563eb'};background:${OUT?'#fff':'#2563eb'};color:${OUT?'#6b7280':'#fff'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📥 وارد (+)</button>
@@ -4502,7 +4508,74 @@ async function openProdStock(prodId,keep){
     </div>
   </div>`;
   document.body.appendChild(ov);
+  // مسحةٌ بدّلت المنتج: منزيد رقمها بعد ما تنرسم شاشته
+  if(_pnScanQueue){const n=_pnScanQueue;_pnScanQueue=0;pnBump(n);}
 }
+
+// ─── المسح بشاشة الوارد والصرف ───
+// الكبّة اللي وصلتك بتمسحها بدل ما تدوّر على رقمها بالقائمة.
+let _pnScanQueue=0;
+function _pnTyped(){
+  const prod=_prodById(_pnProdId); if(!prod) return 0;
+  const nums=_prodOwnColors(prod)?_ownNums(prod):_prodColorCodes(prod);
+  let c=0;
+  nums.forEach(n=>{const e=document.getElementById('pni_'+n);
+    const v=e?parseInt(e.value):NaN; if(!isNaN(v)&&v>0)c++;});
+  return c;
+}
+function pnBump(n){
+  const el=document.getElementById('pni_'+n);
+  if(!el){toast('⚠️ رقم '+n+' مش ظاهر بهالشاشة');return false;}
+  el.value=String((parseInt(el.value)||0)+1);
+  _pnPrev(n);
+  try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}
+  el.style.background='#dcfce7';
+  setTimeout(()=>{el.style.transition='background .7s';el.style.background='';},80);
+  try{navigator.vibrate&&navigator.vibrate(35);}catch(e){}
+  toast((_pnMode==='out'?'📤 ':'📥 ')+'لون '+n+' ⇒ '+el.value);
+  return true;
+}
+function pnScan(code){
+  const c=_bcNorm(code); if(!c) return false;
+  const hit=_bcFind(c);
+  if(!hit){
+    if(confirm(`❓ الكود ${c}\n\nمش مربوط بولا منتج.\nبدّك تربطه هلأ؟`)) openBarcodes('',c);
+    return false;
+  }
+  if(!hit.prod.hasColorNumbers){
+    toast('⚠️ «'+(hit.prod.name||'')+'» ما إله أرقام ألوان — هالشاشة للترقيم بس');return false;
+  }
+  if(hit.prod.id!==_pnProdId){
+    const typed=_pnTyped();
+    const cur=_prodById(_pnProdId);
+    // أرقامٌ مكتوبة وما انحفظت بتضيع لو بدّلنا الشاشة — منسأل قبل
+    if(typed&&!confirm(`عندك ${typed} رقم مكتوب بـ«${(cur&&cur.name)||''}» وما انحفظوا.\n\nتروح لـ«${hit.prod.name||''}» وتضيّعهم؟`))
+      return false;
+    _pnProdId=hit.prod.id;
+    _pnScanQueue=Number(hit.num)||0;
+    openProdStock(_pnProdId,true);
+    return true;
+  }
+  if(!hit.num){toast('🏷️ هاد كود المنتج مش كود لون — امسح كود اللون');return false;}
+  return pnBump(Number(hit.num));
+}
+async function pnScanBtn(){
+  if(!_bcCamOk()){
+    const v=prompt('الكاميرا ما بتقرا باركود بهالمتصفّح.\nاكتب الرقم اللي تحت الخطوط:','');
+    if(v!==null&&v.trim()) pnScan(v);
+    return;
+  }
+  _qrScanCallback=(raw)=>{ pnScan(raw); };
+  await openQRScanner({formats:BC_FORMATS,status:'وجّه الكاميرا عالباركود'});
+}
+function pnScanInput(){
+  const el=document.getElementById('pnQ');
+  const v=el?el.value.trim():'';
+  if(!v)return;
+  if(pnScan(v)){const e2=document.getElementById('pnQ');if(e2)e2.value='';}
+}
+window.pnScan=pnScan; window.pnScanBtn=pnScanBtn; window.pnScanInput=pnScanInput; window.pnBump=pnBump;
+
 function _pnPrev(n){
   const el=document.getElementById('pni_'+n),out=document.getElementById('pnt_'+n);
   if(!el||!out)return;
