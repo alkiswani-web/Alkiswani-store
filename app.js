@@ -3598,8 +3598,12 @@ async function openPos(){
       <button onclick="posClose()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
     </div>
     <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
-      <input id="posQ" type="text" value="${_clrEsc(_posQ)}" placeholder="🔍 دوّر على منتج" oninput="_posQ=this.value;posRenderPicker();"
-        style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;">
+      <div style="display:flex;gap:6px;">
+        <input id="posQ" type="text" value="${_clrEsc(_posQ)}" placeholder="🔍 دوّر على منتج أو امسح باركود" oninput="_posQ=this.value;posRenderPicker();"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();posScanInput();}"
+          style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;">
+        <button onclick="posScanBtn()" title="امسح باركود" style="flex-shrink:0;width:46px;background:#111827;color:#fff;border:none;border-radius:10px;font-size:1.05rem;cursor:pointer;">📷</button>
+      </div>
       <div id="posPicker" style="max-height:150px;overflow-y:auto;margin-top:7px;"></div>
     </div>
     <div id="posCartWrap" style="flex:1;overflow-y:auto;padding:9px 12px;"></div>
@@ -3626,12 +3630,18 @@ function posClose(){
 function posRenderPicker(){
   const w=document.getElementById('posPicker');if(!w)return;
   const q=(_posQ||'').trim();
+  // كودٌ مكتوب بالخانة (ماسحٌ سلكي أو نسخ) بيعرف صاحبه فوراً
+  const hit=q?_bcFind(q):null;
   const list=(_opProductsList||[]).filter(p=>!p.isRawMaterial&&(!q||String(p.name||'').includes(q))).slice(0,40);
-  w.innerHTML=list.length?list.map(p=>`<button onclick="posAdd('${p.id}')" style="width:100%;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;">
+  w.innerHTML=(hit?`<button onclick="posScanInput()" style="width:100%;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;margin-bottom:5px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;">
+      <span style="font-size:0.84rem;font-weight:900;color:#166534;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🏷️ ${_clrEsc(_bcLabel(hit))}</span>
+      <span style="font-size:0.72rem;font-weight:800;color:#166534;flex-shrink:0;">باركود ↵</span>
+    </button>`:'')
+    +(list.length?list.map(p=>`<button onclick="posAdd('${p.id}')" style="width:100%;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;">
       <span style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(p.name)}</span>
       <span style="font-size:0.78rem;font-weight:800;color:#166534;flex-shrink:0;">${(Number(p.sellPrice)||0).toFixed(2)}</span>
     </button>`).join('')
-    :'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:12px;">ما في منتج بهالاسم</div>';
+    :(hit?'':'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:12px;">ما في منتج بهالاسم</div>'));
 }
 function posAdd(id){
   const p=_prodById(id);if(!p)return;
@@ -3952,6 +3962,225 @@ async function posLogReturn(id){
 }
 window.openPosLog=openPosLog; window.posLogQuick=posLogQuick;
 window.posLogRender=posLogRender; window.posLogReturn=posLogReturn; window.posLogRetry=posLogRetry;
+
+// ═══════════ الباركود ═══════════
+// كودان لا واحد: باركود المنتج (اللي جاي عليه من الشركة أو اللي بنولّده
+// إحنا)، وباركود لكل رقم لون — لأنّ كبّة الصوف كل لونٍ فيها كودها الخاص،
+// فالمسحة الواحدة بتعرف المنتج واللون مع بعض.
+const BC_FORMATS=['qr_code','ean_13','ean_8','upc_a','upc_e','code_128','code_39','codabar','itf','data_matrix'];
+function _bcCamOk(){try{return 'BarcodeDetector' in window;}catch(e){return false;}}
+function _bcNorm(s){return String(s==null?'':s).trim().replace(/\s+/g,'').toUpperCase();}
+function _bcOf(p){return _bcNorm(p&&p.barcode);}
+function _bcColors(p){const m=p&&p.colorBarcodes;return (m&&typeof m==='object')?m:{};}
+// وين هالكود مربوط؟ بنرجّع المنتج ورقم اللون — و0 يعني المنتج نفسه
+function _bcFind(code){
+  const c=_bcNorm(code); if(!c) return null;
+  for(const p of (_opProductsList||[])){
+    if(_bcOf(p)===c) return {prod:p,num:0};
+    const m=_bcColors(p);
+    for(const k of Object.keys(m)) if(_bcNorm(m[k])===c) return {prod:p,num:Number(k)||0};
+  }
+  return null;
+}
+function _bcLabel(hit){return hit?((hit.prod.name||'')+(hit.num?' · لون '+hit.num:'')):'';}
+// كودٌ من عندنا لمنتجٍ ما إله باركود شركة — بنطبعه QR وبتقراه الكاميرا
+function _bcGen(){
+  return 'RSM'+Date.now().toString(36).toUpperCase()
+        +Math.floor(Math.random()*1296).toString(36).toUpperCase().padStart(2,'0');
+}
+function _bcPatchMem(prodId,num,code){
+  // القائمتان بتشاركا نفس الكائنات — مجموعةٌ تمنع التعديل مرّتين
+  const seen=new Set();
+  [_opProductsList,_empSharedProducts].forEach(arr=>(arr||[]).forEach(pr=>{
+    if(!pr||pr.id!==prodId||seen.has(pr))return; seen.add(pr);
+    if(num){
+      pr.colorBarcodes=Object.assign({},pr.colorBarcodes||{});
+      if(code) pr.colorBarcodes[num]=code; else delete pr.colorBarcodes[num];
+    } else pr.barcode=code||'';
+  }));
+}
+
+let _bcProdId='', _bcPending='';
+async function openBarcodes(prodId,pending){
+  if(!_opProductsList.length) await loadOpProducts(true);
+  const prods=(_opProductsList||[]).filter(p=>p&&!p.isRawMaterial);
+  if(!prods.length){toast('⚠️ ما في منتجات');return;}
+  _bcPending=_bcNorm(pending||'');
+  _bcProdId=(prodId&&prods.some(p=>p.id===prodId))?prodId
+    :(_bcProdId&&prods.some(p=>p.id===_bcProdId)?_bcProdId:prods[0].id);
+  const p=_prodById(_bcProdId);
+  const own=_prodOwnColors(p);
+  const nums=p&&p.hasColorNumbers?(own?_ownNums(p):_prodColorCodes(p)):[];
+  const cbs=_bcColors(p);
+  const row=(num,title,sub,code)=>`<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #f3f4f6;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.84rem;font-weight:800;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(title)}</div>
+        <div style="font-size:0.68rem;margin-top:2px;color:${code?'#166534':'#9ca3af'};font-family:monospace;direction:ltr;text-align:right;">${code?_clrEsc(code):'— ما إله باركود —'}</div>
+        ${sub?`<div style="font-size:0.63rem;color:#9ca3af;margin-top:1px;">${_clrEsc(sub)}</div>`:''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;">
+        ${_bcPending?`<button onclick="bcSet(${num},'${_payEsc(_bcPending)}')" style="background:#166534;color:#fff;border:none;border-radius:8px;padding:6px 9px;font-family:'Tajawal',sans-serif;font-size:0.68rem;font-weight:800;cursor:pointer;">⬅️ هون</button>`
+        :`<button onclick="bcScan(${num})" title="امسح" style="background:#eff6ff;border:none;border-radius:8px;width:30px;height:30px;font-size:0.8rem;cursor:pointer;">📷</button>
+          <button onclick="bcType(${num})" title="اكتبه بإيدك" style="background:#f3f4f6;border:none;border-radius:8px;width:30px;height:30px;font-size:0.8rem;cursor:pointer;">⌨️</button>
+          <button onclick="bcMake(${num})" title="ولّد كود واطبعه" style="background:#f5f3ff;border:none;border-radius:8px;width:30px;height:30px;font-size:0.8rem;cursor:pointer;">🏷️</button>
+          ${code?`<button onclick="bcSet(${num},'')" title="شيله" style="background:#fee2e2;border:none;border-radius:8px;width:30px;height:30px;font-size:0.78rem;cursor:pointer;">✕</button>`:''}`}
+      </div>
+    </div>`;
+  document.getElementById('bcModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='bcModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:93vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#1e40af;">🏷️ الباركود</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">اربط كل كود بمنتجه — وبتصير المسحة تنزّله بالبيع</div>
+      </div>
+      <button onclick="document.getElementById('bcModal')?.remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    ${_bcPending?`<div style="margin:9px 14px 0;padding:9px 11px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;">
+      <div style="font-size:0.75rem;font-weight:800;color:#92400e;">كود جديد بدّه محلّ:</div>
+      <div style="font-size:0.82rem;font-weight:900;color:#111827;font-family:monospace;direction:ltr;text-align:right;margin-top:2px;">${_clrEsc(_bcPending)}</div>
+      <div style="font-size:0.66rem;color:#92400e;margin-top:3px;">اختار المنتج تحت واضغط «⬅️ هون» عالسطر اللي بدّك ياه</div>
+    </div>`:''}
+    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#f0fdf4;">
+      <select onchange="bcPick(this.value)" style="width:100%;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:700;background:#fff;color:#166534;outline:none;cursor:pointer;">
+        ${prods.map(x=>{const n=(_bcOf(x)?1:0)+Object.keys(_bcColors(x)).length;
+          return `<option value="${x.id}" ${x.id===_bcProdId?'selected':''}>${_clrEsc(x.name)}${n?' — '+n+' كود':''}</option>`;}).join('')}
+      </select>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:6px 13px;">
+      ${row(0,'📦 باركود المنتج',nums.length?'لمّا ما يكون للّون كودٌ خاص':'',_bcOf(p))}
+      ${nums.length?`<div style="font-size:0.7rem;font-weight:800;color:#6b7280;margin:11px 0 3px;">🎨 باركود لكل رقم لون</div>`:''}
+      ${nums.map(n=>row(n,'لون '+n,'',_bcNorm(cbs[n]))).join('')}
+      ${!_bcCamOk()?`<div style="margin-top:12px;font-size:0.68rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 10px;line-height:1.75;">⚠️ هالمتصفّح ما بيقرا باركود الشركات بالكاميرا. استعمل «⌨️» واكتب الرقم اللي تحت الخطوط بإيدك — أو افتح الموقع بكروم عالأندرويد.</div>`:''}
+    </div>
+    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      <button onclick="bcPrint()" style="width:100%;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;">🖨️ اطبع ملصقات هذا المنتج</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function bcPick(id){_bcProdId=id;openBarcodes(id,_bcPending);}
+async function bcScan(num){
+  if(!_bcCamOk()){toast('⚠️ الكاميرا ما بتقرا باركود هون — اكتبه بإيدك ⌨️');return bcType(num);}
+  _qrScanCallback=(raw)=>{ bcSet(num,raw); };
+  await openQRScanner({formats:BC_FORMATS,status:'وجّه الكاميرا عالباركود'});
+}
+function bcType(num){
+  const v=prompt('اكتب الباركود (الأرقام اللي تحت الخطوط):','');
+  if(v===null)return;
+  bcSet(num,v);
+}
+function bcMake(num){
+  const code=_bcGen();
+  if(!confirm(`🏷️ نولّد كود لهذا الصنف؟\n\n${code}\n\nبعدها اطبعه ملصقاً والصقه عالبضاعة.`))return;
+  bcSet(num,code);
+}
+async function bcSet(num,code){
+  const c=_bcNorm(code);
+  const p=_prodById(_bcProdId);
+  if(!p){toast('⚠️ اختار منتج');return;}
+  if(c){
+    // كودٌ واحد لصنفين = المسحة ما بتعرف مين منهم. منمنعها ومنقوله وين هو.
+    const own=_bcFind(c);
+    if(own&&!(own.prod.id===_bcProdId&&Number(own.num)===Number(num))){
+      toast('⚠️ هالكود مربوط أصلاً بـ«'+_bcLabel(own)+'»');return;
+    }
+    if(own){toast('هاد الكود مربوط هون أصلاً');return;}
+  }
+  try{
+    const DEL=firebase.firestore.FieldValue.delete();
+    const u=num?{['colorBarcodes.'+num]:(c||DEL)}:{barcode:(c||'')};
+    await db.collection('operator_products').doc(_bcProdId).update(u);
+    _bcPatchMem(_bcProdId,Number(num)||0,c);
+    _invalidateQuery&&_invalidateQuery('opproducts');
+    const pend=_bcPending; _bcPending='';
+    toast(c?('✅ انربط بـ«'+(p.name||'')+(num?' · لون '+num:'')+'»'):'🧹 انشال الباركود');
+    // جايٌ من شاشة البيع: بنسكّر ومنكمّل البيعة بدل ما نضيّعه بشاشة الأكواد
+    if(pend&&c===pend&&document.getElementById('posModal')){
+      document.getElementById('bcModal')?.remove();
+      posScan(c);
+      return;
+    }
+    openBarcodes(_bcProdId);
+  }catch(e){toast('❌ '+e.message);}
+}
+function bcPrint(){
+  const p=_prodById(_bcProdId);
+  if(!p){toast('⚠️ اختار منتج');return;}
+  const cbs=_bcColors(p);
+  const items=[];
+  if(_bcOf(p)) items.push({t:p.name||'',s:'',c:_bcOf(p)});
+  Object.keys(cbs).sort((a,b)=>Number(a)-Number(b)).forEach(k=>{
+    if(_bcNorm(cbs[k])) items.push({t:p.name||'',s:'لون '+k,c:_bcNorm(cbs[k])});
+  });
+  if(!items.length){toast('⚠️ ما في ولا باركود لهذا المنتج');return;}
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>ملصقات — ${esc(p.name)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Tajawal',sans-serif;padding:14px;direction:rtl;}
+h1{font-size:1rem;margin-bottom:10px;color:#1a3a2a;}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.l{border:1px dashed #9ca3af;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;}
+.l img{width:100%;max-width:110px;height:auto;}
+.n{font-size:0.72rem;font-weight:900;margin-top:4px;line-height:1.3;}
+.s{font-size:0.66rem;color:#374151;}
+.c{font-size:0.58rem;color:#6b7280;font-family:monospace;direction:ltr;word-break:break-all;margin-top:2px;}
+@media print{body{padding:6px;}h1{display:none;}}</style></head><body>
+<h1>🏷️ ملصقات — ${esc(p.name)} (${items.length})</h1>
+<div class="g">${items.map(it=>`<div class="l">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(it.c)}&size=200x200&margin=4" alt="">
+  <div class="n">${esc(it.t)}</div>${it.s?`<div class="s">${esc(it.s)}</div>`:''}
+  <div class="c">${esc(it.c)}</div></div>`).join('')}</div>
+<script>window.onload=()=>setTimeout(()=>window.print(),700);<\/script></body></html>`;
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+  else toast('⚠️ المتصفّح منع النافذة — اسمحلها وجرّب كمان مرّة');
+}
+window.openBarcodes=openBarcodes; window.bcPick=bcPick; window.bcScan=bcScan;
+window.bcType=bcType; window.bcMake=bcMake; window.bcSet=bcSet; window.bcPrint=bcPrint;
+
+// ─── المسح جوّا شاشة البيع ───
+// الكود بيعرف المنتج واللون مع بعض، فالمسحة الوحدة بتنزّل السطر جاهزاً.
+function posScan(code){
+  const c=_bcNorm(code);
+  if(!c)return false;
+  const hit=_bcFind(c);
+  if(!hit){
+    if(confirm(`❓ الكود ${c}\n\nمش مربوط بولا منتج.\nبدّك تربطه هلأ؟`)) openBarcodes('',c);
+    return false;
+  }
+  const before=_posCart.length;
+  if(hit.num){
+    let i=_posCart.findIndex(x=>x.id===hit.prod.id);
+    if(i<0){posAdd(hit.prod.id);i=_posCart.findIndex(x=>x.id===hit.prod.id);}
+    if(i<0)return false;
+    posCN(i,Number(hit.num),1);
+  }else{
+    posAdd(hit.prod.id);
+  }
+  try{navigator.vibrate&&navigator.vibrate(40);}catch(e){}
+  toast('🏷️ '+_bcLabel(hit)+(before===_posCart.length&&!hit.num?' (+1)':''));
+  return true;
+}
+async function posScanBtn(){
+  if(!_bcCamOk()){
+    const v=prompt('الكاميرا ما بتقرا باركود بهالمتصفّح.\nاكتب الرقم اللي تحت الخطوط:','');
+    if(v!==null&&v.trim()) posScan(v);
+    return;
+  }
+  _qrScanCallback=(raw)=>{ posScan(raw); };
+  await openQRScanner({formats:BC_FORMATS,status:'وجّه الكاميرا عالباركود'});
+}
+// ماسحٌ سلكي بيكتب الكود بالخانة وبيضغط Enter — نفس المسار بالضبط
+function posScanInput(){
+  const v=(_posQ||'').trim();
+  if(!v)return;
+  if(_bcFind(v)){ posScan(v); _posQ='';const qi=document.getElementById('posQ');if(qi)qi.value='';posRenderPicker(); }
+}
+window.posScan=posScan; window.posScanBtn=posScanBtn; window.posScanInput=posScanInput;
 
 // ═══ إعادة تسجيل التكلفة للمتاجر ═══
 // سجلّ المبيعة بيحمل «سعر البيع لهذا المتجر» ساعة التسجيل. لمّا تحدّث
@@ -9331,6 +9560,7 @@ const OP_FAM=[
   {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
                                       ['@colors','🎨 ألوان ومخزون','openColorLib()'],
                                       ['@pnstock','📦 وارد وصرف','openProdStock()'],
+                                      ['@barcode','🏷️ باركود','openBarcodes()'],
                                       ['stores','🏪 المتاجر']]},
   {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات']]}
 ];
@@ -10125,9 +10355,10 @@ function renderOpProductsList(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
           ${prodImg?`<img loading="lazy" decoding="async" src="${prodImg}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">`:`<div style="width:46px;height:46px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">📦</div>`}
-          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}${p.hasColorNumbers?` <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🎨 أرقام (${p.colorNumbersCount||0})</span>`:''}${p.category?` <span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">📂 ${p.category}</span>`:''}</div>
+          <div style="font-weight:700;color:var(--green-dark);font-size:0.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${p.requiresWriting?` <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">✍️ كتابة</span>`:''}${p.isRawMaterial?` <span style="background:#faf5ff;color:#6d28d9;border:1px solid #e9d5ff;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏭 خام</span>`:''}${p.hasColorNumbers?` <span style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🎨 أرقام (${p.colorNumbersCount||0})</span>`:''}${(()=>{const n=(_bcOf(p)?1:0)+Object.keys(_bcColors(p)).length;return n?` <span style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">🏷️ ${n} باركود</span>`:'';})()}${p.category?` <span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;">📂 ${p.category}</span>`:''}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
+          <button onclick="openBarcodes('${p.id}')" title="الباركود" style="background:#f5f3ff;color:#6d28d9;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.8rem;">🏷️</button>
           <button onclick="editOpProduct('${p.id}')" style="background:#eff6ff;color:#1e40af;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.82rem;">✏️</button>
           <button onclick="deleteOpProduct('${p.id}')" style="background:#fee2e2;color:#dc2626;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;">✕</button>
         </div>
@@ -21430,18 +21661,24 @@ let _qrScanActive=false, _qrScanStream=null, _qrScanRaf=null;
 let _qrAssignOrderId=null, _qrAssignOrder=null;
 let _qrBarcodeDetector=null, _qrLoopRunning=false;
 
-async function openQRScanner(){
+// opts.formats: أنواع الأكواد المطلوبة (الافتراضي QR وبس — زي ما كان).
+// opts.status : السطر اللي بيطلع تحت الكاميرا.
+async function openQRScanner(opts){
   const overlay=document.getElementById('qrScannerOverlay');
   if(!overlay)return;
   closeQRScanner();
   _qrAssignOrderId=null; _qrAssignOrder=null;
   overlay.style.display='block';
-  document.getElementById('qrScanStatus').textContent='وجّه الكاميرا نحو QR Code على الفاتورة';
+  const _fmts=(opts&&opts.formats&&opts.formats.length)?opts.formats:['qr_code'];
+  document.getElementById('qrScanStatus').textContent=
+    (opts&&opts.status)||'وجّه الكاميرا نحو QR Code على الفاتورة';
   _qrScanActive=true; _qrLoopRunning=false;
   // Init native BarcodeDetector (hardware-accelerated on Android/iOS)
   _qrBarcodeDetector=null;
   if('BarcodeDetector' in window){
-    try{_qrBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}
+    try{_qrBarcodeDetector=new BarcodeDetector({formats:_fmts});}catch(e){}
+    // متصفّحٌ بيدعم الواجهة بس مش كل الأنواع — منرجع لـQR بدل ما ينهار المسح
+    if(!_qrBarcodeDetector){try{_qrBarcodeDetector=new BarcodeDetector({formats:['qr_code']});}catch(e){}}
   }
   // تحميل jsQR بالتوازي مع طلب الكاميرا بدل الانتظار قبلها — يوفّر ثانية عند الفتح
   let _jsqrReady=Promise.resolve();
