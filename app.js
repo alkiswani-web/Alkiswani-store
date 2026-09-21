@@ -3787,6 +3787,172 @@ async function posReturnSale(id){
 }
 window.posSave=posSave; window.posReturnSale=posReturnSale;
 
+// ═══════════ سجلّ البيع المباشر ═══════════
+// كل بيعةٍ مباشرة بتتسجّل صفّاً بـoperator_sales. هون منجمعهم بالفاتورة
+// (posId) ومنعرضهم بفترة، مع مجاميعها — ومن هون بيصير الإرجاع، لأنّ صفّ
+// الكاش بيوريك بيعات اليوم بس، والزبون بيرجّع بعد أسبوع.
+let _posLogRows=[];      // كل البيعات المباشرة المحمّلة
+let _posLogFrom='', _posLogTo='';
+let _posLogBusy=false;
+
+async function openPosLog(){
+  if(!_posLogFrom){ _posLogTo=jordanDateStr(); _posLogFrom=_opDateOffset(_posLogTo,-6); }
+  document.getElementById('posLogModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='posLogModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  const IN="padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;box-sizing:border-box;width:100%;";
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:95vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">📒 سجلّ البيع المباشر</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">بيعات المشغل — ومن هون بترجّع</div>
+      </div>
+      <button onclick="document.getElementById('posLogModal')?.remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+      <div style="display:flex;gap:6px;margin-bottom:7px;flex-wrap:wrap;">
+        <button onclick="posLogQuick('today')" style="flex:1;min-width:64px;padding:7px 4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">اليوم</button>
+        <button onclick="posLogQuick('7')" style="flex:1;min-width:64px;padding:7px 4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">آخر ٧ أيام</button>
+        <button onclick="posLogQuick('month')" style="flex:1;min-width:64px;padding:7px 4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">هذا الشهر</button>
+        <button onclick="posLogQuick('all')" style="flex:1;min-width:64px;padding:7px 4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">الكل</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <div style="flex:1;"><div style="font-size:0.62rem;color:#6b7280;margin-bottom:2px;">من</div>
+          <input id="posLogFrom" type="date" value="${_clrEsc(_posLogFrom)}" onchange="_posLogFrom=this.value;posLogRender();" style="${IN}"></div>
+        <div style="flex:1;"><div style="font-size:0.62rem;color:#6b7280;margin-bottom:2px;">إلى</div>
+          <input id="posLogTo" type="date" value="${_clrEsc(_posLogTo)}" onchange="_posLogTo=this.value;posLogRender();" style="${IN}"></div>
+      </div>
+    </div>
+    <div id="posLogTotals" style="padding:10px 14px;border-bottom:1px solid #e5e7eb;"></div>
+    <div id="posLogBody" style="flex:1;overflow-y:auto;padding:9px 12px;">
+      <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:26px;">⏳ عمّ بحمّل…</div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  await posLogLoad();
+  posLogRender();
+}
+function posLogQuick(kind){
+  const t=jordanDateStr();
+  if(kind==='today'){_posLogFrom=t;_posLogTo=t;}
+  else if(kind==='7'){_posLogFrom=_opDateOffset(t,-6);_posLogTo=t;}
+  else if(kind==='month'){_posLogFrom=t.slice(0,8)+'01';_posLogTo=t;}
+  else {_posLogFrom='';_posLogTo='';}
+  const a=document.getElementById('posLogFrom'),b=document.getElementById('posLogTo');
+  if(a)a.value=_posLogFrom; if(b)b.value=_posLogTo;
+  posLogRender();
+}
+async function posLogLoad(force){
+  if(force) _invalidateQuery&&_invalidateQuery('operator_sales:pos');
+  try{
+    const snap=await _cachedQuery('operator_sales:poslog',60000,
+      ()=>db.collection('operator_sales').where('posSale','==',true).get());
+    _posLogRows=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){ _posLogRows=null; }
+}
+// سطرٌ واحد من الفاتورة: كل أرقامه من السجلّ نفسه لا من المنتج الحالي،
+// فسعرٌ تغيّر اليوم ما بيعيد كتابة بيعةٍ صارت مبارح.
+function _posRowNums(s){
+  const q=Number(s.qty)||0;
+  const unit=(Number(s.rawMaterialCost)||0)+(Number(s.treeCost)||0)
+            +(Number(s.machineWorkerWage)||0)+(Number(s.assemblyWorkerWage)||0);
+  const sell=(Number(s.sellPrice)||0)*q;
+  const cost=unit*q;
+  return {qty:q,sell,cost,disc:(Number(s.discount)||0)*q,profit:sell-cost};
+}
+function _posLogFiltered(){
+  return (_posLogRows||[]).filter(s=>{
+    const d=String(s.date||'');
+    if(_posLogFrom&&d<_posLogFrom) return false;
+    if(_posLogTo&&d>_posLogTo) return false;
+    return true;
+  });
+}
+function posLogRender(){
+  const body=document.getElementById('posLogBody'),tw=document.getElementById('posLogTotals');
+  if(!body||!tw)return;
+  if(_posLogRows===null){
+    tw.innerHTML='';
+    body.innerHTML=`<div style="text-align:center;padding:24px;">
+      <div style="font-size:0.9rem;font-weight:800;color:#dc2626;margin-bottom:6px;">❌ ما قدرت أقرا السجلّ</div>
+      <div style="font-size:0.75rem;color:#6b7280;line-height:1.8;">النت مقطوع أو القراءة فشلت — ما بتشوف بيعاتك لهلأ.<br>جرّب كمان مرّة.</div>
+      <button onclick="posLogRetry()" style="margin-top:10px;padding:9px 18px;background:#166534;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">🔄 إعادة المحاولة</button></div>`;
+    return;
+  }
+  const rows=_posLogFiltered();
+  const live=rows.filter(s=>s.returned!==true), back=rows.filter(s=>s.returned===true);
+  let sell=0,cost=0,disc=0;
+  live.forEach(s=>{const n=_posRowNums(s);sell+=n.sell;cost+=n.cost;disc+=n.disc;});
+  let rAmt=0; back.forEach(s=>{rAmt+=_posRowNums(s).sell;});
+  const profit=sell-cost;
+  tw.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;text-align:center;">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:6px 3px;">
+      <div style="font-size:0.58rem;color:#166534;">مبيعات</div>
+      <div style="font-size:0.85rem;font-weight:900;color:#166534;">${sell.toFixed(2)}</div></div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;padding:6px 3px;">
+      <div style="font-size:0.58rem;color:#92400e;">التكلفة</div>
+      <div style="font-size:0.85rem;font-weight:900;color:#92400e;">${cost.toFixed(2)}</div></div>
+    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:9px;padding:6px 3px;">
+      <div style="font-size:0.58rem;color:#854d0e;">الخصم</div>
+      <div style="font-size:0.85rem;font-weight:900;color:#854d0e;">${disc.toFixed(2)}</div></div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:6px 3px;">
+      <div style="font-size:0.58rem;color:#1e40af;">ربح</div>
+      <div style="font-size:0.85rem;font-weight:900;color:${profit>=0?'#1e40af':'#dc2626'};">${profit.toFixed(2)}</div></div>
+  </div>${back.length?`<div style="font-size:0.68rem;color:#b91c1c;text-align:center;margin-top:6px;">↩️ مرتجع بالفترة: ${back.length} سطر · ${rAmt.toFixed(2)} د.أ (مطروحة أصلاً)</div>`:''}`;
+
+  if(!rows.length){
+    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.84rem;padding:30px;">ما في بيعات مباشرة بهالفترة</div>';
+    return;
+  }
+  // الفاتورة الواحدة = posId واحد: الزبون أخد كذا منتج بقبضةٍ وحدة
+  const inv=new Map();
+  rows.forEach(s=>{const k=s.posId||s.id;if(!inv.has(k))inv.set(k,[]);inv.get(k).push(s);});
+  const keys=[...inv.keys()].sort((a,b)=>{
+    const da=inv.get(a)[0].date||'',dbb=inv.get(b)[0].date||'';
+    return da===dbb?String(b).localeCompare(String(a)):(da<dbb?1:-1);
+  });
+  body.innerHTML=keys.map(k=>{
+    const its=inv.get(k);
+    const head=its[0];
+    const alive=its.filter(s=>s.returned!==true);
+    let t=0;alive.forEach(s=>{t+=_posRowNums(s).sell;});
+    const who=[head.customerName||'',head.customerPhone||''].filter(Boolean).join(' · ');
+    return `<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:8px;${alive.length?'':'opacity:.62;'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;">
+        <div style="min-width:0;">
+          <div style="font-size:0.78rem;font-weight:800;color:#111827;">${_clrEsc(head.date||'')}</div>
+          ${who?`<div style="font-size:0.68rem;color:#6b7280;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">👤 ${_clrEsc(who)}</div>`:''}
+        </div>
+        <div style="font-size:0.92rem;font-weight:900;color:${alive.length?'#166534':'#9ca3af'};flex-shrink:0;">${t.toFixed(2)}</div>
+      </div>
+      ${its.map(s=>{
+        const n=_posRowNums(s);
+        const cn=(Array.isArray(s.colorNumbers)?s.colorNumbers:[]).map(c=>c.num+'×'+(c.qty||0)).join(' · ');
+        const ret=s.returned===true;
+        return `<div style="display:flex;align-items:center;gap:7px;padding:6px 0;border-top:1px dashed #f3f4f6;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.8rem;font-weight:700;color:${ret?'#9ca3af':'#111827'};${ret?'text-decoration:line-through;':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(s.productName||'')}</div>
+            <div style="font-size:0.66rem;color:#6b7280;margin-top:1px;">${n.qty} × ${(Number(s.sellPrice)||0).toFixed(2)}${n.disc>0.009?` · 🏷️ خصم ${n.disc.toFixed(2)}`:''}${cn?` · 🎨 ${_clrEsc(cn)}`:''}</div>
+          </div>
+          <div style="font-size:0.8rem;font-weight:900;color:${ret?'#9ca3af':'#166534'};flex-shrink:0;">${n.sell.toFixed(2)}</div>
+          ${ret?'<span style="font-size:0.64rem;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:7px;padding:3px 7px;flex-shrink:0;">مرتجعة</span>'
+               :`<button onclick="posLogReturn('${_payEsc(s.id)}')" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;padding:5px 9px;font-family:'Tajawal',sans-serif;font-size:0.7rem;font-weight:800;cursor:pointer;flex-shrink:0;">↩️ إرجاع</button>`}
+        </div>`;}).join('')}
+    </div>`;
+  }).join('');
+}
+async function posLogRetry(){ _posLogRows=[]; await posLogLoad(true); posLogRender(); }
+async function posLogReturn(id){
+  if(_posLogBusy)return; _posLogBusy=true;
+  try{ await posReturnSale(id); }
+  finally{ _posLogBusy=false; }
+  await posLogLoad(true);
+  posLogRender();
+}
+window.openPosLog=openPosLog; window.posLogQuick=posLogQuick;
+window.posLogRender=posLogRender; window.posLogReturn=posLogReturn; window.posLogRetry=posLogRetry;
+
 // ═══ إعادة تسجيل التكلفة للمتاجر ═══
 // سجلّ المبيعة بيحمل «سعر البيع لهذا المتجر» ساعة التسجيل. لمّا تحدّث
 // الأسعار بعدين، السجلات القديمة بتضلّ على سعرها القديم. هاي بتعيد
