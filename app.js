@@ -3548,6 +3548,245 @@ function srAllToday(){
   (_opStoresList||[]).forEach(st=>{ if(document.getElementById('sr_f_'+st.id)) srToday(st.id); });
   toast('📅 كل المتاجر بلّشت من اليوم — اكتب الأرقام واحفظ');
 }
+// ═══════════ نقطة البيع — بيع مباشر بالمشغل ═══════════
+// الزبون بيجي عالمشغل وبياخد بضاعة كاش. الفرق عن بيعة المتجر إنّي أنا
+// المتجر: بآخد سعر الزبون كامل، والربح كلّه إلي.
+//
+// بنكتب صفّ مبيعة عادي بـoperator_sales عشان كل الحسابات القائمة تشتغل
+// لحالها (رأس المال بيقرأ rawMaterialCost، والأرباح بتقرأ sellPrice).
+// وعشان الربح يطلع صح، sellPrice = السعر اللي قبضتَه فعلاً؛ والسعر
+// الأصلي والخصم بخانتين منفصلتين للتقرير وبس.
+const POS_STORE='__pos__';
+function _isPosSale(s){return !!(s&&(s.posSale===true||s.storeId===POS_STORE));}
+let _posCart=[];
+let _posCustomer={name:'',phone:''};
+
+function _posProdCost(p){
+  return (Number(p&&p.rawMaterialCost)||0)+(Number(p&&p.treeCost)||0)
+        +(Number(p&&p.machineWorkerWage)||0)+(Number(p&&p.assemblyWorkerWage)||0);
+}
+function _posTotals(){
+  let sell=0,cost=0,disc=0;
+  _posCart.forEach(it=>{
+    const q=Number(it.qty)||0;
+    sell+=(Number(it.price)||0)*q;
+    cost+=(Number(it.cost)||0)*q;
+    disc+=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0))*q;
+  });
+  return {sell,cost,disc,profit:sell-cost};
+}
+// بصمة ألوان السلّة — بنفس شكل الطلب عشان نعيد استعمال محرّك المخزون
+function _posFootprint(){
+  return {products:_posCart.map(it=>({id:it.id,colorNumbers:it.colorNumbers||[]}))};
+}
+
+let _posQ='';
+async function openPos(){
+  if(!_opProductsList.length) await loadOpProducts(true);
+  if(!_opProductsList.length){toast('⚠️ ما في منتجات');return;}
+  await loadColorLibrary();
+  document.getElementById('posModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='posModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:95vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">🛒 بيع مباشر</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">زبون إجا عالمشغل — كاش فوري</div>
+      </div>
+      <button onclick="posClose()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+      <input id="posQ" type="text" value="${_clrEsc(_posQ)}" placeholder="🔍 دوّر على منتج" oninput="_posQ=this.value;posRenderPicker();"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;">
+      <div id="posPicker" style="max-height:150px;overflow-y:auto;margin-top:7px;"></div>
+    </div>
+    <div id="posCartWrap" style="flex:1;overflow-y:auto;padding:9px 12px;"></div>
+    <div style="padding:10px 14px;border-top:1px solid #e5e7eb;background:#fafafa;">
+      <div style="display:flex;gap:7px;">
+        <input id="posCName" type="text" value="${_clrEsc(_posCustomer.name)}" placeholder="اسم الزبون (اختياري)" oninput="_posCustomer.name=this.value;"
+          style="flex:2;min-width:0;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
+        <input id="posCPhone" type="tel" value="${_clrEsc(_posCustomer.phone)}" placeholder="الهاتف" oninput="_posCustomer.phone=this.value;"
+          style="flex:1;min-width:0;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
+      </div>
+    </div>
+    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      <div id="posTotals" style="margin-bottom:9px;"></div>
+      <button onclick="posSave()" style="width:100%;padding:14px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:900;cursor:pointer;">💵 بيع وقبض</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  posRenderPicker();posRenderCart();
+}
+function posClose(){
+  if(_posCart.length&&!confirm('في بضاعة بالسلّة — تسكّر بلا ما تبيع؟'))return;
+  _posCart=[];document.getElementById('posModal')?.remove();
+}
+function posRenderPicker(){
+  const w=document.getElementById('posPicker');if(!w)return;
+  const q=(_posQ||'').trim();
+  const list=(_opProductsList||[]).filter(p=>!p.isRawMaterial&&(!q||String(p.name||'').includes(q))).slice(0,40);
+  w.innerHTML=list.length?list.map(p=>`<button onclick="posAdd('${p.id}')" style="width:100%;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;">
+      <span style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(p.name)}</span>
+      <span style="font-size:0.78rem;font-weight:800;color:#166534;flex-shrink:0;">${(Number(p.sellPrice)||0).toFixed(2)}</span>
+    </button>`).join('')
+    :'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:12px;">ما في منتج بهالاسم</div>';
+}
+function posAdd(id){
+  const p=_prodById(id);if(!p)return;
+  const ex=_posCart.find(x=>x.id===id&&!x.colorNumbers.length&&!p.hasColorNumbers);
+  if(ex){ex.qty=(Number(ex.qty)||0)+1;posRenderCart();return;}
+  const price=Number(p.sellPrice)||0;
+  _posCart.push({id,name:p.name||'',qty:1,price,list:price,
+    raw:Number(p.rawMaterialCost)||0,tree:Number(p.treeCost)||0,
+    machine:Number(p.machineWorkerWage)||0,assembly:Number(p.assemblyWorkerWage)||0,
+    cost:_posProdCost(p),colorNumbers:[]});
+  _posQ='';const qi=document.getElementById('posQ');if(qi)qi.value='';
+  posRenderPicker();posRenderCart();
+}
+function posSet(i,field,v){
+  const it=_posCart[i];if(!it)return;
+  it[field]=field==='qty'?Math.max(0,parseInt(v)||0):Math.max(0,parseFloat(v)||0);
+  posRenderTotals();
+}
+function posDel(i){_posCart.splice(i,1);posRenderCart();}
+function posCN(i,num,delta){
+  const it=_posCart[i];if(!it)return;
+  const pr=_prodById(it.id);
+  const cur=((it.colorNumbers||[]).find(c=>c.num===num)||{}).qty||0;
+  if(_cnBlocked(num,cur,delta,_prodOwnColors(pr),pr))return;
+  let cns=(it.colorNumbers||[]).slice();
+  const j=cns.findIndex(c=>c.num===num);
+  if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
+  else if(delta>0) cns.push({num,qty:1});
+  it.colorNumbers=cns;
+  const tot=cns.reduce((s,c)=>s+(c.qty||0),0);
+  if(tot>0) it.qty=tot;          // الكمية = مجموع الألوان، زي الطلب
+  posRenderCart();
+}
+function posRenderCart(){
+  const w=document.getElementById('posCartWrap');if(!w)return;
+  if(!_posCart.length){
+    w.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">السلّة فاضية — دوّر على منتج فوق</div>';
+    posRenderTotals();return;
+  }
+  const F="padding:7px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.84rem;text-align:center;outline:none;box-sizing:border-box;";
+  w.innerHTML=_posCart.map((it,i)=>{
+    const pr=_prodById(it.id);
+    const hasCN=!!(pr&&pr.hasColorNumbers);
+    const codes=hasCN?_prodColorCodes(pr):[];
+    const sel={};(it.colorNumbers||[]).forEach(c=>{sel[c.num]=c.qty;});
+    const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
+    return `<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;">
+        <div style="font-size:0.88rem;font-weight:800;color:#111827;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(it.name)}</div>
+        <button onclick="posDel(${i})" style="background:#fee2e2;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0;font-size:0.8rem;">🗑️</button>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center;">
+        <div style="flex:1;"><div style="font-size:0.64rem;color:#6b7280;margin-bottom:2px;">الكمية</div>
+          <input type="number" min="0" value="${it.qty}" ${hasCN?'readonly':''} oninput="posSet(${i},'qty',this.value)" style="${F}width:100%;${hasCN?'background:#f3f4f6;':''}"></div>
+        <div style="flex:1;"><div style="font-size:0.64rem;color:#6b7280;margin-bottom:2px;">السعر</div>
+          <input type="number" min="0" step="0.25" value="${it.price}" oninput="posSet(${i},'price',this.value)" style="${F}width:100%;"></div>
+        <div style="flex:1;"><div style="font-size:0.64rem;color:#6b7280;margin-bottom:2px;">الإجمالي</div>
+          <div style="padding:7px;font-size:0.86rem;font-weight:900;color:#166534;text-align:center;">${((Number(it.price)||0)*(Number(it.qty)||0)).toFixed(2)}</div></div>
+      </div>
+      ${disc>0.009?`<div style="font-size:0.68rem;color:#b45309;margin-top:5px;">🏷️ خصم ${(disc*(Number(it.qty)||0)).toFixed(2)} (السعر ${(Number(it.list)||0).toFixed(2)})</div>`:''}
+      ${hasCN&&codes.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;">
+        <div style="font-size:0.66rem;color:#6b7280;margin-bottom:5px;">🎨 اختار اللون والعدد</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${_cnGridHtml(codes,sel,'posCN',i,true,_prodOwnColors(pr),pr)}</div></div>`:''}
+    </div>`;}).join('');
+  posRenderTotals();
+}
+function posRenderTotals(){
+  const w=document.getElementById('posTotals');if(!w)return;
+  const t=_posTotals();
+  w.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;text-align:center;">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:7px;">
+      <div style="font-size:0.62rem;color:#166534;">الإجمالي</div>
+      <div style="font-size:0.95rem;font-weight:900;color:#166534;">${t.sell.toFixed(2)}</div></div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:7px;">
+      <div style="font-size:0.62rem;color:#92400e;">التكلفة</div>
+      <div style="font-size:0.95rem;font-weight:900;color:#92400e;">${t.cost.toFixed(2)}</div></div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:7px;">
+      <div style="font-size:0.62rem;color:#1e40af;">ربحك</div>
+      <div style="font-size:0.95rem;font-weight:900;color:${t.profit>=0?'#1e40af':'#dc2626'};">${t.profit.toFixed(2)}</div></div>
+  </div>${t.disc>0.009?`<div style="font-size:0.7rem;color:#b45309;text-align:center;margin-top:6px;">🏷️ مجموع الخصم ${t.disc.toFixed(2)} د.أ</div>`:''}`;
+}
+window.openPos=openPos; window.posClose=posClose; window.posRenderPicker=posRenderPicker;
+window.posAdd=posAdd; window.posSet=posSet; window.posDel=posDel; window.posCN=posCN;
+
+async function posSave(){
+  if(!_posCart.length){toast('⚠️ السلّة فاضية');return;}
+  const bad=_posCart.find(it=>!(Number(it.qty)>0)||!(Number(it.price)>=0));
+  if(bad){toast('⚠️ راجع الكمية والسعر');return;}
+  const t=_posTotals();
+  if(!confirm(`💵 بيع وقبض\n\nالإجمالي: ${t.sell.toFixed(2)} د.أ\n`
+    +(t.disc>0.009?`الخصم: ${t.disc.toFixed(2)}\n`:'')
+    +`التكلفة: ${t.cost.toFixed(2)}\nربحك: ${t.profit.toFixed(2)}\n\nنسجّلها؟`)) return;
+  try{
+    if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب');return;}
+    const posId='pos_'+Date.now();
+    const date=jordanDateStr();
+    const batch=db.batch();
+    _posCart.forEach((it,i)=>{
+      const ref=db.collection('operator_sales').doc(posId+'_'+i);
+      batch.set(ref,{
+        storeId:POS_STORE, storeName:'بيع مباشر', posSale:true, posId,
+        customerName:_posCustomer.name||'', customerPhone:_posCustomer.phone||'',
+        productId:it.id||'', productName:it.name||'',
+        qty:Number(it.qty)||1,
+        rawMaterialCost:Number(it.raw)||0, treeCost:Number(it.tree)||0,
+        machineWorkerWage:Number(it.machine)||0, assemblyWorkerWage:Number(it.assembly)||0,
+        // السعر المقبوض هو المعتمد بكل الحسابات؛ الأصلي والخصم للتقرير
+        sellPrice:Number(it.price)||0, soldPrice:Number(it.price)||0,
+        listPrice:Number(it.list)||0,
+        discount:Math.max(0,(Number(it.list)||0)-(Number(it.price)||0)),
+        colorNumbers:(it.colorNumbers||[]),
+        date, delivered:true, sessionId:(_opCurrentSession&&_opCurrentSession.id)||null,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    // المخزون بينقص زي ما بينقص بالطلب تماماً
+    try{ await _orderStockSync(null,null,_posFootprint(),false,true); }catch(e){}
+    _posCart=[];_posCustomer={name:'',phone:''};
+    document.getElementById('posModal')?.remove();
+    toast(`✅ انباعت — ${t.sell.toFixed(2)} د.أ · ربحك ${t.profit.toFixed(2)}`);
+    _invalidateQuery&&_invalidateQuery('operator_sales');
+    if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+
+// الإرجاع: ما بنحذف السجلّ — بنعلّمه مرتجعاً فبيطلع من الكاش ومن رأس المال
+// ومن الأرباح لحاله (كلّهم بيتخطّوا delivered:false)، والمخزون بيرجع.
+async function posReturnSale(id){
+  // منقراها من قاعدة البيانات لا من الذاكرة: البيعة ممكن تكون برّا الفترة
+  // المحمّلة، وساعتها كان الإرجاع بيفشل بصمت.
+  let s=(_opDailySales||[]).find(x=>x.id===id);
+  if(!s){
+    try{const d=await db.collection('operator_sales').doc(id).get();
+      if(d.exists) s={id:d.id,...d.data()};}catch(e){}
+  }
+  if(!s){toast('⚠️ ما لقيت البيعة');return;}
+  if(s.returned===true){toast('↩️ هاي البيعة مرتجعة أصلاً');return;}
+  const amt=(Number(s.sellPrice)||0)*(Number(s.qty)||1);
+  if(!confirm(`↩️ إرجاع «${s.productName||''}»\n\nالمبلغ ${amt.toFixed(2)} د.أ رح يطلع من الكاش،\nوالبضاعة رح ترجع للمخزون.\n\nنكمّل؟`))return;
+  try{
+    await db.collection('operator_sales').doc(id)
+      .update({delivered:false,returned:true,returnedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    if(Array.isArray(s.colorNumbers)&&s.colorNumbers.length){
+      try{ await _orderStockSync(null,{products:[{id:s.productId,colorNumbers:s.colorNumbers}]},null,true,false); }catch(e){}
+    }
+    toast('↩️ رجعت — '+amt.toFixed(2)+' د.أ طلعت من الكاش');
+    _invalidateQuery&&_invalidateQuery('operator_sales');
+    if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.posSave=posSave; window.posReturnSale=posReturnSale;
+
 // ═══ إعادة تسجيل التكلفة للمتاجر ═══
 // سجلّ المبيعة بيحمل «سعر البيع لهذا المتجر» ساعة التسجيل. لمّا تحدّث
 // الأسعار بعدين، السجلات القديمة بتضلّ على سعرها القديم. هاي بتعيد
@@ -11669,7 +11908,7 @@ async function _loadOpSessionData(){
     Object.keys(_storeReset).forEach(id=>{
       if(_srOn(id)) _opAcctOwed[id]=_srOpening(id);
     });
-    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false){
+    sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false&&!_isPosSale(s)){
       _srRawPush(s.storeId,_srDate(s),'o',(s.sellPrice||0)*(s.qty||1)); // للمعاينة قبل الحفظ
       if(!_srIn(s.storeId,s))return;   // قبل بداية الحساب — مطويّ
       // هل هذا المنتج إله سعرٌ لهذا المتجر؟ إذا لأ فتكلفتُه تخمينٌ لا سعر
@@ -11861,6 +12100,9 @@ function jumpOpDate(val){
 
 function renderOperatorDailyView(){
   _opStoreNets={};
+  // لو ما في ولا حركة، لوحة الكاش ما بترسم — فلازم نصفّر الرقم المحفوظ
+  // وإلا ضلّ آخر رقم معلّقاً بالشاشة بعد ما ترجّع آخر بيعة.
+  window._ccCurrentNet=0;
   // الكشف = عرض المبيعات فقط (منتجات + كمية + سعر البيع + الإجمالي)
   // كل الحسابات (تكاليف/أرباح/تحصيل/متاجر/رواتب) تُعرض في تبويب رصيد روزميري داخل #opbal_accounting
   const kashfBody=document.getElementById('opacct_op_body');
@@ -11959,7 +12201,9 @@ function renderOperatorDailyView(){
   // حتى لو ما في ولا طلب: في متاجر إلها رصيد ابتدائي لازم تبيّن
   const _storesNeedCard=(_opStoresList||[]).some(st=>st&&st.name&&!st.archived&&!_shHidden(st.name)
     &&(_srOn(st.id)||Math.abs((_opAcctOwed[st.id]||0)-(_opAcctPaid[st.id]||0)-(_opAcctRefund[st.id]||0))>0.009));
-  if(_opDayOrders.length||_storesNeedCard){
+  // ويوم ما في فيه ولا طلب توصيل بس في بيع مباشر: لازم لوحة الكاش تشتغل
+  const _posToday=(_opDailySales||[]).some(x=>_isPosSale(x)&&x.returned!==true);
+  if(_opDayOrders.length||_storesNeedCard||_posToday){
     const courierHeld={};
     const byStore={};
     _opDayOrders.forEach(o=>{
@@ -12313,6 +12557,10 @@ function renderOperatorDailyView(){
     const _collSupPays=(_opSessionSupPays||[]).filter(p=>!p.noCash&&p.supplierId!=='__treeprofit__'&&!_isCourierId(p.supplierId)).reduce((s,p)=>s+(p.amount||0),0);
     // مقبوضات شركات التوصيل: كاشٌ دخل فعلاً لمّا حاسبتك الشركة
     const _collCourierIn=(_opSessionSupPays||[]).filter(p=>!p.noCash&&_isCourierId(p.supplierId)).reduce((s,p)=>s+(p.amount||0),0);
+    // البيع المباشر بالمشغل: كاشٌ قبضتَه لحظة البيع
+    const _collPosIn=(_opDailySales||[])
+      .filter(s=>_isPosSale(s)&&s.returned!==true)
+      .reduce((t,s)=>t+((Number(s.sellPrice)||0)*(Number(s.qty)||1)),0);
     // دفعات المناديب المحاسبين: كاشٌ دخل فعلاً لمّا سلّمك المندوب
     const _collRepIn=(_opSessionRepPays||[])
       .filter(p=>_repExcluded(p.repName)).reduce((s,p)=>s+(Number(p.amount)||0),0);
@@ -12326,9 +12574,9 @@ function renderOperatorDailyView(){
     const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
     // دفعات السداد (ديون علينا لأشخاص) — كاش خرج من نفس الصندوق تماماً كالإجار
     const _collDebt=(_opSessionDebtPays||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
-    const _collNet=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collCourierIn+_collRepIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
+    const _collNet=_collOrdersNet+_collPosIn+_collStorePayments+_collTreeProfitIn+_collCourierIn+_collRepIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
     ccNet=_collNet;
-    ccIn=_collOrdersNet+_collStorePayments+_collTreeProfitIn+_collRepIn+Math.max(0,_collAdjust);
+    ccIn=_collOrdersNet+_collPosIn+_collStorePayments+_collTreeProfitIn+_collRepIn+Math.max(0,_collAdjust);
     ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
@@ -12963,6 +13211,11 @@ function _payHubLedger(){
   // اللي بتشوفه فيه، لا إنّك تدوّر على قسمه. وبالذات قبضةٌ فوق المستحق —
   // صفُّها بيختفي من «إلك تقبض» فما بيضلّ إلها طريقٌ إطلاقاً.
   const push=(date,icon,label,amount,dir,del)=>{if(amount)L.push({date:date||'',icon,label,amount,dir,del:del||''});};
+  (_opDailySales||[]).filter(s=>_isPosSale(s)&&s.returned!==true).forEach(s=>{
+    push(s.date,'🛒','بيعة مباشرة · '+(s.productName||'')+(s.customerName?' — '+s.customerName:''),
+      (Number(s.sellPrice)||0)*(Number(s.qty)||1),'in',
+      s.id?`posReturnSale('${_payEsc(s.id)}')`:'');
+  });
   (_opSessionRepPays||[]).filter(p=>_repExcluded(p.repName)).forEach(p=>{
     push(p.date,'🛵','قبضتُ من المندوب'+(p.repName?' · '+p.repName:''),p.amount,'in',
       p.id?`deleteRepPayment('${_payEsc(p.id)}')`:'');
