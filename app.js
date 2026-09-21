@@ -22313,7 +22313,30 @@ async function _handleQRResult(raw){
 }
 
 // ====== HARDWARE SCANNER (USB/Bluetooth keyboard-mode) ======
-// Uses e.code (physical key) not e.key to handle Arabic/non-Latin OS keyboard layouts
+// الماسح السلكي بيكتب الكود وبيضغط Enter، وما إله فكرة وين انت واقف.
+// فإحنا منوجّهه: الشاشة المفتوحة قدّامك هي اللي بتاخد الكود. بلا هيك كل
+// مسحة كانت بتروح لفحص الطلبات وبترجّع «الطلب غير موجود».
+function _wedgeRoute(raw){
+  try{
+    if(document.getElementById('posModal')){ posScan(raw); return true; }
+    if(document.getElementById('pnStockModal')){ pnScan(raw); return true; }
+    // شاشة الباركود مفتوحة: منحطّه «مستنّي محلّ» فبتختار السطر بضغطة
+    if(document.getElementById('bcModal')){
+      _bcPending=_bcNorm(raw); openBarcodes(_bcProdId,_bcPending); return true;
+    }
+    const hit=_bcFind(raw);
+    if(hit){
+      toast('🏷️ '+_bcLabel(hit)+' — افتح «🛒 بيع مباشر» أو «📦 وارد وصرف» وامسح من جوّا');
+      return true;
+    }
+    // كودٌ من توليدنا: أكيد مش رقم طلب، فما منبعته لفحص الطلبات
+    if(/^RSM[A-Z0-9]+$/i.test(String(raw).trim())){
+      toast('🏷️ هاد كود منتج مش طلب — وما لقيتله منتج. اربطه من «🏷️ باركود»');
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
 (function(){
   // Map physical key codes → US-QWERTY characters (scanner always sends US layout HID codes)
   const _K={'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e','KeyF':'f','KeyG':'g','KeyH':'h','KeyI':'i','KeyJ':'j','KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n','KeyO':'o','KeyP':'p','KeyQ':'q','KeyR':'r','KeyS':'s','KeyT':'t','KeyU':'u','KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z','Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4','Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9','Minus':'-','Equal':'=','BracketLeft':'[','BracketRight':']','Backslash':'\\','Semicolon':';','Quote':"'",'Comma':',','Period':'.','Slash':'/','Backquote':'`','Space':' '};
@@ -22324,10 +22347,14 @@ async function _handleQRResult(raw){
     if(e.code==='Enter'||e.code==='NumpadEnter'){
       const raw=_buf.trim();
       const elapsed=now-_bufStart;
+      const tgt=e.target;
       _buf='';_bufStart=0;clearTimeout(_timer);
+      // خانات المسح عنّا بتتصرّف لحالها — بلا هيك الكود بينقرا مرّتين
+      if(tgt&&(tgt.id==='posQ'||tgt.id==='pnQ')) return;
       // 1200ms threshold — covers USB and slow Bluetooth scanners
       if(raw.length>2&&elapsed<1200){
         e.preventDefault();e.stopPropagation();
+        if(_wedgeRoute(raw))return;
         closeQRScanner();_handleQRResult(raw);
       }
       return;
