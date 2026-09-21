@@ -2453,6 +2453,7 @@ async function openEmpPanel(){
   document.getElementById('empPanel').style.display='block';
   _setPanelOpen(true);
   _checkEmpNotifBanner();
+  _cbStartBanner();
   _initFCM().then(()=>{if(Notification.permission==='granted')_registerFCMToken(_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username),'emp');});
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
@@ -4576,6 +4577,348 @@ function pnScanInput(){
 }
 window.pnScan=pnScan; window.pnScanBtn=pnScanBtn; window.pnScanInput=pnScanInput; window.pnBump=pnBump;
 
+// ═══════════ لوحة الألوان وتحديث الموظفين ═══════════
+// الموظفة عالخطّ مع الزبونة لازم تعرف بثانية: الرقم هاد موجود ولا خلص.
+// فصار في لوحةٌ حيّة بتشوفها، وتحديثٌ بيوصلها أوّل ما تتغيّر البضاعة.
+const CB_STATE='color_bcast_state';   // آخر حالةٍ انبلّغت — منها منعرف شو تغيّر
+function _cbNums(p){
+  if(!p||!p.hasColorNumbers) return [];
+  return _prodOwnColors(p)?_ownNums(p):_prodColorCodes(p).filter(n=>_clrSt(n)!=='retired');
+}
+// −1 يعني «ما انجرد» — ما منحسبه خالصاً ولا منبلّغ عنه
+function _cbQty(p,n){
+  if(_prodOwnColors(p)){const q=_ownQty(p,n);return q===undefined||q===null?-1:(Number(q)||0);}
+  const c=_clr(n); return (c&&c.counted===true)?(Number(c.qty)||0):-1;
+}
+function _cbProds(list){
+  return (list||_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);
+}
+function _cbSnapshot(list){
+  const s={};
+  _cbProds(list).forEach(p=>{
+    const m={};
+    _cbNums(p).forEach(n=>{const q=_cbQty(p,n);if(q>=0)m[n]=q;});
+    if(Object.keys(m).length) s[p.id]=m;
+  });
+  return s;
+}
+// شو تغيّر من آخر تبليغ: وصل (كان خلصان أو رقم جديد) · زاد · خلص
+function _cbDiff(prev,cur){
+  const arrived=[],added=[],finished=[];
+  prev=prev||{};
+  Object.keys(cur||{}).forEach(pid=>{
+    const pv=prev[pid]||{}, cv=cur[pid]||{};
+    Object.keys(cv).forEach(k=>{
+      const n=Number(k), b=Number(cv[k]);
+      const had=Object.prototype.hasOwnProperty.call(pv,k);
+      const a=had?Number(pv[k]):null;
+      if(!had){ if(b>0) arrived.push({pid,n,from:0,to:b,fresh:true}); return; }
+      if(a<=0&&b>0) arrived.push({pid,n,from:a,to:b});
+      else if(a>0&&b<=0) finished.push({pid,n,from:a,to:b});
+      else if(b>a) added.push({pid,n,from:a,to:b});
+    });
+  });
+  const s=(x,y)=>x.pid===y.pid?x.n-y.n:String(x.pid).localeCompare(String(y.pid));
+  return {arrived:arrived.sort(s),added:added.sort(s),finished:finished.sort(s)};
+}
+function _cbCount(d){return (d.arrived.length+d.added.length+d.finished.length);}
+function _cbProdName(pid){const p=_prodById(pid);return (p&&p.name)||'منتج';}
+// نصٌّ عربيّ مقروء بدل جدول أرقام
+function _cbText(d,note){
+  const grp=(rows)=>{
+    const by={};rows.forEach(r=>{(by[r.pid]=by[r.pid]||[]).push(r.n);});
+    return Object.keys(by).map(pid=>_cbProdName(pid)+': '+by[pid].join('، ')).join(' | ');
+  };
+  const L=[];
+  if(d.arrived.length) L.push('🆕 وصل — '+grp(d.arrived));
+  if(d.added.length)   L.push('➕ زاد — '+grp(d.added));
+  if(d.finished.length)L.push('❌ خلص — '+grp(d.finished));
+  if(note&&note.trim()) L.push('📝 '+note.trim());
+  return L.join('\n');
+}
+async function _cbLoadState(){
+  try{const d=await db.collection('operator_config').doc(CB_STATE).get();
+    return (d.exists&&d.data()&&d.data().state)||{};}catch(e){return null;}
+}
+
+// ─── شاشة التحديث (للأدمن) ───
+let _cbDiffCur=null, _cbSnapCur=null, _cbPrev=null, _cbOff={};
+async function openColorBroadcast(){
+  if(!_opProductsList.length) await loadOpProducts(true);
+  await loadColorLibrary();
+  _cbSnapCur=_cbSnapshot();
+  _cbPrev=await _cbLoadState();
+  if(_cbPrev===null){toast('❌ ما قدرت أقرا آخر تحديث — جرّب كمان مرّة');return;}
+  _cbDiffCur=_cbDiff(_cbPrev,_cbSnapCur);
+  _cbOff={};
+  cbRender();
+}
+function _cbKey(r){return r.pid+':'+r.n;}
+function cbToggle(k){_cbOff[k]=!_cbOff[k];cbRender();}
+function cbAll(on){
+  const d=_cbDiffCur;if(!d)return;
+  _cbOff={};
+  if(!on)[...d.arrived,...d.added,...d.finished].forEach(r=>{_cbOff[_cbKey(r)]=true;});
+  cbRender();
+}
+function _cbPicked(){
+  const d=_cbDiffCur||{arrived:[],added:[],finished:[]};
+  const f=rows=>rows.filter(r=>!_cbOff[_cbKey(r)]);
+  return {arrived:f(d.arrived),added:f(d.added),finished:f(d.finished)};
+}
+function cbRender(){
+  const d=_cbDiffCur;if(!d)return;
+  const sec=(title,rows,color,bg)=>rows.length?`<div style="margin-bottom:11px;">
+      <div style="font-size:0.74rem;font-weight:900;color:${color};margin-bottom:5px;">${title} (${rows.length})</div>
+      ${rows.map(r=>{const k=_cbKey(r);const off=!!_cbOff[k];
+        return `<button onclick="cbToggle('${_payEsc(k)}')" style="width:100%;text-align:right;display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:4px;background:${off?'#f9fafb':bg};border:1.5px solid ${off?'#e5e7eb':color};border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;opacity:${off?'.55':'1'};">
+          <span style="font-size:0.9rem;flex-shrink:0;">${off?'☐':'☑️'}</span>
+          <span style="flex:1;min-width:0;font-size:0.8rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(_cbProdName(r.pid))} · لون ${r.n}</span>
+          <span style="font-size:0.7rem;font-weight:800;color:${color};flex-shrink:0;">${r.from} ⇐ ${r.to}</span>
+        </button>`;}).join('')}
+    </div>`:'';
+  const n=_cbCount(d);
+  document.getElementById('cbModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='cbModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:93vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">📢 تحديث الألوان للموظفين</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">شو تغيّر من آخر تحديث بعتّه</div>
+      </div>
+      <button onclick="document.getElementById('cbModal')?.remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    ${n?`<div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+      <button onclick="cbAll(true)" style="flex:1;padding:7px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">☑️ كلّهم</button>
+      <button onclick="cbAll(false)" style="flex:1;padding:7px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:700;cursor:pointer;">☐ ولا واحد</button>
+    </div>`:''}
+    <div style="flex:1;overflow-y:auto;padding:10px 13px;">
+      ${n?sec('🆕 وصل',d.arrived,'#166534','#f0fdf4')
+          +sec('➕ زاد',d.added,'#1e40af','#eff6ff')
+          +sec('❌ خلص',d.finished,'#b91c1c','#fef2f2')
+          +`<div style="margin-top:6px;">
+             <div style="font-size:0.7rem;color:#6b7280;margin-bottom:4px;">📝 كلمة منك (اختياري)</div>
+             <textarea id="cbNote" rows="2" placeholder="مثلاً: الشحنة الجديدة وصلت — انتبهوا للأرقام" style="width:100%;box-sizing:border-box;padding:9px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;resize:none;outline:none;"></textarea>
+           </div>
+           <div style="font-size:0.64rem;color:#9ca3af;margin-top:7px;line-height:1.75;">اللي بتشيل عنه العلامة ما بينبعت، وبيضلّ مستنّي بالتحديث الجاي — ما بيضيع.</div>`
+        :`<div style="text-align:center;padding:26px;">
+            <div style="font-size:0.9rem;font-weight:800;color:#166534;margin-bottom:5px;">✅ ما في جديد</div>
+            <div style="font-size:0.76rem;color:#6b7280;line-height:1.8;">ولا لون تغيّر من آخر تحديث بعتّه.<br>الموظفين شايفين الوضع الحالي.</div>
+          </div>`}
+    </div>
+    ${n?`<div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      <button onclick="cbSend()" style="width:100%;padding:13px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;">📢 ابعت للموظفين</button>
+    </div>`:''}
+  </div>`;
+  document.body.appendChild(ov);
+}
+// حالةٌ جديدة = الحالي، بس اللي ما بعتّه بيرجع لقيمته القديمة فبيضلّ مستنّي
+function _cbNextState(prev,cur,picked){
+  const sent=new Set([...picked.arrived,...picked.added,...picked.finished].map(_cbKey));
+  const out=JSON.parse(JSON.stringify(cur||{}));
+  const d=_cbDiff(prev,cur);
+  [...d.arrived,...d.added,...d.finished].forEach(r=>{
+    if(sent.has(_cbKey(r)))return;
+    const had=prev&&prev[r.pid]&&Object.prototype.hasOwnProperty.call(prev[r.pid],r.n);
+    if(had) out[r.pid][r.n]=prev[r.pid][r.n];
+    else if(out[r.pid]) delete out[r.pid][r.n];
+  });
+  return out;
+}
+async function cbSend(){
+  const picked=_cbPicked();
+  if(!_cbCount(picked)){toast('⚠️ ما اخترت ولا سطر');return;}
+  const note=(document.getElementById('cbNote')?.value||'').trim();
+  const text=_cbText(picked,note);
+  if(!confirm('📢 نبعت للموظفين؟\n\n'+text))return;
+  try{
+    await _cbPublish(picked,note,_cbSnapCur,_cbPrev);
+    document.getElementById('cbModal')?.remove();
+    toast('📢 انبعت — الموظفين رح يشوفوه فوراً');
+  }catch(e){toast('❌ '+e.message);}
+}
+async function _cbPublish(picked,note,cur,prev){
+  const name=r=>({p:_cbProdName(r.pid),n:r.n,to:r.to});
+  await db.collection('color_broadcasts').add({
+    arrived:picked.arrived.map(name), added:picked.added.map(name), finished:picked.finished.map(name),
+    note:note||'', text:_cbText(picked,note),
+    by:(_currentAdminUser||'الأدمن'),
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  await db.collection('operator_config').doc(CB_STATE)
+    .set({state:_cbNextState(prev,cur,picked),
+          at:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+}
+// بعد ما تحفظ وارداً أو صرفاً: بيحسب الفرق وبيسألك — ضغطة وحدة وبيروح
+async function _cbAskAfterStock(){
+  try{
+    const cur=_cbSnapshot();
+    const prev=await _cbLoadState();
+    if(prev===null)return;
+    const d=_cbDiff(prev,cur);
+    if(!_cbCount(d))return;
+    const text=_cbText(d,'');
+    if(!confirm('📢 تبعت تحديث للموظفين؟\n\n'+text+'\n\n(لو «لا» بيضلّ مستنّي — بتبعته وقتما بدّك)'))return;
+    await _cbPublish(d,'',cur,prev);
+    toast('📢 انبعت للموظفين');
+  }catch(e){}
+}
+window.openColorBroadcast=openColorBroadcast; window.cbToggle=cbToggle;
+window.cbAll=cbAll; window.cbSend=cbSend; window.cbRender=cbRender;
+
+// ─── لوحة الألوان الحيّة — بتفتح عند الأدمن وعند الموظف ───
+let _cboProdId='', _cboQ='', _cboUnsub=null, _cboProds=null;
+async function openColorBoard(prodId){
+  document.getElementById('cboModal')?.remove();
+  _cboQ='';
+  const ov=document.createElement('div');
+  ov.id='cboModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100004;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:95vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#1e40af;">🎨 الألوان المتوفّرة</div>
+        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">بتتحدّث لحظة بلحظة — شوفها والزبونة عالخط</div>
+      </div>
+      <button onclick="closeColorBoard()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div id="cboHead" style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;"></div>
+    <div id="cboBody" style="flex:1;overflow-y:auto;padding:11px 13px;">
+      <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:26px;">⏳ عمّ بحمّل…</div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  if(prodId)_cboProdId=prodId;
+  await loadColorLibrary();
+  _cboStartLive();
+}
+// نسخةٌ خاصّة بالشاشة: ما منلمس قوائم التطبيق فما منلخبط لا طلباً ولا سلّة
+function _cboStartLive(){
+  _cboStopLive();
+  try{
+    _cboUnsub=db.collection('operator_products').onSnapshot(snap=>{
+      _cboProds=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);
+      cboRender();
+    },()=>{ _cboProds=null; cboRender(); });
+  }catch(e){ _cboProds=null; cboRender(); }
+}
+function _cboStopLive(){ if(_cboUnsub){try{_cboUnsub();}catch(e){} _cboUnsub=null;} }
+function closeColorBoard(){_cboStopLive();document.getElementById('cboModal')?.remove();}
+function cboPick(id){_cboProdId=id;cboRender();}
+function cboSearch(v){_cboQ=String(v||'').trim();cboRender();}
+function cboRender(){
+  const head=document.getElementById('cboHead'), body=document.getElementById('cboBody');
+  if(!head||!body)return;
+  if(_cboProds===null){
+    head.innerHTML='';
+    body.innerHTML=`<div style="text-align:center;padding:24px;">
+      <div style="font-size:0.9rem;font-weight:800;color:#dc2626;margin-bottom:6px;">❌ ما قدرت أقرا الألوان</div>
+      <div style="font-size:0.76rem;color:#6b7280;line-height:1.8;">النت مقطوع أو القراءة فشلت.<br>ما تعتمد على اللي كان ظاهر — جرّب كمان مرّة.</div>
+      <button onclick="_cboStartLive()" style="margin-top:10px;padding:9px 18px;background:#1e40af;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">🔄 إعادة المحاولة</button></div>`;
+    return;
+  }
+  const prods=(_cboProds||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ar'));
+  if(!prods.length){
+    head.innerHTML='';
+    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.84rem;padding:28px;">ما في منتجات بأرقام ألوان</div>';
+    return;
+  }
+  if(!_cboProdId||!prods.some(p=>p.id===_cboProdId)) _cboProdId=prods[0].id;
+  const p=prods.find(x=>x.id===_cboProdId);
+  const nums=_cbNums(p);
+  const q=_cboQ;
+  const rows=nums.map(n=>({n,q:_cbQty(p,n)})).filter(r=>!q||String(r.n).indexOf(q)===0);
+  const have=nums.filter(n=>_cbQty(p,n)>0).length;
+  const out =nums.filter(n=>_cbQty(p,n)===0).length;
+  const unk =nums.filter(n=>_cbQty(p,n)<0).length;
+  head.innerHTML=`<select onchange="cboPick(this.value)" style="width:100%;padding:9px;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:700;background:#fff;color:#1e40af;outline:none;cursor:pointer;">
+      ${prods.map(x=>`<option value="${x.id}" ${x.id===_cboProdId?'selected':''}>${_clrEsc(x.name)}</option>`).join('')}
+    </select>
+    <input type="text" value="${_clrEsc(_cboQ)}" oninput="cboSearch(this.value)" placeholder="🔍 دوّر على رقم"
+      style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
+    <div style="display:flex;gap:6px;margin-top:7px;text-align:center;">
+      <div style="flex:1;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:5px;">
+        <div style="font-size:0.58rem;color:#166534;">متوفّر</div><div style="font-size:0.85rem;font-weight:900;color:#166534;">${have}</div></div>
+      <div style="flex:1;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:5px;">
+        <div style="font-size:0.58rem;color:#b91c1c;">خلص</div><div style="font-size:0.85rem;font-weight:900;color:#b91c1c;">${out}</div></div>
+      ${unk?`<div style="flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:5px;">
+        <div style="font-size:0.58rem;color:#6b7280;">ما انجرد</div><div style="font-size:0.85rem;font-weight:900;color:#6b7280;">${unk}</div></div>`:''}
+    </div>`;
+  if(!rows.length){
+    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.84rem;padding:28px;">'
+      +(q?'ما في رقم بيبلّش بـ'+_clrEsc(q):'ما في أرقام لهذا المنتج')+'</div>';
+    return;
+  }
+  const low=p&&_prodOwnColors(p)?0:0;
+  body.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:7px;">
+    ${rows.map(r=>{
+      const unk2=r.q<0, zero=r.q===0;
+      const bg=unk2?'#f9fafb':zero?'#fef2f2':'#f0fdf4';
+      const bd=unk2?'#e5e7eb':zero?'#fecaca':'#bbf7d0';
+      const col=unk2?'#9ca3af':zero?'#b91c1c':'#166534';
+      return `<div style="background:${bg};border:1.5px solid ${bd};border-radius:11px;padding:8px 4px;text-align:center;">
+        <div style="font-size:1rem;font-weight:900;color:${col};">${r.n}</div>
+        <div style="font-size:0.63rem;font-weight:800;color:${col};margin-top:2px;">${unk2?'—':zero?'خلص':r.q}</div>
+      </div>`;}).join('')}
+  </div>${unk?'<div style="font-size:0.62rem;color:#9ca3af;text-align:center;margin-top:10px;line-height:1.7;">«—» يعني لسا ما انجرد، مش إنّه خلص.</div>':''}`;
+}
+window.openColorBoard=openColorBoard; window.closeColorBoard=closeColorBoard;
+window.cboPick=cboPick; window.cboSearch=cboSearch; window.cboRender=cboRender;
+window._cboStartLive=_cboStartLive;
+
+// ─── شريط التحديث عند الموظف ───
+let _cbBannerUnsub=null;
+function _cbSeenKey(){return 'cbSeen_'+((_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username))||'emp');}
+function _cbSeen(){try{return localStorage.getItem(_cbSeenKey())||'';}catch(e){return '';}}
+function cbDismiss(){
+  try{const b=document.getElementById('empColorBanner');
+    if(b&&b.getAttribute('data-id'))localStorage.setItem(_cbSeenKey(),b.getAttribute('data-id'));}catch(e){}
+  const b=document.getElementById('empColorBanner');if(b)b.style.display='none';
+}
+function cbOpenFromBanner(){cbDismiss();openColorBoard();}
+function _cbStartBanner(){
+  if(_cbBannerUnsub)return;
+  try{
+    _cbBannerUnsub=db.collection('color_broadcasts').orderBy('createdAt','desc').limit(1)
+      .onSnapshot(snap=>{
+        const d=snap.docs[0]; if(!d)return;
+        _cbShowBanner({id:d.id,...d.data()});
+      },()=>{});
+  }catch(e){}
+}
+function _cbStopBanner(){if(_cbBannerUnsub){try{_cbBannerUnsub();}catch(e){} _cbBannerUnsub=null;}}
+function _cbShowBanner(b){
+  const el=document.getElementById('empColorBanner');
+  if(!el||!b)return;
+  if(_cbSeen()===b.id){el.style.display='none';return;}
+  const nA=(b.arrived||[]).length, nP=(b.added||[]).length, nF=(b.finished||[]).length;
+  const bits=[];
+  if(nA)bits.push('🆕 وصل '+nA);
+  if(nP)bits.push('➕ زاد '+nP);
+  if(nF)bits.push('❌ خلص '+nF);
+  const line=(rows,ic)=>rows.slice(0,6).map(r=>ic+' '+(r.p||'')+' · '+r.n).join(' &nbsp;·&nbsp; ');
+  el.setAttribute('data-id',b.id);
+  el.style.display='block';
+  el.innerHTML=`<div style="display:flex;align-items:flex-start;gap:9px;">
+    <div style="flex:1;min-width:0;text-align:right;">
+      <div style="font-size:0.85rem;font-weight:900;color:#166534;">🎨 تحديث الألوان — ${bits.join(' · ')}</div>
+      <div style="font-size:0.72rem;color:#374151;margin-top:3px;line-height:1.75;">
+        ${line(b.arrived||[],'🆕')}${(b.arrived||[]).length&&(b.finished||[]).length?'<br>':''}${line(b.finished||[],'❌')}
+      </div>
+      ${b.note?`<div style="font-size:0.72rem;color:#92400e;margin-top:3px;">📝 ${_clrEsc(b.note)}</div>`:''}
+      <div style="display:flex;gap:6px;margin-top:7px;">
+        <button onclick="cbOpenFromBanner()" style="padding:6px 14px;background:#166534;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;">🎨 شوف الألوان</button>
+        <button onclick="cbDismiss()" style="padding:6px 12px;background:#fff;color:#374151;border:1.5px solid #d1d5db;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;">تمام</button>
+      </div>
+    </div>
+  </div>`;
+}
+window.cbDismiss=cbDismiss; window.cbOpenFromBanner=cbOpenFromBanner;
+window._cbStartBanner=_cbStartBanner; window._cbStopBanner=_cbStopBanner;
+
 function _pnPrev(n){
   const el=document.getElementById('pni_'+n),out=document.getElementById('pnt_'+n);
   if(!el||!out)return;
@@ -4631,6 +4974,7 @@ async function pnStockSave(){
       document.getElementById('pnStockModal')?.remove();
       toast(`${OUT?'📤 انصرف':'📥 انضاف'} ${tot} قطعة على ${add.length} لون`
         +(capped?` — ${capped} صفّرناه لأنّه ما كان فيه هالقد`:''));
+      _cbAskAfterStock();
     }catch(e){toast('❌ '+e.message);}
     return;
   }
@@ -4658,6 +5002,7 @@ async function pnStockSave(){
     document.getElementById('pnStockModal')?.remove();
     toast(`${OUT?'📤 انصرف':'📥 انضاف'} ${tot} حبّة على ${add.length} رقم`+(capped?` — ${capped} صفّرناهم لأنّ المطلوب أكثر من الموجود`:''));
     _invalidateQuery&&_invalidateQuery('operator_products');
+    _cbAskAfterStock();
   }catch(e){toast('❌ '+e.message);}
 }
 window.openProdStock=openProdStock; window.pnMode=pnMode; window.pnPickProd=pnPickProd;
@@ -5240,6 +5585,7 @@ function closeEmpPanel(){
   _setPanelOpen(false);
   if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
   if(_empDlvTodayUnsub){_empDlvTodayUnsub();_empDlvTodayUnsub=null;}
+  _cbStopBanner();
 }
 function logoutEmp(){
   _clearEmpSession();
@@ -9634,6 +9980,7 @@ const OP_FAM=[
                                       ['@colors','🎨 ألوان ومخزون','openColorLib()'],
                                       ['@pnstock','📦 وارد وصرف','openProdStock()'],
                                       ['@barcode','🏷️ باركود','openBarcodes()'],
+                                      ['@cbcast','📢 تحديث الألوان','openColorBroadcast()'],
                                       ['stores','🏪 المتاجر']]},
   {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات']]}
 ];
