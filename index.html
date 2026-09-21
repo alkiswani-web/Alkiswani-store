@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v321"></script>
+<script defer src="app.js?v322"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -4840,9 +4840,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 @keyframes _qrCorner{0%,100%{border-color:#0ea5e9;filter:drop-shadow(0 0 2px #0ea5e9)}50%{border-color:#7dd3fc;filter:drop-shadow(0 0 8px #38bdf8)}}
 @keyframes _qrFound{0%{opacity:0.7}100%{opacity:0}}
 </style>
-<div id="qrScannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:10500;font-family:'Tajawal',sans-serif;">
+<div id="qrScannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:100010;font-family:'Tajawal',sans-serif;">
   <div style="position:absolute;top:0;left:0;right:0;padding:14px 16px;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:space-between;z-index:2;backdrop-filter:blur(4px);">
-    <div style="color:#fff;font-weight:700;font-size:0.95rem;">📷 مسح QR الطلب</div>
+    <div id="qrScanTitle" style="color:#fff;font-weight:700;font-size:0.95rem;">📷 مسح QR الطلب</div>
     <button onclick="closeQRScanner()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:7px 14px;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;cursor:pointer;">✕ إغلاق</button>
   </div>
   <video id="qrVideo" style="width:100%;height:100%;object-fit:cover;" playsinline autoplay muted></video>
@@ -4861,7 +4861,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 </div>
 
 <!-- ===== QR REP ASSIGN MODAL ===== -->
-<div id="qrRepAssignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10600;align-items:center;justify-content:center;padding:16px;">
+<div id="qrRepAssignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100011;align-items:center;justify-content:center;padding:16px;">
   <div style="background:#fff;border-radius:18px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;">
       <div>

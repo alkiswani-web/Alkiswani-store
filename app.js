@@ -4066,7 +4066,7 @@ function bcPick(id){_bcProdId=id;openBarcodes(id,_bcPending);}
 async function bcScan(num){
   if(!_bcCamOk()){toast('⚠️ الكاميرا ما بتقرا باركود هون — اكتبه بإيدك ⌨️');return bcType(num);}
   _qrScanCallback=(raw)=>{ bcSet(num,raw); };
-  await openQRScanner({formats:BC_FORMATS,status:'وجّه الكاميرا عالباركود'});
+  await openQRScanner({formats:BC_FORMATS,title:'🏷️ امسح الباركود',status:'وجّه الكاميرا عالباركود — أو عالملصق اللي طبعتَه'});
 }
 function bcType(num){
   const v=prompt('اكتب الباركود (الأرقام اللي تحت الخطوط):','');
@@ -4174,7 +4174,7 @@ async function posScanBtn(){
     return;
   }
   _qrScanCallback=(raw)=>{ posScan(raw); };
-  await openQRScanner({formats:BC_FORMATS,status:'وجّه الكاميرا عالباركود'});
+  await openQRScanner({formats:BC_FORMATS,title:'🏷️ امسح الباركود',status:'وجّه الكاميرا عالباركود — أو عالملصق اللي طبعتَه'});
 }
 // ماسحٌ سلكي بيكتب الكود بالخانة وبيضغط Enter — نفس المسار بالضبط
 function posScanInput(){
@@ -4567,7 +4567,7 @@ async function pnScanBtn(){
     return;
   }
   _qrScanCallback=(raw)=>{ pnScan(raw); };
-  await openQRScanner({formats:BC_FORMATS,status:'وجّه الكاميرا عالباركود'});
+  await openQRScanner({formats:BC_FORMATS,title:'🏷️ امسح الباركود',status:'وجّه الكاميرا عالباركود — أو عالملصق اللي طبعتَه'});
 }
 function pnScanInput(){
   const el=document.getElementById('pnQ');
@@ -22092,6 +22092,8 @@ async function openQRScanner(opts){
   const _fmts=(opts&&opts.formats&&opts.formats.length)?opts.formats:['qr_code'];
   document.getElementById('qrScanStatus').textContent=
     (opts&&opts.status)||'وجّه الكاميرا نحو QR Code على الفاتورة';
+  const _ttl=document.getElementById('qrScanTitle');
+  if(_ttl)_ttl.textContent=(opts&&opts.title)||'📷 مسح QR الطلب';
   _qrScanActive=true; _qrLoopRunning=false;
   // Init native BarcodeDetector (hardware-accelerated on Android/iOS)
   _qrBarcodeDetector=null;
