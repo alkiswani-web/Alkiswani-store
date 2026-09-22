@@ -13985,8 +13985,13 @@ function renderOperatorDailyView(){
     // المسحوب الموسوم «بدون كاش» (بضاعة أو تسوية) يُنقص مستحق المتجر لكنّه لم
     // يُخرج ديناراً من الصندوق، فلا مكان له في حركة الكاش.
     const _collStoreWd=(_opWithdrawals||[]).filter(w=>w.withdrawalType!=='payment'&&!w.noCash).reduce((s,w)=>s+(w.amount||0),0);
-    // دفعات المتاجر (كاش المتجر دفعهولك لتسديد المستحق) — تُضاف للكاش المتوقع
-    const _collStorePayments=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment'&&!w.noCash).reduce((s,w)=>s+(w.amount||0),0);
+    // دفعات المتاجر لها اتجاهان، وكانا معكوسَين بالكاش:
+    //   «دفعتلهم» (موجب) = مصاري طلعت من إيدك ⇒ خروج
+    //   «قبضتُ منهم» (سالب) = مصاري دخلت ⇒ دخول
+    // كان المجموع كلّه بينضاف للكاش، فالدفعة بتزيّده والقبضة بتنقّصه — بالعكس.
+    const _collStorePays=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment'&&!w.noCash);
+    const _collStorePaid=_collStorePays.reduce((s,w)=>s+Math.max(0,(w.amount||0)),0);   // دفعتُ لهم
+    const _collStoreGot =_collStorePays.reduce((s,w)=>s+Math.max(0,-(w.amount||0)),0);  // قبضتُ منهم
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
@@ -14011,16 +14016,17 @@ function renderOperatorDailyView(){
     const _collRent=(_opSessionRentPays||[]).reduce((s,r)=>s+(r.amount||0),0);
     // دفعات السداد (ديون علينا لأشخاص) — كاش خرج من نفس الصندوق تماماً كالإجار
     const _collDebt=(_opSessionDebtPays||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
-    const _collNet=_collOrdersNet+_collPosIn+_collStorePayments+_collTreeProfitIn+_collCourierIn+_collRepIn+_collAdjust-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
+    const _collNet=_collOrdersNet+_collPosIn+_collStoreGot+_collTreeProfitIn+_collCourierIn+_collRepIn+_collAdjust-_collStorePaid-_collStoreWd-_collExpenses-_collRawBuys-_collSupPays-_collWages-_collRent-_collDebt;
     ccNet=_collNet;
-    ccIn=_collOrdersNet+_collPosIn+_collStorePayments+_collTreeProfitIn+_collRepIn+Math.max(0,_collAdjust);
-    ccOut=_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
+    ccIn=_collOrdersNet+_collPosIn+_collStoreGot+_collTreeProfitIn+_collRepIn+Math.max(0,_collAdjust);
+    ccOut=_collStorePaid+_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
       ${_ccHead('🔀','حركة الكاش')}
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.18);border-radius:18px;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 26px rgba(0,0,0,.2);margin-bottom:12px;">
         ${_ccFlow('🧾','قيمة الطلبات للزبون',_collCustomer,'in')}
-        ${_collStorePayments>0?_ccFlow('💳','دفعات المتاجر (كاش)',_collStorePayments,'in'):''}
+        ${_collStoreGot>0?_ccFlow('💰','قبضتُ من المتاجر',_collStoreGot,'in'):''}
+        ${_collStorePaid>0?_ccFlow('💳','دفعتُ للمتاجر',_collStorePaid,'out'):''}
         ${_collTreeProfitIn>0?_ccFlow('🌲','مرابح الشجر (قبضتها)',_collTreeProfitIn,'in'):''}
         ${_ccFlow('🚚','أجور التوصيل',_collDelivery,'out')}
         ${_ccFlow('💸','مسحوبات المتاجر',_collStoreWd,'out')}
@@ -14542,13 +14548,17 @@ function _payHubRows(){
       const icon=n.isGroup?'👥':'🏪';
       const nm=(n.name||'متجر')+(n.isGroup?' (مجموعة)':'');
       const g=_payEsc(n.name);
-      const act=t=>n.isGroup?`showAddWithdrawalModalForGroup('${g}','${t}')`
-                            :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','${t}')`;
-      // الزرَّان معاً على كل صفّ متجر: يقبض منه اليوم ويسحب منه غداً
-      const acts=[{label:'💰 اقبض',act:act('payment'),tone:'in'},
-                  {label:'💸 مسحوب',act:act('withdrawal'),tone:'out'}];
-      if(dir>0.009) out.push({icon,name:nm,sub,amount:dir,acts});
-      else if(dir<-0.009) inn.push({icon,name:nm,sub,amount:-dir,acts});
+      const actP=d=>n.isGroup?`showAddWithdrawalModalForGroup('${g}','payment','${d}')`
+                             :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','payment','${d}')`;
+      const actW=n.isGroup?`showAddWithdrawalModalForGroup('${g}','withdrawal')`
+                          :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','withdrawal')`;
+      const wdAct={label:'💸 مسحوب',act:actW,tone:'out'};
+      // الزرّ بيتبع جهة الصفّ: عليك ⇐ «ادفع»، وإلك ⇐ «اقبض». وكان الاثنان
+      // «اقبض» وبيفتحا على «دفعتلهم» — فالقبضة كانت بتنسجّل دفعةً بالمقلوب.
+      if(dir>0.009) out.push({icon,name:nm,sub,amount:dir,
+        acts:[{label:'💳 ادفع',act:actP('1'),tone:'out'},wdAct]});
+      else if(dir<-0.009) inn.push({icon,name:nm,sub,amount:-dir,
+        acts:[{label:'💰 اقبض',act:actP('-1'),tone:'in'},wdAct]});
     });
     // مشغل الشجر — بدّك منه
     // شركات التوصيل الماسكة كاشك
@@ -14676,7 +14686,7 @@ function _payHubLedger(){
     const isIn=isPay&&(w.amount||0)<0;   // دفعة بالسالب = قبضتُ من المتجر
     push(w.date,isPay?(isIn?'💰':'💳'):'💸',
       (isPay?(isIn?'قبض من متجر':'دفعة متجر'):'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),
-      isIn?-(w.amount||0):w.amount,isPay?'in':'out',
+      isIn?-(w.amount||0):w.amount,isIn?'in':'out',
       w.id?`deleteOperatorWithdrawal('${_payEsc(w.id)}')`:'');
   });
   (_opDayExpenses||[]).forEach(e=>push(e.date,'🧾','مصروف'+(e.category&&e.category!=='أخرى'?' · '+e.category:''),e.amount,'out',
@@ -15142,15 +15152,32 @@ async function deleteRawBuy(id){
 // خانة «هل مسّ الكاش؟» — بنفس فكرة دفعات الموردين والسداد.
 // المسحوب يُنقص المستحق على المتجر دائماً، لكنّ الكاش لا يخرج من الصندوق إلا
 // إذا كان مسحوباً نقدياً فعلاً؛ ومسحوب البضاعة كان يُنقص صافي التحصيل بلا وجه حق.
+// الدفعة إلها اتجاهان، فالخانة لازم تتبع الاتجاه المختار لا نوع القيد:
+// «دفعتلهم» بتطلع من الكاش، و«قبضتُ منهم» بتدخل عليه.
+function _wdCashTexts(isPayment,isIn){
+  if(!isPayment) return ['💵 تُخصم من الكاش (التحصيل)',
+    'شيل الصح لو المسحوب بضاعة أو من مصدر ثاني — بيضل ينخصم من مستحق المتجر'];
+  return isIn?['💵 تُضاف للكاش (التحصيل)','شيل الصح لو ما استلمتها كاش (حوالة أو مقاصّة)']
+             :['💵 تُخصم من الكاش (التحصيل)','شيل الصح لو دفعتها من مصدر ثاني (مش من كاش التحصيل)'];
+}
+function _wdDirChanged(){
+  const isIn=(document.getElementById('wd_pay_dir')?.value||'1')==='-1';
+  const [t1,t2]=_wdCashTexts(true,isIn);
+  const e1=document.getElementById('wd_cash_t1'),e2=document.getElementById('wd_cash_t2');
+  if(e1)e1.textContent=t1; if(e2)e2.textContent=t2;
+}
 function _wdCashToggle(isPayment){
+  // الافتراضي للدفعة هو «دفعتلهم» — أوّل خيارٍ بالقائمة
+  const [t1,t2]=_wdCashTexts(isPayment,false);
   return `<label style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;cursor:pointer;margin-bottom:14px;">
       <input type="checkbox" id="wd_from_cash" checked style="width:18px;height:18px;accent-color:#166534;cursor:pointer;flex-shrink:0;">
-      <div><div style="font-size:0.84rem;font-weight:700;color:#166534;">${isPayment?'💵 تُضاف للكاش (التحصيل)':'💵 تُخصم من الكاش (التحصيل)'}</div>
-      <div style="font-size:0.72rem;color:#15803d;margin-top:2px;">${isPayment?'شيل الصح لو ما استلمتها كاش (حوالة أو مقاصّة)':'شيل الصح لو المسحوب بضاعة أو من مصدر ثاني — بيضل ينخصم من مستحق المتجر'}</div></div>
+      <div><div id="wd_cash_t1" style="font-size:0.84rem;font-weight:700;color:#166534;">${t1}</div>
+      <div id="wd_cash_t2" style="font-size:0.72rem;color:#15803d;margin-top:2px;">${t2}</div></div>
     </label>`;
 }
+window._wdDirChanged=_wdDirChanged;
 
-function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
+function showAddWithdrawalModalForGroup(groupName,type='withdrawal',dir='1'){
   const today=jordanDateStr();
   const isPayment=type==='payment';
   const overlay=document.createElement('div');
@@ -15162,6 +15189,11 @@ function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
       <div style="text-align:center;font-size:0.8rem;color:${isPayment?'#ef4444':'#7c3aed'};margin-bottom:16px;">${groupName}</div>
       <input type="hidden" id="wd_group_name_fixed" value="${groupName}">
       <input type="hidden" id="wd_withdrawal_type" value="${type}">
+      ${isPayment?`<label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الاتجاه</label>
+      <select id="wd_pay_dir" onchange="_wdDirChanged()" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;background:#fff;">
+        <option value="1">💳 دفعتلهم — دفعة للمجموعة</option>
+        <option value="-1">💰 قبضتُ منهم — المجموعة دفعتلي</option>
+      </select>`:''}
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">المبلغ (د.أ)</label>
       <input id="wd_amount" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;">
       <label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">التاريخ</label>
@@ -15175,6 +15207,9 @@ function showAddWithdrawalModalForGroup(groupName,type='withdrawal'){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  // الزرّ اللي ضغطتَه بيحدّد الاتجاه: «اقبض» بتفتح على «قبضتُ منهم»
+  const _pd=document.getElementById('wd_pay_dir');
+  if(_pd&&dir){_pd.value=String(dir);_wdDirChanged();}
   overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
 }
 
@@ -15182,12 +15217,15 @@ async function saveGroupWithdrawal(){
   if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   const groupName=document.getElementById('wd_group_name_fixed')?.value||'';
   const withdrawalType=document.getElementById('wd_withdrawal_type')?.value||'withdrawal';
-  const amount=parseFloat(document.getElementById('wd_amount')?.value||'0');
+  const amountRaw=parseFloat(document.getElementById('wd_amount')?.value||'0');
   const date=document.getElementById('wd_date')?.value||jordanDateStr();
   const notes=(document.getElementById('wd_notes')?.value||'').trim();
   const noCash=document.getElementById('wd_from_cash')?.checked===false;
   if(!groupName){toast('⚠️ خطأ: لا يوجد مجموعة');return;}
-  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(!amountRaw||amountRaw<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  // «قبضتُ منهم» = دفعة بالسالب، زي المتجر بالضبط
+  const isIn=withdrawalType==='payment'&&document.getElementById('wd_pay_dir')?.value==='-1';
+  const amount=isIn?-amountRaw:amountRaw;
   try{
     const grpStoreId='__grp__'+groupName;
     const batch=db.batch();
@@ -15212,13 +15250,13 @@ async function saveGroupWithdrawal(){
     await batch.commit();
     if(withdrawalType==='payment') _opAcctPaid[grpStoreId]=(_opAcctPaid[grpStoreId]||0)+amount;
     document.getElementById('withdrawal_modal')?.remove();
-    toast((withdrawalType==='payment'?'✅ تم تسجيل الدفعة للمجموعة':'✅ تم تسجيل المسحوب للمجموعة')+(noCash?' — بدون مساس بالكاش':''));
+    toast((withdrawalType==='payment'?(isIn?'✅ تم تسجيل القبض من المجموعة':'✅ تم تسجيل الدفعة للمجموعة'):'✅ تم تسجيل المسحوب للمجموعة')+(noCash?' — بدون مساس بالكاش':''));
     await _loadOpWithdrawals();
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
 }
 
-function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
+function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal', dir='1'){
   const today=jordanDateStr();
   const isPayment=type==='payment';
   const overlay=document.createElement('div');
@@ -15231,7 +15269,7 @@ function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
       <input type="hidden" id="wd_store_name_fixed" value="${storeName}">
       <input type="hidden" id="wd_withdrawal_type" value="${type}">
       ${isPayment?`<label style="font-size:0.82rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الاتجاه</label>
-      <select id="wd_pay_dir" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;background:#fff;">
+      <select id="wd_pay_dir" onchange="_wdDirChanged()" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;background:#fff;">
         <option value="1">💳 دفعتلهم — دفعة للمتجر</option>
         <option value="-1">💰 قبضتُ منهم — المتجر دفعلي</option>
       </select>`:''}
@@ -15248,6 +15286,9 @@ function showAddWithdrawalModalForStore(storeId, storeName, type='withdrawal'){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  // الزرّ اللي ضغطتَه بيحدّد الاتجاه: «اقبض» بتفتح على «قبضتُ منهم»
+  const _pd=document.getElementById('wd_pay_dir');
+  if(_pd&&dir){_pd.value=String(dir);_wdDirChanged();}
   overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
 }
 
