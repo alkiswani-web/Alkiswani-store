@@ -14023,14 +14023,7 @@ function renderOperatorDailyView(){
     ccOut=_collStorePaid+_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
-      ${_collStoreUnrev?`<button onclick="openStorePayReview()" style="width:100%;display:flex;align-items:center;gap:10px;text-align:right;padding:12px 13px;margin-bottom:12px;background:linear-gradient(135deg,rgba(252,211,77,.16),rgba(245,158,11,.1));border:1.5px solid rgba(252,211,77,.55);border-radius:14px;cursor:pointer;font-family:'Tajawal',sans-serif;">
-        <span style="font-size:1.35rem;flex-shrink:0;">⚠️</span>
-        <span style="flex:1;min-width:0;">
-          <b style="display:block;font-size:0.84rem;font-weight:900;color:#fcd34d;">${_collStoreUnrev} دفعة متاجر قديمة — حدّد اتجاهها</b>
-          <span style="display:block;font-size:0.7rem;color:#e5d9b0;margin-top:2px;line-height:1.6;">انسجّلت قبل ما نفصل «دفعتلهم» عن «قبضتُ منهم» — لحدّ ما تراجعها الكاش بيعدّها طالعة</span>
-        </span>
-        <span style="font-size:0.78rem;font-weight:900;color:#fcd34d;flex-shrink:0;">🔍 راجع</span>
-      </button>`:''}
+      ${_collStoreUnrev?`<div style="text-align:center;margin:-4px 0 10px;"><button onclick="openStorePayReview()" style="background:none;border:none;color:#a8b8ae;font-family:'Tajawal',sans-serif;font-size:0.68rem;text-decoration:underline;cursor:pointer;">🔍 ${_collStoreUnrev} دفعة متاجر قديمة محسوبة زي قبل — راجعها لو بدّك</button></div>`:''}
       ${_ccHead('🔀','حركة الكاش')}
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.18);border-radius:18px;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 26px rgba(0,0,0,.2);margin-bottom:12px;">
         ${_ccFlow('🧾','قيمة الطلبات للزبون',_collCustomer,'in')}
@@ -15191,7 +15184,10 @@ window._wdDirChanged=_wdDirChanged;
 // حقلٌ صريح (cashDir) — وبلاه منرجع للإشارة زي الدفعات الجديدة.
 function _wdCashIn(w){
   if(w&&w.cashDir) return w.cashDir==='in';
-  return (Number(w&&w.amount)||0)<0;
+  // قيدٌ قديم بلا اتجاه صريح: بينحسب زي ما كان ينحسب قبل — الموجب داخل
+  // والسالب خارج — عشان يضلّ صافي الكاش الرقمَ اللي بتعرفه. الجديد كلّه
+  // بينحفظ بـcashDir، فهاي القاعدة ما بتلمس إلا القديم.
+  return (Number(w&&w.amount)||0)>0;
 }
 
 // ═══ مراجعة دفعات المتاجر القديمة ═══
