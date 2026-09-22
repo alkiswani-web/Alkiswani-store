@@ -13990,8 +13990,9 @@ function renderOperatorDailyView(){
     //   «قبضتُ منهم» (سالب) = مصاري دخلت ⇒ دخول
     // كان المجموع كلّه بينضاف للكاش، فالدفعة بتزيّده والقبضة بتنقّصه — بالعكس.
     const _collStorePays=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment'&&!w.noCash);
-    const _collStorePaid=_collStorePays.reduce((s,w)=>s+Math.max(0,(w.amount||0)),0);   // دفعتُ لهم
-    const _collStoreGot =_collStorePays.reduce((s,w)=>s+Math.max(0,-(w.amount||0)),0);  // قبضتُ منهم
+    const _collStorePaid=_collStorePays.filter(w=>!_wdCashIn(w)).reduce((s,w)=>s+Math.abs(Number(w.amount)||0),0); // دفعتُ لهم
+    const _collStoreGot =_collStorePays.filter(w=> _wdCashIn(w)).reduce((s,w)=>s+Math.abs(Number(w.amount)||0),0); // قبضتُ منهم
+    const _collStoreUnrev=(_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment'&&!w.cashDir).length;
     const _collExpenses=(_opDayExpenses||[]).reduce((s,e)=>s+(e.amount||0),0);
     // خصم مشتريات المواد الخام اليدوية (تُخصم من الكاش يلي معك فقط — مش من الأرباح)
     const _collRawBuys=(_opRawBuys||[]).reduce((s,p)=>s+(p.amount||0),0);
@@ -14022,6 +14023,14 @@ function renderOperatorDailyView(){
     ccOut=_collStorePaid+_collStoreWd+_collExpenses+_collRawBuys+_collSupPays+_collWages+_collRent+_collDebt+Math.max(0,-_collAdjust);
     window._ccCurrentNet=_collNet;
     collHtml+=`
+      ${_collStoreUnrev?`<button onclick="openStorePayReview()" style="width:100%;display:flex;align-items:center;gap:10px;text-align:right;padding:12px 13px;margin-bottom:12px;background:linear-gradient(135deg,rgba(252,211,77,.16),rgba(245,158,11,.1));border:1.5px solid rgba(252,211,77,.55);border-radius:14px;cursor:pointer;font-family:'Tajawal',sans-serif;">
+        <span style="font-size:1.35rem;flex-shrink:0;">⚠️</span>
+        <span style="flex:1;min-width:0;">
+          <b style="display:block;font-size:0.84rem;font-weight:900;color:#fcd34d;">${_collStoreUnrev} دفعة متاجر قديمة — حدّد اتجاهها</b>
+          <span style="display:block;font-size:0.7rem;color:#e5d9b0;margin-top:2px;line-height:1.6;">انسجّلت قبل ما نفصل «دفعتلهم» عن «قبضتُ منهم» — لحدّ ما تراجعها الكاش بيعدّها طالعة</span>
+        </span>
+        <span style="font-size:0.78rem;font-weight:900;color:#fcd34d;flex-shrink:0;">🔍 راجع</span>
+      </button>`:''}
       ${_ccHead('🔀','حركة الكاش')}
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(231,198,107,.18);border-radius:18px;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 10px 26px rgba(0,0,0,.2);margin-bottom:12px;">
         ${_ccFlow('🧾','قيمة الطلبات للزبون',_collCustomer,'in')}
@@ -14683,10 +14692,10 @@ function _payHubLedger(){
     p.id?`ewDeletePayment('${_payEsc(p.id)}')`:''));
   (_opWithdrawals||[]).forEach(w=>{
     const isPay=w.withdrawalType==='payment';
-    const isIn=isPay&&(w.amount||0)<0;   // دفعة بالسالب = قبضتُ من المتجر
+    const isIn=isPay&&_wdCashIn(w);
     push(w.date,isPay?(isIn?'💰':'💳'):'💸',
       (isPay?(isIn?'قبض من متجر':'دفعة متجر'):'مسحوب متجر')+(w.storeName?' · '+w.storeName:'')+(w.noCash?' (بدون كاش)':''),
-      isIn?-(w.amount||0):w.amount,isIn?'in':'out',
+      isPay?Math.abs(Number(w.amount)||0):w.amount,isIn?'in':'out',
       w.id?`deleteOperatorWithdrawal('${_payEsc(w.id)}')`:'');
   });
   (_opDayExpenses||[]).forEach(e=>push(e.date,'🧾','مصروف'+(e.category&&e.category!=='أخرى'?' · '+e.category:''),e.amount,'out',
@@ -15177,6 +15186,118 @@ function _wdCashToggle(isPayment){
 }
 window._wdDirChanged=_wdDirChanged;
 
+// اتجاه الدفعة بالكاش. الإشارة بتخدم حساب المتجر، وما بتكفي للكاش: الزرّ
+// القديم «💳 دفعة للمتجر» كان يحفظ موجباً مهما كان اللي صار فعلاً. فصار في
+// حقلٌ صريح (cashDir) — وبلاه منرجع للإشارة زي الدفعات الجديدة.
+function _wdCashIn(w){
+  if(w&&w.cashDir) return w.cashDir==='in';
+  return (Number(w&&w.amount)||0)<0;
+}
+
+// ═══ مراجعة دفعات المتاجر القديمة ═══
+// كل دفعة لحالها: انت بتحدّد شو صار فعلاً. حساب المتجر ما بيتغيّر — الكاش بس.
+let _sprSel={};
+function _sprStateOf(w){return w.noCash?'pocket':(_wdCashIn(w)?'in':'out');}
+function _sprEffect(w,st){const a=Math.abs(Number(w.amount)||0);
+  return st==='pocket'?0:(st==='in'?a:-a);}
+function _sprList(){
+  return (_opWithdrawals||[]).filter(w=>w.withdrawalType==='payment')
+    .slice().sort((a,b)=>(a.cashDir?1:0)-(b.cashDir?1:0)||String(b.date||'').localeCompare(String(a.date||'')));
+}
+function openStorePayReview(){
+  const list=_sprList();
+  if(!list.length){toast('ما في دفعات متاجر بهالفترة');return;}
+  _sprSel={};list.forEach(w=>{_sprSel[w.id]=_sprStateOf(w);});
+  document.getElementById('sprModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='sprModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  document.body.appendChild(ov);
+  sprRender();
+}
+function sprPick(id,st){_sprSel[id]=st;sprRender();}
+function sprAll(st){_sprList().forEach(w=>{_sprSel[w.id]=st;});sprRender();}
+function sprRender(){
+  const ov=document.getElementById('sprModal'); if(!ov)return;
+  const list=_sprList();
+  const cur=Number(window._ccCurrentNet)||0;
+  let delta=0,changed=0;
+  list.forEach(w=>{
+    const now=_sprStateOf(w),nx=_sprSel[w.id]||now;
+    delta+=_sprEffect(w,nx)-_sprEffect(w,now);
+    if(nx!==now||!w.cashDir)changed++;
+  });
+  const after=cur+delta;
+  const unrev=list.filter(w=>!w.cashDir).length;
+  const B=(id,st,lbl,col,bg)=>{const on=_sprSel[id]===st;
+    return `<button onclick="sprPick('${_payEsc(id)}','${st}')" style="flex:1;min-width:0;padding:8px 3px;border:1.5px solid ${on?col:'#e5e7eb'};background:${on?bg:'#fff'};color:${on?col:'#6b7280'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.68rem;font-weight:${on?900:700};cursor:pointer;line-height:1.3;">${lbl}</button>`;};
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:540px;max-height:94vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-weight:900;font-size:1rem;color:#1a3a2a;">🔍 مراجعة دفعات المتاجر</div>
+        <div style="font-size:0.7rem;color:#6b7280;margin-top:3px;line-height:1.7;">حدّد لكل دفعة شو صار فعلاً.<br><b style="color:#166534;">حساب المتجر ما رح يتغيّر</b> — الكاش بس.</div>
+      </div>
+      <button onclick="document.getElementById('sprModal')?.remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:10px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.78rem;font-weight:800;">
+        <span style="color:#6b7280;">صافي الكاش هلأ</span>
+        <span style="color:${cur<0?'#dc2626':'#166534'};direction:ltr;">${cur.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.92rem;font-weight:900;margin-top:4px;">
+        <span style="color:#1a3a2a;">بعد التعديل</span>
+        <span id="sprAfter" style="color:${after<0?'#dc2626':'#166534'};direction:ltr;">${after.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;gap:5px;margin-top:9px;">
+        <button onclick="sprAll('out')" style="flex:1;padding:6px 2px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.64rem;font-weight:700;color:#374151;cursor:pointer;">كلّهم من الكاش</button>
+        <button onclick="sprAll('pocket')" style="flex:1;padding:6px 2px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.64rem;font-weight:700;color:#374151;cursor:pointer;">كلّهم من جيبي</button>
+        <button onclick="sprAll('in')" style="flex:1;padding:6px 2px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.64rem;font-weight:700;color:#374151;cursor:pointer;">كلّهم هم دفعولي</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:8px 12px;">
+      ${list.map(w=>`<div style="border:1.5px solid ${w.cashDir?'#e5e7eb':'#fcd34d'};background:${w.cashDir?'#fff':'#fffbeb'};border-radius:12px;padding:9px 10px;margin-bottom:7px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;">
+          <div style="min-width:0;">
+            <div style="font-size:0.84rem;font-weight:900;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(w.storeName||'متجر')}</div>
+            <div style="font-size:0.66rem;color:#6b7280;margin-top:1px;">${_clrEsc(w.date||'')}${w.notes?' · '+_clrEsc(w.notes):''}${w.cashDir?'':' · <b style="color:#b45309;">ما تراجعت</b>'}</div>
+          </div>
+          <div style="font-size:0.95rem;font-weight:900;color:#1a3a2a;direction:ltr;flex-shrink:0;">${Math.abs(Number(w.amount)||0).toFixed(2)}</div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          ${B(w.id,'out','💳 دفعتلهم<br>من الكاش','#b91c1c','#fef2f2')}
+          ${B(w.id,'pocket','👛 دفعتلهم<br>من جيبي','#6b7280','#f3f4f6')}
+          ${B(w.id,'in','💰 هم<br>دفعولي','#166534','#f0fdf4')}
+        </div>
+      </div>`).join('')}
+    </div>
+    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
+      ${unrev?`<div style="font-size:0.68rem;color:#92400e;text-align:center;margin-bottom:7px;">${unrev} دفعة لسا ما تراجعت — بالأصفر</div>`:''}
+      <button onclick="sprSave()" style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:900;cursor:pointer;">💾 احفظ${changed?' ('+changed+')':''}</button>
+    </div>
+  </div>`;
+}
+async function sprSave(){
+  const list=_sprList();
+  // منكتب كل الدفعات حتى اللي ما تغيّرت — عشان تنعلّم «متراجعة» وتختفي من التنبيه
+  const ups=list.map(w=>{
+    const st=_sprSel[w.id]||_sprStateOf(w);
+    return {w,u:{cashDir:st==='in'?'in':'out',noCash:st==='pocket'}};
+  });
+  try{
+    for(let i=0;i<ups.length;i+=400){
+      const batch=db.batch();
+      ups.slice(i,i+400).forEach(({w,u})=>batch.update(db.collection('operator_withdrawals').doc(w.id),u));
+      await batch.commit();
+    }
+    ups.forEach(({w,u})=>{Object.assign(w,u);});
+    document.getElementById('sprModal')?.remove();
+    toast('✅ انحفظت '+ups.length+' دفعة — الكاش انحسب من جديد');
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openStorePayReview=openStorePayReview; window.sprPick=sprPick; window.sprAll=sprAll;
+window.sprRender=sprRender; window.sprSave=sprSave;
+
 function showAddWithdrawalModalForGroup(groupName,type='withdrawal',dir='1'){
   const today=jordanDateStr();
   const isPayment=type==='payment';
@@ -15235,6 +15356,7 @@ async function saveGroupWithdrawal(){
       groupName, storeName:groupName,
       storeId:grpStoreId,
       withdrawalType, noCash,
+      ...(withdrawalType==='payment'?{cashDir:isIn?'in':'out'}:{}),
       amount, date, notes,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -15313,6 +15435,7 @@ async function saveOperatorWithdrawalFixed(){
       sessionId:_opCurrentSession.id,
       storeId,storeName,amount,date,notes,
       withdrawalType, noCash,
+      ...(withdrawalType==='payment'?{cashDir:isIn?'in':'out'}:{}),
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     const pmtRef=db.collection('operator_store_payments').doc();
