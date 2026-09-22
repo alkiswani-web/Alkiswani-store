@@ -3581,166 +3581,705 @@ function _posFootprint(){
   return {products:_posCart.map(it=>({id:it.id,colorNumbers:it.colorNumbers||[]}))};
 }
 
+// ─── «لوحة التاجر»: فوق زجاجٌ بيعرض وبس، وتحت لوحةٌ ثابتة ما بتتحرّك ───
+// كل اللمسات تحت خطّ الإبهام، واللوحة بتضلّ بمكانها ووجهها بس بيتبدّل —
+// فالإيد بتحفظ المكان وبتبيع وعينك عالزبون.
 let _posQ='';
+let _posActive='';      // المنتج المفتوحة لوحته
+let _posMinus=false;    // وضع «نقّص»
+let _posSheet='';       // '' | 'cust' | 'prods'
+let _posDone=null;      // إيصال آخر بيعة
+let _posUndo=null;      // {msg,fn,t0}
+let _posHit='';         // وميض السطر
+let _posScanMsg='';
+let _posSeq=0;
+
+const POS_CSS=`
+#posModal{--sheet:#0C100F;--glass:#080B0A;--deck:#151B1A;--key:#212A29;--key2:#1A2221;
+ --line:#293433;--fg:#E9EFEC;--mut:#8FA39C;--acc:#C6FF4F;--acc-d:#8FC128;--amb:#FFB547;--bad:#FF6B6B;}
+#posModal *{box-sizing:border-box;margin:0;padding:0;letter-spacing:0;}
+#posModal .num{font-family:ui-monospace,"Roboto Mono","Noto Sans Mono","DejaVu Sans Mono",monospace;
+ font-variant-numeric:tabular-nums lining-nums;font-feature-settings:'tnum' 1;direction:ltr;
+ unicode-bidi:isolate;letter-spacing:-.012em;font-weight:700;}
+#posModal .pk-wrap{width:100%;max-width:560px;height:100%;background:var(--sheet);color:var(--fg);
+ display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;}
+#posModal .pk-hdr{flex:0 0 46px;display:flex;align-items:center;justify-content:space-between;padding:0 6px;
+ background:var(--glass);border-bottom:1px solid var(--line);}
+#posModal .pk-hdr .t{display:flex;align-items:center;gap:8px;padding-inline-start:12px;}
+#posModal .pk-hdr .t b{font-size:15px;font-weight:900;}
+#posModal .pk-hdr .t span{font-size:11px;color:var(--mut);font-weight:700;}
+#posModal .pk-x{width:44px;height:40px;border:0;background:transparent;color:#61736D;font-size:17px;
+ border-radius:11px;cursor:pointer;}
+#posModal .pk-x:active{background:#1C2423;color:var(--bad);}
+#posModal .pk-tape{flex:1 1 auto;min-height:56px;overflow-y:auto;background:var(--glass);
+ background-image:radial-gradient(120% 70% at 50% 0%,rgba(198,255,79,.055),transparent 62%);}
+#posModal .pk-tape::-webkit-scrollbar{width:0;}
+#posModal .pk-row{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 14px 8px 12px;
+ border-bottom:1px dashed #1D2625;position:relative;animation:pkIn .2s ease-out;}
+@keyframes pkIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+#posModal .pk-row::before{content:'';position:absolute;inset-inline-start:0;top:8px;bottom:8px;width:4px;
+ border-radius:0 3px 3px 0;background:var(--hue,transparent);opacity:.6;}
+#posModal .pk-row.on{background:rgba(198,255,79,.055);}
+#posModal .pk-row.on::before{opacity:1;width:5px;}
+#posModal .pk-row.hit{animation:pkHit .72s ease-out;}
+@keyframes pkHit{0%{background:rgba(198,255,79,.3)}100%{background:transparent}}
+#posModal .pk-row .nm{flex:1;min-width:0;}
+#posModal .pk-row .nm b{display:block;font-size:15.5px;font-weight:900;white-space:nowrap;overflow:hidden;
+ text-overflow:ellipsis;}
+#posModal .pk-sub{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center;}
+#posModal .pk-sub em{font-style:normal;font-size:11.5px;color:var(--mut);font-weight:700;}
+#posModal .pk-chip{height:20px;display:inline-flex;align-items:center;padding:0 7px;border-radius:10px;
+ font-size:11px;font-weight:900;background:rgba(255,255,255,.07);color:#CFE0D9;}
+#posModal .pk-row .amt{font-size:16.5px;color:var(--acc);flex:0 0 auto;}
+#posModal .pk-warn{font-size:11.5px;color:var(--amb);font-weight:900;}
+#posModal .pk-empty{padding:26px 22px 10px;text-align:center;}
+#posModal .pk-empty .big{font-size:13.5px;font-weight:700;color:#75877F;line-height:1.9;}
+#posModal .pk-empty .arw{margin-top:10px;font-size:19px;color:#3D4B47;animation:pkBob 1.8s ease-in-out infinite;}
+@keyframes pkBob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+#posModal .pk-stub{padding:14px 16px 10px;display:flex;gap:12px;align-items:flex-start;}
+#posModal .pk-stub .k{font-size:12px;color:var(--mut);font-weight:700;}
+#posModal .pk-stub .v{font-size:38px;color:var(--acc);line-height:1.05;margin:3px 0 7px;display:block;}
+#posModal .pk-stub .meta{font-size:11.5px;color:var(--mut);font-weight:700;line-height:1.8;}
+#posModal .pk-money{flex:0 0 84px;background:var(--glass);border-top:1px solid var(--line);padding:7px 14px 4px;
+ display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;}
+#posModal .pk-money::after{content:'';position:absolute;inset-inline-end:-34px;top:-46px;width:166px;height:166px;
+ border-radius:50%;background:radial-gradient(circle,rgba(198,255,79,.12),transparent 68%);pointer-events:none;}
+#posModal .pk-money .top{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;
+ font-weight:800;color:var(--mut);}
+#posModal .pk-money .big{display:flex;align-items:baseline;gap:7px;}
+#posModal .pk-money .big .v{font-size:50px;line-height:1.04;color:var(--acc);font-weight:700;
+ text-shadow:0 0 26px rgba(198,255,79,.3);}
+#posModal .pk-money .big .v.z{color:#39453F;text-shadow:none;}
+#posModal .pk-money .big .u{font-size:14px;font-weight:900;color:#6E8078;}
+#posModal .pulse{animation:pkPulse .18s cubic-bezier(0,0,.2,1);}
+@keyframes pkPulse{0%{transform:scale(1)}40%{transform:scale(1.055)}100%{transform:scale(1)}}
+#posModal .pk-deck{flex:0 0 246px;background:var(--deck);border-top:1px solid #2E3A38;padding:0 12px;
+ box-shadow:0 -10px 26px rgba(0,0,0,.45);display:flex;flex-direction:column;}
+#posModal .pk-rail{flex:0 0 34px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+#posModal .pk-rail .face{font-size:12.5px;font-weight:900;color:#B9CCC4;display:flex;align-items:center;gap:7px;min-width:0;}
+#posModal .pk-rail .face i{font-style:normal;width:9px;height:9px;border-radius:50%;background:var(--hue,#4B5A56);flex:0 0 auto;}
+#posModal .pk-rail .face span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#posModal .pk-listen{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;color:#7A8C86;
+ background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.24);border-radius:999px;padding:3px 9px;flex:0 0 auto;}
+#posModal .pk-listen b{width:6px;height:6px;border-radius:50%;background:var(--amb);animation:pkBlink 1.7s infinite;}
+@keyframes pkBlink{0%,100%{opacity:1}50%{opacity:.25}}
+#posModal .pk-listen.ok{background:rgba(198,255,79,.14);border-color:rgba(198,255,79,.4);color:#CDEBA4;}
+#posModal .pk-listen.ok b{background:var(--acc);animation:none;}
+#posModal .pk-grid{flex:1 1 auto;display:flex;flex-direction:column;gap:7px;padding-bottom:8px;min-height:0;}
+#posModal .pk-krow{display:flex;gap:7px;flex:1 1 0;min-height:0;}
+#posModal .pk-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:7px;}
+#posModal .pk-scroll::-webkit-scrollbar{width:0;}
+#posModal .key{flex:1 1 0;min-width:0;border:0;border-radius:14px;background:var(--key);color:var(--fg);
+ font-family:'Tajawal',sans-serif;cursor:pointer;position:relative;overflow:hidden;display:flex;
+ flex-direction:column;align-items:flex-start;justify-content:space-between;padding:7px 9px;
+ box-shadow:0 4px 0 #0E1413,inset 0 1px 0 rgba(255,255,255,.055);
+ transition:transform .08s cubic-bezier(0,0,.2,1),box-shadow .08s cubic-bezier(0,0,.2,1),background .15s;}
+#posModal .key:active{transform:translateY(4px);box-shadow:0 0 0 #0E1413,inset 0 1px 0 rgba(255,255,255,.055);}
+#posModal .key .lbl{width:100%;font-size:14px;font-weight:900;line-height:1.2;text-align:start;
+ overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;}
+#posModal .key .sub{font-size:10.5px;font-weight:700;color:#82948D;line-height:1.3;}
+#posModal .key .pr{font-size:14.5px;color:#CFE0D9;}
+#posModal .key .bar{position:absolute;inset-inline-start:0;top:0;bottom:0;width:5px;background:var(--hue);}
+#posModal .key.mid{align-items:center;justify-content:center;gap:3px;text-align:center;}
+#posModal .key.mid .lbl{text-align:center;}
+#posModal .key.has{background:var(--key2);box-shadow:0 4px 0 #0E1413,inset 0 0 0 1.5px rgba(198,255,79,.42);}
+#posModal .key .cnt{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:17px;
+ border-radius:9px;background:var(--acc);color:#0C100F;font-size:10.5px;font-weight:900;padding:0 5px;
+ margin-inline-end:5px;vertical-align:middle;}
+#posModal .key.amber{background:linear-gradient(180deg,#FFC163,#F2A32E);color:#241703;box-shadow:0 4px 0 #A9701A;}
+#posModal .key.amber:active{box-shadow:0 0 0 #A9701A;}
+#posModal .key.amber .sub{color:#5A3F10;}
+#posModal .key.ghost{background:transparent;box-shadow:inset 0 0 0 1.5px #313D3B;color:#9FB2AB;}
+#posModal .key.ghost:active{transform:translateY(2px);background:#1B2322;}
+#posModal .key.danger{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(255,107,107,.45);color:var(--bad);}
+#posModal .key.danger:active{transform:translateY(2px);background:rgba(255,107,107,.1);}
+#posModal .key.on{background:var(--bad);color:#2A0A0A;box-shadow:0 4px 0 #B03A3A;}
+#posModal .key.go{background:linear-gradient(180deg,#D4FF66,#B6F03A);color:#0C100F;box-shadow:0 5px 0 #7FA824;}
+#posModal .key.go:active{transform:translateY(5px);box-shadow:0 0 0 #7FA824;}
+#posModal .key.undo{background:#0E1413;box-shadow:inset 0 0 0 1.5px rgba(255,181,71,.5);color:var(--amb);flex:2 1 0;}
+#posModal .key .prg{position:absolute;bottom:0;inset-inline-start:0;height:3px;background:var(--amb);width:100%;
+ animation:pkShrink 6s linear forwards;}
+@keyframes pkShrink{to{width:0}}
+#posModal .cn{align-items:center;justify-content:center;padding:0;gap:1px;flex:0 0 auto;height:58px;}
+#posModal .cn .n{font-size:20px;font-weight:700;color:#E9EFEC;}
+#posModal .cn .x{font-size:11px;font-weight:900;color:#0C100F;}
+#posModal .cn .st{position:absolute;top:3px;inset-inline-end:3px;min-width:19px;height:18px;border-radius:9px;
+ background:#0E1413;color:#90A49D;font-size:10px;font-weight:900;display:flex;align-items:center;
+ justify-content:center;padding:0 4px;}
+#posModal .cn .st.low{background:var(--amb);color:#241703;}
+#posModal .cn.pick{background:var(--acc);box-shadow:0 4px 0 var(--acc-d);}
+#posModal .cn.pick .n{color:#0C100F;}
+#posModal .cn.pick .st{background:#0C100F;color:var(--acc);}
+#posModal .cn.out{background:#161D1C;box-shadow:none;pointer-events:none;
+ background-image:linear-gradient(135deg,transparent 46%,rgba(255,107,107,.5) 46%,rgba(255,107,107,.5) 54%,transparent 54%);}
+#posModal .cn.out .n{color:#4A5754;}
+#posModal .cn.out .st{background:transparent;color:var(--bad);font-size:9.5px;top:auto;bottom:2px;inset-inline-end:auto;}
+#posModal .cn .mn{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ background:rgba(255,107,107,.92);color:#2A0A0A;font-size:24px;font-weight:900;opacity:0;transition:opacity .15s;}
+#posModal .cn.canminus .mn{opacity:1;}
+#posModal .pk-cnwrap{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;}
+#posModal .pk-sheet{position:absolute;inset-inline:0;bottom:104px;top:46px;background:var(--deck);z-index:6;
+ padding:12px;display:flex;flex-direction:column;gap:8px;border-top:1px solid #2E3A38;
+ animation:pkUp .2s cubic-bezier(.32,.72,0,1);}
+@keyframes pkUp{from{transform:translateY(100%)}to{transform:none}}
+#posModal .pk-sheet h4{font-size:13px;font-weight:900;color:#B9CCC4;padding:2px 2px 0;}
+#posModal .pk-sheet input{height:48px;border-radius:13px;border:1.5px solid #313D3B;background:#0F1514;
+ color:var(--fg);padding:0 13px;font-family:'Tajawal',sans-serif;font-size:16px;outline:none;width:100%;}
+#posModal .pk-sheet input:focus{border-color:var(--acc);}
+#posModal .pk-sheet input.ph{direction:ltr;text-align:right;}
+#posModal .pk-sheet .btns{display:flex;gap:8px;margin-top:auto;height:52px;flex:0 0 52px;}
+#posModal .pk-list{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+#posModal .pk-li{display:flex;align-items:center;gap:9px;padding:10px 11px;background:var(--key);border:0;
+ border-radius:12px;color:var(--fg);font-family:'Tajawal',sans-serif;cursor:pointer;text-align:start;
+ position:relative;overflow:hidden;}
+#posModal .pk-li:active{background:var(--key2);}
+#posModal .pk-li .bar{position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px;background:var(--hue);}
+#posModal .pk-li b{flex:1;min-width:0;font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;
+ white-space:nowrap;padding-inline-start:5px;}
+#posModal .pk-li span{font-size:13.5px;color:var(--acc);flex:0 0 auto;}
+#posModal .pk-prof{flex:0 0 26px;display:flex;align-items:center;gap:9px;padding:0 14px;background:var(--sheet);
+ position:relative;cursor:pointer;-webkit-user-select:none;user-select:none;}
+#posModal .pk-prof .t{font-size:10.5px;font-weight:800;color:#66786F;flex:0 0 auto;}
+#posModal .pk-prof .bar{flex:1;height:6px;border-radius:3px;overflow:hidden;display:flex;background:#1B2221;}
+#posModal .pk-prof .c{background:var(--amb);transition:width .2s ease;}
+#posModal .pk-prof .p{background:var(--acc);transition:width .2s ease;flex:1;}
+#posModal .pk-prof.neg .c,#posModal .pk-prof.neg .p{background:var(--bad);}
+#posModal .pk-pop{position:absolute;bottom:32px;inset-inline-end:14px;background:#0A0E0D;border:1px solid #33403D;
+ border-radius:13px;padding:10px 13px;box-shadow:0 16px 36px rgba(0,0,0,.72);z-index:8;min-width:178px;}
+#posModal .pk-pop div{display:flex;justify-content:space-between;gap:18px;font-size:12.5px;font-weight:800;
+ color:#9FB2AB;padding:3px 0;}
+#posModal .pk-pay{flex:0 0 74px;padding:0 12px 10px;background:var(--sheet);}
+#posModal .pk-track{position:relative;height:64px;border-radius:19px;background:#161D1C;overflow:hidden;
+ box-shadow:inset 0 0 0 1.5px #2B3634;display:flex;align-items:center;justify-content:center;touch-action:none;}
+#posModal .pk-track .fill{position:absolute;inset-block:0;inset-inline-start:0;width:0;
+ background:linear-gradient(90deg,rgba(198,255,79,.16),rgba(198,255,79,.34));}
+#posModal .pk-track .cap{position:relative;display:flex;align-items:center;gap:10px;pointer-events:none;
+ padding-inline-start:58px;}
+#posModal .pk-track .cap .w{font-size:14px;font-weight:900;color:#93A69F;}
+#posModal .pk-track .cap .v{font-size:24px;color:var(--acc);}
+#posModal .pk-track.dis{opacity:.42;}
+#posModal .pk-track.dis .cap .v{color:#5A6B64;}
+#posModal .pk-knob{position:absolute;inset-inline-start:5px;top:5px;width:54px;height:54px;border-radius:15px;
+ background:linear-gradient(180deg,#D4FF66,#B6F03A);color:#0C100F;display:flex;align-items:center;
+ justify-content:center;font-size:22px;font-weight:900;box-shadow:0 4px 14px rgba(198,255,79,.3);
+ cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;}
+#posModal .pk-knob.nudge{animation:pkNudge .42s ease;}
+@keyframes pkNudge{0%,100%{transform:translateX(0)}30%{transform:translateX(-14px)}60%{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){#posModal *{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+`;
+
+// ── أدوات اللوحة ──
+function _posProds(){return (_opProductsList||[]).filter(p=>p&&!p.isRawMaterial);}
+function _posIsYarn(p){return !!(p&&p.hasColorNumbers);}
+function _posNums(p){
+  if(!_posIsYarn(p))return [];
+  return _prodOwnColors(p)?_ownNums(p):_prodColorCodes(p).filter(n=>_clrSt(n)!=='retired');
+}
+// −1 يعني «ما انجرد» — ما منمنع البيع عليه، بس ما منعرض رقماً كذباً
+function _posStock(p,n){
+  if(_prodOwnColors(p)){const q=_ownQty(p,n);return (q===undefined||q===null)?-1:(Number(q)||0);}
+  const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):-1;
+}
+function _posLine(id){return _posCart.find(x=>x.id===id)||null;}
+function _posCnQty(it,num){const c=(it&&it.colorNumbers||[]).find(x=>Number(x.num)===Number(num));return c?(Number(c.qty)||0):0;}
+function _posLq(it){
+  if(!it)return 0;
+  const cns=it.colorNumbers||[];
+  if(cns.length) return cns.reduce((s,c)=>s+(Number(c.qty)||0),0);
+  return Number(it.qty)||0;
+}
+function _posLeft(p,n){const s=_posStock(p,n);if(s<0)return -1;return s-_posCnQty(_posLine(p.id),n);}
+// لونٌ ثابت لكل منتج من اسمه — شريطٌ جانبي بيخلّي الإيد تعرف الصنف بلا قراءة
+function _posHue(p){
+  const s=String((p&&p.id)||(p&&p.name)||'');
+  let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;
+  const HUES=['#6BA8F5','#F5A0C8','#E8B54B','#A78BFA','#3FB98B','#5EC8D8','#F58B6B','#8BD46B','#D46BB4','#6BD4C8'];
+  return HUES[h%HUES.length];
+}
+function _posEnsure(id){
+  let it=_posLine(id);
+  if(it)return it;
+  const p=_prodById(id); if(!p)return null;
+  const price=Number(p.sellPrice)||0;
+  it={id,name:p.name||'',qty:0,price,list:price,
+    raw:Number(p.rawMaterialCost)||0,tree:Number(p.treeCost)||0,
+    machine:Number(p.machineWorkerWage)||0,assembly:Number(p.assemblyWorkerWage)||0,
+    cost:_posProdCost(p),colorNumbers:[]};
+  _posCart.push(it);
+  return it;
+}
+function _posClean(){_posCart=_posCart.filter(it=>_posLq(it)>0);}
+function _posReady(){
+  if(_posDone||!_posCart.length)return false;
+  if(_posCart.some(it=>_posLq(it)<=0))return false;
+  return _posTotals().sell>0.005;
+}
+let _posHitT=null;
+function _posFlash(id){_posHit=id;clearTimeout(_posHitT);_posHitT=setTimeout(()=>{_posHit='';},740);}
+function _posBuzz(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+let _posAC=null;
+function _posBeep(kind){
+  try{
+    const C=window.AudioContext||window.webkitAudioContext; if(!C)return;
+    if(!_posAC)_posAC=new C();
+    if(_posAC.state==='suspended')_posAC.resume();
+    const M={ok:[880,'sine',.07],dup:[660,'sine',.055],bad:[210,'square',.18],sale:[1180,'sine',.12]};
+    const m=M[kind]||M.ok;
+    const o=_posAC.createOscillator(),g=_posAC.createGain();
+    o.type=m[1];o.frequency.value=m[0];
+    g.gain.setValueAtTime(.055,_posAC.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001,_posAC.currentTime+m[2]);
+    o.connect(g);g.connect(_posAC.destination);o.start();o.stop(_posAC.currentTime+m[2]);
+  }catch(e){}
+}
+let _posUndoT=null;
+function _posSetUndo(msg,fn){
+  clearTimeout(_posUndoT);
+  _posUndo={msg,fn,t0:(new Date()).getTime()};
+  _posUndoT=setTimeout(()=>{_posUndo=null;posRenderDeck();},6000);
+}
+function _posClearUndo(){clearTimeout(_posUndoT);_posUndo=null;}
+
 async function openPos(){
   if(!_opProductsList.length) await loadOpProducts(true);
   if(!_opProductsList.length){toast('⚠️ ما في منتجات');return;}
   await loadColorLibrary();
   document.getElementById('posModal')?.remove();
+  _posActive='';_posMinus=false;_posSheet='';_posDone=null;_posHit='';_posScanMsg='';_posClearUndo();
   const ov=document.createElement('div');
   ov.id='posModal';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
-  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:95vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
-    <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <div>
-        <div style="font-weight:900;font-size:1rem;color:#166534;">🛒 بيع مباشر</div>
-        <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">زبون إجا عالمشغل — كاش فوري</div>
-      </div>
-      <button onclick="posClose()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
+  ov.style.cssText='position:fixed;inset:0;background:#0C100F;z-index:100002;display:flex;justify-content:center;';
+  ov.innerHTML=`<style>${POS_CSS}</style>
+  <div class="pk-wrap">
+    <div class="pk-hdr">
+      <div class="t"><b>بيع مباشر</b><span>كاش فوري</span></div>
+      <button class="pk-x" onclick="posClose()" title="إغلاق">✕</button>
     </div>
-    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
-      <div style="display:flex;gap:6px;">
-        <input id="posQ" type="text" value="${_clrEsc(_posQ)}" placeholder="🔍 دوّر على منتج أو امسح باركود" oninput="_posQ=this.value;posRenderPicker();"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();posScanInput();}"
-          style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;">
-        <button onclick="posScanBtn()" title="امسح باركود" style="flex-shrink:0;width:46px;background:#111827;color:#fff;border:none;border-radius:10px;font-size:1.05rem;cursor:pointer;">📷</button>
-      </div>
-      <div id="posPicker" style="max-height:150px;overflow-y:auto;margin-top:7px;"></div>
+    <div class="pk-tape" id="posTape"></div>
+    <div class="pk-money">
+      <div class="top"><span id="posMLbl">المطلوب من الزبون</span><span id="posMPc">—</span></div>
+      <div class="big"><span class="num v z" id="posMVal">0.00</span><span class="u">د.أ</span></div>
     </div>
-    <div id="posCartWrap" style="flex:1;overflow-y:auto;padding:9px 12px;"></div>
-    <div style="padding:10px 14px;border-top:1px solid #e5e7eb;background:#fafafa;">
-      <div style="display:flex;gap:7px;">
-        <input id="posCName" type="text" value="${_clrEsc(_posCustomer.name)}" placeholder="اسم الزبون (اختياري)" oninput="_posCustomer.name=this.value;"
-          style="flex:2;min-width:0;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
-        <input id="posCPhone" type="tel" value="${_clrEsc(_posCustomer.phone)}" placeholder="الهاتف" oninput="_posCustomer.phone=this.value;"
-          style="flex:1;min-width:0;padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;">
+    <div class="pk-deck" id="posDeck">
+      <div class="pk-rail">
+        <div class="face" id="posFace"><i></i><span>البضاعة</span></div>
+        <div class="pk-listen" id="posListen"><b></b>بينصت للماسح</div>
       </div>
+      <div class="pk-grid" id="posGrid"></div>
     </div>
-    <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
-      <div id="posTotals" style="margin-bottom:9px;"></div>
-      <button onclick="posSave()" style="width:100%;padding:14px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:900;cursor:pointer;">💵 بيع وقبض</button>
+    <div class="pk-prof" id="posProf">
+      <span class="t">الربح</span>
+      <div class="bar"><span class="c" id="posPfC" style="width:0"></span><span class="p"></span></div>
+    </div>
+    <div class="pk-pay">
+      <div class="pk-track dis" id="posTrack">
+        <div class="fill" id="posFill"></div>
+        <div class="cap"><span class="w" id="posPayW">السلّة فاضية</span><span class="num v" id="posPayV">0.00</span></div>
+        <div class="pk-knob" id="posKnob">‹‹</div>
+      </div>
     </div>
   </div>`;
   document.body.appendChild(ov);
-  posRenderPicker();posRenderCart();
+  _posBindDeck();
+  _posBindProf();
+  _posBindKnob();
+  posRender();
 }
 function posClose(){
-  if(_posCart.length&&!confirm('في بضاعة بالسلّة — تسكّر بلا ما تبيع؟'))return;
-  _posCart=[];document.getElementById('posModal')?.remove();
+  if(!_posDone&&_posCart.length&&!confirm('في بضاعة بالسلّة — تسكّر بلا ما تبيع؟'))return;
+  _posClearUndo();
+  _posCart=[];_posActive='';_posMinus=false;_posSheet='';_posDone=null;
+  document.getElementById('posModal')?.remove();
 }
-function posRenderPicker(){
-  const w=document.getElementById('posPicker');if(!w)return;
-  const q=(_posQ||'').trim();
-  // كودٌ مكتوب بالخانة (ماسحٌ سلكي أو نسخ) بيعرف صاحبه فوراً
-  const hit=q?_bcFind(q):null;
-  const list=(_opProductsList||[]).filter(p=>!p.isRawMaterial&&(!q||String(p.name||'').includes(q))).slice(0,40);
-  w.innerHTML=(hit?`<button onclick="posScanInput()" style="width:100%;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;margin-bottom:5px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;">
-      <span style="font-size:0.84rem;font-weight:900;color:#166534;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🏷️ ${_clrEsc(_bcLabel(hit))}</span>
-      <span style="font-size:0.72rem;font-weight:800;color:#166534;flex-shrink:0;">باركود ↵</span>
-    </button>`:'')
-    +(list.length?list.map(p=>`<button onclick="posAdd('${p.id}')" style="width:100%;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;">
-      <span style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(p.name)}</span>
-      <span style="font-size:0.78rem;font-weight:800;color:#166534;flex-shrink:0;">${(Number(p.sellPrice)||0).toFixed(2)}</span>
-    </button>`).join('')
-    :(hit?'':'<div style="text-align:center;color:#9ca3af;font-size:0.78rem;padding:12px;">ما في منتج بهالاسم</div>'));
+
+// ═══ الرسم ═══
+function posRender(){posRenderTape();posRenderMoney();posRenderDeck();posRenderSheet();}
+function posRenderTape(){
+  const t=document.getElementById('posTape'); if(!t)return;
+  if(_posDone){
+    t.innerHTML=`<div class="pk-stub"><div style="flex:1;min-width:0;">
+      <span class="k">✓ انقبض</span><span class="num v">${_posDone.amount.toFixed(2)}</span>
+      <div class="meta"><span class="num">${_posDone.pieces}</span> قطعة · <span class="num">${_clrEsc(_posDone.time)}</span>${_posDone.cust?' · '+_clrEsc(_posDone.cust):''}</div>
+    </div></div>`;
+    return;
+  }
+  if(!_posCart.length){
+    t.innerHTML='<div class="pk-empty"><div class="big">اللوحة تحت جاهزة.<br>اضغط صنف أو امسح باركود.</div><div class="arw">▼</div></div>';
+    return;
+  }
+  t.innerHTML=_posCart.map(it=>{
+    const p=_prodById(it.id)||{};
+    const q=_posLq(it);
+    let sub='';
+    if(_posIsYarn(p)){
+      const cns=(it.colorNumbers||[]).filter(c=>(Number(c.qty)||0)>0);
+      if(!cns.length) sub='<span class="pk-warn">⚠ اختر رقم اللون من اللوحة</span>';
+      else sub=cns.map(c=>`<span class="pk-chip num">${c.num}&times;${c.qty}</span>`).join('');
+    }
+    const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
+    sub+=`<em><span class="num">${q}</span> &times; <span class="num">${(Number(it.price)||0).toFixed(2)}</span>`
+      +(disc>0.009?` · <span style="color:#FFB547">خصم <span class="num">${disc.toFixed(2)}</span></span>`:'')+`</em>`;
+    return `<div class="pk-row${_posActive===it.id?' on':''}${_posHit===it.id?' hit':''}" style="--hue:${_posHue(p)}">
+      <div class="nm"><b>${_clrEsc(it.name)}</b><div class="pk-sub">${sub}</div></div>
+      <span class="num amt">${((Number(it.price)||0)*q).toFixed(2)}</span></div>`;
+  }).join('');
+  t.scrollTop=t.scrollHeight;
+}
+let _posLastSell=null;
+function posRenderMoney(){
+  const T=_posTotals(),v=document.getElementById('posMVal'); if(!v)return;
+  const amt=_posDone?_posDone.amount:T.sell;
+  v.textContent=amt.toFixed(2);
+  if(_posDone||T.sell>=0.005)v.classList.remove('z');else v.classList.add('z');
+  document.getElementById('posMLbl').textContent=_posDone?'انقبض — البيعة تمّت':'المطلوب من الزبون';
+  document.getElementById('posMPc').innerHTML=_posDone?`<span class="num">${_posDone.pieces}</span> قطعة`
+    :(T.pieces?`<span class="num">${T.pieces}</span> قطعة`:'—');
+  if(!_posDone&&_posLastSell!==null&&T.sell!==_posLastSell){
+    v.classList.remove('pulse');void v.offsetWidth;v.classList.add('pulse');
+  }
+  _posLastSell=_posDone?null:T.sell;
+  const pr=document.getElementById('posProf');
+  if(_posDone||T.sell<0.005){document.getElementById('posPfC').style.width='0%';pr.classList.remove('neg');}
+  else{
+    document.getElementById('posPfC').style.width=Math.max(0,Math.min(100,T.cost/T.sell*100))+'%';
+    if(T.profit<-0.005)pr.classList.add('neg');else pr.classList.remove('neg');
+  }
+  const tr=document.getElementById('posTrack'),ok=_posReady();
+  tr.classList[ok?'remove':'add']('dis');
+  document.getElementById('posPayV').textContent=T.sell.toFixed(2);
+  document.getElementById('posPayW').textContent=ok?'اسحب لتقبض'
+    :(_posDone?'خلصت — بيعة جديدة':(_posCart.length?'اختر رقم اللون':'السلّة فاضية'));
+}
+function _posK(o){
+  return `<button class="key ${o.cls||''}" data-act="${o.act}"${o.lp?` data-lp="${o.lp}"`:''}`
+    +`${o.hue?` style="--hue:${o.hue}"`:''}>${o.hue?'<span class="bar"></span>':''}${o.html}</button>`;
+}
+function _posUndoKey(){
+  const el=((new Date()).getTime()-_posUndo.t0)/1000;
+  return _posK({act:'undo',cls:'undo mid',
+    html:`<span class="lbl" style="font-size:13px">↩ تراجع</span>`
+      +`<span class="sub" style="color:#9A8253">${_clrEsc(_posUndo.msg)}</span>`
+      +`<span class="prg" style="animation-delay:-${el.toFixed(2)}s"></span>`});
+}
+function _posProdKey(p){
+  const it=_posLine(p.id),q=it?_posLq(it):0;
+  let sub;
+  if(_posIsYarn(p)){
+    const av=_posNums(p).filter(n=>_posLeft(p,n)!==0).length;
+    sub=`<span class="num">${av}</span> ألوان`;
+  }else sub=q>0?'مطوّل = العدد':'قطعة';
+  return _posK({act:'prod:'+p.id,lp:'open:'+p.id,cls:(q>0?'has':''),hue:_posHue(p),
+    html:`<span class="lbl">${_clrEsc(p.name)}</span>`
+      +`<span class="sub">${q>0?`<span class="cnt num">${q}</span>`:''}${sub}</span>`
+      +`<span class="pr num">${(Number(p.sellPrice)||0).toFixed(2)}</span>`});
+}
+function posRenderDeck(){
+  const g=document.getElementById('posGrid'); if(!g)return;
+  const rf=document.getElementById('posFace'),rl=document.getElementById('posListen');
+  if(_posDone){
+    rf.innerHTML='<i style="--hue:#C6FF4F"></i><span>البيعة خلصت</span>';
+    rl.className='pk-listen ok';rl.innerHTML='<b></b>انحفظت';
+    g.innerHTML='<div class="pk-krow" style="flex:2 1 0">'
+      +_posK({act:'noop',cls:'ghost mid',html:'<span class="lbl" style="font-size:13px;color:#7E918B">الإيصال فوق · والبيعة انحفظت بالسجلّ</span>'})
+      +'</div><div class="pk-krow">'+(_posUndo?_posUndoKey():'')
+      +_posK({act:'newsale',cls:'go mid',html:'<span class="lbl" style="font-size:17px">＋ بيعة جديدة</span>'})
+      +'</div>';
+    return;
+  }
+  rl.className='pk-listen'+(_posScanMsg?' ok':'');
+  rl.innerHTML=_posScanMsg?`<b></b>${_clrEsc(_posScanMsg)}`:'<b></b>بينصت للماسح';
+  const a=_posActive?_prodById(_posActive):null;
+
+  if(!a){
+    rf.innerHTML='<i></i><span>البضاعة — اضغط صنف</span>';
+    const prods=_posProds();
+    const six=prods.slice(0,6);
+    const more=prods.length-six.length;
+    const r1=six.slice(0,3).map(_posProdKey).join('');
+    const r2=six.slice(3,6).map(_posProdKey).join('');
+    g.innerHTML=`<div class="pk-krow">${r1}</div><div class="pk-krow">${r2}</div><div class="pk-krow">`
+      +_posK({act:'scan',cls:'amber mid',html:'<span class="lbl" style="font-size:15px">📷 امسح</span><span class="sub">صفر لمسات</span>'})
+      +(_posUndo?_posUndoKey():
+        _posK({act:'cust',cls:'ghost mid',html:`<span class="lbl">${_posCustomer.name?'👤 '+_clrEsc(_posCustomer.name.slice(0,8)):'👤 زبون'}</span><span class="sub">${_posCustomer.name?'للتعديل':'اختياري'}</span>`})
+        +_posK({act:'prods',cls:'ghost mid',html:`<span class="lbl">🔍 دوّر</span><span class="sub">${more>0?`<span class="num">+${more}</span> صنف كمان`:'كل البضاعة'}</span>`}))
+      +'</div>';
+    return;
+  }
+
+  rf.innerHTML=`<i style="--hue:${_posHue(a)}"></i><span>${_clrEsc(a.name)}${_posIsYarn(a)?' — أرقام الألوان':' — العدد'}</span>`;
+  const bottom='<div class="pk-krow" style="flex:0 0 46px">'
+    +_posK({act:'back',cls:'ghost mid',html:'<span class="lbl" style="font-size:13px">◀ البضاعة</span>'})
+    +(_posIsYarn(a)?_posK({act:'minus',cls:'mid '+(_posMinus?'on':'ghost'),
+        html:`<span class="lbl" style="font-size:12.5px">${_posMinus?'نقّص ●':'− نقّص'}</span>`}):'')
+    +_posK({act:'disc:0.25',cls:'ghost mid',html:'<span class="lbl num" style="color:#FFB547;font-size:13px">-0.25</span><span class="sub">خصم</span>'})
+    +_posK({act:'disc:0.50',cls:'ghost mid',html:'<span class="lbl num" style="color:#FFB547;font-size:13px">-0.50</span><span class="sub">خصم</span>'})
+    +_posK({act:'del',cls:'danger mid',html:'<span class="lbl" style="font-size:13px">🗑 احذف</span>'})
+    +'</div>';
+  if(_posIsYarn(a)){
+    const it=_posLine(a.id);
+    const nums=_posNums(a);
+    const keys=nums.map(n=>{
+      const lf=_posLeft(a,n),got=_posCnQty(it,n),out=(lf===0&&got<=0);
+      const cls='cn mid '+(got>0?'pick ':'')+(out?'out ':'')+(_posMinus&&got>0?'canminus ':'');
+      const badge=out?'<span class="st">خلص</span>'
+        :`<span class="st${(lf>=0&&lf<=2)?' low':''}">${lf<0?'—':`<span class="num">${lf}</span>`}</span>`;
+      return _posK({act:`cn:${a.id}:${n}`,cls,
+        html:badge+`<span class="n num">${n}</span>`+(got>0?`<span class="x num">&times;${got}</span>`:'')+'<span class="mn">−</span>'});
+    }).join('');
+    g.innerHTML=`<div class="pk-scroll"><div class="pk-cnwrap">${keys||'<div style="grid-column:1/-1;color:#75877F;font-size:12.5px;font-weight:700;text-align:center;padding:14px;">ما في أرقام ألوان لهذا الصنف</div>'}</div></div>`+bottom;
+  }else{
+    const it=_posLine(a.id),q=it?(Number(it.qty)||0):0;
+    g.innerHTML='<div class="pk-krow">'
+      +_posK({act:'step:-1',cls:'mid',html:'<span class="lbl" style="font-size:26px;color:#FF6B6B">−</span>'})
+      +_posK({act:'noop',cls:'mid',html:`<span class="num" style="font-size:29px;font-weight:700">${q}</span><span class="sub">العدد</span>`})
+      +_posK({act:'step:1',cls:'mid',html:'<span class="lbl" style="font-size:26px;color:#C6FF4F">＋</span>'})
+      +'</div><div class="pk-krow">'
+      +[2,3,5,10].map(n=>_posK({act:'set:'+n,cls:'ghost mid',html:`<span class="lbl num" style="font-size:16px">${n}</span>`})).join('')
+      +'</div>'+bottom;
+  }
+}
+function posRenderSheet(){
+  const old=document.getElementById('posSheetEl'); if(old)old.remove();
+  if(!_posSheet)return;
+  const d=document.createElement('div');
+  d.id='posSheetEl';d.className='pk-sheet';
+  if(_posSheet==='cust'){
+    d.innerHTML=`<h4>الزبون — اختياري</h4>
+      <input id="posCName" type="text" placeholder="اسم الزبون" value="${_clrEsc(_posCustomer.name)}">
+      <input id="posCPhone" class="ph" type="tel" inputmode="tel" placeholder="الهاتف" value="${_clrEsc(_posCustomer.phone)}">
+      <div class="btns">
+        <button class="key ghost mid" data-cs="clear" style="flex:1"><span class="lbl">امسح</span></button>
+        <button class="key go mid" data-cs="ok" style="flex:2"><span class="lbl" style="font-size:16px">تمّ ✓</span></button>
+      </div>`;
+  }else{
+    const q=(_posQ||'').trim();
+    const hit=q?_bcFind(q):null;
+    const list=_posProds().filter(p=>!q||String(p.name||'').includes(q));
+    d.innerHTML=`<h4>كل البضاعة</h4>
+      <input id="posQ" type="text" value="${_clrEsc(_posQ)}" placeholder="🔍 اسم المنتج أو باركود"
+        oninput="_posQ=this.value;posRenderSheet();"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();posScanInput();}">
+      <div class="pk-list">
+        ${hit?`<button class="pk-li" data-pid="__bc__" style="--hue:#C6FF4F"><span class="bar"></span>
+          <b>🏷️ ${_clrEsc(_bcLabel(hit))}</b><span>باركود ↵</span></button>`:''}
+        ${list.length?list.map(p=>`<button class="pk-li" data-pid="${p.id}" style="--hue:${_posHue(p)}"><span class="bar"></span>
+          <b>${_clrEsc(p.name)}</b><span class="num">${(Number(p.sellPrice)||0).toFixed(2)}</span></button>`).join('')
+          :(hit?'':'<div style="color:#75877F;font-size:12.5px;font-weight:700;text-align:center;padding:16px;">ما في منتج بهالاسم</div>')}
+      </div>
+      <div class="btns"><button class="key ghost mid" data-cs="ok" style="flex:1"><span class="lbl">◀ رجوع</span></button></div>`;
+  }
+  document.querySelector('#posModal .pk-wrap').appendChild(d);
+  d.addEventListener('click',e=>{
+    const li=e.target.closest('[data-pid]');
+    if(li){
+      const pid=li.getAttribute('data-pid');
+      if(pid==='__bc__'){posScanInput();return;}
+      _posSheet='';_posQ='';posAdd(pid);return;
+    }
+    const b=e.target.closest('[data-cs]');
+    if(!b)return;
+    if(b.getAttribute('data-cs')==='clear') _posCustomer={name:'',phone:''};
+    else if(_posSheet==='cust'){
+      const n=document.getElementById('posCName'),ph=document.getElementById('posCPhone');
+      _posCustomer.name=n?n.value.trim():'';_posCustomer.phone=ph?ph.value.trim():'';
+    }
+    _posSheet='';_posBuzz(12);posRender();
+  });
+}
+// أسماءٌ قديمة ظلّت مستعملة بأماكن تانية
+function posRenderCart(){posRender();}
+function posRenderTotals(){posRenderMoney();}
+function posRenderPicker(){if(_posSheet==='prods')posRenderSheet();}
+
+// ═══ الأفعال ═══
+function posAct(a){
+  let m;
+  if(!a||a==='noop')return;
+  if(a==='undo'){const f=_posUndo&&_posUndo.fn;_posClearUndo();_posBuzz(20);if(f)f();return;}
+  if((m=a.match(/^open:(.+)$/))){_posEnsure(m[1]);_posActive=m[1];_posMinus=false;_posBuzz(16);posRender();return;}
+  if((m=a.match(/^prod:(.+)$/))){posAdd(m[1]);return;}
+  if((m=a.match(/^cn:(.+):(\d+)$/))){
+    const pid=m[1],n=Number(m[2]);
+    const i=_posCart.findIndex(x=>x.id===pid);
+    if(i<0){_posEnsure(pid);}
+    const idx=_posCart.findIndex(x=>x.id===pid);
+    posCN(idx,n,_posMinus?-1:1);
+    return;
+  }
+  if(a==='minus'){_posMinus=!_posMinus;_posBuzz(12);posRenderDeck();return;}
+  if(a==='back'){_posClean();_posActive='';_posMinus=false;_posBuzz(10);posRender();return;}
+  if((m=a.match(/^step:(-?\d+)$/))){
+    if(!_posActive)return;
+    const it=_posEnsure(_posActive),d=Number(m[1]);
+    const nq=Math.max(0,(Number(it.qty)||0)+d);
+    it.qty=nq;_posBuzz(15);_posBeep(d>0?'ok':'dup');
+    if(!nq){_posClean();_posActive='';}
+    posRender();return;
+  }
+  if((m=a.match(/^set:(\d+)$/))){
+    if(!_posActive)return;
+    const it=_posEnsure(_posActive);
+    it.qty=Number(m[1]);_posBeep('ok');_posBuzz(24);_posFlash(_posActive);posRender();return;
+  }
+  if((m=a.match(/^disc:([\d.]+)$/))){
+    if(!_posActive){_posBeep('bad');return;}
+    const it=_posLine(_posActive); if(!it)return;
+    const nv=Math.max(0,Math.round(((Number(it.price)||0)-parseFloat(m[1]))*100)/100);
+    if(Math.abs(nv-(Number(it.price)||0))<0.001){_posBeep('bad');_posBuzz([60,50,60]);toast('⚠️ ما بينفع أقلّ');return;}
+    it.price=nv;_posBeep('dup');_posBuzz(16);toast('🏷️ انسجّل خصم');posRender();return;
+  }
+  if(a==='del'){
+    const pid=_posActive; if(!pid)return;
+    const idx=_posCart.findIndex(x=>x.id===pid);
+    if(idx<0){_posActive='';posRender();return;}
+    const snap=_posCart[idx],nm=snap.name;
+    _posCart.splice(idx,1);_posActive='';_posMinus=false;
+    _posBuzz(30);_posBeep('dup');
+    _posSetUndo('انحذف '+nm,()=>{_posCart.splice(Math.min(idx,_posCart.length),0,snap);posRender();});
+    posRender();return;
+  }
+  if(a==='cust'){_posSheet='cust';_posBuzz(12);posRender();return;}
+  if(a==='prods'){_posSheet='prods';_posQ='';_posBuzz(12);posRender();return;}
+  if(a==='scan'){posScanBtn();return;}
+  if(a==='newsale'){
+    _posClearUndo();_posDone=null;_posCart=[];_posActive='';_posMinus=false;
+    _posCustomer={name:'',phone:''};_posBuzz(14);posRender();return;
+  }
 }
 function posAdd(id){
-  const p=_prodById(id);if(!p)return;
-  const ex=_posCart.find(x=>x.id===id&&!x.colorNumbers.length&&!p.hasColorNumbers);
-  if(ex){ex.qty=(Number(ex.qty)||0)+1;posRenderCart();return;}
-  const price=Number(p.sellPrice)||0;
-  _posCart.push({id,name:p.name||'',qty:1,price,list:price,
-    raw:Number(p.rawMaterialCost)||0,tree:Number(p.treeCost)||0,
-    machine:Number(p.machineWorkerWage)||0,assembly:Number(p.assemblyWorkerWage)||0,
-    cost:_posProdCost(p),colorNumbers:[]});
-  _posQ='';const qi=document.getElementById('posQ');if(qi)qi.value='';
-  posRenderPicker();posRenderCart();
+  const p=_prodById(id); if(!p)return;
+  if(_posIsYarn(p)){_posEnsure(id);_posActive=id;_posMinus=false;_posBuzz(14);posRender();return;}
+  const it=_posEnsure(id); if(!it)return;
+  it.qty=(Number(it.qty)||0)+1;
+  _posBeep('ok');_posBuzz(20);_posFlash(id);posRender();
 }
 function posSet(i,field,v){
   const it=_posCart[i];if(!it)return;
   it[field]=field==='qty'?Math.max(0,parseInt(v)||0):Math.max(0,parseFloat(v)||0);
-  posRenderTotals();
+  posRenderMoney();
 }
-function posDel(i){_posCart.splice(i,1);posRenderCart();}
+function posDel(i){_posCart.splice(i,1);posRender();}
 function posCN(i,num,delta){
   const it=_posCart[i];if(!it)return;
   const pr=_prodById(it.id);
-  const cur=((it.colorNumbers||[]).find(c=>c.num===num)||{}).qty||0;
-  if(_cnBlocked(num,cur,delta,_prodOwnColors(pr),pr))return;
+  const cur=_posCnQty(it,num);
+  if(delta<0&&cur<=0){_posBeep('bad');_posBuzz([60,50,60]);return;}
+  if(delta>0&&_cnBlocked(num,cur,delta,_prodOwnColors(pr),pr)){_posBeep('bad');_posBuzz([60,50,60]);return;}
   let cns=(it.colorNumbers||[]).slice();
-  const j=cns.findIndex(c=>c.num===num);
-  if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
+  const j=cns.findIndex(c=>Number(c.num)===Number(num));
+  if(j>=0){const q=(Number(cns[j].qty)||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
   else if(delta>0) cns.push({num,qty:1});
   it.colorNumbers=cns;
-  const tot=cns.reduce((s,c)=>s+(c.qty||0),0);
-  if(tot>0) it.qty=tot;          // الكمية = مجموع الألوان، زي الطلب
-  posRenderCart();
+  const tot=cns.reduce((s,c)=>s+(Number(c.qty)||0),0);
+  it.qty=tot;                       // الكمية = مجموع الألوان، زي الطلب
+  _posBeep(delta>0?'ok':'dup');_posBuzz(delta>0?22:[16,50,16]);
+  if(delta>0)_posFlash(it.id);
+  if(tot<=0){_posClean();if(!_posLine(it.id)){_posActive='';_posMinus=false;}}
+  posRender();
 }
-function posRenderCart(){
-  const w=document.getElementById('posCartWrap');if(!w)return;
-  if(!_posCart.length){
-    w.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.85rem;padding:30px;">السلّة فاضية — دوّر على منتج فوق</div>';
-    posRenderTotals();return;
-  }
-  const F="padding:7px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.84rem;text-align:center;outline:none;box-sizing:border-box;";
-  w.innerHTML=_posCart.map((it,i)=>{
-    const pr=_prodById(it.id);
-    const hasCN=!!(pr&&pr.hasColorNumbers);
-    const codes=hasCN?_prodColorCodes(pr):[];
-    const sel={};(it.colorNumbers||[]).forEach(c=>{sel[c.num]=c.qty;});
-    const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
-    return `<div style="border:1.5px solid #e5e7eb;border-radius:12px;padding:10px;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;">
-        <div style="font-size:0.88rem;font-weight:800;color:#111827;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(it.name)}</div>
-        <button onclick="posDel(${i})" style="background:#fee2e2;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0;font-size:0.8rem;">🗑️</button>
-      </div>
-      <div style="display:flex;gap:7px;align-items:center;">
-        <div style="flex:1;"><div style="font-size:0.64rem;color:#6b7280;margin-bottom:2px;">الكمية</div>
-          <input type="number" min="0" value="${it.qty}" ${hasCN?'readonly':''} oninput="posSet(${i},'qty',this.value)" style="${F}width:100%;${hasCN?'background:#f3f4f6;':''}"></div>
-        <div style="flex:1;"><div style="font-size:0.64rem;color:#6b7280;margin-bottom:2px;">السعر</div>
-          <input type="number" min="0" step="0.25" value="${it.price}" oninput="posSet(${i},'price',this.value)" style="${F}width:100%;"></div>
-        <div style="flex:1;"><div style="font-size:0.64rem;color:#6b7280;margin-bottom:2px;">الإجمالي</div>
-          <div style="padding:7px;font-size:0.86rem;font-weight:900;color:#166534;text-align:center;">${((Number(it.price)||0)*(Number(it.qty)||0)).toFixed(2)}</div></div>
-      </div>
-      ${disc>0.009?`<div style="font-size:0.68rem;color:#b45309;margin-top:5px;">🏷️ خصم ${(disc*(Number(it.qty)||0)).toFixed(2)} (السعر ${(Number(it.list)||0).toFixed(2)})</div>`:''}
-      ${hasCN&&codes.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;">
-        <div style="font-size:0.66rem;color:#6b7280;margin-bottom:5px;">🎨 اختار اللون والعدد</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">${_cnGridHtml(codes,sel,'posCN',i,true,_prodOwnColors(pr),pr)}</div></div>`:''}
-    </div>`;}).join('');
-  posRenderTotals();
+
+// ═══ ربط اللمس ═══
+let _posLpT=null,_posLpFired=false,_posLpKey=null;
+function _posBindDeck(){
+  const deck=document.getElementById('posDeck'); if(!deck)return;
+  deck.addEventListener('pointerdown',e=>{
+    const k=e.target.closest('button[data-act]'); if(!k)return;
+    _posLpFired=false;_posLpKey=k;
+    const lp=k.getAttribute('data-lp'); if(!lp)return;
+    clearTimeout(_posLpT);
+    _posLpT=setTimeout(()=>{_posLpFired=true;_posBuzz(18);posAct(lp);},450);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>
+    deck.addEventListener(ev,()=>clearTimeout(_posLpT)));
+  deck.addEventListener('click',e=>{
+    const k=e.target.closest('button[data-act]'); if(!k)return;
+    if(_posLpFired&&_posLpKey===k){_posLpFired=false;return;}
+    posAct(k.getAttribute('data-act'));
+  });
 }
-function posRenderTotals(){
-  const w=document.getElementById('posTotals');if(!w)return;
-  const t=_posTotals();
-  w.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;text-align:center;">
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:7px;">
-      <div style="font-size:0.62rem;color:#166534;">الإجمالي</div>
-      <div style="font-size:0.95rem;font-weight:900;color:#166534;">${t.sell.toFixed(2)}</div></div>
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:7px;">
-      <div style="font-size:0.62rem;color:#92400e;">التكلفة</div>
-      <div style="font-size:0.95rem;font-weight:900;color:#92400e;">${t.cost.toFixed(2)}</div></div>
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:7px;">
-      <div style="font-size:0.62rem;color:#1e40af;">ربحك</div>
-      <div style="font-size:0.95rem;font-weight:900;color:${t.profit>=0?'#1e40af':'#dc2626'};">${t.profit.toFixed(2)}</div></div>
-  </div>${t.disc>0.009?`<div style="font-size:0.7rem;color:#b45309;text-align:center;margin-top:6px;">🏷️ مجموع الخصم ${t.disc.toFixed(2)} د.أ</div>`:''}`;
+// الربح: ضغطةٌ مطوّلة بتكشف الأرقام — والزبون واقف قدّام الشاشة
+let _posPfT=null;
+function _posBindProf(){
+  const prof=document.getElementById('posProf'); if(!prof)return;
+  const open=()=>{
+    if(document.getElementById('posPfPop'))return;
+    const T=_posTotals();
+    const d=document.createElement('div');d.id='posPfPop';d.className='pk-pop';
+    d.innerHTML=`<div><span>الإجمالي</span><span class="num" style="color:#C6FF4F">${T.sell.toFixed(2)}</span></div>
+      <div><span>التكلفة</span><span class="num" style="color:#FFB547">${T.cost.toFixed(2)}</span></div>
+      <div><span>الربح</span><span class="num" style="color:${T.profit<0?'#FF6B6B':'#C6FF4F'}">${T.profit.toFixed(2)}</span></div>
+      <div><span>الخصم</span><span class="num" style="color:#FFB547">${T.disc.toFixed(2)}</span></div>`;
+    prof.appendChild(d);_posBuzz(18);
+  };
+  prof.addEventListener('pointerdown',()=>{clearTimeout(_posPfT);_posPfT=setTimeout(open,480);});
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>
+    prof.addEventListener(ev,()=>clearTimeout(_posPfT)));
+  document.addEventListener('pointerdown',e=>{
+    const n=document.getElementById('posPfPop');
+    if(n&&!e.target.closest('#posProf'))n.remove();
+  },true);
+}
+// اسحب لتقبض — بلا نافذة تأكيد، وبيستحيل تصير بيعة بلمسة عابرة
+function _posBindKnob(){
+  const knob=document.getElementById('posKnob'),track=document.getElementById('posTrack'),
+        fill=document.getElementById('posFill');
+  if(!knob)return;
+  let drag=false,sx=0,dx=0,maxd=1;
+  knob.addEventListener('pointerdown',e=>{
+    if(!_posReady()){
+      knob.classList.remove('nudge');void knob.offsetWidth;knob.classList.add('nudge');
+      _posBeep('bad');_posBuzz([50,40,50]);return;
+    }
+    drag=true;sx=e.clientX;dx=0;
+    maxd=Math.max(1,track.clientWidth-knob.offsetWidth-10);
+    knob.style.transition='none';fill.style.transition='none';
+    try{knob.setPointerCapture(e.pointerId);}catch(err){}
+  });
+  knob.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    dx=Math.min(0,Math.max(-maxd,e.clientX-sx));
+    knob.style.transform=`translateX(${dx}px)`;
+    fill.style.width=(Math.abs(dx)/maxd*100)+'%';
+  });
+  const end=()=>{
+    if(!drag)return;
+    drag=false;
+    knob.style.transition='transform .2s cubic-bezier(.2,.8,.2,1)';
+    fill.style.transition='width .2s cubic-bezier(.2,.8,.2,1)';
+    const far=Math.abs(dx)>=maxd*0.72,moved=Math.abs(dx);
+    dx=0;
+    if(far){
+      knob.style.transform=`translateX(-${maxd}px)`;fill.style.width='100%';
+      _posBuzz(60);posSave();
+      setTimeout(()=>{knob.style.transform='';fill.style.width='0%';},280);
+    }else{
+      knob.style.transform='';fill.style.width='0%';
+      if(moved>16)toast('اسحب لآخر اليسار');
+    }
+  };
+  ['pointerup','pointercancel'].forEach(ev=>knob.addEventListener(ev,end));
 }
 window.openPos=openPos; window.posClose=posClose; window.posRenderPicker=posRenderPicker;
 window.posAdd=posAdd; window.posSet=posSet; window.posDel=posDel; window.posCN=posCN;
+window.posAct=posAct; window.posRender=posRender; window.posRenderSheet=posRenderSheet;
+window.posRenderDeck=posRenderDeck; window.posRenderTape=posRenderTape; window.posRenderMoney=posRenderMoney;
 
 async function posSave(){
   if(!_posCart.length){toast('⚠️ السلّة فاضية');return;}
   const bad=_posCart.find(it=>!(Number(it.qty)>0)||!(Number(it.price)>=0));
   if(bad){toast('⚠️ راجع الكمية والسعر');return;}
   const t=_posTotals();
-  if(!confirm(`💵 بيع وقبض\n\nالإجمالي: ${t.sell.toFixed(2)} د.أ\n`
-    +(t.disc>0.009?`الخصم: ${t.disc.toFixed(2)}\n`:'')
-    +`التكلفة: ${t.cost.toFixed(2)}\nربحك: ${t.profit.toFixed(2)}\n\nنسجّلها؟`)) return;
+  // ما في نافذة تأكيد: السحب على المبلغ نفسه هو التأكيد، والتراجع بعده
+  // بستّ ثواني. نافذةٌ إضافية بتقطع النفَس وبتزيد لمسة على كل بيعة.
   try{
     if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب');return;}
     const posId='pos_'+Date.now();
     const date=jordanDateStr();
+    const ids=[];
+    const foot=_posFootprint();
     const batch=db.batch();
     _posCart.forEach((it,i)=>{
+      ids.push(posId+'_'+i);
       const ref=db.collection('operator_sales').doc(posId+'_'+i);
       batch.set(ref,{
         storeId:POS_STORE, storeName:'بيع مباشر', posSale:true, posId,
@@ -3760,15 +4299,44 @@ async function posSave(){
     });
     await batch.commit();
     // المخزون بينقص زي ما بينقص بالطلب تماماً
-    try{ await _orderStockSync(null,null,_posFootprint(),false,true); }catch(e){}
-    _posCart=[];_posCustomer={name:'',phone:''};
-    document.getElementById('posModal')?.remove();
-    toast(`✅ انباعت — ${t.sell.toFixed(2)} د.أ · ربحك ${t.profit.toFixed(2)}`);
+    try{ await _orderStockSync(null,null,foot,false,true); }catch(e){}
+    const d=new Date();
+    const p2=n=>(n<10?'0':'')+n;
+    _posDone={amount:t.sell,pieces:t.pieces||_posCart.reduce((s,x)=>s+_posLq(x),0),
+      time:p2(d.getHours())+':'+p2(d.getMinutes()),cust:_posCustomer.name||''};
+    _posCart=[];_posActive='';_posMinus=false;_posSheet='';_posCustomer={name:'',phone:''};
+    _posBeep('sale');
+    // «نفّذ أوّل وتراجَع» بدل «اسأل كل مرّة» — والتراجع بيرجّع البضاعة كمان
+    _posSetUndo('رجّع البيعة '+t.sell.toFixed(2),()=>posUndoSale(ids,foot));
+    if(document.getElementById('posModal')) posRender();
+    else toast(`✅ انباعت — ${t.sell.toFixed(2)} د.أ · ربحك ${t.profit.toFixed(2)}`);
     _invalidateQuery&&_invalidateQuery('operator_sales');
     if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
     renderOperatorDailyView();
   }catch(e){toast('❌ '+e.message);}
 }
+
+// تراجعٌ فوريّ عن آخر بيعة: بنعلّم صفوفها مرتجعة وبنرجّع بضاعتها — نفس
+// قواعد posReturnSale بالضبط، بس بضغطةٍ وحدة لأنّ السحب صار قبل ثوانٍ.
+async function posUndoSale(ids,foot){
+  if(!ids||!ids.length)return;
+  try{
+    const batch=db.batch();
+    ids.forEach(id=>batch.update(db.collection('operator_sales').doc(id),
+      {delivered:false,returned:true,returnedAt:firebase.firestore.FieldValue.serverTimestamp()}));
+    await batch.commit();
+    if(foot&&foot.products&&foot.products.some(p=>(p.colorNumbers||[]).length)){
+      try{ await _orderStockSync(null,foot,null,true,false); }catch(e){}
+    }
+    _posDone=null;
+    toast('↩️ رجّعت البيعة — والبضاعة رجعت للمخزون');
+    if(document.getElementById('posModal')) posRender();
+    _invalidateQuery&&_invalidateQuery('operator_sales');
+    if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
+    renderOperatorDailyView();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.posUndoSale=posUndoSale;
 
 // الإرجاع: ما بنحذف السجلّ — بنعلّمه مرتجعاً فبيطلع من الكاش ومن رأس المال
 // ومن الأرباح لحاله (كلّهم بيتخطّوا delivered:false)، والمخزون بيرجع.
