@@ -2405,6 +2405,7 @@ let _opStmtPollId=null;
 let _empTodayUnsub=null;
 let _empEditOrderId=null;
 let _empEditCart=[];
+let _empEditHeld={lib:{},own:{}};
 let _empEditDeliveryFee=0;
 let _empOrdersAllData=[];
 let _empOrdersFilter='all';
@@ -2869,7 +2870,9 @@ function _cnGridHtml(codes,sel,fn,i,small,own,prod){
     const q=sel[n]||0,on=q>0;
     const c=_clr(n),st=_clrSt(n),hex=(c&&c.hex)||'';
     const dead=st!=='active';
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${dead&&!on?'opacity:.58;':''}">
+    // انجرد وصفّر = خالصٌ فعلاً، حتى لو حالته لسا «شغّال»
+    const dry=!!(c&&c.counted===true&&(Number(c.qty)||0)<=0);
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${(dead||dry)&&!on?'opacity:.58;':''}">
       <button onclick="${fn}(${i},${n},1)" data-cn="${n}" data-st="${st}" title="${_clrName(n)}" style="position:relative;display:grid;place-items:center;width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':(hex||(c&&c.img))?'rgba(0,0,0,.18)':'#cbd5e1'};${_clrFace(c)}cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;box-shadow:${on?'0 0 0 2px #bfdbfe':'none'};overflow:hidden;">
         ${_clrNumChip(c,n,small?'0.66rem':'0.78rem')}${dead?`<span style="position:absolute;top:1px;left:1px;font-size:0.68rem;line-height:1;filter:drop-shadow(0 0 1px #fff);">${st==='out'?'🟡':'⚫️'}</span>`:''}
       </button>
@@ -2884,20 +2887,52 @@ function _cnGridHtml(codes,sel,fn,i,small,own,prod){
   }).join('');
 }
 // لون خلص = لا يُضاف من جديد، لكن ما هو مختار في طلب قائم ينقص بحرّية
-function _cnBlocked(num,cur,delta,own,prod){
+// مخزون المكتبة مشتركٌ بين المنتجات كلّها: نفس رقم اللون ممكن يكون بسطرين
+// مختلفين بنفس الطلب. فلازم نعدّ اللي حجزته السطور التانية كمان.
+function _cnCartUsed(cart,num,skipIdx){
+  let t=0;
+  (cart||[]).forEach((it,i)=>{
+    if(i===skipIdx||!it)return;
+    if(_prodOwnColors(_prodById(it.id)))return;   // ترقيمه الخاص ما إله علاقة بالمكتبة
+    (Array.isArray(it.colorNumbers)?it.colorNumbers:[]).forEach(c=>{
+      if(Number(c.num)===Number(num)) t+=Number(c.qty)||0;
+    });
+  });
+  return t;
+}
+// ctx.others = محجوزٌ بسطورٍ تانية بنفس السلّة
+// ctx.held   = محجوزٌ أصلاً لهذا الطلب ومخصومٌ من المخزون (وقت التعديل)
+function _cnBlocked(num,cur,delta,own,prod,ctx){
   if(delta<=0) return false;
+  const others=(ctx&&Number(ctx.others))||0, held=(ctx&&Number(ctx.held))||0;
+  const c0=Number(cur)||0;
   if(own){
     const stock=prod?_ownQty(prod,num):null;
-    if(stock!=null&&(Number(cur)||0)+delta>stock){
-      toast(`⚠️ لون ${num} المتوفر منه ${stock} بس`);
+    if(stock==null) return false;               // ما انجرد — ما منخمّن
+    const avail=(Number(stock)||0)+held;
+    if(c0+delta>avail){
+      toast(avail<=0?`⚠️ لون ${num} خلص — اختر رقماً غيره`
+                    :`⚠️ لون ${num} المتوفر منه ${avail} بس`);
       return true;
     }
     return false;
   }
   const st=_clrSt(num);
-  if(st==='active') return false;
-  toast(`⚠️ ${_clrName(num)} ${st==='out'?'خلص مؤقتاً':'متوقّف'} — اختر لوناً غيره`);
-  return true;
+  if(st!=='active'){
+    toast(`⚠️ ${_clrName(num)} ${st==='out'?'خلص مؤقتاً':'متوقّف'} — اختر لوناً غيره`);
+    return true;
+  }
+  // وحتى لو حالته «شغّال»: الكمية هي الحَكَم. كانت بتنقرا وبتنعرض وبس،
+  // فلونٌ صفّر قبل ما تتحدّث حالته كان الطلب بيمشي عليه.
+  const c=_clr(num);
+  if(!c||c.counted!==true) return false;        // ما انجرد — ما منمنع على غير أساس
+  const avail=(Number(c.qty)||0)+held-others;
+  if(c0+delta>avail){
+    toast(avail<=0?`⚠️ ${_clrName(num)} (${num}) خلص — اختر لوناً غيره`
+                  :`⚠️ ${_clrName(num)} (${num}) المتوفّر منه ${avail} بس`);
+    return true;
+  }
+  return false;
 }
 
 // ── المخزون ──
@@ -3788,7 +3823,13 @@ function _posLq(it){
   if(cns.length) return cns.reduce((s,c)=>s+(Number(c.qty)||0),0);
   return Number(it.qty)||0;
 }
-function _posLeft(p,n){const s=_posStock(p,n);if(s<0)return -1;return s-_posCnQty(_posLine(p.id),n);}
+function _posLeft(p,n){
+  const s=_posStock(p,n); if(s<0)return -1;
+  const mine=_posCnQty(_posLine(p.id),n);
+  if(_prodOwnColors(p)) return s-mine;
+  // مخزون المكتبة مشترك — منحسب اللي حاجزينه السطور التانية كمان
+  return s-mine-_cnCartUsed(_posCart,n,_posCart.findIndex(x=>x.id===p.id));
+}
 // لونٌ ثابت لكل منتج من اسمه — شريطٌ جانبي بيخلّي الإيد تعرف الصنف بلا قراءة
 function _posHue(p){
   const s=String((p&&p.id)||(p&&p.name)||'');
@@ -4164,7 +4205,8 @@ function posCN(i,num,delta){
   const pr=_prodById(it.id);
   const cur=_posCnQty(it,num);
   if(delta<0&&cur<=0){_posBeep('bad');_posBuzz([60,50,60]);return;}
-  if(delta>0&&_cnBlocked(num,cur,delta,_prodOwnColors(pr),pr)){_posBeep('bad');_posBuzz([60,50,60]);return;}
+  if(delta>0&&_cnBlocked(num,cur,delta,_prodOwnColors(pr),pr,
+      {others:_cnCartUsed(_posCart,num,i)})){_posBeep('bad');_posBuzz([60,50,60]);return;}
   let cns=(it.colorNumbers||[]).slice();
   const j=cns.findIndex(c=>Number(c.num)===Number(num));
   if(j>=0){const q=(Number(cns[j].qty)||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
@@ -5834,7 +5876,8 @@ function empCartCN(idx,num,delta){
   const item=_empOrderCart[idx];if(!item)return;
   const _pr=_prodById(item.id);
   const _cur=((Array.isArray(item.colorNumbers)?item.colorNumbers:[]).find(c=>c.num===num)||{}).qty||0;
-  if(_cnBlocked(num,_cur,delta,_prodOwnColors(_pr),_pr))return;
+  if(_cnBlocked(num,_cur,delta,_prodOwnColors(_pr),_pr,
+      {others:_cnCartUsed(_empOrderCart,num,idx)}))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const i=cns.findIndex(c=>c.num===num);
   if(i>=0){const q=(cns[i].qty||0)+delta;if(q<=0)cns.splice(i,1);else cns[i]={num,qty:q};}
@@ -7203,6 +7246,9 @@ async function _openRepPickerFromDetail(orderId){
 
 function _fillEmpEditForm(o){
   _empEditCart=(o.products||[{name:o.productName||'?',price:o.price||0,qty:1}]).map(p=>({...p}));
+  // شو هالطلب حاجزه فعلاً من المخزون هلأ — عشان تعديله ما ينرفض عليه
+  _empEditHeld=(o&&o.colorStockApplied===true)
+    ?{lib:_orderCnFootprint(o),own:_ownCnFootprint(o)}:{lib:{},own:{}};
   _empEditDeliveryFee=o.deliveryFee??2;
   // Show/hide delivery fee section based on admin status
   const editDlvSec=document.getElementById('empEditDeliverySection');
@@ -7358,8 +7404,14 @@ function renderEmpEditCart(){
 function empEditCN(i,num,delta){
   const item=_empEditCart[i];if(!item)return;
   const _pr=_prodById(item.id);
+  const _own=_prodOwnColors(_pr);
   const _cur=((Array.isArray(item.colorNumbers)?item.colorNumbers:[]).find(c=>c.num===num)||{}).qty||0;
-  if(_cnBlocked(num,_cur,delta,_prodOwnColors(_pr),_pr))return;
+  // اللي الطلب حاجزه أصلاً مخصومٌ من المخزون، فمنسمح فيه — بلا هيك
+  // تعديلُ طلبٍ قائم كان بيرفض حتى إنّك تبقّي اللي فيه
+  const _held=_own?((_empEditHeld.own||{})[item.id+'|'+num]||0)
+                  :((_empEditHeld.lib||{})[num]||0);
+  if(_cnBlocked(num,_cur,delta,_own,_pr,
+      {others:_cnCartUsed(_empEditCart,num,i),held:_held}))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const j=cns.findIndex(c=>c.num===num);
   if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
