@@ -2362,6 +2362,35 @@ function _loadEmpSession(){
   }catch(e){return null;}
 }
 
+// الصلاحيات كانت تنحفظ بالجهاز يوم الدخول وتضل هيك — فلو المدير غيّر وظيفة الموظف
+// (مثلاً من «ماسح QR» لـ«مدخل طلبات») الجهاز ما كان يعرف. هلّأ بنسمع لملفّه وقت اللوحة مفتوحة.
+let _empSelfUnsub=null,_empSelfId='';
+function _empWatchSelf(){
+  const id=_empCurrentUser&&_empCurrentUser.id;
+  if(!id||(_empSelfUnsub&&_empSelfId===id))return;
+  _empStopSelf();_empSelfId=id;
+  try{
+    _empSelfUnsub=db.collection('employee_workers').doc(id).onSnapshot(d=>{
+      if(!_empCurrentUser||_empCurrentUser.id!==id)return;
+      if(!d.exists){toast('⚠️ حسابك انحذف — سجّل دخول من جديد');logoutEmp();return;}
+      const v=d.data()||{};
+      const nu={..._empCurrentUser,username:v.username||_empCurrentUser.username,
+        displayName:v.name||v.username||_empCurrentUser.displayName,
+        defaultPage:v.defaultPage||'',permissions:v.permissions||{}};
+      const was=JSON.stringify([_empCurrentUser.permissions||{},_empCurrentUser.displayName,_empCurrentUser.defaultPage||'']);
+      const now=JSON.stringify([nu.permissions,nu.displayName,nu.defaultPage]);
+      if(was===now)return;
+      const ts=(_loadEmpSession()||{}).ts||Date.now();
+      _empCurrentUser=nu;
+      try{localStorage.setItem(_EMP_SESSION_KEY,JSON.stringify({...nu,ts}));}catch(e){}
+      if(document.getElementById('empPanel').style.display==='block'){
+        toast('🔄 انحدّثت صلاحياتك');openEmpPanel();
+      }
+    },()=>{});
+  }catch(e){_empSelfUnsub=null;_empSelfId='';}
+}
+function _empStopSelf(){if(_empSelfUnsub){try{_empSelfUnsub();}catch(e){}}_empSelfUnsub=null;_empSelfId='';}
+
 function openEmpLogin(){
   const saved=_loadEmpSession();
   if(saved){_empCurrentUser=saved;openEmpPanel();return;}
@@ -2544,6 +2573,7 @@ function _empSt(s){return EMP_STATUSES[s]||{label:s,color:'#6b7280',bg:'#f9fafb'
 
 async function openEmpPanel(){
   document.getElementById('empPanel').style.display='block';
+  _empWatchSelf();
   _setPanelOpen(true);
   _checkEmpNotifBanner();
   _cbStartBanner();
@@ -6299,6 +6329,7 @@ function closeEmpPanel(){
   if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
   if(_empDlvTodayUnsub){_empDlvTodayUnsub();_empDlvTodayUnsub=null;}
   _cbStopBanner();
+  _empStopSelf();
 }
 function logoutEmp(){
   _clearEmpSession();
