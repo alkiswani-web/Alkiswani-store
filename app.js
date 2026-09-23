@@ -3785,8 +3785,10 @@ const POS_CSS=`
 #posModal .pk-money .big .u{font-size:14px;font-weight:900;color:#6E8078;}
 #posModal .pulse{animation:pkPulse .18s cubic-bezier(0,0,.2,1);}
 @keyframes pkPulse{0%{transform:scale(1)}40%{transform:scale(1.055)}100%{transform:scale(1)}}
-#posModal .pk-deck{flex:0 0 246px;background:var(--deck);border-top:1px solid #2E3A38;padding:0 12px;
+#posModal .pk-deck{flex:0 0 246px;min-height:0;background:var(--deck);border-top:1px solid #2E3A38;padding:0 12px;
  box-shadow:0 -10px 26px rgba(0,0,0,.45);display:flex;flex-direction:column;}
+#posModal .pk-wrap.cnmode .pk-tape{flex:0 1 auto;max-height:132px;}
+#posModal .pk-wrap.cnmode .pk-deck{flex:1 1 246px;}
 #posModal .pk-rail{flex:0 0 34px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
 #posModal .pk-rail .face{font-size:12.5px;font-weight:900;color:#B9CCC4;display:flex;align-items:center;gap:7px;min-width:0;}
 #posModal .pk-rail .face i{font-style:normal;width:9px;height:9px;border-radius:50%;background:var(--hue,#4B5A56);flex:0 0 auto;}
@@ -4115,6 +4117,7 @@ function posRenderDeck(){
   const g=document.getElementById('posGrid'); if(!g)return;
   const rf=document.getElementById('posFace'),rl=document.getElementById('posListen');
   if(_posDone){
+    g.closest('.pk-wrap')?.classList.remove('cnmode');
     rf.innerHTML='<i style="--hue:#C6FF4F"></i><span>البيعة خلصت</span>';
     rl.className='pk-listen ok';rl.innerHTML='<b></b>انحفظت';
     g.innerHTML='<div class="pk-krow" style="flex:2 1 0">'
@@ -4127,6 +4130,7 @@ function posRenderDeck(){
   rl.className='pk-listen'+(_posScanMsg?' ok':'');
   rl.innerHTML=_posScanMsg?`<b></b>${_clrEsc(_posScanMsg)}`:'<b></b>بينصت للماسح';
   const a=_posActive?_prodById(_posActive):null;
+  g.closest('.pk-wrap')?.classList.toggle('cnmode',!!(a&&_posIsYarn(a)));
 
   if(!a){
     rf.innerHTML='<i></i><span>البضاعة — اضغط صنف</span>';
