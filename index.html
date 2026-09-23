@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v333"></script>
+<script defer src="app.js?v334"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2610,8 +2610,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
               <input type="checkbox" id="opp_has_color_numbers" onchange="document.getElementById('opp_color_numbers_wrap').style.display=this.checked?'block':'none';if(this.checked)renderOppCNPicker();" style="width:18px;height:18px;accent-color:#2563eb;cursor:pointer;flex-shrink:0;">
               <div>
-                <div style="font-size:0.88rem;font-weight:700;color:#1e40af;">🎨 منتج بأرقام ألوان</div>
-                <div style="font-size:0.74rem;color:#2563eb;margin-top:2px;">الموظف يختار رقم اللون والعدد عند الطلب (إلزامي)</div>
+                <div style="font-size:0.88rem;font-weight:700;color:#1e40af;">🎨 منتج بأرقام ألوان أو 📏 قياسات</div>
+                <div style="font-size:0.74rem;color:#2563eb;margin-top:2px;">الموظف يختار رقم اللون أو القياس والعدد عند الطلب (إلزامي)</div>
               </div>
             </label>
             <div id="opp_color_numbers_wrap" style="display:none;margin-top:10px;">
@@ -2619,7 +2619,8 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                 <label style="font-size:0.78rem;font-weight:700;color:#1e40af;">الألوان اللي بيجي فيها هذا المنتج</label>
                 <button type="button" onclick="openColorLib()" style="padding:5px 11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:800;cursor:pointer;">🎨 مكتبة الألوان</button>
               </div>
-              <label style="display:flex;align-items:flex-start;gap:9px;padding:9px 11px;background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:9px;margin-bottom:8px;cursor:pointer;">
+              <div id="opp_kind_sw"></div>
+              <label id="opp_own_wrap" style="display:flex;align-items:flex-start;gap:9px;padding:9px 11px;background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:9px;margin-bottom:8px;cursor:pointer;">
                 <input type="checkbox" id="opp_own_colors" onchange="renderOppCNPicker()" style="width:17px;height:17px;accent-color:#4338ca;cursor:pointer;flex-shrink:0;margin-top:1px;">
                 <div>
                   <div style="font-size:0.82rem;font-weight:700;color:#3730a3;">🔢 ترقيم مستقل لهذا المنتج</div>
