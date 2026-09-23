@@ -2380,23 +2380,115 @@ let _empOrderCart=[];
 let _empReadyToDeliver=false;
 function toggleEmpReady(){
   _empReadyToDeliver=!_empReadyToDeliver;
+  _empReadyPaint();
+}
+function _empReadyPaint(){
   const btn=document.getElementById('empReadyBtn');
   if(!btn)return;
-  if(_empReadyToDeliver){
-    btn.style.background='linear-gradient(135deg,#1a3a2a,#2d5a3d)';
-    btn.style.color='#fff';
-    btn.style.border='1.5px solid #1a3a2a';
-    btn.textContent='📦 جاهز للتوصيل · مفعّل';
-    btn.style.boxShadow='0 0 0 4px rgba(26,58,42,0.15)';
-  }else{
-    btn.style.background='#fff';
-    btn.style.color='#374151';
-    btn.style.border='1.5px dashed #d1d5db';
-    btn.textContent='📦 جاهز للتوصيل';
-    btn.style.boxShadow='none';
+  btn.classList.toggle('on',!!_empReadyToDeliver);
+  const i=btn.querySelector('i');if(i)i.textContent=_empReadyToDeliver?'✓':'';
+}
+function _resetEmpReadyBtn(){_empReadyToDeliver=false;_empReadyPaint();}
+
+// ═══ «البوليصة» — شكل صفحة الموظف ═══
+// الشكل بس: كل الخانات هي نفسها بمعرّفاتها، والحفظ والتحقّق بـsubmitEmpOrder
+// زي ما هم. القوائم المنسدلة (الصفحة والمحافظة) مخفيّة ومنعرضها أختاماً —
+// الختم بيغيّر القائمة وبينادي نفس دالّتها، فكل اللي بيقرأها ما تغيّر عليه إشي.
+let _empAreasAll=false;
+function _empBillHead(){
+  const bars=document.getElementById('empBillBars');
+  if(bars&&!bars.childElementCount){
+    bars.innerHTML=[2,1,3,1,1,2,1,3,2,1,1,2,3,1,2,1,1,3,1,2,2,1,3,1,1,2,1,2]
+      .map((w,i)=>`<i style="width:${w}px;height:${i%6===0?100:74+(i*7)%24}%"></i>`).join('');
+  }
+  const sub=document.getElementById('empBillSub');
+  if(sub){
+    const d=new Date(),p=n=>(n<10?'0':'')+n;
+    const who=_empCurrentUser?(_empCurrentUser.displayName||_empCurrentUser.username||''):'';
+    sub.textContent='الكسواني روزميري · '+p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+(who?' · '+who:'');
   }
 }
-function _resetEmpReadyBtn(){_empReadyToDeliver=false;const b=document.getElementById('empReadyBtn');if(b){b.style.background='#fff';b.style.color='#374151';b.style.border='1.5px dashed #d1d5db';b.textContent='📦 جاهز للتوصيل';b.style.boxShadow='none';}}
+function _empRenderStamps(){
+  // مهرّبات محلية: الدالّة بتنادى من updateEmpNet، ممكن قبل ما تتعرّف _clrEsc/_payEsc تحت
+  const _clrEsc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const _payEsc=v=>String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const sel=document.getElementById('emp_page'),ps=document.getElementById('empPageStamps');
+  if(sel&&ps){
+    const opts=[...sel.options].filter(o=>o.value&&!o.disabled);
+    ps.innerHTML=opts.length?opts.map(o=>`<button type="button" class="bl-st${sel.value===o.value?' on':''}" onclick="_empPickPage('${_payEsc(o.value)}')">${_clrEsc(o.textContent)}</button>`).join('')
+      :'<span style="font-size:.74rem;color:#b3a78f;">⏳ جاري التحميل…</span>';
+  }
+  const asel=document.getElementById('emp_area'),as=document.getElementById('empAreaStamps');
+  if(asel&&as){
+    const all=[...asel.options].filter(o=>o.value);
+    const idx=all.findIndex(o=>o.value===asel.value);
+    const show=(_empAreasAll||idx>=8)?all:all.slice(0,8);
+    as.innerHTML=show.map(o=>`<button type="button" class="bl-st${asel.value===o.value?' on':''}" onclick="_empPickArea('${_payEsc(o.value)}')">${_clrEsc(o.textContent)}</button>`).join('');
+    const more=document.getElementById('empAreaMore');
+    if(more){more.style.display=idx>=8?'none':'';more.textContent=_empAreasAll?'أقل ▴':'كل المحافظات ('+all.length+') ▾';}
+  }
+}
+function _empPickPage(v){const s=document.getElementById('emp_page');if(!s)return;s.value=v;onEmpPageChange();_empRenderStamps();_empDockSync();}
+function _empPickArea(v){const s=document.getElementById('emp_area');if(!s)return;s.value=v;onEmpAreaChange();_empRenderStamps();_empDockSync();}
+// شو ناقص قبل الختم — نفس شروط submitEmpOrder، بس بتنقال قبل ما تضغط
+function _empMissing(){
+  const r=[];
+  if(!document.getElementById('emp_page')?.value) r.push('الصفحة');
+  if(!_empOrderCart.length) r.push('صنف');
+  const ph=(document.getElementById('emp_phone')?.value||'').trim();
+  if(!ph||(typeof phoneError==='function'&&phoneError(ph))) r.push('رقم الزبون');
+  if(!document.getElementById('emp_area')?.value) r.push('المحافظة');
+  if(!(document.getElementById('emp_address')?.value||'').trim()) r.push('العنوان');
+  const P=id=>(_empSharedProducts||[]).find(x=>x.id===id)||{};
+  if(_empOrderCart.some(i=>P(i.id).hasColorNumbers&&!(i.colorNumbers||[]).length)) r.push('رقم اللون');
+  if(_empOrderCart.some(i=>P(i.id).requiresWriting&&!(i.writing||'').trim())) r.push('الكتابة');
+  return r;
+}
+function _empDockSync(){
+  _empRenderStamps();
+  const net=document.getElementById('empNetLabel');
+  const tot=document.getElementById('empDockTot');
+  if(tot&&net){const v=parseFloat(net.textContent)||0;tot.innerHTML=v.toFixed(2)+'<small>د.أ</small>';}
+  const fee=document.getElementById('empFeeShow');
+  if(fee)fee.textContent=(Number(_empDeliveryFee)||0).toFixed(2);
+  const ms=_empMissing();
+  const q=_empOrderCart.reduce((a,i)=>a+(Number(i.qty)||0),0);
+  const mi=document.getElementById('empDockMiss');
+  if(mi){mi.className=ms.length?'no':'';
+    mi.textContent=ms.length?'⚠️ ناقص: '+ms.join(' · '):(q+' قطعة · '+(document.getElementById('emp_area')?.value||'')+' · جاهزة للختم ✓');}
+  const b=document.getElementById('empSubmitBtn');
+  if(b)b.classList.toggle('dim',ms.length>0);
+  const cs=document.getElementById('empCustState');
+  if(cs){const ok=!ms.some(x=>['رقم الزبون','المحافظة','العنوان'].includes(x));
+    cs.textContent=ok?'✓ مكتمل':'الرقم · المحافظة · العنوان';cs.style.color=ok?'#166534':'#b45309';}
+  const ct=document.getElementById('empCartState');
+  if(ct){ct.textContent=q?q+' قطعة':'فاضية';ct.style.color=q?'#166534':'#b45309';}
+}
+function empOpenProdDrawer(){
+  const d=document.getElementById('empProdDrawer');if(!d)return;
+  d.classList.add('on');
+  if(typeof renderEmpProductPicker==='function')renderEmpProductPicker();
+}
+function empCloseProdDrawer(){const d=document.getElementById('empProdDrawer');if(d)d.classList.remove('on');}
+// الصنف انضاف ⇒ الورقة بتسكّر؛ ما انضاف (ناقص إشي) ⇒ بتضلّ مفتوحة ورسالة الخطأ قدّامك
+function empDrawerAdd(){
+  const before=JSON.stringify(_empOrderCart);
+  addToEmpCart();
+  if(JSON.stringify(_empOrderCart)!==before) empCloseProdDrawer();
+}
+// الختم: بينزل على البوليصة وهي بتطير، وبتطلع وحدة فاضية مكانها
+function _empStampFx(no){
+  const ink=document.getElementById('empInk'),bill=document.getElementById('empBill');
+  if(!ink||!bill)return;
+  const n=document.getElementById('empInkNo');if(n)n.textContent=no?'#'+no:'';
+  try{navigator.vibrate&&navigator.vibrate([30,40,60]);}catch(e){}
+  ink.classList.remove('on');void ink.offsetWidth;ink.classList.add('on');
+  setTimeout(()=>bill.classList.add('gone'),600);
+  setTimeout(()=>{ink.classList.remove('on');bill.classList.remove('gone');_empBillHead();},1350);
+}
+window._empPickPage=_empPickPage; window._empPickArea=_empPickArea; window._empRenderStamps=_empRenderStamps;
+window._empDockSync=_empDockSync; window.empOpenProdDrawer=empOpenProdDrawer; window.empCloseProdDrawer=empCloseProdDrawer;
+window.empDrawerAdd=empDrawerAdd;
 let _empDeliveryFee=2;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
@@ -2460,14 +2552,18 @@ async function openEmpPanel(){
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
   const isDelivery=_empCurrentUser.permissions?.isDelivery||false;
   const isQRViewer=_empCurrentUser.permissions?.isQRViewer||false;
-  const hdr=document.querySelector('#empPanel .admin-tab-content, #empPanel > div:first-child div:nth-child(2)');
-  const titleEl=document.querySelector('#empPanel [style*="c9a84c"]');
-  if(titleEl)titleEl.textContent=isQRViewer?'📷 ماسح الطلبات':isDelivery?'🚀 تسليم مبيعات':'📋 تسجيل الطلبات';
+  // كان بيدوّر على العنوان بلونه (c9a84c) — والعنوان الجديد إله معرّف
+  const titleEl=document.getElementById('empPanelTitle');
+  if(titleEl)titleEl.textContent=isQRViewer?'📷 ماسح الطلبات':isDelivery?'🚀 تسليم مبيعات':'📦 تسجيل الطلبات';
   document.getElementById('empNormalOrderSection').style.display=(!isDelivery&&!isQRViewer)?'block':'none';
   const _addCard=document.getElementById('empAddOrderCard');
-  if(_addCard)_addCard.style.display=_empCan('canAddOrders')?'':'none';
+  const _canAdd=_empCan('canAddOrders');
+  if(_addCard)_addCard.style.display=_canAdd?'':'none';
+  const _dock=document.getElementById('empDock');
+  if(_dock)_dock.style.display=(!isDelivery&&!isQRViewer&&_canAdd)?'block':'none';
+  _empBillHead();
   const _myTitle=document.getElementById('empMyOrdersTitle');
-  if(_myTitle)_myTitle.textContent=_empCan('canViewAll')?'📦 كل الطلبات':'📦 طلباتي';
+  if(_myTitle)_myTitle.textContent=_empCan('canViewAll')?'📚 كل البوالص':'📚 بوالصي';
   document.getElementById('empDeliverySection').style.display=isDelivery?'block':'none';
   document.getElementById('empQRViewerSection').style.display=isQRViewer?'block':'none';
   if(isQRViewer){
@@ -2506,6 +2602,7 @@ async function _loadEmpPagesIntoPanel(){
     const match=_empPagesCache.find(p=>p.id===_empCurrentUser.defaultPage||p.name===_empCurrentUser.defaultPage);
     if(match){sel.value=match.id;onEmpPageChange();}
   }
+  _empRenderStamps();
 }
 
 let _selectedEmpProductId=null;
@@ -6112,7 +6209,7 @@ function renderEmpOrderCart(){
   const wrap=document.getElementById('empCartItems');
   if(!wrap)return;
   if(!_empOrderCart.length){
-    wrap.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;border:1.5px dashed #e5e7eb;border-radius:9px;">أضف منتجاً للطلب</div>';
+    wrap.innerHTML='<div class="bl-empty">لسا ما في أصناف</div>';
     const t=document.getElementById('emp_total');
     if(t)t.value='0.00';
     updateEmpNet();
@@ -6138,19 +6235,19 @@ function renderEmpOrderCart(){
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateCartItemPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
     const colorHtml=colors.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#374151;margin-bottom:5px;">🎨 اللون</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${colors.map(c=>`<button onclick="updateCartItemColor(${i},'${c.replace(/'/g,"\\'")}')" style="padding:4px 12px;border:1.5px solid ${item.color===c?'#1a3a2a':'#cbd5e1'};border-radius:20px;background:${item.color===c?'#1a3a2a':'#fff'};color:${item.color===c?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">${c}</button>`).join('')}</div></div>`:'';
     const writingHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:${req?'#92400e':'#374151'};margin-bottom:4px;">✍️ الكتابة${req?' <span style="color:#dc2626;font-weight:800;">* إجباري</span>':' <span style="font-weight:400;color:#9ca3af;">(اختياري)</span>'}</div><input type="text" id="cart_writing_${i}" value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="${req?'اكتب النص هنا... (إجباري)':'اسم الشخص، تاريخ...'}" oninput="updateCartItemWriting(${i},this.value)" style="width:100%;padding:7px 10px;border:1.5px solid ${req&&!item.writing?'#f59e0b':'#e5e7eb'};border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;box-sizing:border-box;background:${req?'#fffbeb':'#fff'};"></div>`;
-    return `<div style="padding:9px 10px;background:#f8fafc;border-radius:9px;margin-bottom:6px;border:1px solid #e5e7eb;">
+    return `<div class="bl-ln">
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:0.84rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
-          <div style="font-size:0.75rem;color:#6b7280;">${item.price.toFixed(2)} د.أ / وحدة</div>
+          <div style="font-weight:800;font-size:0.88rem;color:#1f2a24;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
+          <div style="font-size:0.7rem;color:#8a7c62;font-weight:700;">${item.price.toFixed(2)} د.أ للحبّة</div>
         </div>
         ${hasCN?`<div style="flex-shrink:0;font-weight:800;color:#1e40af;font-size:0.85rem;min-width:44px;text-align:center;">🎨 ${item.qty}</div>`:`<div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
           <button onclick="changeEmpQty(${i},-1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">−</button>
           <span style="min-width:24px;text-align:center;font-weight:700;font-size:0.88rem;">${item.qty}</span>
           <button onclick="changeEmpQty(${i},1)" style="width:26px;height:26px;border:1.5px solid #e5e7eb;border-radius:7px;background:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">+</button>
         </div>`}
-        <div style="font-weight:800;color:#166534;font-size:0.85rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
-        <button onclick="removeFromEmpCart(${i})" style="width:22px;height:22px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;cursor:pointer;font-size:0.75rem;flex-shrink:0;">✕</button>
+        <div style="font-weight:900;color:#1f2a24;font-size:0.9rem;min-width:48px;text-align:left;">${(item.price*item.qty).toFixed(2)}</div>
+        <button onclick="removeFromEmpCart(${i})" style="width:24px;height:24px;background:none;color:#c0b49c;border:none;cursor:pointer;font-size:0.9rem;flex-shrink:0;">✕</button>
       </div>
       ${showExtras?priceOptsHtml+colorHtml+writingHtml+colorNumbersHtml:''}
     </div>`;
@@ -6190,6 +6287,7 @@ function updateEmpNet(){
   if(dlvRow)dlvRow.style.display=dlv>0?'flex':'none';
   if(dlvLbl)dlvLbl.textContent=dlv.toFixed(2)+' د.أ';
   if(netEl)netEl.textContent=net.toFixed(2)+' د.أ';
+  _empDockSync();
 }
 function closeEmpPanel(){
   document.getElementById('empPanel').style.display='none';
@@ -6291,8 +6389,8 @@ async function submitEmpOrder(){
   const deliveryFee=_empDeliveryFee||0;
   const totalPrice=prodsTotal+deliveryFee;
   const netPrice=prodsTotal+deliveryFee;
-  const btn=document.querySelector('#empPanel button[onclick="submitEmpOrder()"]');
-  if(btn){btn.disabled=true;btn.textContent='⏳ جاري الحفظ...';}
+  const btn=document.getElementById('empSubmitBtn');
+  if(btn){btn.disabled=true;btn.classList.add('busy');}
   try{
     // ضغط الصور لتفادي تجاوز حد حجم وثيقة Firestore (1MB)
     _empCurrentImages=await _compressImagesForDoc(_empCurrentImages);
@@ -6320,6 +6418,7 @@ async function submitEmpOrder(){
     _orderStockSync(_newRef.id,null,{products:_newProducts},false,true);
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
     toast('✅ تم تسجيل الطلب بنجاح');
+    _empStampFx(orderNumInput);
     _empOrderCart=[];_empDeliveryFee=2;_empCurrentImages=[];
     _resetEmpReadyBtn();
     renderEmpOrderCart();
@@ -6344,7 +6443,8 @@ async function submitEmpOrder(){
     clearEmpImage();
     loadEmpTodayOrders();
   }catch(e){toast('❌ خطأ: '+e.message);}
-  if(btn){btn.disabled=false;btn.textContent='✅ تسجيل الطلب';}
+  if(btn){btn.disabled=false;btn.classList.remove('busy');}
+  _empDockSync();
 }
 
 // ═════════ طلباتي — رحلة الطلب من «جديد» حتى «تم التوصيل» ═════════
@@ -18792,6 +18892,7 @@ async function removeAreaFee(idx){
   toast('🗑 تم الحذف');
 }
 async function onEmpAreaChange(){
+  if(typeof _empRenderStamps==='function')_empRenderStamps();
   const area=(document.getElementById('emp_area')?.value||'').trim();
   const hint=document.getElementById('emp_area_fee_hint');
   if(!area){if(hint)hint.style.display='none';return;}
