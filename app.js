@@ -3797,6 +3797,17 @@ const POS_CSS=`
 #posModal .pk-row.hit{animation:pkHit .72s ease-out;}
 @keyframes pkHit{0%{background:rgba(198,255,79,.3)}100%{background:transparent}}
 #posModal .pk-row .nm{flex:1;min-width:0;}
+#posModal .pk-row{cursor:pointer;}
+#posModal .pk-rc{display:flex;align-items:center;gap:8px;margin-top:8px;}
+#posModal .pk-rc button{height:40px;min-width:46px;border-radius:12px;border:1.5px solid #34413F;background:#161E1D;
+ color:var(--fg);font-size:21px;font-weight:900;cursor:pointer;font-family:'Tajawal',sans-serif;}
+#posModal .pk-rc button:active{transform:translateY(2px);}
+#posModal .pk-rc button.inc{color:var(--acc);border-color:rgba(198,255,79,.4);}
+#posModal .pk-rc button.dec{color:var(--bad);}
+#posModal .pk-rc button.del{margin-inline-start:auto;color:var(--bad);border-color:rgba(255,107,107,.45);font-size:13.5px;padding:0 12px;}
+#posModal .pk-rc .q{min-width:30px;text-align:center;font-size:19px;}
+#posModal .pk-rc .cl{font-size:12px;color:#8FA39C;font-weight:800;}
+#posModal .pk-hint{text-align:center;font-size:11.5px;font-weight:700;color:#55665F;padding:10px 12px 12px;}
 #posModal .pk-row .nm b{display:block;font-size:15.5px;font-weight:900;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;}
 #posModal .pk-sub{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center;}
@@ -4080,6 +4091,7 @@ async function openPos(){
   </div>`;
   document.body.appendChild(ov);
   _posBindDeck();
+  _posBindTape();
   _posBindProf();
   _posBindKnob();
   posRender();
@@ -4118,11 +4130,35 @@ function posRenderTape(){
     const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
     sub+=`<em><span class="num">${q}</span> &times; <span class="num">${(Number(it.price)||0).toFixed(2)}</span>`
       +(disc>0.009?` · <span style="color:#FFB547">خصم <span class="num">${disc.toFixed(2)}</span></span>`:'')+`</em>`;
-    return `<div class="pk-row${_posActive===it.id?' on':''}${_posHit===it.id?' hit':''}" style="--hue:${_posHue(p)}">
-      <div class="nm"><b>${_clrEsc(it.name)}</b><div class="pk-sub">${sub}</div></div>
+    // الصفّ نفسه صار زرّ: ضغطة بتفتح − الكمية ＋ و🗑 — حتى للصنف اللي انضاف من «دوّر» وما إله مفتاح تحت
+    const on=_posActive===it.id;
+    const rc=!on?'':(_posIsYarn(p)
+      ?`<div class="pk-rc"><span class="cl">الكمية من أرقام الألوان تحت ▼</span><button class="del" data-ta="del">🗑 احذف</button></div>`
+      :`<div class="pk-rc"><button class="dec" data-ta="dec">−</button><span class="q num">${q}</span><button class="inc" data-ta="inc">＋</button><button class="del" data-ta="del">🗑 احذف</button></div>`);
+    return `<div class="pk-row${on?' on':''}${_posHit===it.id?' hit':''}" data-tid="${_clrEsc(it.id)}" style="--hue:${_posHue(p)}">
+      <div class="nm"><b>${_clrEsc(it.name)}</b><div class="pk-sub">${sub}</div>${rc}</div>
       <span class="num amt">${((Number(it.price)||0)*q).toFixed(2)}</span></div>`;
-  }).join('');
-  t.scrollTop=t.scrollHeight;
+  }).join('')+(_posActive?'':'<div class="pk-hint">👆 اضغط على أي صنف هون لتغيّر كمّيته أو تمسحه</div>');
+  const ar=_posActive&&t.querySelector('.pk-row.on');
+  if(ar)ar.scrollIntoView({block:'nearest'});else t.scrollTop=t.scrollHeight;
+}
+function _posBindTape(){
+  const t=document.getElementById('posTape'); if(!t)return;
+  t.addEventListener('click',e=>{
+    if(_posDone)return;
+    const row=e.target.closest('[data-tid]'); if(!row)return;
+    const id=row.getAttribute('data-tid');
+    const b=e.target.closest('[data-ta]');
+    if(!b){
+      // ضغطة على صفّ مفتوح بتسكّره، وعلى غيره بتفتحه
+      _posActive=(_posActive===id)?'':id;_posMinus=false;_posBuzz(10);posRender();return;
+    }
+    _posActive=id;
+    const ta=b.getAttribute('data-ta');
+    if(ta==='inc')posAct('step:1');
+    else if(ta==='dec')posAct('step:-1');
+    else if(ta==='del')posAct('del');
+  });
 }
 let _posLastSell=null;
 function posRenderMoney(){
