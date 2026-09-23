@@ -2469,7 +2469,8 @@ function _empMissing(){
   if(!document.getElementById('emp_area')?.value) r.push('المحافظة');
   if(!(document.getElementById('emp_address')?.value||'').trim()) r.push('العنوان');
   const P=id=>(_empSharedProducts||[]).find(x=>x.id===id)||{};
-  if(_empOrderCart.some(i=>P(i.id).hasColorNumbers&&!(i.colorNumbers||[]).length)) r.push('رقم اللون');
+  {const _m=_empOrderCart.find(i=>P(i.id).hasColorNumbers&&!(i.colorNumbers||[]).length);
+   if(_m) r.push(_cnPick(_prodById(_m.id)));}
   if(_empOrderCart.some(i=>P(i.id).requiresWriting&&!(i.writing||'').trim())) r.push('الكتابة');
   return r;
 }
@@ -2961,9 +2962,25 @@ function _prodById(id){
 // خريطة لا مصفوفة، عشان increment تشتغل على رقمٍ واحد بلا ما نقرا ونكتب.
 function _ownQtyMap(p){const m=(p&&p.ownColorQty)||{};return (m&&typeof m==='object')?m:{};}
 function _ownNums(p){
-  return Object.keys(_ownQtyMap(p)).map(Number).filter(n=>n>0).sort((a,b)=>a-b);
+  const ns=Object.keys(_ownQtyMap(p)).map(Number).filter(n=>n>0);
+  if(p&&p.cnKind==='size'){
+    // القياسات بترتيب قيمتها (2 ثم 2.5 ثم 3) مش بترتيب إضافتها
+    const v=n=>{const x=parseFloat(String(_cnTag(p,n)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫','.'));return isNaN(x)?1e9+n:x;};
+    return ns.sort((a,b)=>v(a)-v(b)||a-b);
+  }
+  return ns.sort((a,b)=>a-b);
 }
 function _ownQty(p,num){const v=_ownQtyMap(p)[String(num)];return v==null?null:(Number(v)||0);}
+// 📏 منتج بقياسات (زي السنارة): نفس محرّك الترقيم الخاص بالضبط — المخزون والطلب
+// والبيع المباشر والباركود — بس كل رقم داخلي إله اسم قياس («2.5 مم»). الرقم
+// الداخلي بيضل صحيح (1، 2، 3…) لأنّ «ownColorQty.2.5» بفايرستور بيصير مسار متداخل.
+function _cnIsSize(p){return !!(p&&p.cnKind==='size'&&_prodOwnColors(p));}
+function _cnTag(p,n){
+  if(_cnIsSize(p)){const l=(p.sizeLabels||{})[String(n)];return (l!=null&&String(l).trim())?String(l).trim():String(n);}
+  return String(n);
+}
+function _cnWord(p){return _cnIsSize(p)?'قياس':'لون';}
+function _cnPick(p){return _cnIsSize(p)?'القياس':'رقم اللون';}
 function _prodColorCodes(p){
   const n=Math.max(0,parseInt(p&&p.colorNumbersCount)||0);
   if(_prodOwnColors(p)){
@@ -2977,7 +2994,9 @@ function _prodColorCodes(p){
 
 function _fmtCN(cn,prodId){
   if(!Array.isArray(cn)||!cn.length) return '';
-  const own=_prodOwnColors(_prodById(prodId));
+  const _p=_prodById(prodId);
+  const own=_prodOwnColors(_p);
+  if(_cnIsSize(_p)) return '📏 '+cn.map(c=>`قياس ${_cnTag(_p,c.num)}×${c.qty}`).join('، ');
   return '🎨 '+cn.map(c=>{
     const k=own?null:_clr(c.num);
     return (k&&k.name?`${k.name} (${c.num})`:`لون ${c.num}`)+`×${c.qty}`;
@@ -2994,7 +3013,7 @@ function _cnGridHtml(codes,sel,fn,i,small,own,prod){
     const left=stock==null?null:stock-q;
     const dry=left!=null&&left<=0;
     return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;${dry&&!on?'opacity:.58;':''}">
-      <button onclick="${fn}(${i},${n},1)" style="width:${box}px;height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':dry?'#fca5a5':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;padding:0;">${n}</button>
+      <button onclick="${fn}(${i},${n},1)" style="${_cnIsSize(prod)?`min-width:${box}px;padding:0 7px;`:`width:${box}px;padding:0;`}height:${box}px;border-radius:10px;border:2px solid ${on?'#2563eb':dry?'#fca5a5':'#cbd5e1'};background:${on?'#2563eb':'#fff'};color:${on?'#fff':'#374151'};font-weight:900;font-size:${small?'0.76rem':'0.82rem'};cursor:pointer;font-family:'Tajawal',sans-serif;white-space:nowrap;">${_clrEsc(_cnTag(prod,n))}</button>
       ${left==null?'<div style="height:11px;"></div>'
         :`<div style="font-size:0.6rem;font-weight:800;line-height:11px;height:11px;color:${left<=0?'#dc2626':left<=2?'#b45309':'#166534'};">${left<=0?'خلص':'متوفر '+left}</div>`}
       ${on?`<div style="display:flex;align-items:center;gap:3px;">
@@ -3049,8 +3068,9 @@ function _cnBlocked(num,cur,delta,own,prod,ctx){
     if(stock==null) return false;               // ما انجرد — ما منخمّن
     const avail=(Number(stock)||0)+held;
     if(c0+delta>avail){
-      toast(avail<=0?`⚠️ لون ${num} خلص — اختر رقماً غيره`
-                    :`⚠️ لون ${num} المتوفر منه ${avail} بس`);
+      const _w=_cnWord(prod)+' '+_cnTag(prod,num);
+      toast(avail<=0?`⚠️ ${_w} خلص — اختر ${_cnIsSize(prod)?'قياساً':'رقماً'} غيره`
+                    :`⚠️ ${_w} المتوفر منه ${avail} بس`);
       return true;
     }
     return false;
@@ -3905,6 +3925,7 @@ const POS_CSS=`
 @keyframes pkShrink{to{width:0}}
 #posModal .cn{align-items:center;justify-content:center;padding:0;gap:1px;flex:0 0 auto;height:58px;}
 #posModal .cn .n{font-size:20px;font-weight:700;color:#E9EFEC;}
+#posModal .cn .n.sz{font-size:14.5px;white-space:nowrap;direction:ltr;}
 #posModal .cn .x{font-size:11px;font-weight:900;color:#0C100F;}
 #posModal .cn .st{position:absolute;top:3px;inset-inline-end:3px;min-width:19px;height:18px;border-radius:9px;
  background:#0E1413;color:#90A49D;font-size:10px;font-weight:900;display:flex;align-items:center;
@@ -4124,8 +4145,8 @@ function posRenderTape(){
     let sub='';
     if(_posIsYarn(p)){
       const cns=(it.colorNumbers||[]).filter(c=>(Number(c.qty)||0)>0);
-      if(!cns.length) sub='<span class="pk-warn">⚠ اختر رقم اللون من اللوحة</span>';
-      else sub=cns.map(c=>`<span class="pk-chip num">${c.num}&times;${c.qty}</span>`).join('');
+      if(!cns.length) sub=`<span class="pk-warn">⚠ اختر ${_cnPick(p)} من اللوحة</span>`;
+      else sub=cns.map(c=>`<span class="pk-chip num">${_clrEsc(_cnTag(p,c.num))}&times;${c.qty}</span>`).join('');
     }
     const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
     sub+=`<em><span class="num">${q}</span> &times; <span class="num">${(Number(it.price)||0).toFixed(2)}</span>`
@@ -4133,7 +4154,7 @@ function posRenderTape(){
     // الصفّ نفسه صار زرّ: ضغطة بتفتح − الكمية ＋ و🗑 — حتى للصنف اللي انضاف من «دوّر» وما إله مفتاح تحت
     const on=_posActive===it.id;
     const rc=!on?'':(_posIsYarn(p)
-      ?`<div class="pk-rc"><span class="cl">الكمية من أرقام الألوان تحت ▼</span><button class="del" data-ta="del">🗑 احذف</button></div>`
+      ?`<div class="pk-rc"><span class="cl">الكمية من ${_cnIsSize(p)?'القياسات':'أرقام الألوان'} تحت ▼</span><button class="del" data-ta="del">🗑 احذف</button></div>`
       :`<div class="pk-rc"><button class="dec" data-ta="dec">−</button><span class="q num">${q}</span><button class="inc" data-ta="inc">＋</button><button class="del" data-ta="del">🗑 احذف</button></div>`);
     return `<div class="pk-row${on?' on':''}${_posHit===it.id?' hit':''}" data-tid="${_clrEsc(it.id)}" style="--hue:${_posHue(p)}">
       <div class="nm"><b>${_clrEsc(it.name)}</b><div class="pk-sub">${sub}</div>${rc}</div>
@@ -4190,7 +4211,7 @@ function posRenderMoney(){
   tr.classList[ok?'remove':'add']('dis');
   document.getElementById('posPayV').textContent=T.sell.toFixed(2);
   document.getElementById('posPayW').textContent=ok?'اسحب لتقبض'
-    :(_posDone?'خلصت — بيعة جديدة':(_posCart.length?'اختر رقم اللون':'السلّة فاضية'));
+    :(_posDone?'خلصت — بيعة جديدة':(_posCart.length?('اختر '+_cnPick(_prodById((_posCart.find(it=>_posLq(it)<=0)||{}).id))):'السلّة فاضية'));
 }
 function _posK(o){
   return `<button class="key ${o.cls||''}" data-act="${o.act}"${o.lp?` data-lp="${o.lp}"`:''}`
@@ -4250,7 +4271,7 @@ function posRenderDeck(){
     return;
   }
 
-  rf.innerHTML=`<i style="--hue:${_posHue(a)}"></i><span>${_clrEsc(a.name)}${_posIsYarn(a)?' — أرقام الألوان':' — العدد'}</span>`;
+  rf.innerHTML=`<i style="--hue:${_posHue(a)}"></i><span>${_clrEsc(a.name)}${_posIsYarn(a)?(_cnIsSize(a)?' — القياسات':' — أرقام الألوان'):' — العدد'}</span>`;
   const bottom='<div class="pk-krow" style="flex:0 0 46px">'
     +_posK({act:'back',cls:'ghost mid',html:'<span class="lbl" style="font-size:13px">◀ البضاعة</span>'})
     +(_posIsYarn(a)?_posK({act:'minus',cls:'mid '+(_posMinus?'on':'ghost'),
@@ -4268,9 +4289,9 @@ function posRenderDeck(){
       const badge=out?'<span class="st">خلص</span>'
         :`<span class="st${(lf>=0&&lf<=2)?' low':''}">${lf<0?'—':`<span class="num">${lf}</span>`}</span>`;
       return _posK({act:`cn:${a.id}:${n}`,cls,
-        html:badge+`<span class="n num">${n}</span>`+(got>0?`<span class="x num">&times;${got}</span>`:'')+'<span class="mn">−</span>'});
+        html:badge+(_cnIsSize(a)?`<span class="n num sz">${_clrEsc(_cnTag(a,n))}</span>`:`<span class="n num">${n}</span>`)+(got>0?`<span class="x num">&times;${got}</span>`:'')+'<span class="mn">−</span>'});
     }).join('');
-    g.innerHTML=`<div class="pk-scroll"><div class="pk-cnwrap">${keys||'<div style="grid-column:1/-1;color:#75877F;font-size:12.5px;font-weight:700;text-align:center;padding:14px;">ما في أرقام ألوان لهذا الصنف</div>'}</div></div>`+bottom;
+    g.innerHTML=`<div class="pk-scroll"><div class="pk-cnwrap">${keys||'<div style="grid-column:1/-1;color:#75877F;font-size:12.5px;font-weight:700;text-align:center;padding:14px;">'+(_cnIsSize(a)?'ما في قياسات لهذا الصنف':'ما في أرقام ألوان لهذا الصنف')+'</div>'}</div></div>`+bottom;
   }else{
     const it=_posLine(a.id),q=it?(Number(it.qty)||0):0;
     g.innerHTML='<div class="pk-krow">'
@@ -4827,7 +4848,8 @@ function posLogRender(){
       </div>
       ${its.map(s=>{
         const n=_posRowNums(s);
-        const cn=(Array.isArray(s.colorNumbers)?s.colorNumbers:[]).map(c=>c.num+'×'+(c.qty||0)).join(' · ');
+        const _sp=_prodById(s.productId);
+        const cn=(Array.isArray(s.colorNumbers)?s.colorNumbers:[]).map(c=>_cnTag(_sp,c.num)+'×'+(c.qty||0)).join(' · ');
         const ret=s.returned===true;
         return `<div style="display:flex;align-items:center;gap:7px;padding:6px 0;border-top:1px dashed #f3f4f6;">
           <div style="flex:1;min-width:0;">
@@ -4941,7 +4963,7 @@ async function openBarcodes(prodId,pending){
     <div style="flex:1;overflow-y:auto;padding:6px 13px;">
       ${row(0,'📦 باركود المنتج',nums.length?'لمّا ما يكون للّون كودٌ خاص':'',_bcOf(p))}
       ${nums.length?`<div style="font-size:0.7rem;font-weight:800;color:#6b7280;margin:11px 0 3px;">🎨 باركود لكل رقم لون</div>`:''}
-      ${nums.map(n=>row(n,'لون '+n,'',_bcNorm(cbs[n]))).join('')}
+      ${nums.map(n=>row(n,_cnWord(p)+' '+_cnTag(p,n),'',_bcNorm(cbs[n]))).join('')}
       ${!_bcCamOk()?`<div style="margin-top:12px;font-size:0.68rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 10px;line-height:1.75;">⚠️ هالمتصفّح ما بيقرا باركود الشركات بالكاميرا. استعمل «⌨️» واكتب الرقم اللي تحت الخطوط بإيدك — أو افتح الموقع بكروم عالأندرويد.</div>`:''}
     </div>
     <div style="padding:11px 15px;border-top:1px solid #e5e7eb;">
@@ -5003,7 +5025,7 @@ function bcPrint(){
   const items=[];
   if(_bcOf(p)) items.push({t:p.name||'',s:'',c:_bcOf(p)});
   Object.keys(cbs).sort((a,b)=>Number(a)-Number(b)).forEach(k=>{
-    if(_bcNorm(cbs[k])) items.push({t:p.name||'',s:'لون '+k,c:_bcNorm(cbs[k])});
+    if(_bcNorm(cbs[k])) items.push({t:p.name||'',s:_cnWord(p)+' '+_cnTag(p,k),c:_bcNorm(cbs[k])});
   });
   if(!items.length){toast('⚠️ ما في ولا باركود لهذا المنتج');return;}
   const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -5347,7 +5369,7 @@ async function openProdStock(prodId,keep){
   // مخزون المنتج الخاص عليه هو، ومخزون منتج المكتبة بالمكتبة
   const curOf=n=>own?(_ownQty(prod,n)||0)
     :(()=>{const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):0;})();
-  const nameOf=n=>own?('لون '+n):(_clrName(n)+' ('+n+')');
+  const nameOf=n=>own?(_cnWord(prod)+' '+_cnTag(prod,n)):(_clrName(n)+' ('+n+')');
   const OUT=_pnMode==='out';
   document.getElementById('pnStockModal')?.remove();
   const ov=document.createElement('div');
@@ -5421,7 +5443,7 @@ function pnBump(n){
   el.style.background='#dcfce7';
   setTimeout(()=>{el.style.transition='background .7s';el.style.background='';},80);
   try{navigator.vibrate&&navigator.vibrate(35);}catch(e){}
-  toast((_pnMode==='out'?'📤 ':'📥 ')+'لون '+n+' ⇒ '+el.value);
+  {const _pp=_prodById(_pnProdId);toast((_pnMode==='out'?'📤 ':'📥 ')+_cnWord(_pp)+' '+_cnTag(_pp,n)+' ⇒ '+el.value);}
   return true;
 }
 function pnScan(code){
@@ -5514,7 +5536,7 @@ function _cbProdName(pid){const p=_prodById(pid);return (p&&p.name)||'منتج';
 // نصٌّ عربيّ مقروء بدل جدول أرقام
 function _cbText(d,note){
   const grp=(rows)=>{
-    const by={};rows.forEach(r=>{(by[r.pid]=by[r.pid]||[]).push(r.n);});
+    const by={};rows.forEach(r=>{(by[r.pid]=by[r.pid]||[]).push(_cnTag(_prodById(r.pid),r.n));});
     return Object.keys(by).map(pid=>_cbProdName(pid)+': '+by[pid].join('، ')).join(' | ');
   };
   const L=[];
@@ -5561,7 +5583,7 @@ function cbRender(){
       ${rows.map(r=>{const k=_cbKey(r);const off=!!_cbOff[k];
         return `<button onclick="cbToggle('${_payEsc(k)}')" style="width:100%;text-align:right;display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:4px;background:${off?'#f9fafb':bg};border:1.5px solid ${off?'#e5e7eb':color};border-radius:9px;font-family:'Tajawal',sans-serif;cursor:pointer;opacity:${off?'.55':'1'};">
           <span style="font-size:0.9rem;flex-shrink:0;">${off?'☐':'☑️'}</span>
-          <span style="flex:1;min-width:0;font-size:0.8rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(_cbProdName(r.pid))} · لون ${r.n}</span>
+          <span style="flex:1;min-width:0;font-size:0.8rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(_cbProdName(r.pid))} · ${_cnWord(_prodById(r.pid))} ${_clrEsc(_cnTag(_prodById(r.pid),r.n))}</span>
           <span style="font-size:0.7rem;font-weight:800;color:${color};flex-shrink:0;">${r.from} ⇐ ${r.to}</span>
         </button>`;}).join('')}
     </div>`:'';
@@ -5718,7 +5740,7 @@ function cboRender(){
   const p=prods.find(x=>x.id===_cboProdId);
   const nums=_cbNums(p);
   const q=_cboQ;
-  const rows=nums.map(n=>({n,q:_cbQty(p,n)})).filter(r=>!q||String(r.n).indexOf(q)===0);
+  const rows=nums.map(n=>({n,q:_cbQty(p,n)})).filter(r=>!q||String(_cnTag(p,r.n)).indexOf(q)===0);
   const have=nums.filter(n=>_cbQty(p,n)>0).length;
   const out =nums.filter(n=>_cbQty(p,n)===0).length;
   const unk =nums.filter(n=>_cbQty(p,n)<0).length;
@@ -5748,7 +5770,7 @@ function cboRender(){
       const bd=unk2?'#e5e7eb':zero?'#fecaca':'#bbf7d0';
       const col=unk2?'#9ca3af':zero?'#b91c1c':'#166534';
       return `<div style="background:${bg};border:1.5px solid ${bd};border-radius:11px;padding:8px 4px;text-align:center;">
-        <div style="font-size:1rem;font-weight:900;color:${col};">${r.n}</div>
+        <div style="font-size:${_cnIsSize(p)?'0.82rem':'1rem'};font-weight:900;color:${col};white-space:nowrap;">${_clrEsc(_cnTag(p,r.n))}</div>
         <div style="font-size:0.63rem;font-weight:800;color:${col};margin-top:2px;">${unk2?'—':zero?'خلص':r.q}</div>
       </div>`;}).join('')}
   </div>${unk?'<div style="font-size:0.62rem;color:#9ca3af;text-align:center;margin-top:10px;line-height:1.7;">«—» يعني لسا ما انجرد، مش إنّه خلص.</div>':''}`;
@@ -6072,9 +6094,49 @@ async function clrStockSave(){
 // فاضي = كل ألوان المكتبة. هيك لون جديد بينضاف بيوصل لكل المنتجات لحاله،
 // بدل ما تفتح كل منتج وتضيفه له بالإيد.
 let _oppColorCodes=[];
+let _oppCnKind='color', _oppSizeLbl={};
+function oppSetKind(k){
+  _oppCnKind=(k==='size')?'size':'color';
+  // القياسات دايماً ترقيم خاص — ما إلها علاقة بمكتبة الألوان
+  if(_oppCnKind==='size'){const oc=document.getElementById('opp_own_colors');if(oc)oc.checked=true;}
+  renderOppCNPicker();
+}
+window.oppSetKind=oppSetKind;
+function _oppKindSw(){
+  const sw=document.getElementById('opp_kind_sw');if(!sw)return;
+  const B=(k,t)=>{const on=_oppCnKind===k;
+    return `<button type="button" onclick="oppSetKind('${k}')" style="flex:1;padding:9px 6px;border-radius:9px;border:1.5px solid ${on?'#1e40af':'#c7d2fe'};background:${on?'#1e40af':'#fff'};color:${on?'#fff':'#1e40af'};font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;">${t}</button>`;};
+  sw.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:8px;">${B('color','🎨 أرقام ألوان')}${B('size','📏 قياسات')}</div>`;
+  const ow=document.getElementById('opp_own_wrap');if(ow)ow.style.display=_oppCnKind==='size'?'none':'flex';
+}
 function renderOppCNPicker(){
+  _oppKindSw();
   const w=document.getElementById('opp_cn_pick');if(!w)return;
   const leg=document.getElementById('opp_cn_legacy');
+  if(_oppCnKind==='size'){
+    const F="padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;box-sizing:border-box;";
+    const fake={cnKind:'size',ownColorNumbers:true,ownColorQty:_oppOwnQty,sizeLabels:_oppSizeLbl};
+    const ids=_ownNums(fake);
+    w.innerHTML=`<div style="font-size:0.74rem;color:#3730a3;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:8px 10px;line-height:1.7;margin-bottom:8px;">📏 اكتب كل قياس زي ما مكتوب عالبضاعة (مثلاً <b>2.5</b> أو <b>3 مم</b>) وكميته. الموظف بيختار القياس والعدد بالطلب.</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+        <input type="text" id="opp_own_num" placeholder="القياس" style="${F}flex:1;min-width:0;" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('opp_own_qty').focus();}">
+        <input type="number" id="opp_own_qty" min="0" placeholder="الكمية" style="${F}flex:1;min-width:0;" onkeydown="if(event.key==='Enter'){event.preventDefault();oppOwnAdd();}">
+        <button type="button" onclick="oppOwnAdd()" style="padding:9px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;flex-shrink:0;">➕</button>
+      </div>
+      ${ids.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;">${ids.map(n=>{
+        const q=Number(_oppOwnQty[n])||0;
+        return `<div style="display:flex;align-items:center;gap:5px;border:1.5px solid ${q>0?'#bbf7d0':'#fecaca'};background:${q>0?'#f0fdf4':'#fef2f2'};border-radius:18px;padding:3px 6px 3px 10px;">
+          <span style="font-size:0.78rem;font-weight:900;color:#111827;">📏 ${_clrEsc(_cnTag(fake,n))}</span>
+          <span style="font-size:0.7rem;font-weight:800;color:${q>0?'#166534':'#dc2626'};">${q>0?q:'خلص'}</span>
+          <button type="button" onclick="oppOwnBump(${n},-1)" style="width:19px;height:19px;border:none;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">−</button>
+          <button type="button" onclick="oppOwnBump(${n},1)" style="width:19px;height:19px;border:none;background:#dcfce7;color:#166534;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">+</button>
+          <button type="button" onclick="oppOwnDel(${n})" title="شيل القياس" style="width:19px;height:19px;border:none;background:#f3f4f6;color:#6b7280;border-radius:5px;cursor:pointer;font-size:0.68rem;line-height:1;">🗑️</button>
+        </div>`;}).join('')}</div>
+        <div style="font-size:0.68rem;color:#6b7280;margin-top:7px;line-height:1.7;">الكمية بتنقص لحالها أول ما ينزل طلب أو بيعة. وللوارد: زيد القياس من هون.</div>`
+       :'<div style="font-size:0.72rem;color:#9ca3af;padding:8px;text-align:center;">ما في قياسات بعد — اكتب أوّل قياس وكميته فوق.</div>'}`;
+    if(leg)leg.style.display='none';
+    return;
+  }
   // ترقيم مستقلّ: المنتج إله كتالوجه الخاص، فما منعرض إله ألوان المكتبة
   if(document.getElementById('opp_own_colors')?.checked){
     const F="padding:8px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;box-sizing:border-box;";
@@ -6118,6 +6180,19 @@ function renderOppCNPicker(){
 let _oppOwnQty={};
 function oppOwnAdd(){
   const nEl=document.getElementById('opp_own_num'),qEl=document.getElementById('opp_own_qty');
+  if(_oppCnKind==='size'){
+    const lbl=String(nEl?.value||'').trim().replace(/\s+/g,' ');
+    if(!lbl){toast('⚠️ اكتب القياس');nEl?.focus();return;}
+    const q=Math.max(0,parseInt(qEl?.value)||0);
+    const norm=x=>String(x).replace(/\s+/g,'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫','.').toLowerCase();
+    let id=Object.keys(_oppOwnQty).map(Number).find(n=>norm(_oppSizeLbl[n]!=null?_oppSizeLbl[n]:n)===norm(lbl));
+    if(!id){id=Math.max(0,...Object.keys(_oppOwnQty).map(Number).filter(n=>n>0))+1;_oppSizeLbl[id]=lbl;_oppOwnQty[id]=0;}
+    _oppOwnQty[id]=(Number(_oppOwnQty[id])||0)+q;
+    if(nEl)nEl.value='';if(qEl)qEl.value='';
+    renderOppCNPicker();
+    document.getElementById('opp_own_num')?.focus();
+    return;
+  }
   const n=parseInt(nEl?.value)||0;
   if(n<1){toast('⚠️ اكتب رقم اللون');return;}
   const q=Math.max(0,parseInt(qEl?.value)||0);
@@ -6131,8 +6206,9 @@ function oppOwnBump(n,d){
   renderOppCNPicker();
 }
 function oppOwnDel(n){
-  if(!confirm(`شيل الرقم ${n} من هذا المنتج؟`))return;
-  delete _oppOwnQty[n];renderOppCNPicker();
+  const sz=_oppCnKind==='size';
+  if(!confirm(sz?`شيل القياس ${_oppSizeLbl[n]!=null?_oppSizeLbl[n]:n} من هذا المنتج؟`:`شيل الرقم ${n} من هذا المنتج؟`))return;
+  delete _oppOwnQty[n];if(sz)delete _oppSizeLbl[n];renderOppCNPicker();
 }
 window.oppOwnAdd=oppOwnAdd; window.oppOwnBump=oppOwnBump; window.oppOwnDel=oppOwnDel;
 function oppCNAll(on){_oppColorCodes=on?[]:_colorLib.map(c=>c.code);renderOppCNPicker();}
@@ -6411,7 +6487,7 @@ function renderEmpOrderCart(){
       const sel={};cns.forEach(c=>{sel[c.num]=c.qty;});
       const totalCN=cns.reduce((s,c)=>s+(c.qty||0),0);
       const grid=_cnGridHtml(cnCodes,sel,'empCartCN',i,false,_prodOwnColors(prod),prod);
-      colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">🎨 اختر اللون والعدد ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
+      colorNumbersHtml=`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#1e40af;margin-bottom:5px;">${_cnIsSize(prod)?'📏 اختر القياس والعدد':'🎨 اختر اللون والعدد'} ${totalCN?`<span style="color:#166534;">(الإجمالي ${totalCN})</span>`:'<span style="color:#dc2626;font-weight:800;">* إجباري</span>'}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;">${grid}</div></div>`;
     }
     const priceOptsHtml=priceOpts.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#854d0e;margin-bottom:5px;">💵 السعر</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${priceOpts.map(o=>{const active=Math.abs((item.price||0)-(o.price||0))<0.001;const sl=(o.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button onclick="updateCartItemPrice(${i},${(o.price||0)},'${sl}')" style="padding:4px 12px;border:1.5px solid ${active?'#854d0e':'#fde047'};border-radius:20px;background:${active?'#854d0e':'#fef9c3'};color:${active?'#fff':'#854d0e'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">${o.label} — ${(o.price||0).toFixed(2)}</button>`;}).join('')}</div></div>`:'';
     const colorHtml=colors.length?`<div style="margin-top:8px;"><div style="font-size:0.74rem;font-weight:700;color:#374151;margin-bottom:5px;">🎨 اللون</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${colors.map(c=>`<button onclick="updateCartItemColor(${i},'${c.replace(/'/g,"\\'")}')" style="padding:4px 12px;border:1.5px solid ${item.color===c?'#1a3a2a':'#cbd5e1'};border-radius:20px;background:${item.color===c?'#1a3a2a':'#fff'};color:${item.color===c?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;cursor:pointer;">${c}</button>`).join('')}</div></div>`:'';
@@ -6563,7 +6639,7 @@ async function submitEmpOrder(){
     const prod=(_empSharedProducts||[]).find(p=>p.id===item.id);
     return prod?.hasColorNumbers&&!(Array.isArray(item.colorNumbers)&&item.colorNumbers.length);
   });
-  if(missingCN){toast(`⚠️ "${missingCN.name}" لازم تختار رقم اللون والعدد`);return;}
+  if(missingCN){toast(`⚠️ "${missingCN.name}" لازم تختار ${_cnPick(_prodById(missingCN.id))} والعدد`);return;}
   {const e=phoneError(phone);if(e){toast(e);return;}}
   if(!address){toast('⚠️ أدخل العنوان');return;}
   if(!areaInput){toast('⚠️ اختار المحافظة');return;}
@@ -11772,6 +11848,8 @@ function editOpProduct(id){
   const oc=document.getElementById('opp_own_colors');
   if(oc) oc.checked=!!p.ownColorNumbers;
   _oppOwnQty=Object.assign({},(p.ownColorQty&&typeof p.ownColorQty==='object')?p.ownColorQty:{});
+  _oppCnKind=(p.cnKind==='size'&&p.ownColorNumbers)?'size':'color';
+  _oppSizeLbl=Object.assign({},(p.sizeLabels&&typeof p.sizeLabels==='object')?p.sizeLabels:{});
   // منتجٌ قديم بترقيم ١..ن بلا جرد: منعبّي أرقامه بلا كميات كبداية
   if(p.ownColorNumbers&&!Object.keys(_oppOwnQty).length&&(parseInt(p.colorNumbersCount)||0)>0){
     for(let k=1;k<=parseInt(p.colorNumbersCount);k++) _oppOwnQty[k]=0;
@@ -11802,7 +11880,7 @@ function editOpProduct(id){
 
 function cancelEditProduct(){
   _editingProductId=null;
-  _oppOwnQty={};
+  _oppOwnQty={};_oppCnKind='color';_oppSizeLbl={};
   ['opp_name','opp_raw','opp_tree','opp_machine','opp_assembly','opp_sell'].forEach(id=>{
     const el=document.getElementById(id);if(el) el.value='';
   });
@@ -11862,6 +11940,10 @@ async function saveOpProduct(){
     const colorNumbersCount=hasColorNumbers?(parseInt(document.getElementById('opp_color_numbers_count')?.value)||0):0;
     const ownColorQty=(hasColorNumbers&&ownColorNumbers)?Object.assign({},_oppOwnQty):{};
     const _ownCount=Object.keys(ownColorQty).length;
+    const cnKind=(hasColorNumbers&&ownColorNumbers&&_oppCnKind==='size')?'size':'';
+    const sizeLabels={};
+    if(cnKind){Object.keys(ownColorQty).forEach(k=>{sizeLabels[k]=String(_oppSizeLbl[k]!=null?_oppSizeLbl[k]:k);});}
+    if(cnKind&&!_ownCount){toast('⚠️ أضف قياس واحد ع الأقل');return;}
     if(hasColorNumbers&&ownColorNumbers&&!_ownCount&&colorNumbersCount<1){
       toast('⚠️ أضف رقم لون واحد ع الأقل للترقيم المستقل');return;}
     const category=(document.getElementById('opp_category')?.value||'').trim();
@@ -11874,7 +11956,8 @@ async function saveOpProduct(){
       await db.collection('operator_products').doc(_editingProductId).update({
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
-        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount:(_ownCount?_ownCount:colorNumbersCount),ownColorNumbers,ownColorQty,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions
+        colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount:(_ownCount?_ownCount:colorNumbersCount),ownColorNumbers,ownColorQty,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        cnKind,sizeLabels
       });
       toast('✅ تم حفظ التعديلات');
     } else {
@@ -11882,6 +11965,7 @@ async function saveOpProduct(){
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
         storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount:(_ownCount?_ownCount:colorNumbersCount),ownColorNumbers,ownColorQty,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
+        cnKind,sizeLabels,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
