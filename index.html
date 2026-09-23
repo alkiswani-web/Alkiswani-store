@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v330"></script>
+<script defer src="app.js?v331"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -4193,12 +4193,12 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 
     <!-- QR VIEWER SECTION (read-only, isQRViewer role) -->
     <div id="empQRViewerSection" style="display:none;padding:16px;">
-      <div style="text-align:center;margin-bottom:24px;">
+      <div class="qrv-hd" style="text-align:center;margin-bottom:24px;">
         <div style="font-size:2rem;margin-bottom:6px;">📷</div>
         <div style="font-size:1rem;font-weight:800;color:#111;">ماسح الطلبات</div>
         <div style="font-size:0.78rem;color:#9ca3af;margin-top:3px;">امسح QR الطلب لعرض تفاصيله</div>
       </div>
-      <button onclick="openQRScanner()" style="width:100%;padding:22px;background:#111;color:#fff;border:none;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:1.1rem;font-weight:800;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,0.22);">
+      <button class="qrv-btn" onclick="openQRScanner()" style="width:100%;padding:22px;background:#111;color:#fff;border:none;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:1.1rem;font-weight:800;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,0.22);">
         <span style="font-size:1.4rem;">📷</span> مسح QR Code
       </button>
       <div id="qrViewerResult" style="display:none;background:#fff;border:1px solid #ebebeb;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">

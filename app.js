@@ -2595,7 +2595,18 @@ async function openEmpPanel(){
   const _myTitle=document.getElementById('empMyOrdersTitle');
   if(_myTitle)_myTitle.textContent=_empCan('canViewAll')?'📚 كل البوالص':'📚 بوالصي';
   document.getElementById('empDeliverySection').style.display=isDelivery?'block':'none';
-  document.getElementById('empQRViewerSection').style.display=isQRViewer?'block':'none';
+  // «مسح QR + تسجيل طلبات»: نفس زرّ الماسح بس فوق البوليصة، وبلا العنوان الكبير
+  const _scanToo=!isQRViewer&&!isDelivery&&_empCan('canScanQR');
+  const _qrSec=document.getElementById('empQRViewerSection');
+  if(_qrSec){
+    _qrSec.style.display=(isQRViewer||_scanToo)?'block':'none';
+    const _ns=document.getElementById('empNormalOrderSection');
+    if(_scanToo&&_ns&&_qrSec.nextElementSibling!==_ns)_ns.parentNode.insertBefore(_qrSec,_ns);
+    const _qh=_qrSec.querySelector('.qrv-hd'),_qb=_qrSec.querySelector('.qrv-btn');
+    if(_qh)_qh.style.display=_scanToo?'none':'';
+    if(_qb){_qb.style.padding=_scanToo?'13px':'22px';_qb.style.fontSize=_scanToo?'0.95rem':'1.1rem';_qb.style.marginBottom=_scanToo?'10px':'20px';}
+    _qrSec.style.padding=_scanToo?'0 0 12px':'16px';
+  }
   if(isQRViewer){
     // QR viewer: nothing to init, just show the scan button
   }else if(isDelivery){
@@ -6870,6 +6881,7 @@ const EMP_PERMS=[
   {k:'canViewAll',   lbl:'👁 عرض كل الطلبات',def:false,desc:'يشوف طلبات كل الموظفين لا طلباته وحده'},
   {k:'isOperator',   lbl:'🔧 مشغل (تغيير حالة)',def:false,desc:'يغيّر حالة الطلب من شاشته'},
   {k:'isDelivery',   lbl:'🚀 تسليم مبيعات', def:false, desc:'شاشة تسليم بدل شاشة تسجيل الطلبات'},
+  {k:'canScanQR',    lbl:'📷 مسح QR + تسجيل طلبات',def:false,desc:'زرّ مسح QR فوق شاشة تسجيل الطلبات — بيسجّل طلبات وبيمسح كمان'},
   {k:'isQRViewer',   lbl:'📷 ماسح QR فقط',  def:false, desc:'شاشة مسح الباركود وحدها — ما بيشوف ولا بيسجّل طلبات'}
 ];
 const EMP_PERM_DEF={};EMP_PERMS.forEach(p=>{EMP_PERM_DEF[p.k]=p.def;});
@@ -6896,6 +6908,7 @@ async function loadEmpWorkers(){
       if(perms.isOperator)tags.push('🔧 مشغل');
       if(perms.isDelivery)tags.push('🚀 تسليم');
       if(perms.isQRViewer)tags.push('📷 QR فقط');
+      else if(perms.canScanQR)tags.push('📷 مسح QR');
       if(perms.canViewAll)tags.push('👁 عرض الكل');
       if(perms.canPrint!==false)tags.push('🖨 طباعة');
       return `<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
@@ -7106,6 +7119,9 @@ async function editEmpWorker(id){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
 }
 function _ewPermPaint(cb){
+  // «QR فقط» و«مسح QR + تسجيل» بدائل — تعليم وحدة بيشيل الثانية
+  const _alt={ewp_canScanQR:'ewp_isQRViewer',ewp_isQRViewer:'ewp_canScanQR'}[cb.id];
+  if(_alt&&cb.checked){const o=document.getElementById(_alt);if(o&&o.checked){o.checked=false;_ewPermPaint(o);}}
   const l=cb.closest('label');
   if(!l)return;
   l.style.borderColor=cb.checked?'#bbf7d0':'#e5e7eb';
@@ -7120,6 +7136,7 @@ async function saveEmpWorkerEdit(id){
   EMP_PERMS.forEach(pm=>{permissions[pm.k]=document.getElementById('ewp_'+pm.k)?.checked||false;});
   // الشاشتان بديلتان لشاشة تسجيل الطلبات، فلا تجتمعان
   if(permissions.isQRViewer&&permissions.isDelivery){toast('⚠️ اختر «تسليم» أو «QR فقط» — مش الاثنين');return;}
+  if(permissions.isQRViewer&&permissions.canScanQR){toast('⚠️ اختر «QR فقط» أو «مسح QR + تسجيل طلبات» — مش الاثنين');return;}
   try{
     await db.collection('employee_workers').doc(id).update({name,password,defaultPage,permissions});
     document.getElementById('empWorkerModal')?.remove();
@@ -23214,7 +23231,8 @@ async function _handleQRResult(raw){
       return;
     }
     // QR viewer employee: show read-only result card
-    if(_empCurrentUser?.permissions?.isQRViewer){
+    if(_empCurrentUser?.permissions?.isQRViewer
+       ||(_empCurrentUser&&_empCan('canScanQR')&&document.getElementById('empPanel')?.style.display==='block')){
       const o=await _findOrder(orderId);
       if(o)_showQRViewerResult(o);
       else toast('❌ الطلب غير موجود: '+orderId.slice(0,12));
