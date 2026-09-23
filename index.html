@@ -27,12 +27,12 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v327"></script>
+<script defer src="app.js?v328"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;700&display=swap" media="print" onload="this.media='all';this.onload=null">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;700&display=swap"></noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Reem+Kufi:wght@600;700&family=Tajawal:wght@400;700&display=swap" media="print" onload="this.media='all';this.onload=null">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Reem+Kufi:wght@600;700&family=Tajawal:wght@400;700&display=swap"></noscript>
 <style>
 :root{
   --green-dark:#1a3a2a;
@@ -3819,237 +3819,324 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 </div>
 
 <!-- ===== EMPLOYEE PANEL ===== -->
-<div id="empPanel" style="position:fixed;inset:0;background:#f5f6f5;z-index:910;overflow-y:auto;display:none;font-family:'Tajawal',sans-serif;">
-  <div style="background:linear-gradient(135deg,#1a3a2a,#2d5a3d);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
-    <button onclick="closeEmpPanel()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;padding:7px 13px;border-radius:8px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;">← رجوع</button>
-    <div style="text-align:center;">
-      <div style="color:#c9a84c;font-weight:800;font-size:1rem;">📋 تسجيل الطلبات</div>
-      <div id="empNameLabel" style="color:rgba(255,255,255,0.65);font-size:0.72rem;margin-top:1px;"></div>
-    </div>
-    <button onclick="logoutEmp()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;padding:7px 13px;border-radius:8px;cursor:pointer;font-family:'Tajawal',sans-serif;font-size:0.85rem;">خروج 🚪</button>  </div>
-
-  <!-- Notification activation banner -->
-  <div id="empNotifBanner" style="display:none;background:#fef3c7;border-bottom:1.5px solid #fcd34d;padding:10px 18px;text-align:center;">
-    <span style="font-size:0.82rem;color:#92400e;">🔔 فعّل الإشعارات لتصلك تحديثات الطلبات</span>
-    <button onclick="enableEmpNotifications()" style="margin-right:10px;padding:5px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;">تفعيل</button>
+<style>
+/* ═══ صفحة الموظف — «البوليصة» ═══ */
+#empPanel{--k:#d8c6a1;--pp:#fffdf8;--ink:#1d3f8a;--rd:#b91c1c;--rdl:#fdecec;--ch:#1f2a24;--mu:#8a7c62;--ln:#d9cfbc;--dt:#b8ab93;--gr:#166534;--am:#b45309;
+  background:var(--k);color:var(--ch);
+  background-image:radial-gradient(rgba(110,80,30,.09) 1px,transparent 1px),radial-gradient(rgba(255,255,255,.2) 1px,transparent 1px);
+  background-size:7px 7px,11px 11px;background-position:0 0,3px 4px;}
+#empPanel .bl-kufi{font-family:'Reem Kufi','Tajawal',sans-serif;}
+#empPanel .bl-num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;}
+#empPanel .bl-hd{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:12px 12px 8px;
+  background:rgba(216,198,161,.94);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+#empPanel .bl-hbtn{height:38px;padding:0 12px;border-radius:12px;border:1.5px solid rgba(59,47,28,.22);background:rgba(255,253,248,.55);
+  font-family:'Tajawal',sans-serif;font-size:.8rem;font-weight:800;color:#3b2f1c;cursor:pointer;white-space:nowrap;}
+#empPanel .bl-ttl{flex:1;text-align:center;min-width:0;}
+#empPanel .bl-ttl b{display:block;font-size:.98rem;font-weight:900;color:#2a2112;}
+#empPanel .bl-ttl div{font-size:.68rem;color:var(--mu);font-weight:700;}
+#empPanel .bl-tools{display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto;scrollbar-width:none;}
+#empPanel .bl-tools::-webkit-scrollbar{display:none;}
+#empPanel .bl-tl{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:11px;background:rgba(255,253,248,.65);
+  border:1.5px solid rgba(59,47,28,.14);font-family:'Tajawal',sans-serif;font-size:.76rem;font-weight:800;color:#3b2f1c;cursor:pointer;white-space:nowrap;}
+#empPanel .bl-tl.bl-alert{background:#fff5d6;border-color:#e8c878;}
+#empPanel .bl-mini{border:none;border-radius:8px;padding:4px 9px;background:#1d4ed8;color:#fff;font-family:'Tajawal',sans-serif;font-size:.68rem;font-weight:800;cursor:pointer;}
+#empPanel .bl-pin{position:relative;background:#fffef6 !important;border-radius:4px;padding:12px !important;margin:10px 4px 14px;transform:rotate(.5deg);
+  box-shadow:0 4px 10px rgba(60,40,10,.18);border:none !important;border-top:3px solid #16a34a !important;}
+#empPanel .bl-pin::before{content:'📌';position:absolute;top:-13px;left:14px;font-size:1.1rem;transform:rotate(-20deg);}
+#empPanel .bl-tape{position:relative;margin:8px 14px 16px;background:#fff6b8;border:1px solid rgba(180,150,60,.35);transform:rotate(-1deg);
+  box-shadow:0 4px 10px rgba(60,40,10,.16);padding:12px 12px 12px;}
+#empPanel .bl-tape::before,#empPanel .bl-tape::after{content:'';position:absolute;top:-9px;width:46px;height:18px;background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.05);}
+#empPanel .bl-tape::before{right:18px;transform:rotate(4deg);}
+#empPanel .bl-tape::after{left:18px;transform:rotate(-5deg);}
+#empPanel .bl-tape .t{display:flex;align-items:center;gap:7px;font-size:.84rem;font-weight:900;color:#5b4a1c;}
+#empPanel .bl-tape .t span{margin-inline-start:auto;font-size:.66rem;font-weight:700;color:#8f7a3a;}
+#empPanel .bl-tape textarea{width:100%;height:58px;margin-top:8px;border:none;border-bottom:1.5px dashed #c9b25a;background:transparent;resize:none;
+  font-family:'Tajawal',sans-serif;font-size:.86rem;color:#3d3313;outline:none;line-height:1.6;box-sizing:border-box;}
+#empPanel .bl-tape button{margin-top:8px;width:100%;padding:10px;border:none;border-radius:9px;background:#6d28d9;color:#fff;font-family:'Tajawal',sans-serif;font-size:.84rem;font-weight:900;cursor:pointer;}
+#empPanel .bl-bill{position:relative;background:var(--pp);border-radius:5px;box-shadow:0 12px 28px rgba(60,40,10,.26);margin-bottom:6px;
+  transition:transform .65s cubic-bezier(.5,0,.3,1),opacity .6s;}
+#empPanel .bl-bill::before,#empPanel .bl-bill::after{content:'';position:absolute;left:0;right:0;height:10px;
+  background:radial-gradient(circle at 7px 0,var(--k) 6px,transparent 6.5px) repeat-x;background-size:14px 10px;z-index:1;pointer-events:none;}
+#empPanel .bl-bill::before{top:-1px;}
+#empPanel .bl-bill::after{bottom:-1px;transform:scaleY(-1);}
+#empPanel .bl-bill.gone{transform:translateY(-130%) rotate(-9deg);opacity:0;}
+#empPanel .bl-bh{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:18px 14px 10px;border-bottom:2.5px solid var(--ch);}
+#empPanel .bl-bh .t{font-size:1.18rem;line-height:1.15;color:var(--ch);font-weight:900;}
+#empPanel .bl-bh .t small{display:block;font-family:'Tajawal',sans-serif;font-size:.64rem;color:var(--mu);font-weight:700;margin-top:3px;}
+#empPanel .bl-bars{display:flex;align-items:flex-end;gap:1px;height:32px;justify-content:center;}
+#empPanel .bl-bars i{display:block;background:var(--ch);}
+#empPanel .bl-bno{display:flex;align-items:center;gap:3px;justify-content:center;margin-top:3px;font-size:.66rem;color:var(--mu);}
+#empPanel .bl-bno input{width:74px;border:none;border-bottom:1.5px dotted var(--dt);background:transparent;font-family:'Tajawal',sans-serif;font-size:.76rem;font-weight:800;
+  color:var(--ink);text-align:center;outline:none;padding:1px 0;box-sizing:border-box;}
+#empPanel .bl-box{border-bottom:1.5px dashed var(--ln);padding:11px 14px 12px;}
+#empPanel .bl-k{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+#empPanel .bl-k span{font-size:.62rem;font-weight:900;color:var(--mu);letter-spacing:.04em;}
+#empPanel .bl-k em{font-style:normal;font-size:.64rem;font-weight:900;color:#b3a78f;}
+#empPanel .bl-fld{display:flex;align-items:baseline;gap:8px;padding:5px 0;position:relative;}
+#empPanel .bl-fld>span{font-size:.7rem;color:var(--mu);font-weight:700;flex:0 0 58px;}
+#empPanel .bl-fld>span i{font-style:normal;display:block;font-size:.58rem;font-weight:600;color:#b3a78f;}
+#empPanel .bl-in{flex:1;min-width:0;width:100%;border:none;border-bottom:1.5px dotted var(--dt);background:transparent;font-family:'Tajawal',sans-serif;
+  font-size:.98rem;font-weight:800;color:var(--ink);padding:3px 2px 5px;outline:none;box-sizing:border-box;border-radius:0;}
+#empPanel textarea.bl-in{resize:none;line-height:1.6;}
+#empPanel .bl-in::placeholder{color:#cbbfa8;font-weight:600;font-size:.86rem;}
+#empPanel .bl-in:focus{border-bottom:1.5px solid var(--ink);}
+#empPanel .bl-hide{position:absolute !important;opacity:0 !important;pointer-events:none !important;width:1px !important;height:1px !important;}
+#empPanel .bl-stamps{display:flex;gap:6px;flex-wrap:wrap;}
+#empPanel .bl-st{padding:6px 11px;border:2px solid #c5b89f;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:.74rem;font-weight:900;color:#9a8b6e;
+  cursor:pointer;transform:rotate(-1deg);background:transparent;}
+#empPanel .bl-st:nth-child(3n+2){transform:rotate(1.2deg);}
+#empPanel .bl-st:nth-child(3n){transform:rotate(-.4deg);}
+#empPanel .bl-st.on{border-color:var(--rd);color:var(--rd);background:var(--rdl);}
+#empPanel .bl-areas{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;flex:1;}
+#empPanel .bl-areas .bl-st{padding:5px 2px;font-size:.68rem;text-align:center;}
+#empPanel .bl-more{font-size:.68rem;font-weight:800;color:var(--ink);cursor:pointer;margin-top:6px;background:none;border:none;font-family:'Tajawal',sans-serif;padding:0;}
+#empPanel .bl-ln{padding:9px 0;border-bottom:1px solid #f1ece2;}
+#empPanel .bl-ln:last-child{border-bottom:none;}
+#empPanel .bl-empty{text-align:center;color:#b3a78f;font-size:.8rem;padding:10px 0 4px;}
+#empPanel .bl-add{width:100%;margin-top:8px;padding:11px;border:1.5px dashed var(--dt);background:transparent;border-radius:9px;
+  font-family:'Tajawal',sans-serif;font-size:.82rem;font-weight:800;color:#7a6d55;cursor:pointer;}
+#empPanel .bl-fee{display:flex;align-items:center;gap:8px;font-size:.84rem;font-weight:800;color:#3b2f1c;}
+#empPanel .bl-fee i{width:20px;height:20px;border:2px solid var(--ch);border-radius:3px;display:grid;place-items:center;font-style:normal;color:var(--rd);font-weight:900;}
+#empPanel #emp_delivery_custom{width:70px;border:none;border-bottom:1.5px dotted var(--dt);background:transparent;font-family:'Tajawal',sans-serif;font-size:.9rem;font-weight:800;color:var(--ink);text-align:center;outline:none;}
+#empPanel #emp_area_fee_hint{background:transparent !important;color:var(--gr) !important;font-weight:800;padding:2px 0 !important;margin:2px 66px 0 0 !important;}
+#empPanel .bl-lined{background:repeating-linear-gradient(transparent 0 27px,#e7dfcd 27px 28px);line-height:28px;border-bottom:none;padding:0 2px;}
+#empPanel .bl-att{display:flex;gap:12px;align-items:flex-start;}
+#empPanel .bl-pol{position:relative;width:84px;height:96px;background:#fff;padding:6px 6px 18px;box-shadow:0 3px 8px rgba(0,0,0,.14);transform:rotate(-3deg);flex-shrink:0;box-sizing:border-box;}
+#empPanel .bl-pol::before{content:'📎';position:absolute;top:-12px;right:8px;font-size:1.1rem;transform:rotate(18deg);}
+#empPanel .bl-pol div{width:100%;height:100%;background:linear-gradient(135deg,#efe9dc,#e2d8c3);display:grid;place-items:center;font-size:1.4rem;color:#b3a78f;}
+#empPanel .bl-att label{display:block;padding:10px;margin-bottom:6px;border:1.5px solid var(--ln);border-radius:9px;background:#fff;font-size:.78rem;font-weight:800;color:#5b4f3a;cursor:pointer;text-align:center;}
+#empPanel .bl-sum{padding:12px 14px 6px;}
+#empPanel .bl-sr{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;font-size:.82rem;font-weight:700;color:#5b4f3a;}
+#empPanel #emp_total{width:80px;border:none;border-bottom:1.5px dotted var(--dt);background:transparent;font-family:'Tajawal',sans-serif;font-size:.88rem;font-weight:900;color:var(--ink);text-align:left;outline:none;}
+#empPanel .bl-cod{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:3px double var(--ch);}
+#empPanel .bl-cod>div{font-size:.68rem;font-weight:900;color:var(--mu);line-height:1.4;}
+#empPanel #empNetLabel{font-size:1.9rem;color:var(--ch);line-height:1;font-weight:900;}
+#empPanel .bl-ready{display:flex;align-items:center;gap:9px;width:calc(100% - 28px);margin:10px 14px 16px;padding:11px 12px;border:2px dashed #c5b89f;border-radius:10px;
+  background:transparent;cursor:pointer;font-family:'Tajawal',sans-serif;text-align:right;}
+#empPanel .bl-ready i{width:22px;height:22px;border:2px solid var(--ch);border-radius:4px;display:grid;place-items:center;font-style:normal;font-size:.95rem;color:var(--rd);font-weight:900;flex-shrink:0;}
+#empPanel .bl-ready b{font-size:.84rem;font-weight:900;color:var(--ch);display:block;}
+#empPanel .bl-ready small{font-size:.64rem;color:var(--mu);font-weight:600;}
+#empPanel .bl-ready.on{border-color:var(--gr);background:#e8f5ec;}
+/* ورقة المنتجات */
+#empPanel .bl-dr{position:fixed;inset:0;z-index:40;background:rgba(40,28,10,.48);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .22s;}
+#empPanel .bl-dr.on{opacity:1;pointer-events:auto;}
+#empPanel .bl-dr .in{width:100%;max-width:560px;max-height:86vh;background:var(--pp);border-radius:20px 20px 0 0;padding:8px 12px 16px;display:flex;flex-direction:column;
+  transform:translateY(40px);transition:transform .22s;box-sizing:border-box;}
+#empPanel .bl-dr.on .in{transform:none;}
+#empPanel .bl-grab{width:40px;height:4px;border-radius:4px;background:#d8cfbd;margin:0 auto 8px;flex-shrink:0;}
+#empPanel .bl-drh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;}
+#empPanel .bl-drh b{font-size:.92rem;font-weight:900;}
+#empPanel .bl-drh button{background:#f1ece2;border:none;border-radius:9px;width:32px;height:32px;cursor:pointer;font-size:.9rem;}
+#empPanel #emp_product_grid{max-height:none !important;flex:1;min-height:120px;}
+/* الشريط السفلي والختم */
+#empPanel .bl-dock{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:0 14px 14px;pointer-events:none;}
+#empPanel .bl-dbar{pointer-events:auto;max-width:532px;margin:0 auto;display:flex;align-items:center;gap:12px;background:rgba(31,42,36,.95);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:22px;padding:10px 12px 10px 10px;box-shadow:0 12px 30px rgba(0,0,0,.32);color:#fff;}
+#empPanel .bl-dinf{flex:1;min-width:0;}
+#empPanel .bl-dinf i{font-style:normal;display:block;font-size:.66rem;color:#b6c2ba;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#empPanel .bl-dinf i.no{color:#fbbf24;}
+#empPanel .bl-dinf b{font-size:1.5rem;font-weight:900;line-height:1.1;}
+#empPanel .bl-dinf b small{font-size:.68rem;color:#b6c2ba;margin-right:3px;}
+#empPanel .bl-stamp{width:70px;height:70px;margin-top:-26px;border-radius:50%;flex-shrink:0;border:4px solid #7a1212;
+  background:radial-gradient(circle at 35% 30%,#e35a5a,#9f1a1a);color:#fff;cursor:pointer;line-height:1.05;font-family:'Tajawal',sans-serif;
+  box-shadow:0 10px 20px rgba(120,20,20,.5),inset 0 -4px 0 rgba(0,0,0,.22);}
+#empPanel .bl-stamp b{display:block;font-family:'Reem Kufi','Tajawal',sans-serif;font-size:.98rem;}
+#empPanel .bl-stamp small{font-size:.56rem;opacity:.9;font-weight:800;}
+#empPanel .bl-stamp.dim{filter:grayscale(.75);opacity:.7;}
+#empPanel .bl-stamp.busy{filter:grayscale(.4);opacity:.8;pointer-events:none;animation:blPulse 1s infinite;}
+@keyframes blPulse{50%{transform:scale(.94)}}
+#empPanel .bl-ink{position:fixed;top:40%;left:50%;width:180px;height:180px;margin:-90px 0 0 -90px;border:7px double rgba(185,28,28,.9);border-radius:50%;
+  display:grid;place-items:center;text-align:center;color:rgba(185,28,28,.92);transform:rotate(-14deg) scale(2.4);opacity:0;pointer-events:none;z-index:45;line-height:1.1;}
+#empPanel .bl-ink b{font-family:'Reem Kufi','Tajawal',sans-serif;font-size:2.1rem;display:block;}
+#empPanel .bl-ink small{font-size:.68rem;font-weight:900;display:block;}
+#empPanel .bl-ink.on{animation:blSlam .45s cubic-bezier(.3,1.6,.5,1) forwards;}
+@keyframes blSlam{to{transform:rotate(-14deg) scale(1);opacity:1;}}
+/* بوالصي ونقاطي */
+#empPanel .bl-sec{margin:22px 2px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+#empPanel .bl-sec>div:first-child{font-size:.95rem;font-weight:900;color:#2a2112;}
+#empPanel #empMySearch{width:100%;padding:10px 12px;border:1.5px solid rgba(59,47,28,.18);border-radius:12px;background:rgba(255,253,248,.72);font-family:'Tajawal',sans-serif;font-size:.82rem;outline:none;margin-bottom:8px;box-sizing:border-box;}
+#empPanel .bl-coupon{position:relative;background:linear-gradient(135deg,#fff6db,#fdebbf);border-radius:12px;padding:14px 14px 12px;margin:18px 0 18px;box-shadow:0 4px 12px rgba(60,40,10,.16);}
+#empPanel .bl-coupon::before,#empPanel .bl-coupon::after{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--k);margin-top:-9px;}
+#empPanel .bl-coupon::before{right:-9px;}
+#empPanel .bl-coupon::after{left:-9px;}
+#empPanel .bl-coupon h4{font-size:.9rem;font-weight:900;color:#7a4b06;margin:0;}
+#empPanel .bl-cg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:10px 0;border-top:1.5px dashed #e3c67f;border-bottom:1.5px dashed #e3c67f;padding:9px 0;text-align:center;}
+#empPanel .bl-cg>div>div:first-child{font-size:1.25rem;font-weight:900;color:#5b3703;}
+#empPanel .bl-cg>div>div:last-child{font-size:.62rem;color:#9a7433;font-weight:700;}
+#empPanel .bl-coupon>button{width:100%;padding:11px;border:none;border-radius:10px;background:#7a4b06;color:#fff;font-family:'Tajawal',sans-serif;font-weight:900;font-size:.84rem;cursor:pointer;margin-bottom:8px;}
+</style>
+<div id="empPanel" style="position:fixed;inset:0;z-index:910;overflow-y:auto;display:none;font-family:'Tajawal',sans-serif;">
+  <!-- الشريط السفلي: المبلغ + الناقص + ختم «اختم وسجّل» -->
+  <div id="empDock" class="bl-dock" style="display:none;"><div class="bl-dbar">
+    <div class="bl-dinf"><i id="empDockMiss"></i><b id="empDockTot" class="bl-num">0.00<small>د.أ</small></b></div>
+    <button id="empSubmitBtn" type="button" class="bl-stamp" onclick="submitEmpOrder()"><b>اختم</b><small>وسجّل</small></button>
+  </div></div>
+  <div id="empInk" class="bl-ink"><div><b>تمّ</b><small>الكسواني روزميري</small><small id="empInkNo" class="bl-num"></small></div></div>
+  <div class="bl-hd">
+    <button class="bl-hbtn" onclick="closeEmpPanel()">→ رجوع</button>
+    <div class="bl-ttl"><b id="empPanelTitle">📦 تسجيل الطلبات</b><div id="empNameLabel"></div></div>
+    <button class="bl-hbtn" onclick="logoutEmp()">خروج 🚪</button>
+  </div>
+  <div class="bl-tools">
+    <button id="empNotifBanner" class="bl-tl bl-alert" style="display:none;" onclick="enableEmpNotifications()">🔔 فعّل الإشعارات</button>
+    <button class="bl-tl" onclick="openColorBoard()">🎨 الألوان</button>
+    <button class="bl-tl" onclick="openAttendanceScan()">⏱ الدوام</button>
+    <div id="empLocShareCard" class="bl-tl">📍 الموقع <span id="empLocStatus" style="display:none;"></span><button id="empLocShareBtn" class="bl-mini" onclick="_empToggleLocationShare()">تفعيل</button></div>
+    <button class="bl-tl" onclick="openGalleryMgmt()">📸 معارض</button>
   </div>
 
-  <!-- تحديث الألوان — بيوصل لحاله أوّل ما الأدمن يبعته -->
-  <div id="empColorBanner" style="display:none;background:#f0fdf4;border-bottom:1.5px solid #86efac;padding:11px 18px;"></div>
+  <div style="max-width:560px;margin:0 auto;padding:4px 12px 120px;">
 
-  <div style="max-width:560px;margin:0 auto;padding:16px;">
-
-    <!-- Location sharing card -->
-    <div id="empLocShareCard" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:12px;padding:13px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-      <div style="min-width:0;">
-        <div style="font-size:0.85rem;font-weight:700;color:#1e40af;margin-bottom:2px;">📍 مشاركة موقعك</div>
-        <div id="empLocStatus" style="font-size:0.74rem;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">شارك موقعك مع الأدمن أثناء التوصيل</div>
-      </div>
-      <button id="empLocShareBtn" onclick="_empToggleLocationShare()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background 0.2s;">تفعيل</button>
-    </div>
-
-    <!-- Attendance + Gallery Buttons -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
-      <button onclick="openColorBoard()" style="padding:13px 6px;background:linear-gradient(135deg,#0c2f5a,#1e40af);color:#93c5fd;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,0.13);">
-        <span style="font-size:1.4rem;">🎨</span>
-        <span>الألوان</span>
-        <span style="font-size:0.64rem;font-weight:400;color:rgba(147,197,253,0.65);">شو متوفّر الآن</span>
-      </button>
-      <button onclick="openAttendanceScan()" style="padding:13px 6px;background:linear-gradient(135deg,#0a2e1a,#1a4a2e);color:#4ade80;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.88rem;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,0.15);">
-        <span style="font-size:1.4rem;">⏱</span>
-        <span>دوام</span>
-        <span style="font-size:0.64rem;font-weight:400;color:rgba(74,222,128,0.6);">دخول / خروج</span>
-      </button>
-      <button onclick="openGalleryMgmt()" style="padding:13px 8px;background:linear-gradient(135deg,#1a1a2e,#2d1b4e);color:#c9a84c;border:none;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,0.12);">
-        <span style="font-size:1.4rem;">📸</span>
-        <span>معارض</span>
-        <span style="font-size:0.68rem;font-weight:400;color:rgba(201,168,76,0.6);">رفع صور وتوليد QR</span>
-      </button>
-    </div>
+    <!-- تحديث الألوان — ورقة مدبّسة بتوصل لحالها أوّل ما الأدمن يبعته -->
+    <div id="empColorBanner" class="bl-pin" style="display:none;"></div>
 
     <!-- Normal order form (hidden for delivery workers) -->
     <div id="empNormalOrderSection">
-    <div id="empAddOrderCard" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
-      <div style="font-size:0.95rem;font-weight:700;color:#1a3a2a;margin-bottom:14px;">➕ طلب جديد</div>
+    <div id="empAddOrderCard">
 
-      <!-- Page selector -->
-      <div style="margin-bottom:12px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">الصفحة</div>
-        <select id="emp_page" onchange="onEmpPageChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-          <option value="">— اختار الصفحة —</option>
-        </select>
+      <!-- اللصق الذكي — ورقة لاصقة -->
+      <div class="bl-tape">
+        <div class="t">📋 الصق رسالة الزبون <span>وأنا بعبّي البوليصة</span></div>
+        <textarea id="emp_smart_paste" rows="2" placeholder="مثال: بدي مجسم الكعبة لعمان الصويفية، ابو احمد 0791234567"></textarea>
+        <button id="emp_smart_btn" onclick="runSmartPaste()">✨ حلّل وعبّي</button>
       </div>
 
-      <!-- Smart paste (AI) -->
-      <div style="background:linear-gradient(135deg,#faf5ff,#eff6ff);border:1.5px solid #c4b5fd;border-radius:11px;padding:11px;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;font-weight:700;color:#6d28d9;">✨ لصق ذكي</div>
-          <div style="font-size:0.68rem;color:#9ca3af;">الصق رسالة الزبون وخليه يعبّي لحالك</div>
+      <!-- البوليصة -->
+      <div class="bl-bill" id="empBill">
+        <div class="bl-bh">
+          <div class="t bl-kufi">بوليصة توصيل<small id="empBillSub">الكسواني روزميري</small></div>
+          <div style="text-align:center;flex-shrink:0;">
+            <div class="bl-bars" id="empBillBars"></div>
+            <div class="bl-bno">#<input type="text" id="emp_order_num" placeholder="رقم الطلب" title="رقم الطلب (اختياري)"></div>
+          </div>
         </div>
-        <textarea id="emp_smart_paste" rows="2" placeholder="مثال: بدي مجسم الكعبة لعمان الصويفية، ابو احمد 0791234567" style="width:100%;padding:9px 11px;border:1.5px solid #ddd6fe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;resize:none;box-sizing:border-box;background:#fff;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd6fe'"></textarea>
-        <button id="emp_smart_btn" onclick="runSmartPaste()" style="width:100%;margin-top:7px;padding:9px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;">✨ تحليل وتعبئة</button>
+
+        <div class="bl-box">
+          <div class="bl-k"><span>مِن · الصفحة</span></div>
+          <select id="emp_page" class="bl-hide" onchange="onEmpPageChange()" aria-label="الصفحة">
+            <option value="">— اختار الصفحة —</option>
+          </select>
+          <div class="bl-stamps" id="empPageStamps"></div>
+        </div>
+
+        <div class="bl-box">
+          <div class="bl-k"><span>إلى · الزبون</span><em id="empCustState"></em></div>
+          <div class="bl-fld"><span>الهاتف</span>
+            <input type="tel" id="emp_phone" class="bl-in" placeholder="07 _ _ _ _ _ _ _ _" autocomplete="off" inputmode="numeric" oninput="onEmpPhoneInput(this.value);_empDockSync()" style="direction:ltr;text-align:right;">
+            <div id="emp_phone_suggest" style="display:none;position:absolute;top:100%;left:0;right:66px;z-index:30;background:#fff;border:1.5px solid #d9cfbc;border-radius:9px;margin-top:3px;box-shadow:0 6px 20px rgba(0,0,0,0.1);max-height:220px;overflow-y:auto;"></div>
+          </div>
+          <div id="emp_crm_banner" style="display:none;margin:4px 66px 4px 0;"></div>
+          <div class="bl-fld"><span>الاسم<i>اختياري</i></span>
+            <input type="text" id="emp_customer_name" class="bl-in" placeholder="اسم الزبون" autocomplete="off">
+          </div>
+          <div class="bl-fld" style="align-items:flex-start;"><span style="padding-top:6px;">المحافظة</span>
+            <div style="flex:1;min-width:0;">
+              <select id="emp_area" class="bl-hide" required onchange="onEmpAreaChange()" aria-label="المحافظة">
+                <option value="">— اختار المحافظة —</option>
+                <option>عمان</option><option>اربد</option><option>الزرقاء</option><option>البلقاء</option>
+                <option>مادبا</option><option>الكرك</option><option>الطفيلة</option><option>معان</option>
+                <option>العقبة</option><option>جرش</option><option>عجلون</option><option>المفرق</option>
+                <option>الاغوار</option><option>الشونة</option><option>الازرق</option><option>رصيفة</option>
+              </select>
+              <div class="bl-areas" id="empAreaStamps"></div>
+              <button type="button" class="bl-more" id="empAreaMore" onclick="_empAreasAll=!_empAreasAll;_empRenderStamps()">كل المحافظات (١٦) ▾</button>
+            </div>
+          </div>
+          <div id="emp_area_fee_hint" style="display:none;font-size:0.72rem;"></div>
+          <div class="bl-fld"><span>العنوان</span>
+            <textarea id="emp_address" class="bl-in" rows="1" placeholder="الحي · الشارع · علامة مميّزة" oninput="_empDockSync()"></textarea>
+          </div>
+        </div>
+
+        <div class="bl-box">
+          <div class="bl-k"><span>المحتويات</span><em id="empCartState"></em></div>
+          <div id="empCartItems"><div class="bl-empty">لسا ما في أصناف</div></div>
+          <button type="button" class="bl-add" onclick="empOpenProdDrawer()">＋ أضف صنف</button>
+        </div>
+
+        <div class="bl-box">
+          <div class="bl-k"><span>أجرة التوصيل</span><em>ثابتة</em></div>
+          <div class="bl-fee"><i>✓</i><span id="empFeeShow" class="bl-num">2.00</span> د.أ
+            <input type="number" id="emp_delivery_custom" style="display:none;" oninput="updateEmpNet()">
+          </div>
+          <div id="empDeliveryBtns" style="display:none;"></div>
+        </div>
+
+        <div class="bl-box">
+          <div class="bl-k"><span>ملاحظات</span><em>اختياري</em></div>
+          <input type="text" id="emp_notes" class="bl-in bl-lined" placeholder="مثلاً: اتصل قبل بساعة">
+        </div>
+
+        <div class="bl-box">
+          <div class="bl-k"><span>مرفق</span><em>اختياري</em></div>
+          <div class="bl-att">
+            <div class="bl-pol"><div>📷</div></div>
+            <div style="flex:1;">
+              <label for="emp_img_camera">📷 صوّر</label>
+              <label for="emp_img_file">🖼 ارفع صورة</label>
+            </div>
+          </div>
+          <input type="file" id="emp_img_camera" accept="image/*" capture="camera" style="display:none;" onchange="onEmpImageChange(this)">
+          <input type="file" id="emp_img_file" accept="image/*" multiple style="display:none;" onchange="onEmpImageChange(this)">
+          <div id="emp_img_preview"></div>
+        </div>
+
+        <div class="bl-sum">
+          <div class="bl-sr"><span>إجمالي المنتجات</span><input type="number" id="emp_total" class="bl-num" value="0.00" min="0" step="0.5" oninput="updateEmpNet()"></div>
+          <div id="empDeliveryRow" class="bl-sr" style="display:none;"><span>🚗 التوصيل</span><b id="empDeliveryLabel" class="bl-num">0.00 د.أ</b></div>
+          <div id="empExcessRow" class="bl-sr" style="display:none;color:#b91c1c;"><span>📉 خصم توصيل زائد</span><b id="empExcessLabel" class="bl-num">0.00 د.أ</b></div>
+          <div class="bl-cod"><div>المبلغ المطلوب<br>عند الاستلام</div><span id="empNetLabel" class="bl-kufi bl-num">0.00 د.أ</span></div>
+        </div>
+        <button id="empReadyBtn" type="button" class="bl-ready" onclick="toggleEmpReady()"><i></i><span><b>📦 البضاعة جاهزة للتوصيل</b><small>علّمها لو الطلب جاهز من هلأ</small></span></button>
       </div>
 
-      <!-- Product adder -->
-      <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">📦 اختار منتج للطلب</div>
-        <!-- Search box -->
-        <div style="position:relative;margin-bottom:8px;">
-          <input id="emp_product_search" type="text" placeholder="🔍 ابحث عن منتج..." oninput="filterEmpProductGrid(this.value)" autocomplete="off" style="width:100%;padding:8px 32px 8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-          <span onclick="clearEmpProductSearch()" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:0.9rem;line-height:1;">✕</span>
+      <!-- ورقة المنتجات -->
+      <div class="bl-dr" id="empProdDrawer" onclick="if(event.target===this)empCloseProdDrawer()"><div class="in">
+        <div class="bl-grab"></div>
+        <div class="bl-drh"><b>📦 أضف صنف للبوليصة</b><button type="button" onclick="empCloseProdDrawer()">✕</button></div>
+        <div style="position:relative;margin-bottom:8px;flex-shrink:0;">
+          <input id="emp_product_search" type="text" placeholder="🔍 ابحث عن منتج..." oninput="filterEmpProductGrid(this.value)" autocomplete="off" style="width:100%;padding:11px 34px 11px 12px;border:1.5px solid #d9cfbc;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;">
+          <span onclick="clearEmpProductSearch()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:0.9rem;line-height:1;">✕</span>
         </div>
-        <!-- Category chips -->
-        <div id="emp_category_chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;"></div>
-        <!-- Visual product grid -->
-        <div id="emp_product_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;max-height:260px;overflow-y:auto;margin-bottom:8px;">
+        <div id="emp_category_chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;flex-shrink:0;"></div>
+        <div id="emp_product_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;overflow-y:auto;margin-bottom:8px;align-content:start;">
           <div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:0.8rem;padding:16px;">⏳ جاري التحميل...</div>
         </div>
-        <!-- Selected product + qty + add button -->
-        <div id="emp_product_selected_bar" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:9px;padding:8px 10px;margin-bottom:8px;align-items:center;gap:8px;">
+        <div id="emp_product_selected_bar" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:11px;padding:9px 10px;align-items:center;gap:8px;flex-shrink:0;">
           <div id="emp_selected_prod_img_wrap" style="flex-shrink:0;"></div>
           <div style="flex:1;min-width:0;">
-            <div id="emp_selected_prod_name" style="font-weight:700;font-size:0.84rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            <div id="emp_selected_prod_name" style="font-weight:800;font-size:0.86rem;color:#1a3a2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
             <div id="emp_selected_prod_price" style="font-size:0.72rem;color:#6b7280;"></div>
           </div>
-          <input type="number" id="emp_cart_qty" value="1" min="1" max="99" style="width:52px;padding:7px 5px;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:center;outline:none;background:#fff;">
-          <button onclick="addToEmpCart()" style="padding:8px 13px;background:#1a3a2a;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ إضافة</button>
+          <input type="number" id="emp_cart_qty" value="1" min="1" max="99" style="width:52px;padding:8px 5px;border:1.5px solid #86efac;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.9rem;text-align:center;outline:none;background:#fff;">
+          <button type="button" onclick="empDrawerAdd()" style="padding:9px 14px;background:#1f2a24;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;white-space:nowrap;">＋ عالبوليصة</button>
         </div>
-        <div id="emp_no_product_bar" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">
+        <div id="emp_no_product_bar" style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
           <input type="number" id="emp_cart_qty_fallback" value="1" min="1" max="99" style="display:none;">
-          <div style="color:#9ca3af;font-size:0.78rem;">← اختار منتجاً من الأعلى لإضافته للطلب</div>
+          <div style="color:#9a8b6e;font-size:0.78rem;">اضغط على منتج لتضيفه</div>
         </div>
-      </div>
-
-      <!-- Cart items -->
-      <div id="empCartItems" style="margin-bottom:12px;">
-        <div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:14px;">أضف منتجاً للطلب</div>
-      </div>
-
-      <!-- Customer info -->
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">رقم الطلب <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <input type="text" id="emp_order_num" placeholder="مثال: 1234 أو #ABC..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-      </div>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">اسم الزبون <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <input type="text" id="emp_customer_name" placeholder="اسم الزبون..." autocomplete="off" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-      </div>
-      <div style="margin-bottom:10px;position:relative;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">رقم الزبون</div>
-        <input type="tel" id="emp_phone" placeholder="07xxxxxxxx" autocomplete="off" inputmode="numeric" oninput="onEmpPhoneInput(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;direction:ltr;text-align:right;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-        <div id="emp_phone_suggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;margin-top:3px;box-shadow:0 6px 20px rgba(0,0,0,0.1);max-height:220px;overflow-y:auto;"></div>
-      </div>
-      <div id="emp_crm_banner" style="display:none;margin-bottom:10px;"></div>
-      <!-- Area -->
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">🗺 المحافظة <span style="color:#ef4444;">*</span></div>
-        <select id="emp_area" required onchange="onEmpAreaChange()" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;background:#fff;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-          <option value="">— اختار المحافظة —</option>
-          <option>عمان</option>
-          <option>اربد</option>
-          <option>الزرقاء</option>
-          <option>البلقاء</option>
-          <option>مادبا</option>
-          <option>الكرك</option>
-          <option>الطفيلة</option>
-          <option>معان</option>
-          <option>العقبة</option>
-          <option>جرش</option>
-          <option>عجلون</option>
-          <option>المفرق</option>
-          <option>الاغوار</option>
-          <option>الشونة</option>
-          <option>الازرق</option>
-          <option>رصيفة</option>
-        </select>
-        <div id="emp_area_fee_hint" style="display:none;margin-top:4px;font-size:0.73rem;color:#1a3a2a;background:#f0fdf4;border-radius:6px;padding:4px 8px;"></div>
-      </div>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">العنوان</div>
-        <textarea id="emp_address" rows="2" placeholder="العنوان بالتفصيل..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;resize:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'"></textarea>
-      </div>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:4px;">ملاحظات <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <input type="text" id="emp_notes" placeholder="أي ملاحظات..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a3a2a'" onblur="this.style.borderColor='#e5e7eb'">
-      </div>
-
-      <!-- Photo -->
-      <div style="margin-bottom:12px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">صورة <span style="font-weight:400;color:#9ca3af;">(اختياري)</span></div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <label for="emp_img_camera" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px;background:#f0fdf4;border:1.5px dashed #86efac;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#166534;">📷 تصوير</label>
-          <label for="emp_img_file" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px;background:#eff6ff;border:1.5px dashed #93c5fd;border-radius:9px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#1d4ed8;">🖼 رفع صورة</label>
-        </div>
-        <input type="file" id="emp_img_camera" accept="image/*" capture="camera" style="display:none;" onchange="onEmpImageChange(this)">
-        <input type="file" id="emp_img_file" accept="image/*" multiple style="display:none;" onchange="onEmpImageChange(this)">
-        <div id="emp_img_preview"></div>
-      </div>
-
-      <!-- Delivery fee: fixed at 2 JD, not editable by employees -->
-      <div style="margin-bottom:12px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:6px;">🚗 أجور التوصيل</div>
-        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 14px;font-size:0.88rem;font-weight:700;color:#166534;">2 د.أ — ثابت</div>
-        <div id="empDeliveryBtns" style="display:none;"></div>
-        <input type="number" id="emp_delivery_custom" style="display:none;">
-      </div>
-
-      <!-- Total + Net -->
-      <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:14px;border:1.5px solid #bbf7d0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;color:#374151;">إجمالي المنتجات</div>
-          <div style="display:flex;align-items:center;gap:5px;">
-            <input type="number" id="emp_total" value="0.00" min="0" step="0.5" style="width:76px;padding:5px 7px;border:1.5px solid #86efac;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.88rem;text-align:left;outline:none;font-weight:700;" oninput="updateEmpNet()" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#86efac'">
-            <span style="font-size:0.78rem;color:#374151;">د.أ</span>
-          </div>
-        </div>
-        <div id="empDeliveryRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.8rem;color:#f97316;">🚗 التوصيل</div>
-          <span id="empDeliveryLabel" style="font-size:0.82rem;color:#f97316;font-weight:700;">0.00 د.أ</span>
-        </div>
-        <div id="empExcessRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.78rem;color:#dc2626;">📉 خصم توصيل زائد</div>
-          <span id="empExcessLabel" style="font-size:0.8rem;color:#dc2626;font-weight:700;">0.00 د.أ</span>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px dashed #86efac;padding-top:8px;margin-top:2px;">
-          <div style="font-size:0.85rem;font-weight:800;color:#166534;">الحساب النهائي</div>
-          <span id="empNetLabel" style="font-weight:900;color:#166534;font-size:1rem;">0.00 د.أ</span>
-        </div>
-      </div>
-
-      <button id="empReadyBtn" onclick="toggleEmpReady()" type="button" style="width:100%;padding:11px;background:#fff;color:#374151;border:1.5px dashed #d1d5db;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all 0.2s;">📦 جاهز للتوصيل</button>
-
-      <button onclick="submitEmpOrder()" style="width:100%;padding:13px;background:#1a3a2a;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;">✅ تسجيل الطلب</button>
+      </div></div>
     </div>
 
-    <!-- My orders — كل الطلبات من «جديد» حتى «تم التوصيل» -->
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-      <div id="empMyOrdersTitle" style="font-size:0.88rem;font-weight:700;color:#1a3a2a;">📦 طلباتي</div>
-      <div id="empMyCount" style="font-size:0.72rem;color:#9ca3af;font-weight:700;"></div>
+    <!-- بوالصي — كل الطلبات من «جديد» حتى «تم التوصيل» -->
+    <div class="bl-sec">
+      <div id="empMyOrdersTitle">📚 بوالصي</div>
+      <div id="empMyCount" style="font-size:0.72rem;color:#8a7c62;font-weight:800;"></div>
     </div>
-    <input id="empMySearch" type="search" inputmode="search" placeholder="🔎 ابحث برقم الزبون أو الاسم أو رقم الطلب" oninput="setEmpMySearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.82rem;outline:none;margin-bottom:8px;" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e5e7eb'">
+    <input id="empMySearch" type="search" inputmode="search" placeholder="🔎 ابحث برقم الزبون أو الاسم أو رقم الطلب" oninput="setEmpMySearch(this.value)">
     <div id="empMyChips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;"></div>
-    <div id="empOrdersList"><div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div></div>
+    <div id="empOrdersList"><div style="text-align:center;color:#8a7c62;font-size:0.82rem;padding:20px;">لا يوجد طلبات بعد</div></div>
     </div><!-- end empNormalOrderSection -->
 
-
-    <!-- Points Card -->
-    <div style="background:#fff;border:1.5px solid #fbbf24;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
-      <div style="font-size:0.95rem;font-weight:800;color:#92400e;margin-bottom:12px;">🏆 نقاطي</div>
-      <div style="display:flex;gap:10px;margin-bottom:14px;">
-        <div style="flex:1;background:#fffbeb;border-radius:10px;padding:12px;text-align:center;">
-          <div id="empPointsTotal" style="font-size:1.6rem;font-weight:900;color:#d97706;">...</div>
-          <div style="font-size:0.72rem;color:#92400e;">إجمالي النقاط</div>
-        </div>
-        <div style="flex:1;background:#f0fdf4;border-radius:10px;padding:12px;text-align:center;">
-          <div id="empPointsAvailable" style="font-size:1.6rem;font-weight:900;color:#166534;">...</div>
-          <div style="font-size:0.72rem;color:#166534;">نقاط متاحة</div>
-        </div>
-        <div style="flex:1;background:#eff6ff;border-radius:10px;padding:12px;text-align:center;">
-          <div id="empPointsAmount" style="font-size:1.6rem;font-weight:900;color:#1d4ed8;">...</div>
-          <div style="font-size:0.72rem;color:#1d4ed8;">د.أ مستحق</div>
-        </div>
+    <!-- نقاطي — قسيمة -->
+    <div class="bl-coupon">
+      <h4>🏆 نقاطي</h4>
+      <div class="bl-cg">
+        <div><div id="empPointsTotal" class="bl-num">...</div><div>إجمالي النقاط</div></div>
+        <div><div id="empPointsAvailable" class="bl-num">...</div><div>نقاط متاحة</div></div>
+        <div><div id="empPointsAmount" class="bl-num">...</div><div>د.أ مستحق</div></div>
       </div>
-      <button onclick="requestEmpPayout()" style="width:100%;padding:11px;background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;margin-bottom:10px;">💰 طلب صرف</button>
+      <button onclick="requestEmpPayout()">💰 طلب صرف</button>
       <div id="empPointsRequestsList"></div>
     </div>
 
