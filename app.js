@@ -3824,6 +3824,23 @@ const POS_CSS=`
  text-shadow:0 0 26px rgba(198,255,79,.3);}
 #posModal .pk-money .big .v.z{color:#39453F;text-shadow:none;}
 #posModal .pk-money .big .u{font-size:14px;font-weight:900;color:#6E8078;}
+#posModal .pk-money{cursor:pointer;}
+#posModal .pk-fp{margin-inline-start:auto;align-self:center;border:1.5px solid #3A4745;background:#121918;color:#B9CCC4;
+ border-radius:999px;padding:6px 11px;font-family:'Tajawal',sans-serif;font-size:12px;font-weight:900;cursor:pointer;
+ position:relative;z-index:1;white-space:nowrap;}
+#posModal .pk-fp.d{border-color:rgba(255,181,71,.55);color:var(--amb);background:rgba(255,181,71,.08);}
+#posModal .pk-fp[hidden]{display:none;}
+#posModal .pk-fin{display:flex;flex-direction:column;gap:8px;}
+#posModal .pk-fin .ln{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;color:#8FA39C;
+ padding:9px 12px;border-radius:12px;background:#0F1514;border:1px solid #232D2C;}
+#posModal .pk-fin .ln b{font-size:17px;color:var(--fg);}
+#posModal .pk-fin .ln.dc b{color:var(--amb);}
+#posModal .pk-fin .ln.pf b{color:var(--acc);}
+#posModal .pk-fin .ln.pf.neg b{color:var(--bad);}
+#posModal .pk-sheet input.fin{height:64px;font-size:32px;font-weight:700;text-align:center;direction:ltr;color:var(--acc);}
+#posModal .pk-fin .chips{display:flex;gap:7px;}
+#posModal .pk-fin .chips button{flex:1;height:40px;border-radius:11px;border:1.5px solid #313D3B;background:transparent;
+ color:#B9CCC4;font-weight:800;font-size:14px;cursor:pointer;}
 #posModal .pulse{animation:pkPulse .18s cubic-bezier(0,0,.2,1);}
 @keyframes pkPulse{0%{transform:scale(1)}40%{transform:scale(1.055)}100%{transform:scale(1)}}
 #posModal .pk-deck{flex:0 0 246px;min-height:0;background:var(--deck);border-top:1px solid #2E3A38;padding:0 12px;
@@ -4037,9 +4054,10 @@ async function openPos(){
       <button class="pk-x" onclick="posClose()" title="إغلاق">✕</button>
     </div>
     <div class="pk-tape" id="posTape"></div>
-    <div class="pk-money">
+    <div class="pk-money" onclick="posOpenFinal()">
       <div class="top"><span id="posMLbl">المطلوب من الزبون</span><span id="posMPc">—</span></div>
-      <div class="big"><span class="num v z" id="posMVal">0.00</span><span class="u">د.أ</span></div>
+      <div class="big"><span class="num v z" id="posMVal">0.00</span><span class="u">د.أ</span>
+        <button class="pk-fp" id="posFp" hidden onclick="event.stopPropagation();posOpenFinal()">✎ سعر نهائي</button></div>
     </div>
     <div class="pk-deck" id="posDeck">
       <div class="pk-rail">
@@ -4124,6 +4142,13 @@ function posRenderMoney(){
   else{
     document.getElementById('posPfC').style.width=Math.max(0,Math.min(100,T.cost/T.sell*100))+'%';
     if(T.profit<-0.005)pr.classList.add('neg');else pr.classList.remove('neg');
+  }
+  const fp=document.getElementById('posFp');
+  if(fp){
+    fp.hidden=!!_posDone||!_posCart.length;
+    const dsc=T.disc>=0.005;
+    fp.className='pk-fp'+(dsc?' d':'');
+    fp.innerHTML=dsc?`خصم <span class="num">${T.disc.toFixed(2)}</span> · ✎`:'✎ سعر نهائي';
   }
   const tr=document.getElementById('posTrack'),ok=_posReady();
   tr.classList[ok?'remove':'add']('dis');
@@ -4221,12 +4246,71 @@ function posRenderDeck(){
       +'</div>'+bottom;
   }
 }
+// «السعر النهائي»: بتكتب المبلغ اللي اتّفقت عليه مع الزبون، والخصم بينحسب
+// لحاله وبيتوزّع على الأصناف بنسبة أسعارها — فربح كل صنف بيضل صحيح بالتقارير.
+function _posListTotal(){return _posCart.reduce((a,it)=>a+(Number(it.list)||0)*(Number(it.qty)||0),0);}
+function _posFinVal(){
+  const i=document.getElementById('posFinal'); if(!i)return NaN;
+  const v=String(i.value||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٫,]/g,'.').trim();
+  return v===''?NaN:Number(v);
+}
+function _posFinPaint(){
+  const L=_posListTotal(),T=_posTotals(),v=_posFinVal();
+  const dEl=document.getElementById('posFinD'),dl=document.getElementById('posFinDL'),
+        pEl=document.getElementById('posFinP'),pr=document.getElementById('posFinPR');
+  if(!dEl)return;
+  if(!(v>=0)){dEl.textContent='—';pEl.textContent='—';pr.classList.remove('neg');return;}
+  const dc=L-v;
+  dEl.textContent=dc>=0?dc.toFixed(2):'—';
+  dl.textContent=dc<-0.004?'⚠ أكثر من السعر الأصلي':(L>0&&dc>0.004?`الخصم (${Math.round(dc/L*100)}٪)`:'الخصم');
+  const pf=v-T.cost;
+  pEl.textContent=pf.toFixed(2);
+  pr.classList[pf<-0.004?'add':'remove']('neg');
+}
+function posOpenFinal(){
+  if(_posDone||!_posCart.length){_posBeep&&_posBeep('bad');return;}
+  if(_posListTotal()<=0){toast('⚠️ ما في سعر أصلي للأصناف');return;}
+  _posSheet='final';_posBuzz(12);posRender();
+}
+function posFinalOk(){
+  const L=_posListTotal(),v=_posFinVal();
+  if(!(v>0)){toast('⚠️ اكتب السعر النهائي');_posBeep('bad');return;}
+  if(v>L+0.004){toast('⚠️ السعر النهائي أكثر من الأصلي ('+L.toFixed(2)+')');_posBeep('bad');return;}
+  const r=v/L;
+  // دقّة 6 منازل: المجموع بيطلع نفس المكتوب، وبلا ذيول عشرية طويلة
+  _posCart.forEach(it=>{it.price=Math.round((Number(it.list)||0)*r*1e6)/1e6;});
+  const dc=L-v;
+  _posSheet='';_posBeep('dup');_posBuzz(16);
+  toast(dc>0.004?`🏷️ السعر النهائي ${v.toFixed(2)} — خصم ${dc.toFixed(2)}`:'🏷️ بلا خصم');
+  posRender();
+}
+window.posOpenFinal=posOpenFinal;window.posFinalOk=posFinalOk;window._posFinPaint=_posFinPaint;
 function posRenderSheet(){
   const old=document.getElementById('posSheetEl'); if(old)old.remove();
   if(!_posSheet)return;
   const d=document.createElement('div');
   d.id='posSheetEl';d.className='pk-sheet';
-  if(_posSheet==='cust'){
+  if(_posSheet==='final'){
+    const L=_posListTotal(),T=_posTotals();
+    // أقرب نصّ دينار ودينار وخمسة تحت السعر — أشهر خصومات البسطة
+    const Lx=L-0.001;
+    const chips=[...new Set([Math.floor(Lx*2)/2,Math.floor(Lx),Math.floor(Lx/5)*5]
+      .filter(v=>v>0&&v<L-0.004).map(v=>v.toFixed(2)))];
+    d.innerHTML=`<h4>السعر النهائي — اكتب المبلغ اللي بدّك تقبضه</h4>
+      <div class="pk-fin">
+        <div class="ln"><span>السعر الأصلي</span><b class="num">${L.toFixed(2)}</b></div>
+        <input id="posFinal" class="fin num" type="text" inputmode="decimal" autocomplete="off"
+          value="${T.sell.toFixed(2)}" oninput="_posFinPaint()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();posFinalOk();}">
+        ${chips.length?`<div class="chips">${chips.map(v=>`<button type="button" class="num" data-fv="${v}">${v}</button>`).join('')}</div>`:''}
+        <div class="ln dc"><span id="posFinDL">الخصم</span><b class="num" id="posFinD">0.00</b></div>
+        <div class="ln pf" id="posFinPR"><span>ربحك</span><b class="num" id="posFinP">0.00</b></div>
+      </div>
+      <div class="btns">
+        <button class="key ghost mid" data-cs="clear" style="flex:1"><span class="lbl">بلا خصم</span></button>
+        <button class="key go mid" data-cs="ok" style="flex:2"><span class="lbl" style="font-size:16px">تمّ ✓</span></button>
+      </div>`;
+  }else if(_posSheet==='cust'){
     d.innerHTML=`<h4>الزبون — اختياري</h4>
       <input id="posCName" type="text" placeholder="اسم الزبون" value="${_clrEsc(_posCustomer.name)}">
       <input id="posCPhone" class="ph" type="tel" inputmode="tel" placeholder="الهاتف" value="${_clrEsc(_posCustomer.phone)}">
@@ -4252,6 +4336,22 @@ function posRenderSheet(){
       <div class="btns"><button class="key ghost mid" data-cs="ok" style="flex:1"><span class="lbl">◀ رجوع</span></button></div>`;
   }
   document.querySelector('#posModal .pk-wrap').appendChild(d);
+  if(_posSheet==='final'){
+    _posFinPaint();
+    const inp=document.getElementById('posFinal');
+    if(inp){try{inp.focus();inp.select();}catch(e){}}
+    d.addEventListener('click',e=>{
+      const c=e.target.closest('[data-fv]');
+      if(c){const i=document.getElementById('posFinal');i.value=c.getAttribute('data-fv');_posFinPaint();_posBuzz(10);return;}
+      const b=e.target.closest('[data-cs]'); if(!b)return;
+      if(b.getAttribute('data-cs')==='clear'){
+        _posCart.forEach(it=>{it.price=Number(it.list)||0;});
+        toast('🏷️ رجع السعر الأصلي');_posSheet='';_posBuzz(12);posRender();return;
+      }
+      posFinalOk();
+    });
+    return;
+  }
   d.addEventListener('click',e=>{
     const li=e.target.closest('[data-pid]');
     if(li){
