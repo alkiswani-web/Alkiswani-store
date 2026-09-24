@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v334"></script>
+<script defer src="app.js?v335"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2921,6 +2921,13 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
                   <span style="font-size:0.7rem;color:#a16207;">د.أ/س</span>
                   <button onclick="ewSaveHourlyRate()" style="padding:7px 11px;background:#d97706;color:#fff;border:none;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;">💾</button>
                 </div>
+                <div style="display:flex;gap:6px;align-items:center;margin-top:7px;flex-wrap:wrap;">
+                  <span style="font-size:0.7rem;color:#a16207;font-weight:700;">يبدأ من</span>
+                  <input type="date" id="ewHourlyFrom" oninput="this.dataset.touched='1'" style="flex:1;min-width:120px;padding:6px;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;background:#fff;">
+                  <button type="button" onclick="var f=document.getElementById('ewHourlyFrom');f.value='';f.dataset.touched='1';" style="padding:5px 8px;background:#fff;color:#92400e;border:1.5px solid #fde68a;border-radius:8px;font-family:'Tajawal',sans-serif;font-size:0.7rem;font-weight:700;cursor:pointer;">من أوّل يوم</button>
+                </div>
+                <div style="font-size:0.66rem;color:#a16207;margin-top:5px;line-height:1.6;">الأيام قبل هالتاريخ بتضل على سعرها القديم.</div>
+                <div id="ewHrHist" style="margin-top:6px;border-top:1px dashed #fde68a;padding-top:4px;"></div>
               </div>
               <div id="ewOrderRateSection" style="flex:1;min-width:160px;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:11px;">
                 <div style="font-size:0.72rem;font-weight:700;color:var(--text-dark);margin-bottom:7px;">⚙️ أجر الطلب</div>
