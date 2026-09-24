@@ -1267,6 +1267,35 @@ async function loadEmpWages(){
 }
 
 
+// ── أجر الساعة بتاريخ: السعر الجديد بيبدأ من يوم معيّن وما بيمسّ اللي قبله ──
+// كان في سعر واحد بيتضرب بكل ساعات الموظف من أوّل يوم، فتغييره بيغيّر كل
+// الحساب القديم. هلّأ emp_wage_rates.hourlyHistory = [{from:'YYYY-MM-DD',rate}]
+// و from:'' يعني «من الأوّل». موظف بلا سجل: السعر القديم على الكل زي قبل.
+function _hrHist(d){
+  const h=(Array.isArray(d&&d.hourlyHistory)?d.hourlyHistory:[])
+    .filter(x=>x&&x.from!=null).map(x=>({from:String(x.from),rate:parseFloat(x.rate)||0}))
+    .sort((a,b)=>a.from.localeCompare(b.from));
+  if(!h.length) return [{from:'',rate:parseFloat(d&&d.hourlyRate||0)||0}];
+  if(h[0].from!=='') h[0]={from:'',rate:h[0].rate};
+  return h;
+}
+function _hrRateOn(d,date){
+  const h=_hrHist(d),t=String(date||'');let r=h[0].rate;
+  h.forEach(x=>{if(x.from<=t)r=x.rate;});
+  return r;
+}
+function _hrAny(d){return _hrHist(d).some(x=>x.rate>0);}
+// مجموع أجر سجلات دوام — كل سجل بسعر يومه. بنجمّع الثواني حسب السعر
+// ومنقرّب مرّة لكل سعر، فالموظف بسعر واحد بيطلع نفس رقمه القديم بالضبط.
+function _hrEarned(d,recs,secsOf){
+  const by={};
+  (recs||[]).forEach(r=>{const rt=_hrRateOn(d,r.date);by[rt]=(by[rt]||0)+(secsOf?secsOf(r):_ewSecs(r));});
+  return Object.keys(by).reduce((t,rt)=>{const x=Number(rt);return t+(x?Math.round(_secsToDecimalHrs(by[rt])*x*100)/100:0);},0);
+}
+function _hrTag(d){
+  const h=_hrHist(d),today=jordanDateStr(),cur=_hrRateOn(d,today);
+  return cur?cur.toFixed(2)+' د.أ/ساعة'+(h.length>1?' (بتاريخ)':''):'لم يُحدد أجر/ساعة';
+}
 async function ewOpenMashghal(){
   _ewStore={id:'__mashghal__',name:'المشغل',pageId:'__mashghal__'};
   _ewShow(2);
@@ -1286,14 +1315,14 @@ async function ewOpenMashghal(){
     ratesSnap.docs.forEach(d=>{ratesData[d.id]=d.data();});
     if(!workers.length){list.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:10px;">لا يوجد موظفين — أضف موظفين من تبويب الموظفين</div>';return;}
     list.innerHTML=workers.map(w=>{
-      const hourlyRate=parseFloat(ratesData[w.id]?.hourlyRate||0);
+      const _rd=ratesData[w.id]||{};
       const paid=payments.filter(p=>p.workerId===w.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
       const name=w.name||w.username||w.id;
       return `<div onclick="ewOpenEmployee('${w.id}','${name.replace(/'/g,'&#39;')}')" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;padding:14px 16px;cursor:pointer;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-weight:800;color:#111;font-size:0.9rem;">👤 ${name}</div>
-            <div style="font-size:0.72rem;color:#9ca3af;margin-top:3px;">${hourlyRate?hourlyRate.toFixed(2)+' د.أ/ساعة':'لم يُحدد أجر/ساعة'} · مدفوع ${paid.toFixed(2)} د.أ</div>
+            <div style="font-size:0.72rem;color:#9ca3af;margin-top:3px;">${_hrTag(_rd)} · مدفوع ${paid.toFixed(2)} د.أ</div>
           </div>
           <span style="color:#9ca3af;font-size:1rem;">←</span>
         </div>
@@ -1441,9 +1470,12 @@ async function _ewRefreshEmployee(){
     _ewRate=isMashghal?0:parseFloat(rates[_ewStore.id]||0);
     const rateInput=document.getElementById('ewRateInput');
     if(rateInput)rateInput.value=_ewRate.toFixed(2);
-    const hourlyRate=parseFloat(rateDoc.exists?rateDoc.data().hourlyRate||0:0);
+    const _rDoc=rateDoc.exists?(rateDoc.data()||{}):{};
+    _ewRateDoc=_rDoc;
+    const hourlyRate=_hrRateOn(_rDoc,jordanDateStr());
     const hrInput=document.getElementById('ewHourlyRateInput');
     if(hrInput)hrInput.value=hourlyRate?hourlyRate.toFixed(2):'';
+    _ewHrHistPaint();
 
     // Attendance entries — filter by month in JS. بالعرض الكامل نحسب كل السجلات (حتى بدون تاريخ) عشان ما يضيع أي دوام
     const attDocs=attSnap.docs.map(d=>d.data()).filter(r=>!hasMonth||((r.date||'')>=dateFrom&&(r.date||'')<=dateTo)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
@@ -1452,7 +1484,8 @@ async function _ewRefreshEmployee(){
     attDocs.forEach(r=>{
       const secs=_ewSecs(r);
       totalAttSecs+=secs;
-      attEarned+=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
+      const _rt=_hrRateOn(_rDoc,r.date);
+      attEarned+=_rt?Math.round(_secsToDecimalHrs(secs)*_rt*100)/100:0;
     });
     attEarned=Math.round(attEarned*100)/100;
 
@@ -1497,7 +1530,8 @@ async function _ewRefreshEmployee(){
     // attendance days
     attDocs.forEach(r=>{
       const secs=_ewSecs(r);
-      const dayEarned=hourlyRate?Math.round(_secsToDecimalHrs(secs)*hourlyRate*100)/100:0;
+      const _drt=_hrRateOn(_rDoc,r.date);
+      const dayEarned=_drt?Math.round(_secsToDecimalHrs(secs)*_drt*100)/100:0;
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'';
       const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
       const ts=r.checkIn?new Date(r.checkIn).getTime():new Date((r.date||'1970-01-01')+'T12:00:00').getTime();
@@ -1601,21 +1635,72 @@ async function ewSaveRate(){
     await db.collection('emp_wage_rates').doc(_ewWorker.id).set({
       workerId:_ewWorker.id,workerName:_ewWorker.name,rates:existing,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
+    },{merge:true}); // بلا merge كان يمسح أجر الساعة وسجلّه
     _ewRate=rate;
     toast('✅ تم حفظ الراتب');
     await _ewRefreshEmployee();
   }catch(e){toast('❌ '+e.message);}
 }
 
+let _ewRateDoc={};
+function _ewHrHistPaint(){
+  const box=document.getElementById('ewHrHist');if(!box)return;
+  const fe=document.getElementById('ewHourlyFrom');
+  if(fe&&!fe.dataset.touched)fe.value=jordanDateStr();
+  const h=_hrHist(_ewRateDoc);
+  if(h.length<2&&!h[0].rate){box.innerHTML='';return;}
+  const dd=x=>x?x.split('-').reverse().join('/'):'';
+  box.innerHTML=h.map((x,i)=>{
+    const nx=h[i+1];
+    const when=!x.from&&!nx?'على كل الأيام':!x.from?`لحد ${dd(_ewPrevDay(nx.from))}`:nx?`من ${dd(x.from)} لحد ${dd(_ewPrevDay(nx.from))}`:`من ${dd(x.from)}`;
+    return `<div style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#92400e;padding:3px 0;${nx?'':'font-weight:800;'}">
+      <span style="min-width:44px;font-weight:900;">${x.rate.toFixed(2)}</span><span style="flex:1;">${when}</span>
+      ${i>0?`<button onclick="ewDelHourly('${x.from}')" title="شيل هالسعر" style="border:none;background:#fee2e2;color:#dc2626;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:0.68rem;">🗑</button>`:''}
+    </div>`;}).join('');
+}
+function _ewPrevDay(d){const t=new Date(d+'T12:00:00');t.setDate(t.getDate()-1);return t.toISOString().slice(0,10);}
 async function ewSaveHourlyRate(){
   if(!_ewWorker)return;
   const rate=parseFloat(document.getElementById('ewHourlyRateInput').value)||0;
+  const from=(document.getElementById('ewHourlyFrom')?.value||'').trim();
   try{
-    await db.collection('emp_wage_rates').doc(_ewWorker.id).set({hourlyRate:rate,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-    toast('✅ تم حفظ أجر الساعة');
+    const ref=db.collection('emp_wage_rates').doc(_ewWorker.id);
+    const snap=await ref.get();
+    const d=snap.exists?(snap.data()||{}):{};
+    let h=_hrHist(d);
+    // أوّل مرّة بيتحدّد السعر (كان صفر) أو «من أوّل يوم» ⇒ على كل الأيام
+    const _first=h.length===1&&!h[0].rate;
+    if(!from||_first){
+      if(!_first&&!confirm(`السعر ${rate.toFixed(2)} رح ينطبق على كل الأيام من الأوّل — وكل الحساب القديم رح يتغيّر.\n\nمتأكّد؟`))return;
+      h=[{from:'',rate}];
+    }else{
+      const cur=_hrRateOn(d,from);
+      if(Math.abs(cur-rate)<0.0001&&!h.some(x=>x.from===from)){toast('ℹ️ هاد نفس السعر من هاد التاريخ');return;}
+      h=h.filter(x=>x.from===''||x.from<from);
+      h.push({from,rate});
+    }
+    const last=h[h.length-1].rate;
+    await ref.set({hourlyRate:last,hourlyHistory:h,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    _ewRateDoc={...d,hourlyRate:last,hourlyHistory:h};
+    toast(from&&h.length>1?`✅ السعر ${rate.toFixed(2)} من ${from.split('-').reverse().join('/')} — اللي قبله ما تغيّر`:'✅ تم حفظ أجر الساعة');
+    if(typeof _ewRefreshEmployee==='function') await _ewRefreshEmployee(); else _ewHrHistPaint();
   }catch(e){toast('❌ '+e.message);}
 }
+async function ewDelHourly(from){
+  if(!_ewWorker||!from)return;
+  if(!confirm('شيل السعر اللي بيبدأ من '+from.split('-').reverse().join('/')+'؟\nالأيام من هداك التاريخ بترجع للسعر اللي قبله.'))return;
+  try{
+    const ref=db.collection('emp_wage_rates').doc(_ewWorker.id);
+    const snap=await ref.get();const d=snap.exists?(snap.data()||{}):{};
+    const h=_hrHist(d).filter(x=>x.from!==from);
+    const last=h[h.length-1].rate;
+    await ref.set({hourlyRate:last,hourlyHistory:h,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    _ewRateDoc={...d,hourlyRate:last,hourlyHistory:h};
+    toast('🗑 انشال');
+    if(typeof _ewRefreshEmployee==='function') await _ewRefreshEmployee(); else _ewHrHistPaint();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.ewSaveHourlyRate=ewSaveHourlyRate;window.ewDelHourly=ewDelHourly;
 
 async function ewRecordPayment(){
   if(!_ewWorker||!_ewStore)return;
@@ -13689,15 +13774,18 @@ async function _loadOpSessionData(){
     attSnap.docs.forEach(d=>{
       const r=d.data();
       const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked?Math.round(r.hoursWorked*3600):0);
-      if(!byEmp[r.employeeId])byEmp[r.employeeId]={secs:0,days:0};
+      if(!byEmp[r.employeeId])byEmp[r.employeeId]={secs:0,days:0,bySecs:{}};
       byEmp[r.employeeId].secs+=secs;
       byEmp[r.employeeId].days+=1;
+      // كل يوم بسعر يومه
+      const rt=_hrRateOn(ratesData[r.employeeId]||{},r.date);
+      byEmp[r.employeeId].bySecs[rt]=(byEmp[r.employeeId].bySecs[rt]||0)+secs;
     });
     _opMashghalWages=Object.entries(byEmp).map(([empId,data])=>{
       const w=workers.find(x=>x.id===empId)||{id:empId};
-      const hourlyRate=parseFloat(ratesData[empId]?.hourlyRate||0);
-      const hrs=Math.round(data.secs/36)/100;
-      const earned=hourlyRate?Math.round(hrs*hourlyRate*100)/100:0;
+      const hourlyRate=_hrRateOn(ratesData[empId]||{},to);
+      const earned=Object.keys(data.bySecs).reduce((t,rt)=>{const x=Number(rt);
+        return t+(x?Math.round((Math.round(data.bySecs[rt]/36)/100)*x*100)/100:0);},0);
       return{id:empId,name:w.name||w.username||empId,secs:data.secs,days:data.days,hourlyRate,earned};
     }).filter(w=>w.secs>0);
   }catch(e){_opMashghalWages=[];}
@@ -14987,8 +15075,7 @@ async function _payHubWages(){
         const st=stores.find(s=>s.id===sid);if(!st)return;
         jobs.push({wid,sid,name:wname[wid]||r.workerName||wid,store:st.name||'',rate:rt,pageId:st.pageId||''});
       });
-      const hr=parseFloat(r.hourlyRate||0)||0;
-      if(hr>0) jobs.push({wid,sid:'__mashghal__',name:wname[wid]||r.workerName||wid,store:'المشغل',hourly:hr});
+      if(_hrAny(r)) jobs.push({wid,sid:'__mashghal__',name:wname[wid]||r.workerName||wid,store:'المشغل',hourly:_hrRateOn(r,jordanDateStr()),hrDoc:r});
     });
     // موظف محسوب عليه تعديل حساب بلا أجر محدد ما إله «وظيفة» فوق، فكان
     // مستحقّه يغيب عن مركز الدفعات كلياً. نفتحله صفّاً بنفسه.
@@ -15005,8 +15092,7 @@ async function _payHubWages(){
       }else if(j.hourly){
         try{
           const a=await db.collection('attendance').where('employeeId','==',j.wid).get();
-          const secs=a.docs.reduce((s,d)=>s+_ewSecs(d.data()),0);
-          earned+=Math.round(_secsToDecimalHrs(secs)*j.hourly*100)/100;
+          earned+=_hrEarned(j.hrDoc||{hourlyRate:j.hourly},a.docs.map(d=>d.data()));
         }catch(e){}
       }else{
         const q=db.collection('employee_orders').where('workerId','==',j.wid).where('pageId','==',j.pageId);
@@ -17839,7 +17925,7 @@ async function _loadAttendanceData(date){
     const empIds=[...new Set(records.map(r=>r.employeeId))];
     const rateMap={};
     await Promise.all(empIds.map(async id=>{
-      try{const rd=await db.collection('emp_wage_rates').doc(id).get();rateMap[id]=parseFloat(rd.exists?rd.data().hourlyRate||0:0);}catch(e){rateMap[id]=0;}
+      try{const rd=await db.collection('emp_wage_rates').doc(id).get();rateMap[id]=rd.exists?(rd.data()||{}):{};}catch(e){rateMap[id]={};}
     }));
     let totalSecs=0,totalEarned=0;
     let html=`<table style="width:100%;border-collapse:collapse;font-size:0.8rem;direction:rtl;">
@@ -17856,7 +17942,7 @@ async function _loadAttendanceData(date){
       const isOpen=!!(r.checkIn&&!r.checkOut);
       const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):(isOpen?`<button onclick="manualCheckout('${r._id}')" style="background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb;border-radius:7px;padding:4px 9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;">🚪 خروج يدوي</button>`:'—');
       const secs=r.secondsWorked!=null?r.secondsWorked:(r.hoursWorked!=null?Math.round(r.hoursWorked*3600):null);
-      const hrRate=rateMap[r.employeeId]||0;
+      const hrRate=_hrRateOn(rateMap[r.employeeId]||{},r.date);
       const earned=secs!=null&&hrRate?Math.round(_secsToDecimalHrs(secs)*hrRate*100)/100:null;
       if(secs!=null){totalSecs+=secs;if(earned)totalEarned+=earned;}
       const durLabel=secs!=null?_fmtDuration(secs):r.checkIn&&!r.checkOut?'<span style="color:#fbbf24;font-size:0.75rem;">جارٍ</span>':'—';
@@ -17954,22 +18040,25 @@ async function attRangeReport(){
     const ids=[...new Set(recs.map(r=>r.employeeId))];
     const rates={};
     await Promise.all(ids.map(async id=>{
-      try{const d=await db.collection('emp_wage_rates').doc(id).get();rates[id]=parseFloat(d.exists?d.data().hourlyRate||0:0);}catch(e){rates[id]=0;}
+      try{const d=await db.collection('emp_wage_rates').doc(id).get();rates[id]=d.exists?(d.data()||{}):{};}catch(e){rates[id]={};}
     }));
     // تجميع حسب الموظف ثم اليوم
     const byEmp={};
     recs.forEach(r=>{
       const id=r.employeeId||'—';
-      if(!byEmp[id])byEmp[id]={id,name:r.employeeName||id,days:{},secs:0};
+      if(!byEmp[id])byEmp[id]={id,name:r.employeeName||id,days:{},secs:0,recs:[]};
+      byEmp[id].recs.push(r);
       const secs=_ewSecs(r);
       byEmp[id].secs+=secs;
       let sessions=Array.isArray(r.sessions)&&r.sessions.length?r.sessions:(r.checkIn?[{in:r.checkIn,out:r.checkOut||null}]:[]);
       byEmp[id].days[r.date]={secs,sessions,manual:!!r.manualEntry,docId:r._id};
     });
     const emps=Object.values(byEmp).map(e=>{
-      const rate=rates[e.id]||0;
+      const rd=rates[e.id]||{};
+      const used=[...new Set(e.recs.map(r=>_hrRateOn(rd,r.date)))];
+      const rate=used.length===1?used[0]:(used.length?used.map(x=>x.toFixed(2)).join('←'):0);
       const hrs=_secsToDecimalHrs(e.secs);
-      return {...e,rate,hrs,earned:rate?Math.round(hrs*rate*100)/100:0,dayCount:Object.keys(e.days).length};
+      return {...e,rate,hrs,earned:_hrEarned(rd,e.recs),dayCount:Object.keys(e.days).length};
     }).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar'));
     _attRangeData={from,to,emps};
     const tSecs=emps.reduce((t,e)=>t+e.secs,0);
