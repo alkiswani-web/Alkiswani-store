@@ -14548,7 +14548,7 @@ function renderOperatorDailyView(){
             <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               ${_noDlv?_ccStat('🛒 مبيعاته',stSales,'green'):_ccStat('💰 قابل للسحب',store.eligibleTotal,'green')}
               ${_noDlv?_ccStat('🧾 التكلفة عليه',stCost,'amber'):_ccStat('💸 مسحوب',storeWdTotal,'red')}
-              ${_noDlv?_ccStat('✅ دفعتلهم',acctPaid+acctRefund,'green')
+              ${_noDlv?((acctPaid+acctRefund)<-0.009?_ccStat('📥 قبضت منهم',-(acctPaid+acctRefund),'green'):_ccStat('✅ دفعتلهم',acctPaid+acctRefund,'green'))
                       :_ccStat(stMatloub<-0.009?'🧾 بدّك منهم':'🧾 المستحق',Math.abs(stMatloub),'amber')}
               ${(_noDlv&&storeWdTotal>0.009)?_ccStat('💸 سحب من كاشي (قديم)',storeWdTotal,'green'):''}
               ${_ccStat(stSafi>0.009?'📤 الصافي عليك':'✅ الصافي',stSafi,stSafi>0.009?'red':'gold')}
@@ -14799,6 +14799,11 @@ function renderOperatorDailyView(){
     const _salesOnly=((_opAllStoresList&&_opAllStoresList.length)?_opAllStoresList:(_opStoresList||[])).filter(s=>{
       if(!s.salesMerchant)return false; // فقط المتاجر المعلّمة «متجر مواد خام»
       if(_orderStoreIds.has(s.id))return false;
+      // المتجر اللي إله كرت فوق (توصيل/حساب جديد) ⇒ نفس الحساب بالزبط: الدفعات
+      // والمواد الخام كلها بتنحسب هناك («التكلفة عليه» و«دفعتلهم»). كرت ثاني إله
+      // كان يعرض نفس الحساب بمعادلة ثانية (والافتتاحي بإشارة غلط) — فبان إنهم
+      // حسابين والدفعة بتروح للثاني. حساب واحد لكل متجر.
+      if(_opStoreNets[s.id])return false;
       const owed=_opAcctOwed[s.id]||0,paid=_opAcctPaid[s.id]||0,ref=_opAcctRefund[s.id]||0;
       return (owed-paid-ref)>0.01;
     }).sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'));
