@@ -2979,6 +2979,31 @@ function _clrNumChip(code,n,fs){
 // صورة صغيرة (١٢٠ بكسل) تنحفظ جوّا الوثيقة نفسها فتظهر فوراً بلا رحلة
 // للتخزين — ٤-٨ كيلو للّون الواحد. ومنها نشتقّ لون تقريبي يضمن أنّ الرقم
 // يبقى مقروءاً في الأماكن الضيّقة.
+// نسخة كبيرة من صورة الشنيل (بلا قصّ، أطول ضلع 1000px) — بتنحفظ بمجموعة
+// لحالها color_imgs عشان المكتبة تضل خفيفة، وبنستعملها بس بـ«لوحة الألوان».
+function _clrFull(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>rej(new Error('تعذّرت قراءة الصورة'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>rej(new Error('صورة غير صالحة'));
+      im.onload=()=>{
+        const M=1000,k=Math.min(1,M/Math.max(im.width,im.height));
+        const cv=document.createElement('canvas');
+        cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);
+        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+        res(cv.toDataURL('image/jpeg',0.82));
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function _clrSaveFull(id,dataUrl){
+  try{ await db.collection('color_imgs').doc(id).set({img:dataUrl,at:firebase.firestore.FieldValue.serverTimestamp()}); }catch(e){}
+  _csFull=null;
+}
 function _clrThumb(file){
   return new Promise((res,rej)=>{
     const fr=new FileReader();
@@ -3007,6 +3032,133 @@ function _clrThumb(file){
     fr.readAsDataURL(file);
   });
 }
+// ═══ «كل الألوان بصورة وحدة» ═══
+// لوحة وحدة فيها صورة كل لون ورقمه واسمه وكميته — تنبعت عالواتساب للزباين
+// أو للموظفين. الصورة من النسخة الكبيرة لو موجودة، وإلا من الصورة الصغيرة.
+let _csOpt={which:'all',cols:4,qty:true},_csFull=null,_csBlob=null;
+async function openColorSheet(){
+  document.getElementById('clrSheetModal')?.remove();
+  const ov=document.createElement('div');
+  ov.id='clrSheetModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100004;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="width:100%;max-width:560px;max-height:94vh;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px;">
+      <div><div style="font-weight:900;font-size:1rem;color:#4c1d95;">🖼️ كل الألوان بصورة وحدة</div>
+        <div style="font-size:0.7rem;color:#6b7280;">صورة كل لون مع رقمه وكميته — جاهزة للواتساب</div></div>
+      <button onclick="document.getElementById('clrSheetModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:34px;height:34px;cursor:pointer;">✕</button>
+    </div>
+    <div id="csOpts" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px;"></div>
+    <div id="csPrev" style="flex:1;overflow-y:auto;padding:0 16px;background:#f9fafb;min-height:200px;display:grid;place-items:center;"><div style="color:#6b7280;font-size:.85rem;padding:30px;">⏳ عم بجهّز الصورة...</div></div>
+    <div id="csNote" style="font-size:0.7rem;color:#92400e;padding:6px 16px 0;line-height:1.6;"></div>
+    <div style="display:flex;gap:8px;padding:10px 16px 16px;">
+      <button id="csShare" onclick="csShare()" disabled style="flex:2;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:900;cursor:pointer;">📤 شارك</button>
+      <button id="csSave" onclick="csSave()" disabled style="flex:1;padding:13px;background:#eef2ff;color:#3730a3;border:1.5px solid #c7d2fe;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.9rem;font-weight:800;cursor:pointer;">⬇️ حمّل</button>
+    </div></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  if(!_colorLibLoaded) await loadColorLibrary();
+  if(!_csFull){
+    _csFull={};
+    try{const snap=await db.collection('color_imgs').get();snap.docs.forEach(d=>{const v=d.data();if(v&&v.img)_csFull[d.id]=v.img;});}catch(e){}
+  }
+  _csPaintOpts();
+  await _csBuild();
+}
+function _csPaintOpts(){
+  const el=document.getElementById('csOpts');if(!el)return;
+  const B=(on,act,t)=>`<button onclick="${act}" style="padding:7px 11px;border-radius:9px;border:1.5px solid ${on?'#7c3aed':'#e5e7eb'};background:${on?'#f5f3ff':'#fff'};color:${on?'#5b21b6':'#4b5563'};font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;">${t}</button>`;
+  el.innerHTML=B(_csOpt.which==='all',"csSet('which','all')",'كل الألوان')+B(_csOpt.which==='avail',"csSet('which','avail')",'المتوفّر بس')
+    +'<span style="width:8px"></span>'+[3,4,5].map(n=>B(_csOpt.cols===n,`csSet('cols',${n})`,n+' بالسطر')).join('')
+    +'<span style="width:8px"></span>'+B(_csOpt.qty,"csSet('qty',"+(!_csOpt.qty)+")",(_csOpt.qty?'✓ ':'')+'الكمية');
+}
+function csSet(k,v){_csOpt[k]=v;_csPaintOpts();_csBuild();}
+function _csList(){
+  return _colorLib.filter(c=>c.status!=='retired').filter(c=>{
+    if(_csOpt.which!=='avail')return true;
+    if(c.status==='out')return false;
+    return !(c.counted===true&&(Number(c.qty)||0)<=0);
+  });
+}
+function _csLoadImg(src){
+  return new Promise(r=>{if(!src)return r(null);const im=new Image();im.onload=()=>r(im);im.onerror=()=>r(null);im.src=src;});
+}
+async function _csBuild(){
+  const prev=document.getElementById('csPrev');if(!prev)return;
+  document.getElementById('csShare').disabled=true;document.getElementById('csSave').disabled=true;
+  const list=_csList();
+  if(!list.length){prev.innerHTML='<div style="color:#6b7280;font-size:.85rem;padding:30px;">ما في ألوان بهالاختيار</div>';return;}
+  try{await document.fonts.load('900 40px Tajawal');await document.fonts.load('700 26px Tajawal');}catch(e){}
+  const imgs=await Promise.all(list.map(c=>_csLoadImg(_csFull[c.id]||c.img)));
+  const small=list.filter((c,i)=>imgs[i]&&!_csFull[c.id]).length;
+  const W=1200,P=36,G=18,cols=_csOpt.cols,cw=Math.floor((W-2*P-(cols-1)*G)/cols);
+  const LH=_csOpt.qty?(cols>=5?84:92):(cols>=5?60:66),ch=cw+LH,HD=150;
+  const rows=Math.ceil(list.length/cols),H=HD+rows*ch+(rows-1)*G+P+56;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const x=cv.getContext('2d');
+  x.fillStyle='#fbfaf7';x.fillRect(0,0,W,H);
+  x.direction='rtl';x.textAlign='right';x.textBaseline='alphabetic';
+  x.fillStyle='#111827';x.font="900 46px Tajawal, sans-serif";x.fillText('ألوان الكسواني روزميري',W-P,P+48);
+  const d=new Date(),dd=`${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+  x.fillStyle='#6b7280';x.font="700 24px Tajawal, sans-serif";
+  x.fillText(`${list.length} لون${_csOpt.which==='avail'?' متوفّر':''} · محدّثة ${dd}`,W-P,P+88);
+  x.fillStyle='#e5e7eb';x.fillRect(P,HD-18,W-2*P,2);
+  const rr=(X,Y,w,h,r)=>{x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,Y+h,r);x.arcTo(X+w,Y+h,X,Y+h,r);x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath();};
+  list.forEach((c,i)=>{
+    const col=i%cols,row=Math.floor(i/cols);
+    const X=W-P-(col+1)*cw-col*G,Y=HD+row*(ch+G);
+    x.save();rr(X,Y,cw,ch,18);x.fillStyle='#ffffff';x.fill();x.strokeStyle='#e5e7eb';x.lineWidth=2;x.stroke();x.restore();
+    // الصورة كاملة بلا قصّ داخل المربّع
+    x.save();rr(X+8,Y+8,cw-16,cw-16,12);x.clip();
+    x.fillStyle=c.hex||'#f3f4f6';x.fillRect(X+8,Y+8,cw-16,cw-16);
+    const im=imgs[i];
+    if(im){const box=cw-16,k=Math.min(box/im.width,box/im.height),w=im.width*k,h=im.height*k;
+      if(!_csFull[c.id]){x.drawImage(im,X+8,Y+8,box,box);}
+      else{x.fillStyle='#f3f4f6';x.fillRect(X+8,Y+8,box,box);x.drawImage(im,X+8+(box-w)/2,Y+8+(box-h)/2,w,h);}}
+    const out=c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0);
+    if(out){x.fillStyle='rgba(255,255,255,.55)';x.fillRect(X+8,Y+8,cw-16,cw-16);}
+    x.restore();
+    // رقم اللون
+    const R=cols>=5?24:28,bx=X+cw-8-R-6,by=Y+8+R+6;
+    x.beginPath();x.arc(bx,by,R,0,Math.PI*2);x.fillStyle='rgba(17,24,39,.9)';x.fill();
+    x.fillStyle='#fff';x.textAlign='center';x.font=`900 ${cols>=5?24:28}px Tajawal, sans-serif`;x.fillText(String(c.code),bx,by+R*0.36);
+    x.textAlign='right';
+    const ty=Y+cw+(cols>=5?30:34);
+    x.fillStyle='#111827';x.font=`800 ${cols>=5?22:26}px Tajawal, sans-serif`;
+    let nm=(c.name||'').trim()||('لون '+c.code);
+    while(x.measureText(nm).width>cw-24&&nm.length>2)nm=nm.slice(0,-2)+'…';
+    x.fillText(nm,X+cw-14,ty);
+    if(_csOpt.qty){
+      const q=c.counted===true?(Number(c.qty)||0):null;
+      x.font=`800 ${cols>=5?19:22}px Tajawal, sans-serif`;
+      if(out){x.fillStyle='#dc2626';x.fillText('خلص',X+cw-14,ty+(cols>=5?30:34));}
+      else if(q!=null){x.fillStyle=q<=2?'#b45309':'#16a34a';x.fillText(`متوفّر ${q} قطعة`,X+cw-14,ty+(cols>=5?30:34));}
+      else{x.fillStyle='#16a34a';x.fillText('متوفّر',X+cw-14,ty+(cols>=5?30:34));}
+    }
+  });
+  x.fillStyle='#9ca3af';x.font="700 20px Tajawal, sans-serif";x.textAlign='center';
+  x.fillText('الكسواني روزميري · الأرقام هي أرقام الألوان للطلب',W/2,H-24);
+  _csBlob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
+  const url=URL.createObjectURL(_csBlob);
+  prev.innerHTML=`<img src="${url}" style="width:100%;height:auto;display:block;margin:10px 0;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.1);">`;
+  const note=document.getElementById('csNote');
+  if(note) note.innerHTML=small?`📷 ${small} لون صورته محفوظة صغيرة (من قبل) — بتطلع مغبّشة شوي. لو بدك تطلع زي ما صوّرتها بالزبط: افتح اللون وبدّل صورته مرّة وحدة، ومن هلّأ ورايح بتنحفظ كاملة.`:'';
+  document.getElementById('csShare').disabled=false;document.getElementById('csSave').disabled=false;
+}
+async function csShare(){
+  if(!_csBlob)return;
+  const f=new File([_csBlob],'alwan-alkiswani.jpg',{type:'image/jpeg'});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'ألوان الكسواني روزميري'});return;}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  csSave();
+}
+function csSave(){
+  if(!_csBlob)return;
+  const a=document.createElement('a');a.href=URL.createObjectURL(_csBlob);a.download='alwan-alkiswani.jpg';
+  document.body.appendChild(a);a.click();a.remove();toast('⬇️ انحفظت الصورة');
+}
+window.openColorSheet=openColorSheet;window.csSet=csSet;window.csShare=csShare;window.csSave=csSave;
+
 function clrPickImage(id){
   const inp=document.createElement('input');
   inp.type='file';inp.accept='image/*';
@@ -3014,8 +3166,9 @@ function clrPickImage(id){
     const f=inp.files&&inp.files[0];if(!f)return;
     toast('⏳ جاري تجهيز الصورة...');
     try{
-      const t=await _clrThumb(f);
+      const [t,full]=await Promise.all([_clrThumb(f),_clrFull(f).catch(()=>'')]);
       await db.collection('color_library').doc(id).update({img:t.dataUrl,...(t.hex?{hex:t.hex}:{})});
+      if(full) await _clrSaveFull(id,full);
       await loadColorLibrary(true);
       renderColorLib();
       toast('📷 انحفظت صورة الشنيل');
@@ -3026,6 +3179,7 @@ function clrPickImage(id){
 async function clrClearImage(id){
   try{
     await db.collection('color_library').doc(id).update({img:''});
+    try{ await db.collection('color_imgs').doc(id).delete(); }catch(e){}
     await loadColorLibrary(true);
     renderColorLib();
     toast('🗑 انشالت الصورة');
@@ -3392,6 +3546,7 @@ function renderColorLib(){
     `<button onclick="clrAdd()" style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">➕ لون جديد</button>`+
     `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
     (_colorLib.length?`<button onclick="openColorIntake()" style="padding:7px 12px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📥 وارد جديد</button>`:'')+
+    (_colorLib.length?`<button onclick="openColorSheet()" style="padding:7px 12px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🖼️ كل الألوان بصورة وحدة</button>`:'')+
     (_colorLib.length?`<button onclick="openColorBulk()" style="padding:7px 12px;background:#1f2937;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📷 صورة وحدة للكل</button>`:'')+
     ((_colorLib.length||_colorLibError)?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
 
@@ -3698,7 +3853,10 @@ function cbTap(ev){
       const h=v=>Math.round(v/n).toString(16).padStart(2,'0');
       hex='#'+h(r2)+h(g)+h(b);
     }catch(e){}
-    _cbDone[cur.code]={img:cv.toDataURL('image/jpeg',0.72),hex,px:fx*100,py:fy*100};
+    let full='';
+    try{const B=Math.min(480,Math.round(side)),cb=document.createElement('canvas');cb.width=B;cb.height=B;
+      cb.getContext('2d').drawImage(_cbImg,sx,sy,side,side,0,0,B,B);full=cb.toDataURL('image/jpeg',0.82);}catch(e){}
+    _cbDone[cur.code]={img:cv.toDataURL('image/jpeg',0.72),full,hex,px:fx*100,py:fy*100};
     _cbIdx++;
     _cbRender();
   }catch(e){toast('❌ '+e.message);}
@@ -3716,6 +3874,8 @@ async function cbSave(){
       batch.update(db.collection('color_library').doc(c.id),{img:d.img,...(d.hex?{hex:d.hex}:{})});
     });
     await batch.commit();
+    for(const code of codes){const c=_cbList.find(x=>String(x.code)===String(code));
+      if(c&&_cbDone[code].full) await _clrSaveFull(c.id,_cbDone[code].full);}
     const n=codes.length;
     _cbDone={};
     await loadColorLibrary(true);
