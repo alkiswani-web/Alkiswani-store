@@ -3035,7 +3035,7 @@ function _clrThumb(file){
 // ═══ «كل الألوان بصورة وحدة» ═══
 // لوحة وحدة فيها صورة كل لون ورقمه واسمه وكميته — تنبعت عالواتساب للزباين
 // أو للموظفين. الصورة من النسخة الكبيرة لو موجودة، وإلا من الصورة الصغيرة.
-let _csOpt={which:'all',cols:4,qty:true},_csFull=null,_csBlob=null;
+let _csOpt={which:'all',cols:4,qty:true},_csFull=null,_csBlob=null,_csBlobs=[];
 async function openColorSheet(){
   document.getElementById('clrSheetModal')?.remove();
   const ov=document.createElement('div');
@@ -3090,50 +3090,60 @@ async function _csBuild(){
   try{await document.fonts.load('900 40px Tajawal');await document.fonts.load('700 26px Tajawal');}catch(e){}
   const imgs=await Promise.all(list.map(c=>_csLoadImg(_csFull[c.id]||c.img)));
   const small=list.filter((c,i)=>imgs[i]&&!_csFull[c.id]).length;
-  const W=1200,P=36,G=18,cols=_csOpt.cols,cw=Math.floor((W-2*P-(cols-1)*G)/cols);
-  const LH=_csOpt.qty?(cols>=5?84:92):(cols>=5?60:66),ch=cw+LH,HD=P;
-  const rows=Math.ceil(list.length/cols),H=HD+rows*ch+(rows-1)*G+P;
-  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
-  const x=cv.getContext('2d');
-  x.fillStyle='#fbfaf7';x.fillRect(0,0,W,H);
-  x.direction='rtl';x.textAlign='right';x.textBaseline='alphabetic';
-  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
-  const rr=(X,Y,w,h,r)=>{x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,Y+h,r);x.arcTo(X+w,Y+h,X,Y+h,r);x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath();};
-  list.forEach((c,i)=>{
-    const col=i%cols,row=Math.floor(i/cols);
-    const X=W-P-(col+1)*cw-col*G,Y=HD+row*(ch+G);
-    x.save();rr(X,Y,cw,ch,18);x.fillStyle='#ffffff';x.fill();x.strokeStyle='#e5e7eb';x.lineWidth=2;x.stroke();x.restore();
-    // الصورة كاملة بلا قصّ داخل المربّع
-    x.save();rr(X+8,Y+8,cw-16,cw-16,12);x.clip();
-    x.fillStyle=c.hex||'#f3f4f6';x.fillRect(X+8,Y+8,cw-16,cw-16);
-    const im=imgs[i];
-    // الصورة بتعبّي المربّع من نصّها — الكبيرة بتضل واضحة لأنها أكبر من المربّع بكثير
-    if(im){const box=cw-16,sd=Math.min(im.width,im.height);
-      x.drawImage(im,(im.width-sd)/2,(im.height-sd)/2,sd,sd,X+8,Y+8,box,box);}
-    const out=c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0);
-    if(out){x.fillStyle='rgba(255,255,255,.55)';x.fillRect(X+8,Y+8,cw-16,cw-16);}
-    x.restore();
-    // رقم اللون
-    const R=cols>=5?24:28,bx=X+cw-8-R-6,by=Y+8+R+6;
-    x.beginPath();x.arc(bx,by,R,0,Math.PI*2);x.fillStyle='rgba(17,24,39,.9)';x.fill();
-    x.fillStyle='#fff';x.textAlign='center';x.font=`900 ${cols>=5?24:28}px Tajawal, sans-serif`;x.fillText(String(c.code),bx,by+R*0.36);
-    x.textAlign='right';
-    const ty=Y+cw+(cols>=5?30:34);
-    x.fillStyle='#111827';x.font=`800 ${cols>=5?22:26}px Tajawal, sans-serif`;
-    let nm=(c.name||'').trim()||('لون '+c.code);
-    while(x.measureText(nm).width>cw-24&&nm.length>2)nm=nm.slice(0,-2)+'…';
-    x.fillText(nm,X+cw-14,ty);
-    if(_csOpt.qty){
-      const q=c.counted===true?(Number(c.qty)||0):null;
-      x.font=`800 ${cols>=5?19:22}px Tajawal, sans-serif`;
-      if(out){x.fillStyle='#dc2626';x.fillText('خلص',X+cw-14,ty+(cols>=5?30:34));}
-      else if(q!=null){x.fillStyle=q<=2?'#b45309':'#16a34a';x.fillText(`متوفّر ${q} قطعة`,X+cw-14,ty+(cols>=5?30:34));}
-      else{x.fillStyle='#16a34a';x.fillText('متوفّر',X+cw-14,ty+(cols>=5?30:34));}
-    }
-  });
-  _csBlob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
-  const url=URL.createObjectURL(_csBlob);
-  prev.innerHTML=`<img src="${url}" style="width:100%;height:auto;display:block;margin:10px 0;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.1);">`;
+  // الواتساب بيصغّر أي صورة لحد ~1600px لأطول ضلع، فالصورة الطويلة كانت تنعصر
+  // والكتابة تتغبّش. هلّأ صفحات بمقاس الواتساب (أطول ضلع ≤1600) وبتنبعت كلها سوا.
+  const W=1200,P=30,G=16,cols=_csOpt.cols,cw=Math.floor((W-2*P-(cols-1)*G)/cols);
+  const big=cols<=3?1.25:cols===4?1:0.85;
+  const fN=Math.round(30*big),fQ=Math.round(25*big),fB=Math.round(30*big);
+  const LH=_csOpt.qty?Math.round(fN+fQ+34):Math.round(fN+24),ch=cw+LH;
+  const rowsPer=Math.max(1,Math.floor((1600-2*P+G)/(ch+G)));
+  const per=rowsPer*cols,pages=[];
+  for(let k=0;k<list.length;k+=per)pages.push(k);
+  _csBlobs=[];
+  const rr=(x,X,Y,w,h,r)=>{x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,Y+h,r);x.arcTo(X+w,Y+h,X,Y+h,r);x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath();};
+  for(let pg=0;pg<pages.length;pg++){
+    const part=list.slice(pages[pg],pages[pg]+per),pimg=imgs.slice(pages[pg],pages[pg]+per);
+    const rows=Math.ceil(part.length/cols),H=P+rows*ch+(rows-1)*G+P+(pages.length>1?28:0);
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const x=cv.getContext('2d');
+    x.fillStyle='#fbfaf7';x.fillRect(0,0,W,H);
+    x.direction='rtl';x.textAlign='right';x.textBaseline='alphabetic';
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
+    part.forEach((c,i)=>{
+      const col=i%cols,row=Math.floor(i/cols);
+      const X=W-P-(col+1)*cw-col*G,Y=P+row*(ch+G);
+      x.save();rr(x,X,Y,cw,ch,18);x.fillStyle='#ffffff';x.fill();x.strokeStyle='#e5e7eb';x.lineWidth=2;x.stroke();x.restore();
+      x.save();rr(x,X+8,Y+8,cw-16,cw-16,12);x.clip();
+      x.fillStyle=c.hex||'#f3f4f6';x.fillRect(X+8,Y+8,cw-16,cw-16);
+      const im=pimg[i];
+      if(im){const box=cw-16,sd=Math.min(im.width,im.height);
+        x.drawImage(im,(im.width-sd)/2,(im.height-sd)/2,sd,sd,X+8,Y+8,box,box);}
+      const out=c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0);
+      if(out){x.fillStyle='rgba(255,255,255,.55)';x.fillRect(X+8,Y+8,cw-16,cw-16);}
+      x.restore();
+      const R=Math.round(fB*1.05),bx=X+cw-8-R-6,by=Y+8+R+6;
+      x.beginPath();x.arc(bx,by,R,0,Math.PI*2);x.fillStyle='rgba(17,24,39,.9)';x.fill();
+      x.fillStyle='#fff';x.textAlign='center';x.font=`900 ${fB}px Tajawal, sans-serif`;x.fillText(String(c.code),bx,by+fB*0.36);
+      x.textAlign='right';
+      const ty=Y+cw+fN+8;
+      x.fillStyle='#111827';x.font=`800 ${fN}px Tajawal, sans-serif`;
+      let nm=(c.name||'').trim()||('لون '+c.code);
+      while(x.measureText(nm).width>cw-24&&nm.length>2)nm=nm.slice(0,-2)+'…';
+      x.fillText(nm,X+cw-14,ty);
+      if(_csOpt.qty){
+        const q=c.counted===true?(Number(c.qty)||0):null,qy=ty+fQ+10;
+        x.font=`800 ${fQ}px Tajawal, sans-serif`;
+        if(out){x.fillStyle='#dc2626';x.fillText('خلص',X+cw-14,qy);}
+        else if(q!=null){x.fillStyle=q<=2?'#b45309':'#16a34a';x.fillText(`متوفّر ${q} قطعة`,X+cw-14,qy);}
+        else{x.fillStyle='#16a34a';x.fillText('متوفّر',X+cw-14,qy);}
+      }
+    });
+    if(pages.length>1){x.direction='ltr';x.fillStyle='#9ca3af';x.textAlign='center';x.font='800 22px Tajawal, sans-serif';x.fillText(`${pg+1} / ${pages.length}`,W/2,H-18);}
+    _csBlobs.push(await new Promise(r=>cv.toBlob(r,'image/jpeg',0.92)));
+  }
+  _csBlob=_csBlobs[0];
+  prev.innerHTML=_csBlobs.map((b,i)=>`<img src="${URL.createObjectURL(b)}" style="width:100%;height:auto;display:block;margin:10px 0;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.1);">`).join('');
+  const sb=document.getElementById('csShare');if(sb)sb.textContent=_csBlobs.length>1?`📤 شارك (${_csBlobs.length} صور)`:'📤 شارك';
   const note=document.getElementById('csNote');
   if(note) note.innerHTML=small?`<div style="display:flex;align-items:center;gap:8px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:8px 10px;">
     <span style="flex:1;">📷 <b>${small}</b> لون صورته قديمة وصغيرة — عشان هيك بتطلع مغبّشة. صوّرهم من جديد مرّة وحدة وبتطلع اللوحة واضحة.</span>
@@ -3196,17 +3206,18 @@ async function crClose(){
 }
 window.openColorRephoto=openColorRephoto;window.crShoot=crShoot;window.crClose=crClose;
 async function csShare(){
-  if(!_csBlob)return;
-  const f=new File([_csBlob],'alwan-alkiswani.jpg',{type:'image/jpeg'});
+  if(!_csBlobs.length)return;
+  const fs=_csBlobs.map((b,i)=>new File([b],`alwan-${i+1}.jpg`,{type:'image/jpeg'}));
   try{
-    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'ألوان الكسواني روزميري'});return;}
+    if(navigator.canShare&&navigator.canShare({files:fs})){await navigator.share({files:fs});return;}
   }catch(e){if(e&&e.name==='AbortError')return;}
   csSave();
 }
 function csSave(){
-  if(!_csBlob)return;
-  const a=document.createElement('a');a.href=URL.createObjectURL(_csBlob);a.download='alwan-alkiswani.jpg';
-  document.body.appendChild(a);a.click();a.remove();toast('⬇️ انحفظت الصورة');
+  if(!_csBlobs.length)return;
+  _csBlobs.forEach((b,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`alwan-${i+1}.jpg`;
+    document.body.appendChild(a);a.click();a.remove();},i*400));
+  toast(_csBlobs.length>1?`⬇️ انحفظت ${_csBlobs.length} صور`:'⬇️ انحفظت الصورة');
 }
 window.openColorSheet=openColorSheet;window.csSet=csSet;window.csShare=csShare;window.csSave=csSave;
 
