@@ -3091,17 +3091,13 @@ async function _csBuild(){
   const imgs=await Promise.all(list.map(c=>_csLoadImg(_csFull[c.id]||c.img)));
   const small=list.filter((c,i)=>imgs[i]&&!_csFull[c.id]).length;
   const W=1200,P=36,G=18,cols=_csOpt.cols,cw=Math.floor((W-2*P-(cols-1)*G)/cols);
-  const LH=_csOpt.qty?(cols>=5?84:92):(cols>=5?60:66),ch=cw+LH,HD=150;
-  const rows=Math.ceil(list.length/cols),H=HD+rows*ch+(rows-1)*G+P+56;
+  const LH=_csOpt.qty?(cols>=5?84:92):(cols>=5?60:66),ch=cw+LH,HD=P;
+  const rows=Math.ceil(list.length/cols),H=HD+rows*ch+(rows-1)*G+P;
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const x=cv.getContext('2d');
   x.fillStyle='#fbfaf7';x.fillRect(0,0,W,H);
   x.direction='rtl';x.textAlign='right';x.textBaseline='alphabetic';
-  x.fillStyle='#111827';x.font="900 46px Tajawal, sans-serif";x.fillText('ألوان الكسواني روزميري',W-P,P+48);
-  const d=new Date(),dd=`${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
-  x.fillStyle='#6b7280';x.font="700 24px Tajawal, sans-serif";
-  x.fillText(`${list.length} لون${_csOpt.which==='avail'?' متوفّر':''} · محدّثة ${dd}`,W-P,P+88);
-  x.fillStyle='#e5e7eb';x.fillRect(P,HD-18,W-2*P,2);
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
   const rr=(X,Y,w,h,r)=>{x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,Y+h,r);x.arcTo(X+w,Y+h,X,Y+h,r);x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath();};
   list.forEach((c,i)=>{
     const col=i%cols,row=Math.floor(i/cols);
@@ -3111,9 +3107,9 @@ async function _csBuild(){
     x.save();rr(X+8,Y+8,cw-16,cw-16,12);x.clip();
     x.fillStyle=c.hex||'#f3f4f6';x.fillRect(X+8,Y+8,cw-16,cw-16);
     const im=imgs[i];
-    if(im){const box=cw-16,k=Math.min(box/im.width,box/im.height),w=im.width*k,h=im.height*k;
-      if(!_csFull[c.id]){x.drawImage(im,X+8,Y+8,box,box);}
-      else{x.fillStyle='#f3f4f6';x.fillRect(X+8,Y+8,box,box);x.drawImage(im,X+8+(box-w)/2,Y+8+(box-h)/2,w,h);}}
+    // الصورة بتعبّي المربّع من نصّها — الكبيرة بتضل واضحة لأنها أكبر من المربّع بكثير
+    if(im){const box=cw-16,sd=Math.min(im.width,im.height);
+      x.drawImage(im,(im.width-sd)/2,(im.height-sd)/2,sd,sd,X+8,Y+8,box,box);}
     const out=c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0);
     if(out){x.fillStyle='rgba(255,255,255,.55)';x.fillRect(X+8,Y+8,cw-16,cw-16);}
     x.restore();
@@ -3135,15 +3131,70 @@ async function _csBuild(){
       else{x.fillStyle='#16a34a';x.fillText('متوفّر',X+cw-14,ty+(cols>=5?30:34));}
     }
   });
-  x.fillStyle='#9ca3af';x.font="700 20px Tajawal, sans-serif";x.textAlign='center';
-  x.fillText('الكسواني روزميري · الأرقام هي أرقام الألوان للطلب',W/2,H-24);
   _csBlob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
   const url=URL.createObjectURL(_csBlob);
   prev.innerHTML=`<img src="${url}" style="width:100%;height:auto;display:block;margin:10px 0;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.1);">`;
   const note=document.getElementById('csNote');
-  if(note) note.innerHTML=small?`📷 ${small} لون صورته محفوظة صغيرة (من قبل) — بتطلع مغبّشة شوي. لو بدك تطلع زي ما صوّرتها بالزبط: افتح اللون وبدّل صورته مرّة وحدة، ومن هلّأ ورايح بتنحفظ كاملة.`:'';
+  if(note) note.innerHTML=small?`<div style="display:flex;align-items:center;gap:8px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:8px 10px;">
+    <span style="flex:1;">📷 <b>${small}</b> لون صورته قديمة وصغيرة — عشان هيك بتطلع مغبّشة. صوّرهم من جديد مرّة وحدة وبتطلع اللوحة واضحة.</span>
+    <button onclick="openColorRephoto()" style="flex-shrink:0;padding:8px 11px;background:#b45309;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:900;cursor:pointer;">📷 صوّرهم</button></div>`:'';
   document.getElementById('csShare').disabled=false;document.getElementById('csSave').disabled=false;
 }
+// «صوّر الألوان من جديد»: شبكة فيها كل لون صورته قديمة — ضغطة بتفتح الكاميرا،
+// والصورة بتنحفظ كاملة، واللون بيتعلّم ✓ وبتكمّل عاللي بعده.
+let _crDone={},_crIds=[];
+function openColorRephoto(){
+  document.getElementById('clrRephoto')?.remove();
+  _crDone={};
+  _crIds=_colorLib.filter(c=>c.status!=='retired'&&!(_csFull&&_csFull[c.id])).map(c=>c.id);
+  const ov=document.createElement('div');ov.id='clrRephoto';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100005;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="width:100%;max-width:560px;max-height:92vh;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;">
+      <div><div style="font-weight:900;font-size:1rem;color:#92400e;">📷 صوّر الألوان من جديد</div>
+        <div style="font-size:0.72rem;color:#6b7280;">اكبس على اللون ← صوّره قريب وبضوّ منيح ← بينحفظ لحاله</div></div>
+      <button onclick="crClose()" style="background:#f3f4f6;border:none;border-radius:9px;width:34px;height:34px;cursor:pointer;">✕</button></div>
+    <div id="crProg" style="padding:0 16px 8px;font-size:.78rem;font-weight:800;color:#166534;"></div>
+    <div id="crGrid" style="flex:1;overflow-y:auto;padding:4px 16px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+    <div style="padding:10px 16px 16px;"><button onclick="crClose()" style="width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:.95rem;font-weight:900;cursor:pointer;">خلصت — حدّث اللوحة</button></div></div>`;
+  document.body.appendChild(ov);
+  _crPaint();
+}
+function _crList(){return _crIds.map(id=>_colorLib.find(c=>c.id===id)).filter(Boolean);}
+function _crPaint(){
+  const g=document.getElementById('crGrid');if(!g)return;
+  const L=_crList(),n=Object.keys(_crDone).length;
+  document.getElementById('crProg').textContent=n?`✓ صوّرت ${n} من ${L.length}`:`${L.length} لون بدهم صورة جديدة`;
+  g.innerHTML=L.map(c=>{const d=_crDone[c.id];return `<button onclick="crShoot('${c.id}')" style="position:relative;aspect-ratio:1;border-radius:12px;border:2.5px solid ${d?'#16a34a':'#e5e7eb'};${d?`background-image:url('${d}');background-size:cover;background-position:center;`:_clrFace(c)}cursor:pointer;padding:0;overflow:hidden;">
+    <span style="position:absolute;top:4px;right:4px;background:rgba(17,24,39,.88);color:#fff;border-radius:50%;min-width:24px;height:24px;display:grid;place-items:center;font-size:.72rem;font-weight:900;">${c.code}</span>
+    ${d?'<span style="position:absolute;bottom:4px;left:4px;background:#16a34a;color:#fff;border-radius:50%;width:22px;height:22px;display:grid;place-items:center;font-size:.8rem;font-weight:900;">✓</span>':'<span style="position:absolute;bottom:3px;left:4px;font-size:.9rem;">📷</span>'}</button>`;}).join('')
+    ||'<div style="grid-column:1/-1;text-align:center;color:#16a34a;font-weight:800;padding:20px;">✓ كل الألوان صورها واضحة</div>';
+}
+function crShoot(id){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.setAttribute('capture','environment');
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    try{
+      const [t,full]=await Promise.all([_clrThumb(f),_clrFull(f)]);
+      await db.collection('color_library').doc(id).update({img:t.dataUrl,...(t.hex?{hex:t.hex}:{})});
+      await _clrSaveFull(id,full);
+      _crDone[id]=t.dataUrl;
+      const c=_colorLib.find(x=>x.id===id);if(c){c.img=t.dataUrl;if(t.hex)c.hex=t.hex;}
+      _crPaint();
+    }catch(e){toast('❌ '+e.message);}
+  };
+  inp.click();
+}
+async function crClose(){
+  document.getElementById('clrRephoto')?.remove();
+  if(Object.keys(_crDone).length){
+    _csFull=null;
+    try{const snap=await db.collection('color_imgs').get();_csFull={};snap.docs.forEach(d=>{const v=d.data();if(v&&v.img)_csFull[d.id]=v.img;});}catch(e){}
+    if(document.getElementById('clrSheetModal'))_csBuild();
+    try{renderColorLib();}catch(e){}
+  }
+}
+window.openColorRephoto=openColorRephoto;window.crShoot=crShoot;window.crClose=crClose;
 async function csShare(){
   if(!_csBlob)return;
   const f=new File([_csBlob],'alwan-alkiswani.jpg',{type:'image/jpeg'});
