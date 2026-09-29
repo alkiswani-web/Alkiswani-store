@@ -3036,7 +3036,34 @@ function _clrThumb(file){
 // لوحة وحدة فيها صورة كل لون ورقمه واسمه وكميته — تنبعت عالواتساب للزباين
 // أو للموظفين. الصورة من النسخة الكبيرة لو موجودة، وإلا من الصورة الصغيرة.
 let _csOpt={which:'all',cols:4,qty:true},_csFull=null,_csBlob=null,_csBlobs=[];
-async function openColorSheet(){
+// المنتج بترقيمه الخاص إله صور ألوانه لحاله: الصغيرة بـ own_color_imgs/{pid}__{num}
+// والكبيرة بـ color_imgs/own__{pid}__{num}. _csPid فاضي = المكتبة المشتركة.
+let _csPid='',_ownImgs={};
+function _ownKey(pid,n){return 'own__'+pid+'__'+n;}
+async function _loadOwnImgs(pid,force){
+  if(!pid)return {};
+  if(_ownImgs[pid]&&!force)return _ownImgs[pid];
+  const m={};
+  try{const snap=await db.collection('own_color_imgs').where('pid','==',pid).get();
+    snap.docs.forEach(d=>{const v=d.data();if(v&&v.img)m[String(v.num)]={img:v.img,hex:v.hex||''};});}catch(e){}
+  _ownImgs[pid]=m;return m;
+}
+function _ownItems(pid){
+  const p=_prodById(pid);if(!p)return[];
+  const m=_ownImgs[pid]||{};
+  return _ownNums(p).map(n=>{const q=_ownQty(p,n),im=m[String(n)]||{};
+    return {id:_ownKey(pid,n),pid,num:n,code:_cnTag(p,n),name:_cnWord(p)+' '+_cnTag(p,n),img:im.img||'',hex:im.hex||'',
+      status:(q!=null&&q<=0)?'out':'active',counted:q!=null,qty:q==null?0:q};});
+}
+function _csSrc(){return _csPid?_ownItems(_csPid):_colorLib;}
+async function _csLoadFull(){
+  const items=_csSrc().filter(c=>c.status!=='retired');
+  _csFull={};
+  await Promise.all(items.map(async c=>{try{const d=await db.collection('color_imgs').doc(c.id).get();
+    const v=d.exists&&d.data();if(v&&v.img)_csFull[c.id]=v.img;}catch(e){}}));
+}
+async function openColorSheet(pid){
+  if(typeof pid==='string')_csPid=pid; else _csPid=_clrScope||'';
   document.getElementById('clrSheetModal')?.remove();
   const ov=document.createElement('div');
   ov.id='clrSheetModal';
@@ -3057,10 +3084,10 @@ async function openColorSheet(){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   document.body.appendChild(ov);
   if(!_colorLibLoaded) await loadColorLibrary();
-  if(!_csFull){
-    _csFull={};
-    try{const snap=await db.collection('color_imgs').get();snap.docs.forEach(d=>{const v=d.data();if(v&&v.img)_csFull[d.id]=v.img;});}catch(e){}
-  }
+  if(_csPid) await _loadOwnImgs(_csPid);
+  const _t=document.querySelector('#clrSheetModal div div div');
+  if(_t&&_csPid){const pp=_prodById(_csPid);_t.textContent='🖼️ ألوان '+((pp&&pp.name)||'')+' بصورة وحدة';}
+  await _csLoadFull();
   _csPaintOpts();
   await _csBuild();
 }
@@ -3073,7 +3100,7 @@ function _csPaintOpts(){
 }
 function csSet(k,v){_csOpt[k]=v;_csPaintOpts();_csBuild();}
 function _csList(){
-  return _colorLib.filter(c=>c.status!=='retired').filter(c=>{
+  return _csSrc().filter(c=>c.status!=='retired').filter(c=>{
     if(_csOpt.which!=='avail')return true;
     if(c.status==='out')return false;
     return !(c.counted===true&&(Number(c.qty)||0)<=0);
@@ -3156,7 +3183,7 @@ let _crDone={},_crIds=[];
 function openColorRephoto(){
   document.getElementById('clrRephoto')?.remove();
   _crDone={};
-  _crIds=_colorLib.filter(c=>c.status!=='retired'&&!(_csFull&&_csFull[c.id])).map(c=>c.id);
+  _crIds=_csSrc().filter(c=>c.status!=='retired'&&!(_csFull&&_csFull[c.id])).map(c=>c.id);
   const ov=document.createElement('div');ov.id='clrRephoto';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100005;display:flex;align-items:flex-end;justify-content:center;';
   ov.innerHTML=`<div style="width:100%;max-width:560px;max-height:92vh;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
@@ -3170,7 +3197,7 @@ function openColorRephoto(){
   document.body.appendChild(ov);
   _crPaint();
 }
-function _crList(){return _crIds.map(id=>_colorLib.find(c=>c.id===id)).filter(Boolean);}
+function _crList(){const src=_csSrc();return _crIds.map(id=>src.find(c=>c.id===id)).filter(Boolean);}
 function _crPaint(){
   const g=document.getElementById('crGrid');if(!g)return;
   const L=_crList(),n=Object.keys(_crDone).length;
@@ -3186,10 +3213,16 @@ function crShoot(id){
     const f=inp.files&&inp.files[0];if(!f)return;
     try{
       const [t,full]=await Promise.all([_clrThumb(f),_clrFull(f)]);
-      await db.collection('color_library').doc(id).update({img:t.dataUrl,...(t.hex?{hex:t.hex}:{})});
+      const it=_csSrc().find(x=>x.id===id);
+      if(it&&it.pid){
+        await db.collection('own_color_imgs').doc(it.pid+'__'+it.num).set({pid:it.pid,num:it.num,img:t.dataUrl,hex:t.hex||''});
+        (_ownImgs[it.pid]=_ownImgs[it.pid]||{})[String(it.num)]={img:t.dataUrl,hex:t.hex||''};
+      }else{
+        await db.collection('color_library').doc(id).update({img:t.dataUrl,...(t.hex?{hex:t.hex}:{})});
+        const c=_colorLib.find(x=>x.id===id);if(c){c.img=t.dataUrl;if(t.hex)c.hex=t.hex;}
+      }
       await _clrSaveFull(id,full);
       _crDone[id]=t.dataUrl;
-      const c=_colorLib.find(x=>x.id===id);if(c){c.img=t.dataUrl;if(t.hex)c.hex=t.hex;}
       _crPaint();
     }catch(e){toast('❌ '+e.message);}
   };
@@ -3198,8 +3231,7 @@ function crShoot(id){
 async function crClose(){
   document.getElementById('clrRephoto')?.remove();
   if(Object.keys(_crDone).length){
-    _csFull=null;
-    try{const snap=await db.collection('color_imgs').get();_csFull={};snap.docs.forEach(d=>{const v=d.data();if(v&&v.img)_csFull[d.id]=v.img;});}catch(e){}
+    await _csLoadFull();
     if(document.getElementById('clrSheetModal'))_csBuild();
     try{renderColorLib();}catch(e){}
   }
@@ -3581,6 +3613,7 @@ async function openColorLib(){
         <div style="font-weight:900;font-size:1rem;color:#1e3a8a;">🎨 مكتبة الألوان</div>
         <button onclick="closeColorLib()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button>
       </div>
+      <div id="clrScope" style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px;scrollbar-width:none;"></div>
       <div id="clrHeadStats" style="font-size:0.7rem;color:#6b7280;margin-top:4px;"></div>
       <div id="clrTools" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;"></div>
     </div>
@@ -3591,12 +3624,77 @@ async function openColorLib(){
   document.getElementById('clrList').innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:0.85rem;">⏳ جاري التحميل...</div>';
   await loadColorLibrary(true);
   await _autoColorStatus();   // يرجّع أي لون انعلّم «خلص» بلا جرد
+  try{if(!(_opProductsList||[]).length&&typeof loadOpProducts==='function')await loadOpProducts(true);}catch(e){}
+  if(_clrScope)await _loadOwnImgs(_clrScope,true);
   renderColorLib();
 }
 function closeColorLib(){_clrOpenId=null;document.getElementById('colorLibModal')?.remove();}
+// ── ألوان كل منتج بترقيمه الخاص — نفس المكتبة بس لمنتج واحد ──
+let _clrScope='';
+function _clrOwnProds(){return (_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&p.ownColorNumbers&&_ownNums(p).length);}
+function _clrScopeBar(){
+  const el=document.getElementById('clrScope');if(!el)return;
+  const ps=_clrOwnProds();
+  if(!ps.length){el.innerHTML='';return;}
+  const B=(id,t)=>{const on=_clrScope===id;return `<button onclick="clrSetScope('${id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${on?'#1e3a8a':'#e5e7eb'};background:${on?'#1e3a8a':'#fff'};color:${on?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${t}</button>`;};
+  el.innerHTML=B('','🎨 المكتبة المشتركة')+ps.map(p=>B(p.id,(_cnIsSize(p)?'📏 ':'🔢 ')+_clrEsc(p.name))).join('');
+}
+async function clrSetScope(id){
+  _clrScope=id||'';
+  _clrScopeBar();
+  if(_clrScope){const l=document.getElementById('clrList');if(l)l.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:0.85rem;">⏳</div>';
+    await _loadOwnImgs(_clrScope,true);}
+  renderColorLib();
+}
+function _renderOwnLib(){
+  const pid=_clrScope,p=_prodById(pid),list=document.getElementById('clrList');if(!list)return;
+  if(!p){_clrScope='';return renderColorLib();}
+  const items=_ownItems(pid);
+  const out=items.filter(c=>c.status==='out').length,noPic=items.filter(c=>!c.img).length;
+  const st=document.getElementById('clrHeadStats');
+  if(st) st.innerHTML=`${_cnIsSize(p)?'📏':'🔢'} <b>${_clrEsc(p.name)}</b> — ترقيمه الخاص · ${items.length} ${_cnIsSize(p)?'قياس':'لون'} · 🟡 ${out} خلص`+(noPic?` · 📷 ${noPic} بلا صورة`:'');
+  const tools=document.getElementById('clrTools');
+  const BT=(fn,bg,fg,bd,t)=>`<button onclick="${fn}" style="padding:7px 12px;background:${bg};color:${fg};border:${bd};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">${t}</button>`;
+  if(tools) tools.innerHTML=BT(`openColorSheet('${pid}')`,'#7c3aed','#fff','none','🖼️ كل الألوان بصورة وحدة')
+    +BT(`clrOwnRephoto('${pid}')`,'#b45309','#fff','none','📷 صوّر الألوان')
+    +BT(`openProdStock('${pid}')`,'#eff6ff','#1e40af','1.5px solid #bfdbfe','📦 وارد وصرف');
+  list.innerHTML=items.map(c=>{
+    const q=c.counted?c.qty:null,dry=c.status==='out';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:8px;background:#fff;${dry?'opacity:.7;':''}">
+      <button onclick="clrOwnShoot('${pid}',${c.num})" title="صوّر" style="position:relative;width:64px;height:64px;border-radius:12px;border:1.5px solid rgba(0,0,0,.12);${c.img?`background-image:url('${c.img}');background-size:cover;background-position:center;`:'background:#f3f4f6;'}cursor:pointer;flex-shrink:0;padding:0;overflow:hidden;">
+        <span style="position:absolute;bottom:3px;right:3px;background:rgba(255,255,255,.93);color:#111827;border-radius:6px;padding:0 5px;font-size:0.8rem;font-weight:900;">${_clrEsc(c.code)}</span>
+        ${c.img?'':'<span style="position:absolute;top:6px;left:0;right:0;text-align:center;font-size:1.2rem;opacity:.6;">📷</span>'}</button>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:900;font-size:0.92rem;color:#111827;">${_clrEsc(c.name)}</div>
+        <div style="font-size:0.76rem;font-weight:800;color:${dry?'#dc2626':(q!=null&&q<=2?'#b45309':'#16a34a')};">${dry?'🟡 خلص':(q!=null?`🟢 متوفّر · ${q} قطعة`:'🟢 متوفّر')}</div>
+        <div style="font-size:0.66rem;color:#9ca3af;">${c.img?'اضغط الصورة لتبدّلها':'اضغط المربّع وصوّره'}</div>
+      </div></div>`;}).join('')||'<div style="padding:24px;text-align:center;color:#9ca3af;">ما في أرقام لهالمنتج — ضيفها من تعديل المنتج</div>';
+}
+function clrOwnShoot(pid,num){
+  _csPid=pid;
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.setAttribute('capture','environment');
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    toast('⏳ جاري تجهيز الصورة...');
+    try{
+      const [t,full]=await Promise.all([_clrThumb(f),_clrFull(f)]);
+      await db.collection('own_color_imgs').doc(pid+'__'+num).set({pid,num,img:t.dataUrl,hex:t.hex||''});
+      (_ownImgs[pid]=_ownImgs[pid]||{})[String(num)]={img:t.dataUrl,hex:t.hex||''};
+      await _clrSaveFull(_ownKey(pid,num),full);
+      renderColorLib();toast('📷 انحفظت الصورة');
+    }catch(e){toast('❌ '+e.message);}
+  };
+  inp.click();
+}
+async function clrOwnRephoto(pid){
+  _csPid=pid;await _loadOwnImgs(pid);await _csLoadFull();openColorRephoto();
+}
+window.clrSetScope=clrSetScope;window.clrOwnShoot=clrOwnShoot;window.clrOwnRephoto=clrOwnRephoto;
 
 function renderColorLib(){
   const list=document.getElementById('clrList');if(!list)return;
+  _clrScopeBar();
+  if(_clrScope)return _renderOwnLib();
   const n={active:0,out:0,retired:0};
   _colorLib.forEach(c=>{n[c.status||'active']=(n[c.status||'active']||0)+1;});
   const low=_colorLib.filter(c=>c.status!=='retired'&&_clrIsLow(c));
