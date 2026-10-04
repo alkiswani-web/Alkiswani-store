@@ -1478,7 +1478,7 @@ async function _ewRefreshEmployee(){
     _ewHrHistPaint();
 
     // Attendance entries — filter by month in JS. بالعرض الكامل نحسب كل السجلات (حتى بدون تاريخ) عشان ما يضيع أي دوام
-    const attDocs=attSnap.docs.map(d=>d.data()).filter(r=>!hasMonth||((r.date||'')>=dateFrom&&(r.date||'')<=dateTo)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const attDocs=attSnap.docs.map(d=>({...d.data(),_id:d.id})).filter(r=>!hasMonth||((r.date||'')>=dateFrom&&(r.date||'')<=dateTo)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
     // المستحق = مجموع أجر كل يوم على حدة (نفس اللي يظهر بكشف الحساب) — عشان الملخّص يطابق تفاصيل الكشف
     let totalAttSecs=0,attEarned=0;
     attDocs.forEach(r=>{
@@ -1535,7 +1535,14 @@ async function _ewRefreshEmployee(){
       const inT=r.checkIn?new Date(r.checkIn).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'';
       const outT=r.checkOut?new Date(r.checkOut).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}):'—';
       const ts=r.checkIn?new Date(r.checkIn).getTime():new Date((r.date||'1970-01-01')+'T12:00:00').getTime();
-      entries.push({type:'att',date:r.date,secs,dayEarned,inT,outT,ts});
+      // دخول ← مغادرة ← رجعة: كل جلسة لحالها. الجلسة المفتوحة ما بتنحسب لحد ما يسكّرها،
+      // فيوم قديم فيه جلسة مفتوحة = نسي يسجّل خروج وساعاتها ضايعة.
+      const ss=Array.isArray(r.sessions)&&r.sessions.length?r.sessions:(r.checkIn?[{in:r.checkIn,out:r.checkOut||null}]:[]);
+      const tf=x=>new Date(x).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+      const sesTxt=ss.map(x=>tf(x.in)+' ← '+(x.out?tf(x.out):'…')).join(' · ');
+      const openS=ss.find(x=>!x.out);
+      const forgot=!!openS&&(r.date||'')<jordanDateStr();
+      entries.push({type:'att',date:r.date,secs,dayEarned,inT,outT,ts,sesTxt,nSes:ss.length,open:!!openS,forgot,openIn:openS?tf(openS.in):'',docId:r._id});
     });
     // الطلبات — سطر لكل يوم لا لكل طلب، فلا يغرق الكشف. ولولا هذه الأسطر
     // لظهر مستحقُّ الطلبات رقماً في الملخّص بلا ما يقابله في الكشف.
@@ -1573,15 +1580,19 @@ async function _ewRefreshEmployee(){
       <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;">التفاصيل</span>
       <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;text-align:left;">المبلغ</span>
     </div>`;
+    const _forgot=entries.filter(e=>e.type==='att'&&e.forgot);
+    if(_forgot.length) html+=`<div style="margin:0 0 8px;padding:10px 12px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;font-size:0.76rem;color:#991b1b;font-weight:800;line-height:1.7;">⚠️ في ${_forgot.length} يوم نسي فيهم يسجّل خروج (${_forgot.map(e=>(e.date||'').slice(5)).join('، ')}) — آخر جلسة بكل يوم منهم <u>مش محسوبة</u> بالمستحق. سجّل خروجه من السطر الأحمر تحت.</div>`;
     entries.forEach((e,i)=>{
       const border=i<entries.length-1?'border-bottom:1px solid #f3f4f6;':'';
       if(e.type==='att'){
-        const hasOut=e.outT&&e.outT!=='—';
-        html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;${border}">
+        html+=`<div style="display:grid;grid-template-columns:80px 1fr auto;gap:0;padding:10px 12px;align-items:center;${e.forgot?'background:#fef2f2;':''}${border}">
           <span style="font-size:0.78rem;color:#374151;font-weight:700;">${(e.date||'—').slice(5)||'—'}</span>
-          <div style="font-size:0.78rem;color:#374151;">
-            <span style="color:#166534;">⏱ ${_fmtDuration(e.secs)}</span>
-            <span style="color:#9ca3af;font-size:0.7rem;margin-right:6px;">${e.inT}${hasOut?' ← '+e.outT:' (جاري)'}</span>
+          <div style="font-size:0.78rem;color:#374151;min-width:0;">
+            <span style="color:#166534;">⏱ ${_fmtDuration(e.secs)}</span>${e.nSes>1?` <span style="font-size:0.66rem;color:#6b7280;">(${e.nSes} جلسات)</span>`:''}
+            <div style="color:#9ca3af;font-size:0.68rem;line-height:1.6;">${e.sesTxt||''}</div>
+            ${e.forgot?`<div style="color:#dc2626;font-size:0.7rem;font-weight:800;line-height:1.6;">⚠️ نسي يسجّل خروج — الجلسة من ${e.openIn} مش محسوبة
+              <button onclick="manualCheckout('${e.docId}')" style="margin-right:6px;padding:3px 9px;border:none;border-radius:7px;background:#dc2626;color:#fff;font-family:'Tajawal',sans-serif;font-size:0.68rem;font-weight:800;cursor:pointer;">🚪 سجّل خروجه</button></div>`
+             :(e.open?`<div style="color:#b45309;font-size:0.68rem;font-weight:700;">⏳ جوّا هلّأ — جلسته الحالية بتنحسب لما يسجّل خروج</div>`:'')}
           </div>
           <span style="font-size:0.82rem;font-weight:900;color:#166534;text-align:left;">${e.dayEarned>0?'+'+e.dayEarned.toFixed(2):'—'}</span>
         </div>`;
@@ -18553,10 +18564,12 @@ async function manualCheckout(docId){
     const doc=await db.collection('attendance').doc(docId).get();
     if(!doc.exists){toast('❌ السجل غير موجود');return;}
     const d=doc.data();
-    const ci=d.checkIn?new Date(d.checkIn):new Date();
+    const _ss=Array.isArray(d.sessions)?d.sessions:[];
+    const _op=[..._ss].reverse().find(x=>x&&!x.out);
+    const ci=_op?new Date(_op.in):(d.checkIn?new Date(d.checkIn):new Date());
     const pad=n=>String(n).padStart(2,'0');
     const def=`${ci.getFullYear()}-${pad(ci.getMonth()+1)}-${pad(ci.getDate())}T${pad(ci.getHours())}:${pad(ci.getMinutes())}`;
-    const inLbl=d.checkIn?new Date(d.checkIn).toLocaleString('ar-SA',{dateStyle:'short',timeStyle:'short'}):'—';
+    const inLbl=(_op||d.checkIn)?ci.toLocaleString('ar-SA',{dateStyle:'short',timeStyle:'short'}):'—';
     const o=document.createElement('div');
     o.id='att_out_modal';
     o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -18594,6 +18607,7 @@ async function saveManualCheckout(docId){
     await db.collection('attendance').doc(docId).update({sessions,checkOut:outIso,secondsWorked:total});
     document.getElementById('att_out_modal')?.remove();
     toast('✅ تم تسجيل الخروج يدوياً');
+    try{const s3=document.getElementById('ewScreen3');if(s3&&s3.style.display!=='none'&&typeof _ewRefreshEmployee==='function')_ewRefreshEmployee();}catch(e){}
     const df=document.getElementById('attDateFilter');
     if(df&&typeof _loadAttendanceData==='function') _loadAttendanceData(df.value);
   }catch(e){toast('❌ '+e.message);}
