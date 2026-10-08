@@ -5450,6 +5450,22 @@ async function bcSet(num,code){
   if(c){
     // كودٌ واحد لصنفين = المسحة ما بتعرف مين منهم. منمنعها ومنقوله وين هو.
     const own=_bcFind(c);
+    // نفس المنتج، لون ثاني: يعني الشركة حاطّة كود واحد على كل الألوان (زي puffy).
+    // ربطه بلون واحد كان يخلّي كل مسحة تروح لهاللون. منحوّله لكود المنتج،
+    // والمسحة بتفتح ألوانه وبتختار اللون بضغطة.
+    if(own&&own.prod.id===_bcProdId&&num&&own.num&&Number(own.num)!==Number(num)){
+      if(!confirm(`الكود ${c} مربوط بـ«${_bcLabel(own)}».\n\nإذا الشركة حاطّة نفس الكود على كل ألوان «${p.name||''}»، بنخلّيه كود المنتج:\nالمسحة بتفتحلك ألوانه وبتختار اللون بضغطة.\n\nنعمل هيك؟`))return;
+      try{
+        const DEL=firebase.firestore.FieldValue.delete();
+        await db.collection('operator_products').doc(_bcProdId).update({barcode:c,['colorBarcodes.'+own.num]:DEL});
+        _bcPatchMem(_bcProdId,Number(own.num),'');_bcPatchMem(_bcProdId,0,c);
+        _invalidateQuery&&_invalidateQuery('opproducts');
+        _bcPending='';
+        toast('✅ صار كود «'+(p.name||'')+'» — المسحة بتفتح ألوانه');
+        openBarcodes(_bcProdId);
+      }catch(e){toast('❌ '+e.message);}
+      return;
+    }
     if(own&&!(own.prod.id===_bcProdId&&Number(own.num)===Number(num))){
       toast('⚠️ هالكود مربوط أصلاً بـ«'+_bcLabel(own)+'»');return;
     }
@@ -5525,6 +5541,14 @@ function posScan(code){
     if(i<0){posAdd(hit.prod.id);i=_posCart.findIndex(x=>x.id===hit.prod.id);}
     if(i<0)return false;
     posCN(i,Number(hit.num),1);
+  }else if(_posIsYarn(hit.prod)){
+    // كود المنتج على صنف بأرقام ألوان: الكود ما بيعرف اللون، فمنفتح ألوانه
+    _posScanMsg='🏷️ '+(hit.prod.name||'')+' — اختار اللون';
+    posAdd(hit.prod.id);
+    try{navigator.vibrate&&navigator.vibrate(40);}catch(e){}
+    toast('🏷️ '+(hit.prod.name||'')+' — اضغط رقم اللون');
+    setTimeout(()=>{_posScanMsg='';if(document.getElementById('posModal'))posRenderDeck();},4000);
+    return true;
   }else{
     posAdd(hit.prod.id);
   }
@@ -5922,7 +5946,7 @@ function pnScan(code){
     openProdStock(_pnProdId,true);
     return true;
   }
-  if(!hit.num){toast('🏷️ هاد كود المنتج مش كود لون — امسح كود اللون');return false;}
+  if(!hit.num){toast('🏷️ كود «'+(hit.prod.name||'')+'» نفسه لكل الألوان — اكتب الكمية بخانة اللون');return false;}
   return pnBump(Number(hit.num));
 }
 async function pnScanBtn(){
