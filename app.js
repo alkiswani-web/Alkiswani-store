@@ -5384,19 +5384,29 @@ function _bcPatchMem(prodId,num,code){
   }));
 }
 
-let _bcProdId='', _bcPending='';
+let _bcProdId='', _bcPending='', _bcHi=null;
 async function openBarcodes(prodId,pending){
   if(!_opProductsList.length) await loadOpProducts(true);
   const prods=(_opProductsList||[]).filter(p=>p&&!p.isRawMaterial);
   if(!prods.length){toast('⚠️ ما في منتجات');return;}
   _bcPending=_bcNorm(pending||'');
+  // كود مربوط أصلاً ما إله «محلّ جديد»: منوريه وين هو بدل ما نطلب ربطه مرّة ثانية
+  _bcHi=null;
+  if(_bcPending){
+    const had=_bcFind(_bcPending);
+    if(had){
+      _bcHi={pid:had.prod.id,num:Number(had.num)||0};
+      prodId=had.prod.id;_bcPending='';
+      toast('✅ هاد الكود مربوط أصلاً بـ«'+_bcLabel(had)+'» — ما بدّه إشي');
+    }
+  }
   _bcProdId=(prodId&&prods.some(p=>p.id===prodId))?prodId
     :(_bcProdId&&prods.some(p=>p.id===_bcProdId)?_bcProdId:prods[0].id);
   const p=_prodById(_bcProdId);
   const own=_prodOwnColors(p);
   const nums=p&&p.hasColorNumbers?(own?_ownNums(p):_prodColorCodes(p)):[];
   const cbs=_bcColors(p);
-  const row=(num,title,sub,code)=>`<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #f3f4f6;">
+  const row=(num,title,sub,code)=>`<div ${(_bcHi&&_bcHi.pid===_bcProdId&&_bcHi.num===Number(num))?'id="bcHiRow" ':''}style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #f3f4f6;${(_bcHi&&_bcHi.pid===_bcProdId&&_bcHi.num===Number(num))?'background:#dcfce7;border-radius:10px;box-shadow:0 0 0 2px #22c55e inset;':''}">
       <div style="flex:1;min-width:0;">
         <div style="font-size:0.84rem;font-weight:800;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(title)}</div>
         <div style="font-size:0.68rem;margin-top:2px;color:${code?'#166534':'#9ca3af'};font-family:monospace;direction:ltr;text-align:right;">${code?_clrEsc(code):'— ما إله باركود —'}</div>
@@ -5444,6 +5454,7 @@ async function openBarcodes(prodId,pending){
     </div>
   </div>`;
   document.body.appendChild(ov);
+  try{const hr=document.getElementById('bcHiRow');if(hr)setTimeout(()=>hr.scrollIntoView({block:'center',behavior:'smooth'}),60);}catch(e){}
 }
 function bcPick(id){_bcProdId=id;openBarcodes(id,_bcPending);}
 async function bcScan(num){
@@ -5549,6 +5560,12 @@ function posScan(code){
   const c=_bcNorm(code);
   if(!c)return false;
   const hit=_bcFind(c);
+  // الكود ممكن يكون انربط من جهاز ثاني والقائمة هون قديمة — منحدّثها مرّة ومنعيد
+  if(!hit&&!posScan._retry&&typeof loadOpProducts==='function'){
+    posScan._retry=true;
+    loadOpProducts(false).then(()=>{try{posScan(code);}finally{posScan._retry=false;}},()=>{posScan._retry=false;});
+    return true;
+  }
   if(!hit){
     const act=_posActive?_prodById(_posActive):null;
     if(act&&_posIsYarn(act)){
