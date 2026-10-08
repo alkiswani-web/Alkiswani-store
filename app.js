@@ -4212,6 +4212,9 @@ let _posDone=null;      // إيصال آخر بيعة
 let _posUndo=null;      // {msg,fn,t0}
 let _posHit='';         // وميض السطر
 let _posScanMsg='';
+// كود جديد ما انربط لسا، والألوان مفتوحة: الضغطة الجاية على لون بتربطه فيه
+// (مرّة وحدة للأبد) وبتضيفه للسلّة — بلا ما تطلع من البيع لشاشة الباركود.
+let _posLink=null;   // {code,pid}
 let _posSeq=0;
 
 const POS_CSS=`
@@ -4509,7 +4512,7 @@ async function openPos(){
   try{if(!(_opStoresList||[]).length&&typeof loadOpStores==='function')await loadOpStores(true);}catch(e){}
   await loadColorLibrary();
   document.getElementById('posModal')?.remove();
-  _posActive='';_posMinus=false;_posSheet='';_posDone=null;_posHit='';_posScanMsg='';_posClearUndo();
+  _posActive='';_posMinus=false;_posSheet='';_posDone=null;_posHit='';_posScanMsg='';_posLink=null;_posClearUndo();
   const ov=document.createElement('div');
   ov.id='posModal';
   ov.style.cssText='position:fixed;inset:0;background:#0C100F;z-index:100002;display:flex;justify-content:center;';
@@ -4884,6 +4887,17 @@ function posRenderTotals(){posRenderMoney();}
 function posRenderPicker(){if(_posSheet==='prods')posRenderSheet();}
 
 // ═══ الأفعال ═══
+async function _posLinkSave(pid,n,code){
+  const own=_bcFind(code);
+  if(own){toast('⚠️ هالكود صار مربوط بـ«'+_bcLabel(own)+'»');return;}
+  try{
+    await db.collection('operator_products').doc(pid).update({['colorBarcodes.'+n]:code});
+    _bcPatchMem(pid,n,code);
+    _invalidateQuery&&_invalidateQuery('opproducts');
+    const p=_prodById(pid);
+    toast('✅ انربط الكود بـ«'+((p&&p.name)||'')+' · '+_cnWord(p)+' '+_cnTag(p,n)+'» — المرّة الجاية المسحة بتضيفه لحالها');
+  }catch(e){toast('❌ ما انحفظ الربط: '+e.message);}
+}
 function posAct(a){
   let m;
   if(!a||a==='noop')return;
@@ -4892,6 +4906,10 @@ function posAct(a){
   if((m=a.match(/^prod:(.+)$/))){posAdd(m[1]);return;}
   if((m=a.match(/^cn:(.+):(\d+)$/))){
     const pid=m[1],n=Number(m[2]);
+    if(_posLink&&_posLink.pid===pid&&!_posMinus){
+      const L=_posLink;_posLink=null;_posScanMsg='';
+      _posLinkSave(pid,n,L.code);
+    }
     const i=_posCart.findIndex(x=>x.id===pid);
     if(i<0){_posEnsure(pid);}
     const idx=_posCart.findIndex(x=>x.id===pid);
@@ -4899,7 +4917,7 @@ function posAct(a){
     return;
   }
   if(a==='minus'){_posMinus=!_posMinus;_posBuzz(12);posRenderDeck();return;}
-  if(a==='back'){_posClean();_posActive='';_posMinus=false;_posBuzz(10);posRender();return;}
+  if(a==='back'){_posLink=null;_posScanMsg='';_posClean();_posActive='';_posMinus=false;_posBuzz(10);posRender();return;}
   if((m=a.match(/^step:(-?\d+)$/))){
     if(!_posActive)return;
     const it=_posEnsure(_posActive),d=Number(m[1]);
@@ -5532,9 +5550,19 @@ function posScan(code){
   if(!c)return false;
   const hit=_bcFind(c);
   if(!hit){
-    if(confirm(`❓ الكود ${c}\n\nمش مربوط بولا منتج.\nبدّك تربطه هلأ؟`)) openBarcodes('',c);
+    const act=_posActive?_prodById(_posActive):null;
+    if(act&&_posIsYarn(act)){
+      _posLink={code:c,pid:act.id};
+      _posScanMsg='🏷️ كود جديد — اضغط رقم لونه ليرتبط';
+      try{navigator.vibrate&&navigator.vibrate([40,40,40]);}catch(e){}
+      toast('🏷️ كود جديد — اضغط رقم اللون اللي بإيدك، وبينربط فيه للأبد');
+      posRenderDeck();
+      return true;
+    }
+    if(confirm(`❓ الكود ${c}\n\nمش مربوط بولا منتج.\n\nإذا هو لون: افتح الصنف (اضغط عليه) وامسح مرّة ثانية، وبعدين اضغط رقم اللون.\n\nأو بدّك تربطه هلأ من شاشة الباركود؟`)) openBarcodes('',c);
     return false;
   }
+  _posLink=null;
   const before=_posCart.length;
   if(hit.num){
     let i=_posCart.findIndex(x=>x.id===hit.prod.id);
