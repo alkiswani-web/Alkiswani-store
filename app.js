@@ -254,6 +254,7 @@ async function testFCMNotification(){
   toast('📤 تم إرسال إشعار تجريبي');
 }
 
+function _esc0(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Amman'});}
 function jordanDisplayDate(opts={}){return new Date().toLocaleDateString('ar-JO',{timeZone:'Asia/Amman',...opts});}
 
@@ -7354,7 +7355,7 @@ function _renderEmpMyOrders(){
               <span style="font-size:0.72rem;color:#9ca3af;">${orderLabel}</span>
             </div>
           </div>
-          ${o.needsReview?`<div style="background:#fff7ed;padding:6px 12px;font-size:0.75rem;color:#c2410c;font-weight:700;border-bottom:1px solid #fed7aa;">✏️ تعديل من الموظف – يحتاج مراجعة</div>`:''}
+          ${o.needsReview?`<div style="background:#fff7ed;padding:6px 12px;font-size:0.75rem;color:#c2410c;font-weight:700;border-bottom:1px solid #fed7aa;">${o.repIssue?`🔔 المندوب ${_esc0(o.repIssue.by)} بلّغ: ${_esc0(o.repIssue.reason)}`:'✏️ تعديل من الموظف – يحتاج مراجعة'}</div>`:''}
           ${track}
           <!-- Body -->
           <div style="padding:12px;">
@@ -8600,9 +8601,11 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
             <div><em>المنطقة</em>${_roEsc(o.area||o.address||'—')}</div>
           </div>
           <div class="ro-chips">${chips}</div>
+          ${o.repIssue?`<div class="ro-memo" style="border-color:rgba(242,166,160,.5);">🔔 المندوب ${_roEsc(o.repIssue.by||'')} بلّغ: <b>${_roEsc(o.repIssue.reason||'')}</b> — غيّر الحالة (ملغي/مرتجع/رفض) أو رجّعه للتوصيل</div>`:''}
+          ${o.repTransferReq?`<div class="ro-memo">↔ ${_roEsc(o.repTransferReq.by||'')} طلب يحوّله لـ${_roEsc(o.repTransferReq.toName||'')} (بيستنّى المشرف)</div>`:''}
           ${o.needsReview||repeatN>1||_isTreeFulfilled(o)?`<div class="ro-flags">
             ${_isTreeFulfilled(o)?'<span class="ro-fl" style="background:rgba(110,231,168,.14);color:#6ee7a8;border-color:rgba(110,231,168,.3);">🌲 طلّعه مشغل الشجر</span>':''}
-            ${o.needsReview?'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>':''}
+            ${o.needsReview?(o.repIssue?'<span class="ro-fl acc">🔔 بلاغ من المندوب</span>':'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>'):''}
             ${repeatN>1?`<button type="button" class="ro-fl n tap" title="عرض طلبات الزبون السابقة" onclick="event.stopPropagation();viewCustomerHistory('${_roPhoneArg}')">زبون متكرر · ${repeatN} ←</button>`:''}
           </div>`:''}
           ${o.address&&o.area?`<div class="ro-rep">📍 ${_roEsc(o.address)}</div>`:''}
@@ -9354,7 +9357,8 @@ async function updateEmpOrderStatus(id,newStatus){
       extraFields.assignedAt=firebase.firestore.FieldValue.delete();
       _deleteFields.push('deliveryRepName','deliveryRepPhone','assignedAt');
     }
-    await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),
+      repIssue:firebase.firestore.FieldValue.delete(),repTransferReq:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     // إلغاء/إرجاع ⇒ الشنيل يرجع للمخزون. والرجوع عن الإلغاء ⇒ ينخصم ثانيةً.
     _orderStockSync(id,data,data,data.colorStockApplied===true,_cnShouldHold(newStatus));
     toast('✅ تم تحديث الحالة');
@@ -17862,7 +17866,10 @@ function initLazyImages(){
 let _lazyObs=null;
 
 async function init(){
-  if(new URLSearchParams(window.location.search).has('rep')){_initRepApp();return;}
+  if(new URLSearchParams(window.location.search).has('rep')){
+    // تطبيق المناديب صار rep.html لحاله — نسخة وحدة بدل نسختين بيختلفوا
+    const _q=new URLSearchParams(window.location.search);_q.delete('rep');
+    window.location.replace('/rep.html'+(_q.toString()?'?'+_q.toString():''));return;}
   const _gToken=new URLSearchParams(window.location.search).get('g');
   if(_gToken){_initPublicSlideshow(_gToken);return;}
   // الشبكة مفعّلة افتراضياً ولا شيء في التطبيق يعطّلها؛ كان await هنا يجبر
@@ -18915,6 +18922,7 @@ window.updateEmpOrderStatus=updateEmpOrderStatus; window.printEmpOrder=printEmpO
   const p=new URLSearchParams(window.location.search);
   const qrOrder=p.get('order');
   if(!qrOrder) return;
+  if(p.has('rep')) return;   // رابط المندوب ⇒ init بيحوّله لـ rep.html مع الطلب
   // Clean the URL so refreshing won't re-open
   try{window.history.replaceState(null,'',window.location.pathname);}catch(e){}
   // Guard: if this same order was already opened from QR more than 2 min ago, skip.
