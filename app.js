@@ -4216,6 +4216,7 @@ let _posScanMsg='';
 // كود جديد ما انربط لسا، والألوان مفتوحة: الضغطة الجاية على لون بتربطه فيه
 // (مرّة وحدة للأبد) وبتضيفه للسلّة — بلا ما تطلع من البيع لشاشة الباركود.
 let _posLink=null;   // {code,pid}
+let _posCnq=null;    // {pid,n,v} — كتابة كمية لون
 let _posSeq=0;
 
 const POS_CSS=`
@@ -4584,7 +4585,7 @@ function posRenderTape(){
     if(_posIsYarn(p)){
       const cns=(it.colorNumbers||[]).filter(c=>(Number(c.qty)||0)>0);
       if(!cns.length) sub=`<span class="pk-warn">⚠ اختر ${_cnPick(p)} من اللوحة</span>`;
-      else sub=cns.map(c=>`<span class="pk-chip num">${_clrEsc(_cnTag(p,c.num))}&times;${c.qty}</span>`).join('');
+      else sub=cns.map(c=>`<span class="pk-chip num" data-cnq="${_clrEsc(it.id)}:${c.num}" style="cursor:pointer">${_clrEsc(_cnTag(p,c.num))}&times;${c.qty}</span>`).join('');
     }
     const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
     sub+=`<em><span class="num">${q}</span> &times; <span class="num">${(Number(it.price)||0).toFixed(2)}</span>`
@@ -4605,6 +4606,7 @@ function _posBindTape(){
   const t=document.getElementById('posTape'); if(!t)return;
   t.addEventListener('click',e=>{
     if(_posDone)return;
+    const cq=e.target.closest('[data-cnq]'); if(cq){posAct('cnq:'+cq.getAttribute('data-cnq'));return;}
     const row=e.target.closest('[data-tid]'); if(!row)return;
     const id=row.getAttribute('data-tid');
     const b=e.target.closest('[data-ta]');
@@ -4730,7 +4732,7 @@ function posRenderDeck(){
       const cls='cn mid '+(got>0?'pick ':'')+(out?'out ':'')+(_posMinus&&got>0?'canminus ':'');
       const badge=out?'<span class="st">خلص</span>'
         :`<span class="st${(lf>=0&&lf<=2)?' low':''}">${lf<0?'—':`<span class="num">${lf}</span>`}</span>`;
-      return _posK({act:`cn:${a.id}:${n}`,cls,
+      return _posK({act:`cn:${a.id}:${n}`,lp:`cnq:${a.id}:${n}`,cls,
         html:badge+(_cnIsSize(a)?`<span class="n num sz">${_clrEsc(_cnTag(a,n))}</span>`:`<span class="n num">${n}</span>`)+(got>0?`<span class="x num">&times;${got}</span>`:'')+'<span class="mn">−</span>'});
     }).join('');
     g.innerHTML=`<div class="pk-scroll"><div class="pk-cnwrap">${keys||'<div style="grid-column:1/-1;color:#75877F;font-size:12.5px;font-weight:700;text-align:center;padding:14px;">'+(_cnIsSize(a)?'ما في قياسات لهذا الصنف':'ما في أرقام ألوان لهذا الصنف')+'</div>'}</div></div>`+bottom;
@@ -4789,6 +4791,41 @@ function posRenderSheet(){
   if(!_posSheet)return;
   const d=document.createElement('div');
   d.id='posSheetEl';d.className='pk-sheet';
+  if(_posSheet==='cnq'&&_posCnq){
+    const p=_prodById(_posCnq.pid),n=_posCnq.n;
+    const it=_posLine(_posCnq.pid),cur=it?_posCnQty(it,n):0;
+    const lf=p?_posLeft(p,n):-1;          // الباقي بعد اللي بالسلّة
+    const max=lf<0?null:lf+cur;
+    d.innerHTML=`<h4>${_clrEsc((p&&p.name)||'')} · ${_clrEsc(_cnWord(p))} ${_clrEsc(_cnTag(p,n))} — كم قطعة؟</h4>
+      <div style="text-align:center;font-size:12.5px;font-weight:800;color:#8FA39C">${max==null?'المخزون مش مجرود':`متوفّر <span class="num">${max}</span>`}${cur?` · بالسلّة <span class="num">${cur}</span>`:''}</div>
+      <div id="cnqV" class="num" style="text-align:center;font-size:44px;font-weight:700;color:var(--acc);min-height:54px">${_posCnq.v||'0'}</div>
+      <div class="pk-cnwrap" style="grid-template-columns:repeat(3,1fr)">${['1','2','3','4','5','6','7','8','9','C','0','⌫'].map(k=>`<button class="key mid cn" data-k="${k}" style="height:52px"><span class="lbl num" style="font-size:20px">${k}</span></button>`).join('')}</div>
+      <div class="btns">
+        <button class="key ghost mid" data-cs="clear" style="flex:1"><span class="lbl">شيل اللون</span></button>
+        <button class="key go mid" data-cs="ok" style="flex:2"><span class="lbl" style="font-size:16px">تمّ ✓</span></button>
+      </div>`;
+    document.querySelector('#posModal .pk-wrap').appendChild(d);
+    const show=()=>{const v=document.getElementById('cnqV');if(v)v.textContent=_posCnq.v||'0';};
+    d.addEventListener('click',e=>{
+      const k=e.target.closest('[data-k]');
+      if(k){const c=k.dataset.k;
+        if(c==='⌫')_posCnq.v=_posCnq.v.slice(0,-1);else if(c==='C')_posCnq.v='';
+        else if(_posCnq.v.length<4)_posCnq.v=(_posCnq.v==='0'?'':_posCnq.v)+c;
+        _posBuzz(8);show();return;}
+      const b=e.target.closest('[data-cs]');if(!b)return;
+      const target=b.dataset.cs==='clear'?0:(parseInt(_posCnq.v,10)||0);
+      const pid=_posCnq.pid;
+      {const it0=_posLine(pid),i0=_posCart.findIndex(x=>x.id===pid),cc=it0?_posCnQty(it0,n):0;
+       // أكثر من المتوفّر ⇒ التنبيه بيطلع والشاشة بتضل مفتوحة لتصحّح الرقم
+       if(target>cc&&_cnBlocked(n,cc,target-cc,_prodOwnColors(p),p,{others:_cnCartUsed(_posCart,n,i0)})){_posBeep('bad');_posBuzz([60,50,60]);return;}}
+      _posSheet='';_posCnq=null;
+      if(!_posLine(pid)&&target>0)_posEnsure(pid);
+      const idx=_posCart.findIndex(x=>x.id===pid);
+      const c0=idx>=0?_posCnQty(_posCart[idx],n):0;
+      if(idx>=0&&target!==c0)posCN(idx,n,target-c0);else posRender();
+    });
+    return;
+  }
   if(_posSheet==='final'){
     const L=_posListTotal(),T=_posTotals();
     // أقرب نصّ دينار ودينار وخمسة تحت السعر — أشهر خصومات البسطة
@@ -4905,6 +4942,12 @@ function posAct(a){
   if(a==='undo'){const f=_posUndo&&_posUndo.fn;_posClearUndo();_posBuzz(20);if(f)f();return;}
   if((m=a.match(/^open:(.+)$/))){_posEnsure(m[1]);_posActive=m[1];_posMinus=false;_posBuzz(16);posRender();return;}
   if((m=a.match(/^prod:(.+)$/))){posAdd(m[1]);return;}
+  if((m=a.match(/^cnq:(.+):(\d+)$/))){
+    // كمية لون بالكتابة بدل ما تضغط 30 مرّة
+    const it=_posLine(m[1]);
+    _posCnq={pid:m[1],n:Number(m[2]),v:String(it?_posCnQty(it,Number(m[2]))||'':'')};
+    _posActive=m[1];_posSheet='cnq';_posBuzz(18);posRender();return;
+  }
   if((m=a.match(/^cn:(.+):(\d+)$/))){
     const pid=m[1],n=Number(m[2]);
     if(_posLink&&_posLink.pid===pid&&!_posMinus){
@@ -4980,7 +5023,7 @@ function posCN(i,num,delta){
   let cns=(it.colorNumbers||[]).slice();
   const j=cns.findIndex(c=>Number(c.num)===Number(num));
   if(j>=0){const q=(Number(cns[j].qty)||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
-  else if(delta>0) cns.push({num,qty:1});
+  else if(delta>0) cns.push({num,qty:delta});
   it.colorNumbers=cns;
   const tot=cns.reduce((s,c)=>s+(Number(c.qty)||0),0);
   it.qty=tot;                       // الكمية = مجموع الألوان، زي الطلب
