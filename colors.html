@@ -501,11 +501,13 @@ function paintSheet(){
   b.textContent=sview==='cart'?'✓ كمّل الطلب':sview==='form'?'✅ ثبّت الطلب':('💬 ابعت تأكيد على '+chName());
 }
 function openSheet(){sview='cart';cartRows();paintSheet();sheetOn();}
-function showForm(){
-  sview='form';
+function showFormSum(){
   const XL=lines(),pcs=XL.reduce((t,x)=>t+x.qty,0),money=XL.reduce((t,x)=>t+x.qty*x.price,0);
   $('#ckSum').innerHTML=XL.map(x=>`<bdi>${esc(x.name)}</bdi>${x.colorNumbers?': '+x.colorNumbers.map(c=>`<bdi dir="ltr">${esc(c.tag)} ×${c.qty}</bdi>`).join('، '):' ×'+x.qty}`).join('<br>')+
     `<br><b class="n">${pcs}</b> قطعة`+(money>0?` · <b class="n">${f2(money)}</b> د.أ + التوصيل`:'');
+}
+function showForm(){
+  sview='form';showFormSum();
   $('#ckName').value=ME.name||'';$('#ckPhone').value=ME.phone||'';$('#ckAddr').value=ME.address||'';$('#ckNotes').value='';$('#ckMore').value='';
   paintAreas(ME.area||'');$('#ckErr').textContent='';
   paintSheet();sheetOn();
@@ -519,6 +521,39 @@ function normPhone(v){let p=digits(v).replace(/\D/g,'');
 function reqText(r){
   return `مرحبا 👋 سجّلت طلب من الكتالوج — رقم ${r.ref}\n`+r.extras.map(x=>'• '+lineTxt(x)).join('\n')+'\n'+(r.extraText?`✍️ بدّي كمان: ${r.extraText}\n`:'')+
     `\nالاسم: ${r.customer.name}\nالهاتف: ${r.customer.phone}\nالعنوان: ${r.customer.area} — ${r.customer.address}`+(r.customer.notes?`\nملاحظات: ${r.customer.notes}`:'');
+}
+// 🔒 الحجز: أوّل ما الزبون يثبّت، الكمية بتنخصم من المخزون بنفس اللحظة اللي بينحفظ فيها الطلب
+// (معاملة وحدة) — فلو موظف الطلبات تأخّر بالتأكيد، ألوان الزبون محجوزة إله. واللون اللي ما
+// انعدّ (ما إله رصيد معروف) ما في إشي نحجزه. لو اثنين طلبوا آخر قطعة، الثاني بيعرف شو ضلّ.
+async function reserveAndSave(r,XL){
+  const ref=db.collection('catalog_requests').doc();
+  const ownIds=[...new Set(XL.filter(x=>x.colorNumbers&&kind(PR[x.pid])!=='lib').map(x=>x.pid))];
+  const libNeed={};
+  XL.filter(x=>x.colorNumbers&&kind(PR[x.pid])==='lib').forEach(x=>x.colorNumbers.forEach(c=>{libNeed[c.num]=(libNeed[c.num]||0)+c.qty;}));
+  const libRefs=Object.keys(libNeed).map(code=>{const c=(LIB||[]).find(z=>z.code===Number(code));return c?{code,ref:db.collection('color_library').doc(c.id)}:null;}).filter(Boolean);
+  let short=[],res={own:{},lib:{}};
+  await db.runTransaction(async tx=>{
+    short=[];res={own:{},lib:{}};const upd=[];
+    const ownRefs=ownIds.map(id=>db.collection('operator_products').doc(id));
+    const os=[];for(const rf of ownRefs)os.push(await tx.get(rf));
+    const ls=[];for(const d of libRefs)ls.push(await tx.get(d.ref));
+    os.forEach((sn,i)=>{const id=ownIds[i],qm=(sn.exists&&sn.data().ownColorQty)||{},u={};
+      XL.filter(x=>x.pid===id).forEach(x=>x.colorNumbers.forEach(c=>{const have=qm[String(c.num)];
+        if(have==null)return;
+        const h=Number(have)||0;
+        if(h<c.qty){short.push({pid:id,num:c.num,name:x.name+' — '+x.word+' '+c.tag,have:Math.max(0,h)});return;}
+        u['ownColorQty.'+c.num]=h-c.qty;res.own[id+'|'+c.num]=c.qty;}));
+      if(Object.keys(u).length)upd.push([ownRefs[i],u]);});
+    ls.forEach((sn,i)=>{const d=libRefs[i],v=(sn.exists&&sn.data())||{};if(v.counted!==true)return;
+      const h=Number(v.qty)||0,need=libNeed[d.code];
+      if(v.status==='out'||h<need){short.push({lib:Number(d.code),name:'لون '+d.code,have:v.status==='out'?0:Math.max(0,h)});return;}
+      upd.push([d.ref,{qty:h-need}]);res.lib[d.code]=need;});
+    if(short.length)return;
+    upd.forEach(([rf,u])=>tx.update(rf,u));
+    tx.set(ref,{...r,reserved:Object.keys(res.own).length+Object.keys(res.lib).length>0,reservation:res});
+  });
+  r.reserved=!short.length&&Object.keys(res.own).length+Object.keys(res.lib).length>0;
+  return short;
 }
 async function submitReq(){
   if(sending)return;
@@ -539,14 +574,23 @@ async function submitReq(){
     channel:CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',source:'catalog',
     createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   sending=true;const b=$('#sheetWa');b.disabled=true;b.textContent='⏳ عم نسجّل طلبك…';
-  let saved=false;
-  try{await Promise.race([db.collection('catalog_requests').add(r),new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),12000))]);saved=true;}catch(e){}
+  let saved=false,short=[];
+  try{short=await Promise.race([reserveAndSave(r,XL),new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),15000))]);saved=!short.length;}catch(e){}
   sending=false;b.disabled=false;
+  if(short.length){
+    // حدا سبقه على آخر القطع: منعدّل سلّته على الموجود ومنخلّيه يثبّت كمان مرّة
+    short.forEach(x=>{
+      if(x.lib!=null){Object.keys(CART).forEach(id=>{const p=PR[id];if(p&&kind(p)==='lib'&&CART[id].n&&CART[id].n[x.lib])setQ(id,x.lib,x.have);});}
+      else setQ(x.pid,x.num,x.have);});
+    paintSheet();
+    err('⚠️ '+short.map(x=>x.have?`الموجود من ${x.name} صار ${x.have} بس`:`${x.name} خلص هلّأ`).join('، ')+' — عدّلنا طلبك، راجعه واضغط «ثبّت» كمان مرّة');
+    showFormSum();return;
+  }
   r.text=reqText(r);lastReq=r;
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
   CART={};saveCart();render();paint();
   sview='done';
-  $('#doneP').innerHTML=`سجّلنا طلبك وبنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>ابعتلنا تأكيد على ${chName()} عشان يوصلك ردّنا أسرع 👇`;
+  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك صارت محجوزة إلك</b> 🔒':''}<br>بنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>ابعتلنا تأكيد على ${chName()} عشان يوصلك ردّنا أسرع 👇`;
   $('#doneRef').textContent='رقم الطلب '+ref;
   paintSheet();
 }

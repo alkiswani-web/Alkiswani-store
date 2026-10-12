@@ -3428,7 +3428,7 @@ function _cnBlocked(num,cur,delta,own,prod,ctx){
     return false;
   }
   const st=_clrSt(num);
-  if(st!=='active'){
+  if(st!=='active'&&!(st==='out'&&held>0)){
     toast(`⚠️ ${_clrName(num)} ${st==='out'?'خلص مؤقتاً':'متوقّف'} — اختر لوناً غيره`);
     return true;
   }
@@ -7073,7 +7073,7 @@ function empCartCN(idx,num,delta){
   const _pr=_prodById(item.id);
   const _cur=((Array.isArray(item.colorNumbers)?item.colorNumbers:[]).find(c=>c.num===num)||{}).qty||0;
   if(_cnBlocked(num,_cur,delta,_prodOwnColors(_pr),_pr,
-      {others:_cnCartUsed(_empOrderCart,num,idx)}))return;
+      {others:_cnCartUsed(_empOrderCart,num,idx),held:_empCatHeld(item.id,num)}))return;
   let cns=Array.isArray(item.colorNumbers)?item.colorNumbers.slice():[];
   const i=cns.findIndex(c=>c.num===num);
   if(i>=0){const q=(cns[i].qty||0)+delta;if(q<=0)cns.splice(i,1);else cns[i]={num,qty:q};}
@@ -7516,6 +7516,9 @@ async function submitEmpOrder(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       editHistory:[]
     });
+    // طلب من الكتالوج: ألوانه محجوزة من لما الزبون ثبّت — منفكّ الحجز أوّل، وبعدين البوليصة
+    // بتخصم اللي فيها فعلاً (لو الموظف عدّل الألوان بيطلع المخزون صح)
+    if(_empCatReqId)await _catRelease(_empCatReqId);
     // مخزون الألوان ينخصم على إدخال الطلب — الشنيل انحجز للزبونة من هلق
     _orderStockSync(_newRef.id,null,{products:_newProducts},false,true);
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
@@ -7571,6 +7574,15 @@ function _empCatWatch(){
     _empCatPaint();
   },()=>{});
 }
+// الكمية المحجوزة للزبون من طلب الكتالوج اللي بالبوليصة — بتنحسب متوفّرة إله هو
+function _empCatHeld(pid,num){
+  if(!_empCatReqId)return 0;
+  const r=(_empCatReqs||[]).find(x=>x.id===_empCatReqId);
+  if(!r||!r.reserved||!r.reservation)return 0;
+  const p=_prodById(pid);
+  if(p&&_prodOwnColors(p))return Number((r.reservation.own||{})[pid+'|'+num])||0;
+  return Number((r.reservation.lib||{})[num])||0;
+}
 function _empCatItems(r){return (r.items||[]).map(i=>`<bdi dir="ltr" style="background:#fff;border:1px solid #fcd34d;border-radius:6px;padding:0 5px;">${_clrEsc(i.tag!=null?i.tag:i.num)} ×${i.qty}</bdi>`).join(' ');}
 function _empCatPaint(){
   const box=document.getElementById('empCatReqs');if(!box)return;
@@ -7589,6 +7601,7 @@ function _empCatPaint(){
         <div style="display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:900;color:#1f2937;">
           <span title="${r.channel==='messenger'?'ماسنجر':'واتساب'}">${r.channel==='messenger'?'🔵':'🟢'}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <span style="direction:ltr;unicode-bidi:isolate;">${_clrEsc(c.phone||'')}</span></span>
+          ${r.reserved?'<span title="ألوانه محجوزة من المخزون" style="font-size:.68rem;font-weight:800;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px;white-space:nowrap;">🔒 محجوز</span>':''}
           <span style="font-size:.7rem;color:#9ca3af;font-weight:700;white-space:nowrap;">${ago(r)}</span></div>
         <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 ${_clrEsc(r.productName||'')}: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} ${_clrEsc(x.name)}${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''} ×${x.qty}<br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
@@ -7628,8 +7641,44 @@ async function empCatFill(id){
   document.getElementById('empBill')?.scrollIntoView({behavior:'smooth',block:'start'});
   toast('📝 انحطّ بالبوليصة — راجعه واختم');
 }
+// 🔒 الكتالوج حجز ألوان الزبون أوّل ما ثبّت (reservation على الطلب). منفكّ الحجز مرّة وحدة بس:
+// قبل ما البوليصة تخصم مخزونها بنفسها (فما بينخصم مرّتين)، أو لما الطلب ينشال.
+async function _catRelease(rid){
+  let res=null;
+  try{
+    await db.runTransaction(async tx=>{
+      const ref=db.collection('catalog_requests').doc(rid),sn=await tx.get(ref),v=sn.exists?sn.data():null;
+      res=null;
+      if(!v||!v.reserved)return;
+      res=v.reservation||{};
+      tx.update(ref,{reserved:false,releasedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    });
+  }catch(e){console.error('catRelease',e);return false;}
+  if(!res)return true;
+  const own=res.own||{},lib=res.lib||{},INC=firebase.firestore.FieldValue.increment;
+  try{
+    if(Object.keys(own).length){
+      const b=db.batch();
+      Object.keys(own).forEach(k=>{const [pid,num]=k.split('|');b.update(db.collection('operator_products').doc(pid),{['ownColorQty.'+num]:INC(Number(own[k])||0)});});
+      await b.commit();
+      // النسخة اللي بالذاكرة (القائمتان أحياناً بيشاركوا نفس الكائن)
+      const seen=new Set();
+      Object.keys(own).forEach(k=>{const [pid,num]=k.split('|');
+        [...(_opProductsList||[]),...(_empSharedProducts||[])].filter(p=>p&&p.id===pid&&!seen.has(p)).forEach(p=>{seen.add(p);
+          const m=p.ownColorQty=Object.assign({},p.ownColorQty||{});if(m[num]!=null)m[num]=(Number(m[num])||0)+(Number(own[k])||0);});});
+    }
+    if(Object.keys(lib).length){
+      await loadColorLibrary();
+      const b=db.batch();let n=0;
+      Object.keys(lib).forEach(code=>{const c=_clr(code);if(c){b.update(db.collection('color_library').doc(c.id),{qty:INC(Number(lib[code])||0)});n++;}});
+      if(n){await b.commit();_colorLibLoaded=false;}
+    }
+  }catch(e){console.error('catRelease stock',e);}
+  return true;
+}
 async function empCatDismiss(id){
-  if(!confirm('نشيل هاد الطلب؟ (ما رح يتسجّل)'))return;
+  if(!confirm('نشيل هاد الطلب؟ (ما رح يتسجّل — والألوان المحجوزة إله بترجع للمخزون)'))return;
+  await _catRelease(id);
   try{await db.collection('catalog_requests').doc(id).update({status:'dismissed',doneBy:_empCurrentUser.displayName||_empCurrentUser.username,doneAt:firebase.firestore.FieldValue.serverTimestamp()});
     if(_empCatReqId===id)_empCatReqId=null;toast('🗑 انشال');}
   catch(e){toast('❌ '+e.message);}
