@@ -137,6 +137,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .xt .xtq{display:flex;align-items:center;justify-content:space-between;padding:0 5px 6px;gap:4px}
 .xt .xtq button{width:34px;height:32px;border-radius:9px;border:1.5px solid var(--ln);background:var(--cream);font-weight:900}
 .xt .xtq b{font-weight:900}
+.xt .nop{position:absolute;inset:auto 0 42% 0;text-align:center;font-size:.68rem;font-weight:800;color:var(--mu)}
 .xhint{font-size:.78rem;font-weight:700;color:var(--mu);padding:8px 2px 0}
 .toast{position:fixed;left:50%;bottom:110px;transform:translate(-50%,14px);background:var(--g);color:#fff;padding:10px 16px;border-radius:12px;font-weight:800;font-size:.86rem;opacity:0;transition:.22s;z-index:60;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
@@ -367,22 +368,22 @@ function openXOpts(id,keep){
   const p=XP[id];if(!p||xKind(p)==='plain')return;xNeed(p);xOpen=id;view='xopt';
   const os=xOpts(p),c=(XC[id]&&XC[id].n)||{},sl=$('#sl'),top=keep?sl.scrollTop:0;
   if(!os)sl.innerHTML='<div class="empty">⏳ عم نجيب الألوان…</div>';
-  else if(xKind(p)==='size')sl.innerHTML=os.map(o=>{const q=c[o.num]||0;
+  else if(xKind(p)==='size'||!os.some(o=>o.img||o.hex))sl.innerHTML=os.map(o=>{const q=c[o.num]||0;
     return `<div class="si"${o.out?' style="opacity:.45"':''}><div class="m">${esc(xWord(p))} <bdi>${esc(o.tag)}</bdi><small>${o.out?'خلص':o.stock!=null?'متوفّر <span class="n">'+o.stock+'</span>':''}</small></div>
       ${o.out?'':`<div class="q"><button data-xn="${esc(id)}:${o.num}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-xn="${esc(id)}:${o.num}:1" aria-label="أكثر">＋</button></div>`}</div>`;}).join('')||'<div class="empty">ما في إشي متوفّر هلّأ</div>';
   else{
     // نفس شكل الكتالوج: صورة اللون ورقمه — ضغطة على الصورة بتزيد وحدة
     const L=[...os.filter(o=>!o.out),...os.filter(o=>o.out)];
     sl.innerHTML=L.length?`<div class="xhint">اضغط على اللون لتضيفه — وكل ضغطة بتزيد قطعة</div><div class="xg">`+L.map(o=>{const q=c[o.num]||0;
-      const bg=o.img?`background-image:url('${o.img}')`:(o.hex?`background:${esc(o.hex)}`:'');
-      return `<div class="xt${q?' sel':''}${o.out?' out':''}"><button class="ph"${o.out?' disabled':` data-xn="${esc(id)}:${o.num}:1"`} style="${bg}" aria-label="لون ${esc(o.tag)}"><span class="num n">${esc(o.tag)}</span>${q?`<span class="pick n">×${q}</span>`:''}</button>
+      const bg=o.img?`background-image:url('${o.img}')`:(o.hex?`background:${esc(o.hex)}`:'');const noPh=!o.img&&!o.hex;
+      return `<div class="xt${q?' sel':''}${o.out?' out':''}"><button class="ph"${o.out?' disabled':` data-xn="${esc(id)}:${o.num}:1"`} style="${bg}" aria-label="لون ${esc(o.tag)}"><span class="num n">${esc(o.tag)}</span>${noPh?'<span class="nop">بدون صورة</span>':''}${q?`<span class="pick n">×${q}</span>`:''}</button>
         <div class="xtc">${o.out?'خلص':o.stock!=null?'متوفّر <span class="n">'+o.stock+'</span>':''}</div>
         ${q?`<div class="xtq"><button data-xn="${esc(id)}:${o.num}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-xn="${esc(id)}:${o.num}:1" aria-label="أكثر">＋</button></div>`:''}</div>`;}).join('')+'</div>'
       :'<div class="empty">ما في ألوان متوفّرة هلّأ</div>';
   }
   paintSheet();const q=xQty(id);$('#shH').textContent=(p.name||'')+' — اختار '+xWord(p)+(q?' ('+q+')':'');
   if(q)$('#sheetWa').textContent='✓ تمام — '+q+' قطعة';
-  $('#scrim').classList.add('on');$('#sheet').classList.add('on');
+  sheetOn();
   if(keep)sl.scrollTop=top;
 }
 // كل اللي بالطلب (الألوان + الإضافات) — للشريط والملخّص والإرسال
@@ -495,7 +496,7 @@ function showForm(){
   $('#ckMore').value='';
   $('#ckName').value=ME.name||'';$('#ckPhone').value=ME.phone||'';$('#ckAddr').value=ME.address||'';$('#ckNotes').value='';
   paintAreas(ME.area||'');$('#ckErr').textContent='';
-  paintSheet();$('#scrim').classList.add('on');$('#sheet').classList.add('on');
+  paintSheet();sheetOn();
   setTimeout(()=>{const f=[$('#ckName'),$('#ckPhone'),$('#ckAddr')].find(x=>!x.value);if(f)f.focus();},260);
 }
 let AREA='';
@@ -553,9 +554,18 @@ function openSheet(){
       return x.colorNumbers?x.colorNumbers.map(c=>row(esc(x.word)+' <bdi>'+esc(c.tag)+'</bdi>',c.qty,`data-xn="${esc(x.pid)}:${c.num}`)).join('')
         :row(x.price>0?'<span class="n">'+f2(x.price)+'</span> د.أ':'',x.qty,`data-xa="${esc(x.pid)}`);}).join('')||'<div class="empty">طلبك فاضي</div>';
   view='cart';paintSheet();
+  sheetOn();
+}
+// زرّ الرجوع بالموبايل بيسكّر الشيت بدل ما يطلع من الموقع
+function sheetOn(){
+  if(!$('#sheet').classList.contains('on')){try{if(!history.state||!history.state.sh)history.pushState({sh:1},'');}catch(e){}}
   $('#scrim').classList.add('on');$('#sheet').classList.add('on');
 }
-function closeSheet(){$('#scrim').classList.remove('on');$('#sheet').classList.remove('on');if(view==='done'||view==='xopt')view='cart';}
+function closeSheet(fromPop){
+  const was=$('#sheet').classList.contains('on');
+  $('#scrim').classList.remove('on');$('#sheet').classList.remove('on');if(view==='done'||view==='xopt')view='cart';
+  if(was&&!fromPop){try{if(history.state&&history.state.sh)history.back();}catch(e){}}
+}
 
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-i]');if(t){openLb(Number(t.dataset.i));return;}
@@ -588,9 +598,9 @@ $('#lbAdd').onclick=()=>{const x=ITEMS[cur];if(!x||x.out)return;
   el.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>50)step(dx>0?1:-1);},{passive:true});})();
 $('#q').addEventListener('input',render);
 $('#onlyAv').onclick=()=>{onlyAv=!onlyAv;$('#onlyAv').setAttribute('aria-pressed',onlyAv);render();};
-$('#barWa').onclick=sendWa;$('#sheetWa').onclick=sendWa;$('#barEdit').onclick=openSheet;$('#scrim').onclick=closeSheet;
+$('#barWa').onclick=sendWa;$('#sheetWa').onclick=sendWa;$('#barEdit').onclick=openSheet;$('#scrim').onclick=()=>closeSheet();
 if(CH==='m'){$('#barWa').textContent='💬 اطلب';$('#barWa').classList.add('ms');}else $('#barWa').textContent='💬 اطلب';
-window.addEventListener('popstate',()=>{if($('#lb').classList.contains('on'))closeLb(true);});
+window.addEventListener('popstate',()=>{if($('#lb').classList.contains('on'))closeLb(true);else if($('#sheet').classList.contains('on'))closeSheet(true);});
 document.addEventListener('keydown',e=>{if(!$('#lb').classList.contains('on'))return;if(e.key==='Escape')closeLb();if(e.key==='ArrowLeft')step(1);if(e.key==='ArrowRight')step(-1);});
 window.addEventListener('DOMContentLoaded',()=>{if(!window.firebase){fail('ما قدرنا نحمّل الصفحة — تأكّد من النت');return;}load();});
 })();
