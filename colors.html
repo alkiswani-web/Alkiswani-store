@@ -88,6 +88,25 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .si .q{display:flex;align-items:center;gap:6px}
 .si .q button{width:34px;height:34px;border-radius:10px;border:1.5px solid var(--ln);background:#fff;font-weight:900}
 .sheet .go{margin:12px 16px 16px;height:54px;border-radius:16px;border:0;background:#25d366;color:#05351a;font-weight:900;font-size:1rem}
+.wa.ms{background:#0a7cff;color:#fff}
+.sheet .go.ms{background:#0a7cff;color:#fff}
+/* بيانات الزبون */
+.ck{overflow-y:auto;padding:10px 16px 4px}
+.ck label{display:block;font-size:.8rem;font-weight:900;color:var(--mu);margin:10px 2px 5px}
+.ck label i{font-style:normal;font-weight:700;opacity:.75}
+.ck input,.ck textarea{width:100%;border:1.5px solid var(--ln);border-radius:12px;background:#fff;font:inherit;font-size:1rem;font-weight:700;padding:11px 12px;outline:none}
+.ck input:focus,.ck textarea:focus{border-color:var(--g)}
+.ck textarea{resize:none;min-height:64px}
+.ck .ar{display:flex;flex-wrap:wrap;gap:6px}
+.ck .ar button{border:1.5px solid var(--ln);background:#fff;border-radius:999px;padding:7px 12px;font-size:.84rem;font-weight:800}
+.ck .ar button[aria-pressed="true"]{background:var(--g);color:#fff;border-color:var(--g)}
+.ck .sum{background:var(--cream);border:1.5px dashed var(--ln);border-radius:12px;padding:9px 11px;font-size:.82rem;font-weight:800;line-height:1.7}
+.ck .err{color:var(--rd);font-size:.8rem;font-weight:800;min-height:1.2em;margin:6px 2px 0}
+.done{padding:26px 18px 6px;text-align:center}
+.done .ok{width:64px;height:64px;border-radius:50%;background:#dcfce7;color:#166534;display:grid;place-items:center;font-size:2rem;margin:0 auto 10px}
+.done h4{margin:0 0 6px;font-size:1.2rem}
+.done p{margin:0;color:var(--mu);font-weight:700;font-size:.88rem;line-height:1.8}
+.done .ref{display:inline-block;margin-top:8px;background:var(--cream);border:1.5px dashed var(--gold);border-radius:10px;padding:4px 12px;font-weight:900}
 .toast{position:fixed;left:50%;bottom:110px;transform:translate(-50%,14px);background:var(--g);color:#fff;padding:10px 16px;border-radius:12px;font-weight:800;font-size:.86rem;opacity:0;transition:.22s;z-index:60;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .skel{aspect-ratio:1;border-radius:16px;background:linear-gradient(90deg,#ece5d6,#f5efe3,#ece5d6);background-size:200% 100%;animation:sk 1.2s infinite}
@@ -108,7 +127,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
     <button class="tog" id="onlyAv" aria-pressed="false">المتوفّر بس</button>
   </div>
   <div class="grid" id="grid"></div>
-  <div class="foot">اضغط على أي لون لتكبّره وتضيفه لطلبك — وبعدين «اطلب بالواتساب».<br>الصور حقيقية بس الشاشة ممكن تغيّر درجة اللون شوي.</div>
+  <div class="foot">اضغط على أي لون لتكبّره وتضيفه لطلبك — وبعدين «اطلب».<br>الصور حقيقية بس الشاشة ممكن تغيّر درجة اللون شوي.</div>
 </div>
 
 <div class="bar" id="bar" hidden><div class="in">
@@ -130,7 +149,19 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 </div>
 
 <div class="scrim" id="scrim"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true"><h3 class="kufi">طلبي</h3><div class="sl" id="sl"></div><button class="go" id="sheetWa">💬 ابعت الطلب بالواتساب</button></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><h3 class="kufi" id="shH">طلبي</h3>
+  <div class="sl" id="sl"></div>
+  <div class="ck" id="vForm" hidden>
+    <div class="sum" id="ckSum"></div>
+    <label for="ckName">الاسم</label><input id="ckName" autocomplete="name" placeholder="اسمك">
+    <label for="ckPhone">رقم الهاتف</label><input id="ckPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="07XXXXXXXX" style="direction:ltr;text-align:right">
+    <label>المحافظة</label><div class="ar" id="ckArea"></div>
+    <label for="ckAddr">العنوان</label><input id="ckAddr" autocomplete="street-address" placeholder="المنطقة، الشارع، أقرب معلم">
+    <label for="ckNotes">ملاحظات <i>(اختياري)</i></label><textarea id="ckNotes" placeholder="أي إشي بدك تحكيلنا ياه"></textarea>
+    <div class="err" id="ckErr"></div>
+  </div>
+  <div id="vDone" hidden><div class="done"><div class="ok">✓</div><h4 class="kufi">وصل طلبك</h4><p id="doneP"></p><div class="ref n" id="doneRef"></div></div></div>
+  <button class="go" id="sheetWa">💬 اطلب بالواتساب</button></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -142,10 +173,19 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const f2=v=>(Math.round((Number(v)||0)*100)/100).toFixed(2);
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2200);}
 let db,P=null,ITEMS=[],CART={},cur=-1,onlyAv=false;
-const pid=new URLSearchParams(location.search).get('p')||'';
+const QS=new URLSearchParams(location.search);
+const pid=QS.get('p')||'';
+// القناة (w واتساب / m ماسنجر) والموظف اللي بعت الرابط — الطلب بيوصله هو
+const CH=QS.get('c')==='m'?'m':'w';
+const EMP=String(QS.get('e')||'').slice(0,60);
+let CFG={};
 const cartKey='_clrCart_'+pid;
 try{CART=JSON.parse(localStorage.getItem(cartKey)||'{}')||{};}catch(e){CART={};}
 const saveCart=()=>{try{localStorage.setItem(cartKey,JSON.stringify(CART));}catch(e){}};
+const AREAS=['عمان','اربد','الزرقاء','البلقاء','مادبا','الكرك','الطفيلة','معان','العقبة','جرش','عجلون','المفرق','الاغوار','الشونة','الازرق','رصيفة'];
+const ME_KEY='_clrMe';let ME={};
+try{ME=JSON.parse(localStorage.getItem(ME_KEY)||'{}')||{};}catch(e){ME={};}
+const chName=()=>CH==='m'?'الماسنجر':'الواتساب';
 
 function skeleton(){$('#grid').innerHTML=Array.from({length:9},()=>'<div class="skel"></div>').join('');}
 // تحديث مباشر: بنسمع للمنتج (الكميات) ولصور الألوان — والزبون فاتح الصفحة
@@ -156,6 +196,7 @@ async function load(){
     storageBucket:"alkiswani-store.firebasestorage.app",messagingSenderId:"60330492719",appId:"1:60330492719:web:71e36dd5327db3e54017da"});
   db=firebase.firestore();
   if(!pid){fail('الرابط ناقص — اطلب الرابط من المحل');return;}
+  db.collection('operator_config').doc('catalog_cfg').get().then(d=>{CFG=(d.exists&&d.data())||{};}).catch(()=>{});
   let first=true;
   db.collection('operator_products').doc(pid).onSnapshot(d=>{
     if(!d.exists){fail('هاد الكتالوج مش موجود');return;}
@@ -287,18 +328,90 @@ function waText(){
   const pcs=ks.reduce((t,k)=>t+CART[k],0);
   return `مرحبا 👋 بدي أطلب من «${P&&P.name||''}»:\n${lines.join('\n')}\n\nالمجموع: ${pcs} قطعة`+(Number(P&&P.sellPrice)>0?` (${f2(pcs*P.sellPrice)} د.أ بدون التوصيل)`:'');
 }
-function sendWa(){if(!Object.keys(CART).length){toast('اختار لون أوّل');return;}location.href=`https://wa.me/${WA}?text=${encodeURIComponent(waText())}`;}
+// فتح المحادثة على نفس القناة اللي إجا منها الزبون
+function chatUrl(text){
+  if(CH==='m'){const u=String(CFG.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
+  const n=String(CFG.waNumber||WA).replace(/\D/g,'')||WA;return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+}
+async function openChat(text){
+  if(CH==='m'){try{await navigator.clipboard.writeText(text);toast('📋 نسخنا الرسالة — الصقها بالماسنجر');}catch(e){}}
+  const u=chatUrl(text);
+  if(u)setTimeout(()=>{location.href=u;},CH==='m'?700:0);
+  else toast('📋 نسخنا الرسالة — ابعتها لصفحتنا على الماسنجر');
+}
+let view='cart',lastReq=null,sending=false;
+function sendWa(){
+  if(view==='done'){openChat(lastReq.text);return;}
+  if(!Object.keys(CART).length){toast('اختار لون أوّل');return;}
+  if(view!=='form'){showForm();return;}
+  submitReq();
+}
+function normPhone(v){let p=String(v||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g,'');
+  if(p.startsWith('00962'))p=p.slice(5);else if(p.startsWith('962'))p=p.slice(3);
+  if(p.length===9&&p[0]==='7')p='0'+p;return p;}
+function showForm(){
+  view='form';
+  const ks=Object.keys(CART);const pcs=ks.reduce((t,k)=>t+CART[k],0);
+  $('#ckSum').innerHTML=`<bdi>${esc(P&&P.name||'')}</bdi>: `+ks.map(k=>{const x=ITEMS.find(i=>String(i.num)===k);return `<bdi>${esc(x?x.tag:k)} ×${CART[k]}</bdi>`;}).join('، ')+
+    ` · <b class="n">${pcs}</b> قطعة`+(Number(P&&P.sellPrice)>0?` · <b class="n">${f2(pcs*P.sellPrice)}</b> د.أ + التوصيل`:'');
+  $('#ckName').value=ME.name||'';$('#ckPhone').value=ME.phone||'';$('#ckAddr').value=ME.address||'';$('#ckNotes').value='';
+  paintAreas(ME.area||'');$('#ckErr').textContent='';
+  paintSheet();$('#scrim').classList.add('on');$('#sheet').classList.add('on');
+  setTimeout(()=>{const f=[$('#ckName'),$('#ckPhone'),$('#ckAddr')].find(x=>!x.value);if(f)f.focus();},260);
+}
+let AREA='';
+function paintAreas(a){AREA=a;$('#ckArea').innerHTML=AREAS.map(x=>`<button type="button" data-ar="${esc(x)}" aria-pressed="${x===a}">${esc(x)}</button>`).join('');}
+function reqText(r){
+  return `مرحبا 👋 سجّلت طلب من الكتالوج — رقم ${r.ref}\n«${r.productName}»:\n`+r.items.map(i=>`• ${i.name} × ${i.qty}`).join('\n')+
+    `\n\nالاسم: ${r.customer.name}\nالهاتف: ${r.customer.phone}\nالعنوان: ${r.customer.area} — ${r.customer.address}`+(r.customer.notes?`\nملاحظات: ${r.customer.notes}`:'');
+}
+async function submitReq(){
+  if(sending)return;
+  const name=$('#ckName').value.trim(),phone=normPhone($('#ckPhone').value),address=$('#ckAddr').value.trim(),notes=$('#ckNotes').value.trim();
+  const err=m=>{$('#ckErr').textContent=m;};
+  if(!name)return err('اكتب اسمك');
+  if(!/^07[789]\d{7}$/.test(phone))return err('رقم الهاتف لازم يكون 10 أرقام ويبلّش بـ 077 / 078 / 079');
+  if(!AREA)return err('اختار المحافظة');
+  if(!address)return err('اكتب العنوان');
+  err('');
+  ME={name,phone,area:AREA,address};try{localStorage.setItem(ME_KEY,JSON.stringify(ME));}catch(e){}
+  const ks=Object.keys(CART);
+  const items=ks.map(k=>{const x=ITEMS.find(i=>String(i.num)===k);return {num:Number(k),tag:String(x?x.tag:k),name:x?x.name:('لون '+k),qty:CART[k]};});
+  const ref=Math.random().toString(36).slice(2,7).toUpperCase();
+  const r={ref,pid,productName:P&&P.name||'',items,pieces:items.reduce((t,i)=>t+i.qty,0),price:Number(P&&P.sellPrice)||0,
+    customer:{name,phone,area:AREA,address,notes},channel:CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+  sending=true;const b=$('#sheetWa');b.disabled=true;b.textContent='⏳ عم نسجّل طلبك…';
+  let saved=false;
+  try{await Promise.race([db.collection('catalog_requests').add(r),new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),12000))]);saved=true;}catch(e){}
+  sending=false;b.disabled=false;
+  r.text=reqText(r);lastReq=r;
+  if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
+  CART={};saveCart();paintBar();render();
+  view='done';
+  $('#doneP').innerHTML=`سجّلنا طلبك وبنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>ابعتلنا تأكيد على ${chName()} عشان يوصلك ردّنا أسرع 👇`;
+  $('#doneRef').textContent='رقم الطلب '+ref;
+  paintSheet();
+}
+function paintSheet(){
+  $('#sl').hidden=view!=='cart';$('#vForm').hidden=view!=='form';$('#vDone').hidden=view!=='done';
+  $('#shH').textContent=view==='form'?'معلوماتك للتوصيل':view==='done'?'تمّ ✓':'طلبي';
+  const b=$('#sheetWa');b.classList.toggle('ms',CH==='m');
+  b.textContent=view==='cart'?'✓ كمّل الطلب':view==='form'?'✅ ثبّت الطلب':('💬 ابعت تأكيد على '+chName());
+}
 function openSheet(){
   const ks=Object.keys(CART);
   $('#sl').innerHTML=ks.map(k=>{const x=ITEMS.find(i=>String(i.num)===k)||{name:'لون '+k,tag:k};const src=FULL[x.key]||x.img;
     return `<div class="si"><i style="${src?`background-image:url('${src}')`:''}"></i><div class="m">${esc(x.name)}<small class="n">#${esc(x.tag)}</small></div>
       <div class="q"><button data-sq="${esc(k)}:-1" aria-label="أقل">−</button><b class="n">${CART[k]}</b><button data-sq="${esc(k)}:1" aria-label="أكثر">＋</button></div></div>`;}).join('')||'<div class="empty">طلبك فاضي</div>';
+  view='cart';paintSheet();
   $('#scrim').classList.add('on');$('#sheet').classList.add('on');
 }
-function closeSheet(){$('#scrim').classList.remove('on');$('#sheet').classList.remove('on');}
+function closeSheet(){$('#scrim').classList.remove('on');$('#sheet').classList.remove('on');if(view==='done')view='cart';}
 
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-i]');if(t){openLb(Number(t.dataset.i));return;}
+  const ar=e.target.closest('[data-ar]');if(ar){paintAreas(ar.dataset.ar);$('#ckErr').textContent='';return;}
   const sq=e.target.closest('[data-sq]');if(sq){const [k,d]=sq.dataset.sq.split(':');
     const x=ITEMS.find(i=>String(i.num)===k);const nv=(CART[k]||0)+Number(d);
     if(Number(d)>0&&x&&x.stock!=null&&nv>x.stock){toast('الموجود من '+x.name+' '+x.stock+' بس');return;}
@@ -319,6 +432,7 @@ $('#lbAdd').onclick=()=>{const x=ITEMS[cur];if(!x||x.out)return;
 $('#q').addEventListener('input',render);
 $('#onlyAv').onclick=()=>{onlyAv=!onlyAv;$('#onlyAv').setAttribute('aria-pressed',onlyAv);render();};
 $('#barWa').onclick=sendWa;$('#sheetWa').onclick=sendWa;$('#barEdit').onclick=openSheet;$('#scrim').onclick=closeSheet;
+if(CH==='m'){$('#barWa').textContent='💬 اطلب';$('#barWa').classList.add('ms');}else $('#barWa').textContent='💬 اطلب';
 window.addEventListener('popstate',()=>{if($('#lb').classList.contains('on'))closeLb(true);});
 document.addEventListener('keydown',e=>{if(!$('#lb').classList.contains('on'))return;if(e.key==='Escape')closeLb();if(e.key==='ArrowLeft')step(1);if(e.key==='ArrowRight')step(-1);});
 window.addEventListener('DOMContentLoaded',()=>{if(!window.firebase){fail('ما قدرنا نحمّل الصفحة — تأكّد من النت');return;}load();});
