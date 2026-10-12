@@ -3640,6 +3640,30 @@ async function openColorLib(){
   if(_clrScope)await _loadOwnImgs(_clrScope,true);
   renderColorLib();
 }
+// 🔗 كتالوج عام للزباين: colors.html?p=<المنتج> — صور الألوان وأرقامها، والزبون
+// بيختار وبيبعت طلبه بالواتساب. الكميات ما بتبيّن للزبون، بس «خلص».
+async function clrCatalogLink(pid){
+  const p=_prodById(pid);
+  const url=location.origin+'/colors.html?p='+encodeURIComponent(pid);
+  const text='ألوان '+((p&&p.name)||'')+' — اختار اللي بدك ياه واطلب بالواتساب 👇';
+  try{if(navigator.share){await navigator.share({title:'ألوان '+((p&&p.name)||''),text,url});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(url);toast('🔗 انسخ الرابط — الصقه للزبون');}
+  catch(e){window.prompt('انسخ الرابط:',url);}
+}
+function clrCatalogPick(){
+  const ps=(_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.ownColorNumbers);
+  if(ps.length===1)return clrCatalogLink(ps[0].id);
+  if(!ps.length){toast('⚠️ ما في منتج بيستعمل المكتبة المشتركة');return;}
+  document.getElementById('clrCatPick')?.remove();
+  const ov=document.createElement('div');ov.id='clrCatPick';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100006;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="width:100%;max-width:520px;background:#fff;border-radius:18px 18px 0 0;padding:14px 16px 18px;font-family:'Tajawal',sans-serif;">
+    <div style="font-weight:900;color:#166534;margin-bottom:10px;">🔗 كتالوج أي منتج؟</div>
+    ${ps.map(p=>`<button onclick="document.getElementById('clrCatPick').remove();clrCatalogLink('${p.id}')" style="display:block;width:100%;text-align:right;padding:12px;margin-bottom:6px;border:1.5px solid #e5e7eb;border-radius:11px;background:#fff;font-family:'Tajawal',sans-serif;font-size:.9rem;font-weight:800;cursor:pointer;">${_clrEsc(p.name)}</button>`).join('')}</div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+}
+window.clrCatalogLink=clrCatalogLink;window.clrCatalogPick=clrCatalogPick;
 function closeColorLib(){_clrOpenId=null;document.getElementById('colorLibModal')?.remove();}
 // ── ألوان كل منتج بترقيمه الخاص — نفس المكتبة بس لمنتج واحد ──
 let _clrScope='';
@@ -3667,7 +3691,7 @@ function _renderOwnLib(){
   if(st) st.innerHTML=`${_cnIsSize(p)?'📏':'🔢'} <b>${_clrEsc(p.name)}</b> — ترقيمه الخاص · ${items.length} ${_cnIsSize(p)?'قياس':'لون'} · 🟡 ${out} خلص`+(noPic?` · 📷 ${noPic} بلا صورة`:'');
   const tools=document.getElementById('clrTools');
   const BT=(fn,bg,fg,bd,t)=>`<button onclick="${fn}" style="padding:7px 12px;background:${bg};color:${fg};border:${bd};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">${t}</button>`;
-  if(tools) tools.innerHTML=BT(`openColorSheet('${pid}')`,'#7c3aed','#fff','none','🖼️ كل الألوان بصورة وحدة')
+  if(tools) tools.innerHTML=BT(`clrCatalogLink('${pid}')`,'#16a34a','#fff','none','🔗 رابط الكتالوج للزباين')+BT(`openColorSheet('${pid}')`,'#7c3aed','#fff','none','🖼️ كل الألوان بصورة وحدة')
     +BT(`clrOwnRephoto('${pid}')`,'#b45309','#fff','none','📷 صوّر الألوان')
     +BT(`openProdStock('${pid}')`,'#eff6ff','#1e40af','1.5px solid #bfdbfe','📦 وارد وصرف');
   list.innerHTML=items.map(c=>{
@@ -3718,6 +3742,7 @@ function renderColorLib(){
     `<button onclick="clrAdd()" style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">➕ لون جديد</button>`+
     `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
     (_colorLib.length?`<button onclick="openColorIntake()" style="padding:7px 12px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📥 وارد جديد</button>`:'')+
+    (_colorLib.length?`<button onclick="clrCatalogPick()" style="padding:7px 12px;background:#16a34a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔗 رابط الكتالوج للزباين</button>`:'')+
     (_colorLib.length?`<button onclick="openColorSheet()" style="padding:7px 12px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🖼️ كل الألوان بصورة وحدة</button>`:'')+
     (_colorLib.length?`<button onclick="openColorBulk()" style="padding:7px 12px;background:#1f2937;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📷 صورة وحدة للكل</button>`:'')+
     ((_colorLib.length||_colorLibError)?'':`<button onclick="seedColorLibrary()" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">⚡ عبّي المكتبة من الأرقام الحالية</button>`);
