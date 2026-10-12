@@ -3616,6 +3616,7 @@ let _clrOpenId=null;   // الصفّ المفتوح للتعديل
 const _clrEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 async function openColorLib(){
+  _clrHQ=true;_hq.f='';_hqReset();
   document.getElementById('colorLibModal')?.remove();
   const ov=document.createElement('div');
   ov.id='colorLibModal';
@@ -3728,19 +3729,20 @@ window._catLinkSet=_catLinkSet;window._catLinkShare=_catLinkShare;
 window.clrCatalogLink=clrCatalogLink;window.clrCatalogPick=clrCatalogPick;
 function closeColorLib(){_clrOpenId=null;document.getElementById('colorLibModal')?.remove();}
 // ── ألوان كل منتج بترقيمه الخاص — نفس المكتبة بس لمنتج واحد ──
-let _clrScope='';
+let _clrScope='',_clrHQ=true;
 function _clrOwnProds(){return (_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&p.ownColorNumbers&&_ownNums(p).length);}
 function _clrScopeBar(){
   const el=document.getElementById('clrScope');if(!el)return;
   const ps=_clrOwnProds();
-  if(!ps.length){el.innerHTML='';return;}
-  const B=(id,t)=>{const on=_clrScope===id;return `<button onclick="clrSetScope('${id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${on?'#1e3a8a':'#e5e7eb'};background:${on?'#1e3a8a':'#fff'};color:${on?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${t}</button>`;};
+  const B=(id,t)=>{const on=id==='@hq'?_clrHQ:(!_clrHQ&&_clrScope===id);return `<button onclick="clrSetScope('${id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${on?'#1e3a8a':'#e5e7eb'};background:${on?'#1e3a8a':'#fff'};color:${on?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${t}</button>`;};
   // المكتبة المشتركة باسم المنتجات اللي بتستعملها فعلاً (حالياً اعواد مخمل)
   const lp=(_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.ownColorNumbers&&!p.isRawMaterial).map(p=>_clrEsc(p.name));
   const libT=lp.length&&lp.length<=2?'🎨 '+lp.join('، '):lp.length?'🎨 المكتبة المشتركة ('+lp.length+' منتجات)':'🎨 المكتبة المشتركة';
-  el.innerHTML=B('',libT)+ps.map(p=>B(p.id,(_cnIsSize(p)?'📏 ':'🔢 ')+_clrEsc(p.name))).join('');
+  el.innerHTML=B('@hq','🎛️ مركز القيادة')+B('',libT)+ps.map(p=>B(p.id,(_cnIsSize(p)?'📏 ':'🔢 ')+_clrEsc(p.name))).join('');
 }
 async function clrSetScope(id){
+  if(id==='@hq'){_clrHQ=true;_hqReset();renderColorLib();return;}
+  _clrHQ=false;
   _clrScope=id||'';
   _clrScopeBar();
   if(_clrScope){const l=document.getElementById('clrList');if(l)l.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:0.85rem;">⏳</div>';
@@ -3792,9 +3794,148 @@ async function clrOwnRephoto(pid){
 }
 window.clrSetScope=clrSetScope;window.clrOwnShoot=clrOwnShoot;window.clrOwnRephoto=clrOwnRephoto;
 
+// ═════════ 🎛️ مركز قيادة الألوان — أوّل تبويب بالمكتبة ═════════
+// كل منتجات الألوان بمكان واحد: شو قرب يخلص وشو خلص وشو ناقصه صورة، طلبات
+// الكتالوج، وشو تغيّر وما وصل للموظفين — ومن كل سطر زرّ للشاشة اللي بتعالجه.
+let _hq={f:'',loaded:false,loading:false,reqs:null,today:null,cbPrev:undefined,cbAt:null,workers:null,cfg:null};
+function _hqReset(){_hq={f:_hq.f||'',loaded:false,loading:false,reqs:null,today:null,cbPrev:undefined,cbAt:null,workers:null,cfg:null};}
+async function _hqLoad(){
+  if(_hq.loading||_hq.loaded)return;_hq.loading=true;
+  const t0=new Date(jordanDateStr()+'T00:00:00+03:00');
+  const docs=s=>s.docs.map(d=>({id:d.id,...d.data()}));
+  await Promise.all([
+    ..._clrOwnProds().map(p=>_loadOwnImgs(p.id,true)),
+    db.collection('catalog_requests').where('status','==','new').get().then(s=>{_hq.reqs=docs(s).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));}).catch(()=>{_hq.reqs=[];}),
+    db.collection('catalog_requests').where('createdAt','>=',t0).get().then(s=>{_hq.today=docs(s);}).catch(()=>{_hq.today=[];}),
+    db.collection('operator_config').doc(CB_STATE).get().then(d=>{const v=(d.exists&&d.data())||{};_hq.cbPrev=v.state||{};_hq.cbAt=v.at||null;}).catch(()=>{_hq.cbPrev=null;}),
+    db.collection('employee_workers').get().then(s=>{_hq.workers={};s.docs.forEach(d=>{const v=d.data();_hq.workers[d.id]=v.name||v.username||'';});}).catch(()=>{_hq.workers={};}),
+    db.collection('operator_config').doc('catalog_cfg').get().then(d=>{_hq.cfg=(d.exists&&d.data())||{};}).catch(()=>{_hq.cfg={};})
+  ]);
+  _hq.loading=false;_hq.loaded=true;
+  if(_clrHQ)renderColorLib();
+}
+// كل ألوان منتج: متوفّر / قرب يخلص / خلص / بلا صورة / بلا باركود
+function _hqStats(p){
+  const own=_prodOwnColors(p),size=_cnIsSize(p);
+  let items;
+  if(own){const im=_ownImgs[p.id]||{};
+    items=_ownNums(p).map(n=>{const q=_ownQty(p,n),m=im[String(n)]||{};
+      return {n,tag:_cnTag(p,n),q,img:m.img||'',hex:m.hex||'',out:q!=null&&q<=0,low:q!=null&&q>0&&q<=2};});}
+  else items=_prodColorCodes(p).map(code=>{const c=_clr(code);if(!c||c.status==='retired')return null;
+    const q=c.counted===true?(Number(c.qty)||0):null;
+    return {n:code,tag:String(code),q,id:c.id,img:c.img||'',hex:c.hex||'',out:c.status==='out'||(q!=null&&q<=0),low:_clrIsLow(c)};}).filter(Boolean);
+  const bcm=_bcColors(p),usesBc=Object.keys(bcm).length>0;
+  return {own,size,items,
+    av:items.filter(i=>!i.out&&!i.low),low:items.filter(i=>i.low),out:items.filter(i=>i.out),
+    noPic:size?[]:items.filter(i=>!i.img),noBc:usesBc?items.filter(i=>!bcm[String(i.n)]):[]};
+}
+function _hqProds(){return _cbProds().map(p=>({p,st:_hqStats(p)})).filter(x=>x.st.items.length);}
+function _hqAgo(ts){const t=ts&&(ts.seconds||(ts.toDate&&ts.toDate().getTime()/1000));if(!t)return '';
+  const m=Math.round((Date.now()/1000-t)/60);return m<1?'هلّأ':m<60?'قبل '+m+' د':m<1440?'قبل '+Math.round(m/60)+' س':'قبل '+Math.round(m/1440)+' يوم';}
+function hqFilter(k){_hq.f=_hq.f===k?'':k;renderColorLib();}
+function hqOpen(pid,own){clrSetScope(own?pid:'');}
+async function hqShoot(pid,own){if(own)return clrOwnRephoto(pid);_csPid='';await _csLoadFull();openColorRephoto();}
+function hqFind(v){
+  const box=document.getElementById('hqHits');if(!box)return;
+  const q=String(v||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim().toLowerCase();
+  if(!q){box.innerHTML='';return;}
+  const H=[];
+  _hqProds().forEach(({p,st})=>st.items.forEach(i=>{if(String(i.tag).toLowerCase()===q||String(i.n)===q)H.push({p,st,i});}));
+  box.innerHTML=H.length?H.map(({p,st,i})=>`<div onclick="hqOpen('${p.id}',${st.own})" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:12px;margin-top:6px;background:#fff;cursor:pointer;">
+      <div style="width:38px;height:38px;border-radius:9px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);${i.img?`background:url('${i.img}') center/cover;`:i.hex?`background:${_clrEsc(i.hex)};`:'background:#f3f4f6;'}"></div>
+      <div style="flex:1;min-width:0;font-size:.84rem;font-weight:800;color:#111827;">${_clrEsc(p.name)} — ${_cnWord(p)} <bdi>${_clrEsc(i.tag)}</bdi></div>
+      <div style="font-size:.74rem;font-weight:800;color:${i.out?'#dc2626':i.low?'#b45309':'#16a34a'};white-space:nowrap;">${i.out?'🟡 خلص':i.q!=null?'🟢 متوفّر '+i.q:'🟢 متوفّر'}</div></div>`).join('')
+    :`<div style="padding:10px;text-align:center;color:#9ca3af;font-size:.8rem;">ما في لون «${_clrEsc(v)}» بأي منتج</div>`;
+}
+function _renderColorHQ(){
+  const list=document.getElementById('clrList');if(!list)return;
+  _hqLoad();
+  const P=_hqProds(),F="font-family:'Tajawal',sans-serif;";
+  const sum=k=>P.reduce((t,x)=>t+x.st[k].length,0);
+  const st=document.getElementById('clrHeadStats');
+  if(st)st.innerHTML=`🎛️ كل منتجات الألوان بمكان واحد · ${P.length} منتجات`;
+  const tools=document.getElementById('clrTools');
+  if(tools)tools.innerHTML=`<button onclick="clrSetScope('@hq')" style="padding:7px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:9px;${F}font-size:0.78rem;font-weight:800;cursor:pointer;">↻ حدّث</button>`;
+  const ld=!_hq.loaded;
+  const cbD=(_hq.cbPrev&&typeof _hq.cbPrev==='object')?_cbDiff(_hq.cbPrev,_cbSnapshot()):null;
+  const cbN=cbD?_cbCount(cbD):null;
+  const reqs=_hq.reqs||[],today=_hq.today||[];
+  const AL=[
+    {k:'l',v:sum('low'),t:'قرب يخلص',c:'#b45309',bg:'#fffbeb',bd:'#fde68a'},
+    {k:'o',v:sum('out'),t:'خلص',c:'#dc2626',bg:'#fef2f2',bd:'#fecaca'},
+    {k:'p',v:ld?null:sum('noPic'),t:'بدون صورة',c:'#1e40af',bg:'#eff6ff',bd:'#bfdbfe'},
+    {k:'c',v:_hq.reqs?reqs.length:null,t:'طلب كتالوج جديد',c:'#166534',bg:'#f0fdf4',bd:'#bbf7d0',act:"document.getElementById('hqCat')?.scrollIntoView({behavior:'smooth',block:'start'})"},
+    {k:'b',v:cbN,t:'تغيير ما وصل الموظفين',c:'#7c3aed',bg:'#f5f3ff',bd:'#ddd6fe',act:'openColorBroadcast()'},
+    {k:'g',v:sum('noBc'),t:'لون بدون باركود',c:'#374151',bg:'#f9fafb',bd:'#e5e7eb',act:'openBarcodes()'},
+  ];
+  const H=t=>`<div style="font-size:.74rem;font-weight:900;color:#6b7280;margin:14px 2px 8px;">${t}</div>`;
+  let h=`<div style="display:flex;align-items:center;gap:8px;padding:0 12px;height:44px;border:1.5px solid #e5e7eb;border-radius:12px;background:#f9fafb;">🔎
+      <input id="hqQ" oninput="hqFind(this.value)" inputmode="numeric" placeholder="دوّر على لون بكل المنتجات… مثلاً 19" autocomplete="off" style="flex:1;min-width:0;border:none;background:none;outline:none;${F}font-size:.9rem;font-weight:700;"></div>
+    <div id="hqHits"></div>`;
+  h+=H('بدها انتباهك')+`<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;">${AL.map(a=>{const on=_hq.f===a.k;
+    return `<button onclick="${a.act||`hqFilter('${a.k}')`}" style="text-align:right;padding:9px 11px;border-radius:12px;border:1.5px solid ${on?a.c:a.bd};background:${a.bg};color:${a.c};${F}cursor:pointer;${on?`box-shadow:0 0 0 1.5px ${a.c};`:''}">
+      <div style="font-size:1.25rem;font-weight:900;line-height:1.15;">${a.v==null?'…':a.v}</div><div style="font-size:.74rem;font-weight:800;">${a.t}${a.act?' ←':on?' ✓':''}</div></button>`;}).join('')}</div>`;
+  // المنتجات
+  const fk={l:'low',o:'out',p:'noPic'}[_hq.f];
+  const L=fk?P.filter(x=>x.st[fk].length):P;
+  const fT={l:'قرب يخلص',o:'خلص',p:'بدون صورة'}[_hq.f];
+  h+=H(fk?`المنتجات — ${fT} (${L.length}) · <a onclick="hqFilter('${_hq.f}')" style="color:#2563eb;cursor:pointer;">الكل</a>`:`المنتجات (${P.length})`);
+  const BT=(fn,t,hot)=>`<button onclick="${fn}" style="padding:6px 9px;background:#fff;color:${hot?'#b45309':'#374151'};border:1.5px solid ${hot?'#fcd34d':'#e5e7eb'};border-radius:9px;${F}font-size:0.74rem;font-weight:800;cursor:pointer;">${t}</button>`;
+  h+=L.map(({p,st:s})=>{
+    const T=s.items.length||1,id=p.id,ow=s.own,np=ld?0:s.noPic.length;
+    const chips=fk?s[fk].map(i=>{const tap=_hq.f==='p'?(ow?`clrOwnShoot('${id}',${i.n})`:`clrPickImage('${i.id}')`):'';
+      return `<span ${tap?`onclick="${tap}" `:''}style="display:inline-block;padding:3px 9px;border-radius:999px;background:#f3f4f6;font-size:.74rem;font-weight:800;margin:0 0 4px 4px;${tap?'cursor:pointer;':''}">${_hq.f==='p'?'📷 ':''}<bdi>${_clrEsc(i.tag)}</bdi>${_hq.f==='l'&&i.q!=null?` <span style="color:#b45309;">(${i.q})</span>`:''}</span>`;}).join(''):'';
+    return `<div style="border:1.5px solid #e5e7eb;border-radius:14px;padding:11px 12px;margin-bottom:8px;background:#fff;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:#eff6ff;display:grid;place-items:center;font-size:1.05rem;flex-shrink:0;">${s.size?'📏':ow?'🔢':'🎨'}</div>
+        <div style="flex:1;min-width:0;"><div style="font-weight:900;font-size:.92rem;color:#111827;">${_clrEsc(p.name)}</div>
+          <div style="font-size:.7rem;color:#6b7280;">${s.size?'قياسات':ow?'ترقيم خاص':'المكتبة المشتركة'} · ${s.items.length} ${s.size?'قياس':'لون'}</div></div>
+        <button onclick="hqOpen('${id}',${ow})" style="padding:6px 10px;background:#eff6ff;color:#1e40af;border:none;border-radius:9px;${F}font-size:.74rem;font-weight:800;cursor:pointer;white-space:nowrap;">افتح ←</button>
+      </div>
+      <div style="display:flex;height:8px;border-radius:99px;overflow:hidden;background:#f3f4f6;margin:9px 0 6px;">
+        <i style="width:${s.av.length/T*100}%;background:#16a34a;"></i><i style="width:${s.low.length/T*100}%;background:#f59e0b;"></i><i style="width:${s.out.length/T*100}%;background:#dc2626;"></i></div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px 12px;font-size:.72rem;font-weight:800;">
+        <span style="color:#16a34a;">🟢 ${s.av.length} متوفّر</span>${s.low.length?`<span style="color:#b45309;">⚠️ ${s.low.length} قرب يخلص</span>`:''}${s.out.length?`<span style="color:#dc2626;">🟡 ${s.out.length} خلص</span>`:''}${np?`<span style="color:#6b7280;">📷 ${np} بدون صورة</span>`:''}</div>
+      ${chips?`<div style="margin-top:8px;">${chips}</div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;">
+        ${s.size?'':BT(`hqShoot('${id}',${ow})`,np?`📷 صوّر الناقص (${np})`:'📷 صوّر',np>0)}
+        ${ow?BT(`openProdStock('${id}')`,'📦 وارد وصرف'):BT('openColorStock()','🔢 جرد')+BT('openColorIntake()','📥 وارد')}
+        ${BT(`clrCatalogLink('${id}')`,'🔗 رابط')}${s.size?'':BT(`openColorSheet('${ow?id:''}')`,'🖼️ صورة وحدة')}${BT(`openBarcodes('${id}')`,'🏷️ باركود')}
+      </div></div>`;}).join('')||'<div style="padding:16px;text-align:center;color:#9ca3af;font-size:.82rem;">ولا منتج 👌</div>';
+  // الكتالوج
+  const W=_hq.workers||{},byW={};
+  reqs.forEach(r=>{const k=(r.workerId||'')+'|'+(r.channel||'');byW[k]=(byW[k]||0)+1;});
+  const ex=((_hq.cfg&&_hq.cfg.extras)||[]).map(i=>_prodById(i)).filter(Boolean);
+  const box=(id,t,sub,inner)=>`<div ${id?`id="${id}" `:''}style="border:1.5px solid #e5e7eb;border-radius:14px;padding:12px;margin-bottom:8px;background:#fff;">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><b style="font-size:.9rem;color:#111827;">${t}</b><span style="margin-right:auto;font-size:.7rem;color:#9ca3af;font-weight:700;">${sub}</span></div>${inner}</div>`;
+  const stat=(v,t,c)=>`<div style="flex:1;background:#f9fafb;border-radius:10px;padding:7px 4px;text-align:center;"><div style="font-size:1.1rem;font-weight:900;color:${c};">${v}</div><div style="font-size:.68rem;font-weight:800;color:#6b7280;">${t}</div></div>`;
+  h+=H('الزباين والموظفين');
+  h+=box('hqCat','🛒 الكتالوج للزباين','اليوم',
+    `<div style="display:flex;gap:6px;">${stat(_hq.reqs?reqs.length:'…','جديد','#166534')}${stat(_hq.today?today.filter(r=>r.status==='done').length:'…','انسجّل','#1e40af')}${stat(_hq.today?today.filter(r=>r.status==='dismissed').length:'…','انشال','#6b7280')}</div>
+    ${Object.keys(byW).map(k=>{const [w,ch]=k.split('|');return `<div style="display:flex;align-items:center;gap:7px;margin-top:7px;font-size:.8rem;font-weight:800;color:#374151;"><span style="width:9px;height:9px;border-radius:50%;background:${ch==='messenger'?'#0a7cff':'#16a34a'};"></span><span style="flex:1;">${w?_clrEsc(W[w]||'موظف'):'👥 أي موظف'} · ${ch==='messenger'?'ماسنجر':'واتساب'}</span><span style="color:#166534;">${byW[k]} جديد</span></div>`;}).join('')}
+    ${reqs.slice(0,3).map(r=>`<div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:6px;line-height:1.6;">• ${_clrEsc((r.customer||{}).name||'زبون')} — ${_clrEsc(r.productName||'')}${(r.extras||[]).length?' + '+r.extras.length:''} · ${r.pieces||0} قطعة <span style="color:#9ca3af;">${_hqAgo(r.createdAt)}</span></div>`).join('')}
+    <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:9px;line-height:1.8;">➕ «بدك كمان؟»: ${ex.length?ex.map(x=>`<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:#fffbeb;color:#92400e;margin-left:3px;">${_clrEsc(x.name)}</span>`).join(''):'<span style="color:#9ca3af;">ولا منتج</span>'}<br>
+      💬 صفحة الماسنجر: <b dir="ltr" style="color:#374151;">${_clrEsc((_hq.cfg&&_hq.cfg.messengerUser)||'')||'<span style="color:#dc2626;">مش محدّدة</span>'}</b></div>
+    <button onclick="clrCatalogLink('')" style="width:100%;margin-top:10px;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;${F}font-size:.84rem;font-weight:900;cursor:pointer;">🔗 اعمل رابط كتالوج (والإعدادات)</button>`);
+  const cbTxt=cbD&&cbN?_clrEsc(_cbText(cbD)).replace(/\n/g,'<br>'):'';
+  const nbc=sum('noBc');
+  h+=box('','📢 تحديث الألوان للموظفين',_hq.cbAt?'آخر تحديث '+_hqAgo(_hq.cbAt):'',
+    (cbN==null?`<div style="font-size:.78rem;color:#9ca3af;">${_hq.cbPrev===null?'⚠️ ما قدرت أقرا آخر تحديث':'…'}</div>`
+      :cbN?`<div style="background:#f5f3ff;color:#5b21b6;border-radius:10px;padding:8px 10px;font-size:.76rem;font-weight:800;line-height:1.8;">في ${cbN} تغيير ما وصلهم:<br>${cbTxt}</div>`
+      :'<div style="font-size:.8rem;font-weight:800;color:#16a34a;">✓ الموظفين عندهم آخر إشي</div>')+
+    `<button onclick="openColorBroadcast()" style="width:100%;margin-top:10px;padding:10px;background:${cbN?'#7c3aed':'#f3f4f6'};color:${cbN?'#fff':'#374151'};border:none;border-radius:10px;${F}font-size:.84rem;font-weight:900;cursor:pointer;">📢 ابعتلهم تحديث الألوان</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.78rem;font-weight:800;color:#374151;"><span style="flex:1;">🏷️ ${nbc?`${nbc} لون بدون باركود`:'الباركود'}</span>
+      <button onclick="openBarcodes()" style="padding:7px 11px;background:#f9fafb;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;${F}font-size:.76rem;font-weight:800;cursor:pointer;">اربط باركود</button></div>`);
+  const qe=document.getElementById('hqQ'),qv=qe?qe.value:'',qf=qe&&document.activeElement===qe;
+  list.innerHTML=h;
+  const qi=document.getElementById('hqQ');if(qi&&qv){qi.value=qv;hqFind(qv);}if(qi&&qf)qi.focus();
+}
+window.hqFilter=hqFilter;window.hqOpen=hqOpen;window.hqShoot=hqShoot;window.hqFind=hqFind;
+
 function renderColorLib(){
   const list=document.getElementById('clrList');if(!list)return;
   _clrScopeBar();
+  if(_clrHQ)return _renderColorHQ();
   if(_clrScope)return _renderOwnLib();
   const n={active:0,out:0,retired:0};
   _colorLib.forEach(c=>{n[c.status||'active']=(n[c.status||'active']||0)+1;});
