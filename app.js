@@ -3680,6 +3680,11 @@ function _catLinkPaint(){
       <input id="catMsUser" value="${_clrEsc(mu)}" placeholder="مثلاً alkiswanirosemary" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;direction:ltr;text-align:left;">`;
   }
   if(!L.fixedWid){
+    const xs=(L.cfg&&Array.isArray(L.cfg.extras))?L.cfg.extras:[];
+    const all=(_opProductsList&&_opProductsList.length?_opProductsList:(_empSharedProducts||[])).filter(p=>p&&!p.isRawMaterial);
+    body+=`<button type="button" onclick="_catLink.xOpen=!_catLink.xOpen;_catLinkPaint()" style="${F}width:100%;margin-top:14px;padding:10px 12px;border:1.5px dashed #c9a84c;border-radius:11px;background:#fffbeb;color:#92400e;font-size:.84rem;font-weight:900;cursor:pointer;text-align:right;">➕ منتجات «بدك كمان؟» بتبيّن تحت كل كتالوج (${xs.length}) ${L.xOpen?'▴':'▾'}</button>`;
+    if(L.xOpen)body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;">علّم اللي بدك ياه يبيّن للزبون مع صورته وسعره — بيتحدّث مباشرة على كل الروابط</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${all.map(p=>chip(xs.includes(p.id),`_catXToggle('${p.id}')`,(xs.includes(p.id)?'✓ ':'')+_clrEsc(p.name),'#b45309')).join('')}</div>`;
     const ws=L.workers;
     body+=H('الطلب بيوصل لمين؟')+(ws==null?'<div style="color:#9ca3af;font-size:.8rem;">⏳</div>':
       `<div style="display:flex;flex-wrap:wrap;gap:6px;">${chip(!L.wid,"_catLinkSet('wid','')",'👥 أي موظف','#7c3aed')}${ws.map(w=>chip(L.wid===w.id,`_catLinkSet('wid','${w.id}')`,'👤 '+_clrEsc(w.name||w.username),'#7c3aed')).join('')}</div>`);
@@ -3697,6 +3702,13 @@ function _catLinkSet(k,v){
   try{localStorage.setItem('_catLinkPref',JSON.stringify({ch:_catLink.ch,wid:_catLink.fixedWid?undefined:_catLink.wid}));}catch(e){}
   _catLinkPaint();
 }
+async function _catXToggle(id){
+  const cur=(_catLink.cfg&&Array.isArray(_catLink.cfg.extras))?_catLink.cfg.extras.slice():[];
+  const i=cur.indexOf(id);if(i>=0)cur.splice(i,1);else cur.push(id);
+  _catLink.cfg=Object.assign({},_catLink.cfg,{extras:cur});_catLinkPaint();
+  try{await db.collection('operator_config').doc('catalog_cfg').set({extras:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
+}
+window._catXToggle=_catXToggle;
 function _catLinkUrl(pid,ch,wid){return location.origin+'/colors.html?p='+encodeURIComponent(pid)+'&c='+ch+(wid?'&e='+encodeURIComponent(wid):'');}
 async function _catLinkShare(){
   const L=_catLink;if(!L.pid)return;
@@ -7372,7 +7384,7 @@ function _empCatWatch(){
     _empCatPaint();
   },()=>{});
 }
-function _empCatItems(r){return (r.items||[]).map(i=>`<bdi style="background:#fff;border:1px solid #fcd34d;border-radius:6px;padding:0 5px;">${_clrEsc(i.tag!=null?i.tag:i.num)} ×${i.qty}</bdi>`).join(' ');}
+function _empCatItems(r){return (r.items||[]).map(i=>`<bdi dir="ltr" style="background:#fff;border:1px solid #fcd34d;border-radius:6px;padding:0 5px;">${_clrEsc(i.tag!=null?i.tag:i.num)} ×${i.qty}</bdi>`).join(' ');}
 function _empCatPaint(){
   const box=document.getElementById('empCatReqs');if(!box)return;
   const L=_empCatReqs;
@@ -7391,7 +7403,7 @@ function _empCatPaint(){
           <span title="${r.channel==='messenger'?'ماسنجر':'واتساب'}">${r.channel==='messenger'?'🔵':'🟢'}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <span style="direction:ltr;unicode-bidi:isolate;">${_clrEsc(c.phone||'')}</span></span>
           <span style="font-size:.7rem;color:#9ca3af;font-weight:700;white-space:nowrap;">${ago(r)}</span></div>
-        <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">📦 ${_clrEsc(r.productName||'')}: ${_empCatItems(r)} <b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
+        <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 ${_clrEsc(r.productName||'')}: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`➕ ${_clrEsc(x.name)}${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''} ×${x.qty}<br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>
           <button type="button" onclick="empCatDismiss('${r.id}')" title="مش طلب حقيقي / مكرّر" style="${F}padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;color:#6b7280;font-weight:800;font-size:.8rem;cursor:pointer;">✕ شيله</button>
@@ -7412,11 +7424,16 @@ async function empCatFill(id){
   }
   const set=(i,v)=>{const el=document.getElementById(i);if(el)el.value=v||'';};
   set('emp_phone',c.phone);set('emp_customer_name',c.name);set('emp_address',c.address);
-  set('emp_notes',[c.notes,'🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — '));
+  set('emp_notes',[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'','🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — '));
   if(c.area&&_EMP_AREAS.includes(c.area))_empPickArea(c.area);
   const cns=(r.items||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0).sort((a,b)=>a.num-b.num);
-  _empOrderCart=[{id:r.pid,name:(prod&&prod.name)||r.productName||'',price:parseFloat((prod&&prod.sellPrice)||r.price||0),
-    qty:cns.reduce((t,i)=>t+i.qty,0)||1,color:'',writing:'',colorNumbers:cns}];
+  _empOrderCart=cns.length?[{id:r.pid,name:(prod&&prod.name)||r.productName||'',price:parseFloat((prod&&prod.sellPrice)||r.price||0),
+    qty:cns.reduce((t,i)=>t+i.qty,0)||1,color:'',writing:'',colorNumbers:cns}]:[];
+  // إضافات «بدك كمان؟» — منتجات ثانية بنفس البوليصة
+  (r.extras||[]).forEach(x=>{const xp=_prodById(x.pid);
+    const xc=(x.colorNumbers||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0);
+    _empOrderCart.push({id:x.pid,name:(xp&&xp.name)||x.name||'',price:parseFloat((xp&&xp.sellPrice)||x.price||0),
+      qty:xc.length?xc.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),color:'',writing:'',...(xc.length?{colorNumbers:xc}:{})});});
   _empCatReqId=id;
   renderEmpOrderCart();
   if(c.phone&&typeof _empShowCRM==='function')_empShowCRM(c.phone);
