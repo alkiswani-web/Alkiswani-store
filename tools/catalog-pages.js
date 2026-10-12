@@ -112,8 +112,8 @@ ${size ? `<meta property="og:image:width" content="${size.w}">\n<meta property="
   try { cover = await collage(home.filter(p => /^data:image\//.test(p.img)).slice(0, 8)); } catch (e) { console.error('collage:', e.message); }
   if (cover) keep.add('img/_catalog.jpg');
   cover = cover || home.map(ogOf).find(Boolean) || { url: `${SITE}/icon-512.png`, size: { w: 512, h: 512 } };
-  const hTitle = (cfg.title || '').trim() || 'كتالوج الألوان';
-  const hDesc = home.length ? home.map(p => p.name).join(' · ') + ' — اختار واطلب من هون' : 'اختار ألوانك من الصور واطلب من هون';
+  const hTitle = (cfg.title || '').trim() || 'كتالوج المنتجات';
+  const hDesc = home.length ? home.map(p => p.name).join(' · ') + ' — اختار واطلب من هون' : 'اختار المنتج وألوانه من الصور واطلب من هون';
   fs.writeFileSync(path.join(OUT, 'index.html'), `<!DOCTYPE html>
 <html lang="ar" dir="rtl"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
