@@ -2907,16 +2907,19 @@ function _setColorLib(docs){
   _colorLibMap={};_colorLib.forEach(c=>{_colorLibMap[c.code]=c;});
   _colorLibLoaded=true;
 }
-let _colorLibError=false;
+let _colorLibError=false,_colorLibErrMsg='';
 async function loadColorLibrary(force){
   if(_colorLibLoaded&&!force){_startColorLibLive();return _colorLib;}
-  try{
-    _setColorLib((await db.collection('color_library').get()).docs);
-    _colorLibError=false;
-  }catch(e){
+  // قراءة وحدة فشلت (نت متقطّع) ما بتكفي لنقول «ما قدرنا» — منجرّب كمان مرّتين
+  let err=null;
+  for(let i=0;i<3;i++){
+    try{_setColorLib((await db.collection('color_library').get()).docs);_colorLibError=false;_colorLibErrMsg='';err=null;break;}
+    catch(e){err=e;if(i<2)await new Promise(r=>setTimeout(r,700*(i+1)));}
+  }
+  if(err){
     // قراءةٌ فشلت مش مكتبةٌ فاضية. الفرق مصيري: «فاضية» بتدعوك تعبّيها
     // فوق ألوانك الحقيقية اللي ما قدرنا نقرأها.
-    _colorLib=[];_colorLibMap={};_colorLibError=true;
+    _colorLib=[];_colorLibMap={};_colorLibError=true;_colorLibErrMsg=String((err&&(err.code||err.message))||'');
   }
   _startColorLibLive();
   return _colorLib;
@@ -2930,7 +2933,10 @@ function _startColorLibLive(){
   if(_clrUnsub)return;
   try{
     _clrUnsub=db.collection('color_library').onSnapshot(snap=>{
+      const wasErr=_colorLibError;
       _setColorLib(snap.docs);
+      // البثّ المباشر وصل ⇒ القراءة اللي فشلت قبل ما عادت تهمّ
+      if(wasErr&&snap.docs.length){_colorLibError=false;_colorLibErrMsg='';if(document.getElementById('clrList'))renderColorLib();}
       _cnLiveRefresh();
     },()=>{});
   }catch(e){}
@@ -3957,7 +3963,8 @@ function renderColorLib(){
     list.innerHTML=`<div style="padding:22px 16px;text-align:center;font-size:0.85rem;line-height:1.9;">
       <div style="color:#dc2626;font-weight:800;margin-bottom:6px;">⚠️ ما قدرتُ أقرا المكتبة</div>
       <div style="color:#6b7280;">ألوانك محفوظة زي ما هي — بس القراءة فشلت (نت أو اتصال).<br>تأكّد من النت وجرّب كمان مرّة.<br><b style="color:#b45309;">ولا تضغط «عبّي المكتبة» — بتكتب فوق ألوانك.</b></div>
-      <button onclick="openColorLib()" style="margin-top:12px;padding:9px 18px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;">↻ جرّب كمان مرّة</button></div>`;
+      ${_colorLibErrMsg?`<div style="font-size:.66rem;color:#9ca3af;margin-top:6px;direction:ltr;">${_clrEsc(_colorLibErrMsg)}</div>`:''}
+      <button onclick="clrRetryLib()" style="margin-top:12px;padding:9px 18px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:0.84rem;font-weight:800;cursor:pointer;">↻ جرّب كمان مرّة</button></div>`;
     return;
   }
   if(!_colorLib.length){
@@ -4008,6 +4015,11 @@ function renderColorLib(){
   }).join('');
 }
 
+async function clrRetryLib(){
+  const l=document.getElementById('clrList');if(l)l.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:0.85rem;">⏳ جاري التحميل...</div>';
+  await loadColorLibrary(true);renderColorLib();
+}
+window.clrRetryLib=clrRetryLib;
 function clrToggle(id){_clrOpenId=_clrOpenId===id?null:id;renderColorLib();}
 
 async function clrAdd(){
