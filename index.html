@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v350"></script>
+<script defer src="app.js?v351"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -3988,6 +3988,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
   <div class="bl-tools">
     <button id="empNotifBanner" class="bl-tl bl-alert" style="display:none;" onclick="enableEmpNotifications()">🔔 فعّل الإشعارات</button>
     <button class="bl-tl" onclick="openColorBoard()">🎨 الألوان</button>
+    <button class="bl-tl" onclick="clrCatalogLink('',{workerId:_empCurrentUser&&_empCurrentUser.id})">🔗 كتالوج للزبون</button>
     <button class="bl-tl" onclick="openAttendanceScan()">⏱ الدوام</button>
     <div id="empLocShareCard" class="bl-tl">📍 الموقع <span id="empLocStatus" style="display:none;"></span><button id="empLocShareBtn" class="bl-mini" onclick="_empToggleLocationShare()">تفعيل</button></div>
     <button class="bl-tl" onclick="openGalleryMgmt()">📸 معارض</button>
@@ -4001,6 +4002,9 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
     <!-- Normal order form (hidden for delivery workers) -->
     <div id="empNormalOrderSection">
     <div id="empAddOrderCard">
+
+      <!-- طلبات الزباين من كتالوج الألوان — بتوصل للموظف صاحب الرابط -->
+      <div id="empCatReqs" style="display:none;"></div>
 
       <!-- اللصق الذكي — ورقة لاصقة -->
       <div class="bl-tape">
