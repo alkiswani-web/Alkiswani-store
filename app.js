@@ -3730,16 +3730,18 @@ async function _catXToggle(id){
 }
 window._catXToggle=_catXToggle;
 // المنتج إله صفحة معاينة (c/<المنتج> — اسمه وصورته بالواتساب)؟ منستعملها، وإلا الرابط القديم
-let _catPages=null;
+let _catPages=null,_catVer='';
 async function _catPagesLoad(){
   if(_catPages)return _catPages;
   try{const r=await fetch('/c/index.json',{cache:'no-cache'});_catPages=r.ok?new Set(await r.json()):new Set();}catch(e){_catPages=new Set();}
+  try{const r=await fetch('/c/meta.json',{cache:'no-cache'});if(r.ok)_catVer=String((await r.json()).v||'');}catch(e){}
   return _catPages;
 }
 function _catLinkUrl(pid,ch,wid){
   const q='c='+ch+(wid?'&e='+encodeURIComponent(wid):'');
   // الكتالوج كلّه: /c/ (معاينته باسم الكتالوج) — وإذا الصفحات لسّا ما انعملت، colors.html
-  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/?'+q:location.origin+'/colors.html?'+q;
+  // &v=: نسخة صورة المعاينة — تتغيّر الصورة ⇒ يتغيّر الرابط ⇒ الواتساب بيجيب المعاينة الجديدة
+  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/?'+q+(_catVer?'&v='+_catVer:''):location.origin+'/colors.html?'+q;
   return (_catPages&&_catPages.has(pid))?location.origin+'/c/'+encodeURIComponent(pid)+'?'+q
     :location.origin+'/colors.html?p='+encodeURIComponent(pid)+'&'+q;
 }

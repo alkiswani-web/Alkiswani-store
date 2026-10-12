@@ -131,6 +131,11 @@ ${cover.size ? `<meta property="og:image:width" content="${cover.size.w}">\n<met
 </head><body style="font-family:Tahoma,sans-serif;text-align:center;padding:40px 16px;"><a href="/colors.html">${esc(hTitle)}</a></body></html>
 `);
   keep.add('index.html');
+  // نسخة المعاينة: بتتغيّر لما تتغيّر صورة الكتالوج أو اسمه أو منتجاته — التطبيق بيحطّها
+  // بالرابط (&v=…) فالواتساب بيجيب معاينة جديدة بدل اللي حافظها للرابط القديم
+  const ver = require('crypto').createHash('md5').update(JSON.stringify([cover.url, hTitle, hDesc])).digest('hex').slice(0, 6);
+  fs.writeFileSync(path.join(OUT, 'meta.json'), JSON.stringify({ v: ver }) + '\n');
+  keep.add('meta.json');
   fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(rows.map(p => p.id).sort()) + '\n');
   // منتج انحذف أو انشالت ألوانه ⇒ منشيل صفحته
   for (const f of fs.readdirSync(OUT)) if (f.endsWith('.html') && !keep.has(f)) fs.unlinkSync(path.join(OUT, f));
