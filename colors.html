@@ -590,7 +590,7 @@ async function submitReq(){
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
   CART={};saveCart();render();paint();
   sview='done';
-  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك صارت محجوزة إلك</b> 🔒':''}<br>بنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>ابعتلنا تأكيد على ${chName()} عشان يوصلك ردّنا أسرع 👇`;
+  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>بنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>ابعتلنا تأكيد على ${chName()} عشان يوصلك ردّنا أسرع 👇`;
   $('#doneRef').textContent='رقم الطلب '+ref;
   paintSheet();
 }

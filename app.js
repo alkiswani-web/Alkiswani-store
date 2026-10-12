@@ -3838,6 +3838,7 @@ let _hq={f:'',loaded:false,loading:false,reqs:null,today:null,cbPrev:undefined,c
 function _hqReset(){_hq={f:_hq.f||'',loaded:false,loading:false,reqs:null,today:null,cbPrev:undefined,cbAt:null,workers:null,cfg:null};}
 async function _hqLoad(){
   if(_hq.loading||_hq.loaded)return;_hq.loading=true;
+  await _catSweep(true);
   const t0=new Date(jordanDateStr()+'T00:00:00+03:00');
   const docs=s=>s.docs.map(d=>({id:d.id,...d.data()}));
   await Promise.all([
@@ -7393,7 +7394,7 @@ function closeEmpPanel(){
   _setPanelOpen(false);
   if(_empTodayUnsub){_empTodayUnsub();_empTodayUnsub=null;}
   if(_empDlvTodayUnsub){_empDlvTodayUnsub();_empDlvTodayUnsub=null;}
-  if(_empCatUnsub){_empCatUnsub();_empCatUnsub=null;}_empCatReqId=null;
+  if(_empCatUnsub){_empCatUnsub();_empCatUnsub=null;}_empCatReqId=null;clearInterval(_empCatSweepT);
   _cbStopBanner();
   _empStopSelf();
 }
@@ -7558,9 +7559,11 @@ async function submitEmpOrder(){
 // ═════════ 🛒 طلبات الكتالوج — الزبون عبّاها من colors.html ═════════
 // بتوصل للموظف صاحب الرابط (e=…)، واللي بلا موظف بتبيّن لكل مدخلي الطلبات.
 let _empCatReqs=[],_empCatUnsub=null,_empCatReqId=null,_empCatSeen=null,_empCatOpen=true;
+let _empCatSweepT=null;
 function _empCatWatch(){
   if(_empCatUnsub){_empCatUnsub();_empCatUnsub=null;}
   if(!_empCurrentUser)return;
+  _catSweep(true);clearInterval(_empCatSweepT);_empCatSweepT=setInterval(()=>_catSweep(),10*60e3);
   _empCatSeen=null;
   _empCatUnsub=db.collection('catalog_requests').where('status','==','new').onSnapshot(s=>{
     const me=_empCurrentUser&&_empCurrentUser.id;
@@ -7601,7 +7604,8 @@ function _empCatPaint(){
         <div style="display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:900;color:#1f2937;">
           <span title="${r.channel==='messenger'?'ماسنجر':'واتساب'}">${r.channel==='messenger'?'🔵':'🟢'}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <span style="direction:ltr;unicode-bidi:isolate;">${_clrEsc(c.phone||'')}</span></span>
-          ${r.reserved?'<span title="ألوانه محجوزة من المخزون" style="font-size:.68rem;font-weight:800;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px;white-space:nowrap;">🔒 محجوز</span>':''}
+          ${r.reserved?`<span title="ألوانه محجوزة من المخزون — بترجع لحالها بعد ${CAT_HOLD_H} ساعة إذا ما انأكّد" style="font-size:.68rem;font-weight:800;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px;white-space:nowrap;">🔒 محجوز${(()=>{const a=_catAgeH(r);return a==null?'':' · باقي '+Math.max(1,Math.ceil(CAT_HOLD_H-a))+' س';})()}</span>`
+            :r.holdExpired?'<span title="مرق 24 ساعة بلا تأكيد — الألوان رجعت للمخزون. لو أكّدته، البوليصة بتخصم من الموجود" style="font-size:.68rem;font-weight:800;color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 7px;white-space:nowrap;">⏰ انتهى الحجز</span>':''}
           <span style="font-size:.7rem;color:#9ca3af;font-weight:700;white-space:nowrap;">${ago(r)}</span></div>
         <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 ${_clrEsc(r.productName||'')}: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} ${_clrEsc(x.name)}${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''} ×${x.qty}<br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
@@ -7643,38 +7647,48 @@ async function empCatFill(id){
 }
 // 🔒 الكتالوج حجز ألوان الزبون أوّل ما ثبّت (reservation على الطلب). منفكّ الحجز مرّة وحدة بس:
 // قبل ما البوليصة تخصم مخزونها بنفسها (فما بينخصم مرّتين)، أو لما الطلب ينشال.
-async function _catRelease(rid){
-  let res=null;
+async function _catRelease(rid,extra){
+  // الرجوع للمخزون بنفس المعاملة اللي بتفكّ الحجز: يا الاثنين يا ولا واحد — ولا مرّتين
+  try{await loadColorLibrary();}catch(e){}
+  const INC=firebase.firestore.FieldValue.increment;
+  let own=null;
   try{
     await db.runTransaction(async tx=>{
       const ref=db.collection('catalog_requests').doc(rid),sn=await tx.get(ref),v=sn.exists?sn.data():null;
-      res=null;
+      own=null;
       if(!v||!v.reserved)return;
-      res=v.reservation||{};
-      tx.update(ref,{reserved:false,releasedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      const res=v.reservation||{},o=res.own||{},l=res.lib||{},byP={};
+      Object.keys(o).forEach(k=>{const [pid,num]=k.split('|');(byP[pid]=byP[pid]||{})['ownColorQty.'+num]=INC(Number(o[k])||0);});
+      tx.update(ref,Object.assign({reserved:false,releasedAt:firebase.firestore.FieldValue.serverTimestamp()},extra||{}));
+      Object.keys(byP).forEach(pid=>tx.update(db.collection('operator_products').doc(pid),byP[pid]));
+      Object.keys(l).forEach(code=>{const c=_clr(code);if(c)tx.update(db.collection('color_library').doc(c.id),{qty:INC(Number(l[code])||0)});});
+      own=o;
     });
   }catch(e){console.error('catRelease',e);return false;}
-  if(!res)return true;
-  const own=res.own||{},lib=res.lib||{},INC=firebase.firestore.FieldValue.increment;
-  try{
-    if(Object.keys(own).length){
-      const b=db.batch();
-      Object.keys(own).forEach(k=>{const [pid,num]=k.split('|');b.update(db.collection('operator_products').doc(pid),{['ownColorQty.'+num]:INC(Number(own[k])||0)});});
-      await b.commit();
-      // النسخة اللي بالذاكرة (القائمتان أحياناً بيشاركوا نفس الكائن)
-      const seen=new Set();
-      Object.keys(own).forEach(k=>{const [pid,num]=k.split('|');
-        [...(_opProductsList||[]),...(_empSharedProducts||[])].filter(p=>p&&p.id===pid&&!seen.has(p)).forEach(p=>{seen.add(p);
-          const m=p.ownColorQty=Object.assign({},p.ownColorQty||{});if(m[num]!=null)m[num]=(Number(m[num])||0)+(Number(own[k])||0);});});
-    }
-    if(Object.keys(lib).length){
-      await loadColorLibrary();
-      const b=db.batch();let n=0;
-      Object.keys(lib).forEach(code=>{const c=_clr(code);if(c){b.update(db.collection('color_library').doc(c.id),{qty:INC(Number(lib[code])||0)});n++;}});
-      if(n){await b.commit();_colorLibLoaded=false;}
-    }
-  }catch(e){console.error('catRelease stock',e);}
+  if(own&&Object.keys(own).length){
+    // النسخة اللي بالذاكرة (القائمتان أحياناً بيشاركوا نفس الكائن)
+    const seen=new Set();
+    Object.keys(own).forEach(k=>{const [pid,num]=k.split('|');
+      [...(_opProductsList||[]),...(_empSharedProducts||[])].filter(p=>p&&p.id===pid&&!seen.has(p)).forEach(p=>{seen.add(p);
+        const m=p.ownColorQty=Object.assign({},p.ownColorQty||{});if(m[num]!=null)m[num]=(Number(m[num])||0)+(Number(own[k])||0);});});
+  }
+  _colorLibLoaded=false;
   return true;
+}
+// ⏰ حجز عمره أكثر من 24 ساعة وما حدا أكّد الطلب ⇒ الألوان بترجع للمخزون. الطلب نفسه بيضل
+// عند الموظف (holdExpired) — لو أكّده بعدين، البوليصة بتخصم عادي من الموجود.
+const CAT_HOLD_H=24;
+function _catAgeH(r){const c=r&&r.createdAt,t=c&&(c.seconds||(c.toDate&&c.toDate().getTime()/1000));return t?(Date.now()/1000-t)/3600:null;}
+async function _catSweep(force){
+  const now=Date.now();
+  if(!force&&_catSweep.t&&now-_catSweep.t<5*60e3)return 0;
+  _catSweep.t=now;
+  try{
+    const s=await db.collection('catalog_requests').where('reserved','==',true).get();
+    const old=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.status==='new'&&(_catAgeH(r)||0)>=CAT_HOLD_H);
+    for(const r of old)await _catRelease(r.id,{holdExpired:true});
+    return old.length;
+  }catch(e){return 0;}
 }
 async function empCatDismiss(id){
   if(!confirm('نشيل هاد الطلب؟ (ما رح يتسجّل — والألوان المحجوزة إله بترجع للمخزون)'))return;
