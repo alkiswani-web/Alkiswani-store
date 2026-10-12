@@ -57,7 +57,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .bar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:720px;z-index:20;padding:0 12px calc(12px + env(safe-area-inset-bottom,0px))}
 .bar .in{display:flex;align-items:center;gap:10px;background:var(--g);color:#fff;border-radius:20px;padding:10px 10px 10px 14px;box-shadow:0 14px 30px -10px rgba(0,0,0,.45)}
 .bar .t{flex:1;min-width:0}
-.bar .t b{display:block;font-size:.95rem;font-weight:900}
+.bar .t b{display:block;font-size:.9rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .t small{font-size:.74rem;color:#cfe0d5;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .wa{height:48px;border-radius:14px;border:0;background:#25d366;color:#05351a;font-weight:900;font-size:.92rem;padding:0 14px;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .edit{height:48px;border-radius:14px;border:1.5px solid rgba(255,255,255,.25);background:none;color:#fff;font-weight:800;font-size:.8rem;padding:0 10px}
@@ -503,7 +503,8 @@ function paintSheet(){
 function openSheet(){sview='cart';cartRows();paintSheet();sheetOn();}
 function showFormSum(){
   const XL=lines(),pcs=XL.reduce((t,x)=>t+x.qty,0),money=XL.reduce((t,x)=>t+x.qty*x.price,0);
-  $('#ckSum').innerHTML=XL.map(x=>`<bdi>${esc(x.name)}</bdi>${x.colorNumbers?': '+x.colorNumbers.map(c=>`<bdi dir="ltr">${esc(c.tag)} ×${c.qty}</bdi>`).join('، '):' ×'+x.qty}`).join('<br>')+
+  const chip=t=>`<span class="n" style="display:inline-block;background:#fff;border:1px solid var(--ln);border-radius:7px;padding:0 6px;margin:1px 0 1px 3px">${t}</span>`;
+  $('#ckSum').innerHTML=XL.map(x=>`<bdi>${esc(x.name)}</bdi> ${x.colorNumbers?x.colorNumbers.map(c=>chip(esc(c.tag)+' ×'+c.qty)).join(''):chip('×'+x.qty)}`).join('<br>')+
     `<br><b class="n">${pcs}</b> قطعة`+(money>0?` · <b class="n">${f2(money)}</b> د.أ + التوصيل`:'');
 }
 function showForm(){
