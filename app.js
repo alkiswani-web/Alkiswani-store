@@ -3657,7 +3657,7 @@ function _catProducts(){
   return L.filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);
 }
 async function clrCatalogLink(pid,opts){
-  opts=opts||{};
+  opts=opts||{};_catPagesLoad();
   _catLink.pid=pid||'';
   _catLink.fixedWid=!!opts.workerId;
   if(opts.workerId)_catLink.wid=opts.workerId;
@@ -3716,13 +3716,25 @@ async function _catXToggle(id){
   try{await db.collection('operator_config').doc('catalog_cfg').set({extras:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
 }
 window._catXToggle=_catXToggle;
-function _catLinkUrl(pid,ch,wid){return location.origin+'/colors.html?p='+encodeURIComponent(pid)+'&c='+ch+(wid?'&e='+encodeURIComponent(wid):'');}
+// المنتج إله صفحة معاينة (c/<المنتج> — اسمه وصورته بالواتساب)؟ منستعملها، وإلا الرابط القديم
+let _catPages=null;
+async function _catPagesLoad(){
+  if(_catPages)return _catPages;
+  try{const r=await fetch('/c/index.json',{cache:'no-cache'});_catPages=r.ok?new Set(await r.json()):new Set();}catch(e){_catPages=new Set();}
+  return _catPages;
+}
+function _catLinkUrl(pid,ch,wid){
+  const q='c='+ch+(wid?'&e='+encodeURIComponent(wid):'');
+  return (_catPages&&_catPages.has(pid))?location.origin+'/c/'+encodeURIComponent(pid)+'?'+q
+    :location.origin+'/colors.html?p='+encodeURIComponent(pid)+'&'+q;
+}
 async function _catLinkShare(){
   const L=_catLink;if(!L.pid)return;
   const inp=document.getElementById('catMsUser');
   if(inp){const v=inp.value.trim().replace(/^https?:\/\/(www\.)?m\.me\//i,'').replace(/^@/,'').replace(/[/?#].*$/,'');
     if(v!==((L.cfg&&L.cfg.messengerUser)||'')){try{await db.collection('operator_config').doc('catalog_cfg').set({messengerUser:v},{merge:true});L.cfg=Object.assign({},L.cfg,{messengerUser:v});}catch(e){toast('⚠️ ما انحفظ اسم صفحة الماسنجر');}}}
   const p=_prodById(L.pid);
+  await Promise.race([_catPagesLoad(),new Promise(r=>setTimeout(r,1500))]);
   const url=_catLinkUrl(L.pid,L.ch,L.wid);
   const text='ألوان '+((p&&p.name)||'')+' — اختار اللي بدك ياه واطلب من هون 👇';
   document.getElementById('clrCatPick')?.remove();
