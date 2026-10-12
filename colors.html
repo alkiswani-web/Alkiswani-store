@@ -125,6 +125,19 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .xc .xq button{height:36px;min-width:36px;border-radius:10px;border:1.5px solid var(--ln);background:#fff;font-weight:900}
 .xc .xq .xadd{flex:1;background:var(--g);color:#fff;border-color:var(--g);font-size:.82rem}
 .xc .xq b{font-size:1rem}
+/* اختيار ألوان الإضافة — نفس شكل الكتالوج */
+.xg{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:8px 0 12px}
+@media (min-width:560px){.xg{grid-template-columns:repeat(4,1fr)}}
+.xt{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.04),0 6px 14px -10px rgba(26,58,42,.5);display:flex;flex-direction:column}
+.xt.sel{box-shadow:0 0 0 3px var(--gold)}
+.xt .ph{border:0;padding:0;width:100%;display:block}
+.xt.out .ph{filter:grayscale(.85);opacity:.55}
+.xt .xtc{font-size:.72rem;font-weight:800;color:#166534;padding:5px 7px 6px;min-height:26px}
+.xt.out .xtc{color:var(--rd)}
+.xt .xtq{display:flex;align-items:center;justify-content:space-between;padding:0 5px 6px;gap:4px}
+.xt .xtq button{width:34px;height:32px;border-radius:9px;border:1.5px solid var(--ln);background:var(--cream);font-weight:900}
+.xt .xtq b{font-weight:900}
+.xhint{font-size:.78rem;font-weight:700;color:var(--mu);padding:8px 2px 0}
 .toast{position:fixed;left:50%;bottom:110px;transform:translate(-50%,14px);background:var(--g);color:#fff;padding:10px 16px;border-radius:12px;font-weight:800;font-size:.86rem;opacity:0;transition:.22s;z-index:60;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .skel{aspect-ratio:1;border-radius:16px;background:linear-gradient(90deg,#ece5d6,#f5efe3,#ece5d6);background-size:200% 100%;animation:sk 1.2s infinite}
@@ -284,15 +297,38 @@ function syncX(){
   Object.keys(xunsub).forEach(id=>{if(!ids.includes(id)){try{xunsub[id]();}catch(e){}delete xunsub[id];delete XP[id];}});
   XIDS=ids;
   ids.forEach(id=>{if(xunsub[id])return;xunsub[id]=db.collection('operator_products').doc(id).onSnapshot(d=>{
-    const v=d.exists&&d.data();if(v&&!v.isRawMaterial)XP[id]={id,...v};else delete XP[id];fixX();renderX();paintBar();},()=>{});});
+    const v=d.exists&&d.data();if(v&&!v.isRawMaterial)XP[id]={id,...v};else delete XP[id];fixX();renderX();paintBar();xLive(id);},()=>{});});
   fixX();renderX();paintBar();
 }
-// المنتج إله قياسات/ألوان خاصّة؟ ⇒ الزبون بيختار منها، والكمية ما بتتعدّى الموجود
+// المنتج إله قياسات/ألوان؟ ⇒ الزبون بيختار منها (مع صورها)، والكمية ما بتتعدّى الموجود.
+// null = لسّا عم تنجاب (ألوان المكتبة)
+const XIMG={},ximgSub={};let XLIB=null,xlibAsk=false;
+const xKind=p=>!p||!p.hasColorNumbers?'plain':p.ownColorNumbers?(p.cnKind==='size'?'size':'own'):'lib';
+function xNeed(p){
+  const k=xKind(p);
+  if(k==='own'&&!ximgSub[p.id])ximgSub[p.id]=db.collection('own_color_imgs').where('pid','==',p.id).onSnapshot(s=>{
+    const n={};s.docs.forEach(x=>{const v=x.data();if(v&&v.img)n[String(v.num)]=v.img;});XIMG[p.id]=n;xLive(p.id);},()=>{});
+  if(k==='lib'&&!XLIB&&!xlibAsk){
+    if(mode==='lib'&&LIB.length){XLIB=LIB;return;}
+    xlibAsk=true;db.collection('color_library').get().then(s=>{XLIB=s.docs.map(x=>({id:x.id,...x.data(),code:Number(x.data().code)||0}));fixX();renderX();paintBar();xLive();}).catch(()=>{xlibAsk=false;});}
+}
+function xLive(id){if(view==='xopt'&&xOpen&&(!id||id===xOpen)&&$('#sheet').classList.contains('on'))openXOpts(xOpen,true);}
 function xOpts(p){
-  if(!p||!p.hasColorNumbers||!p.ownColorNumbers)return null;
-  const qm=(p.ownColorQty&&typeof p.ownColorQty==='object')?p.ownColorQty:{};const size=p.cnKind==='size';
+  const k=xKind(p);if(k==='plain')return null;
+  if(k==='lib'){
+    const lib=XLIB||(mode==='lib'&&LIB.length?LIB:null);if(!lib){xNeed(p);return null;}
+    let L=lib.filter(c=>c.code>0&&c.status!=='retired');
+    const codes=Array.isArray(p.colorCodes)&&p.colorCodes.length?p.colorCodes.map(Number):null;
+    if(codes)L=L.filter(c=>codes.includes(c.code));
+    L=L.slice().sort((a,b)=>((a.sort==null?a.code:a.sort)-(b.sort==null?b.code:b.sort))||a.code-b.code);
+    return L.map(c=>({num:c.code,tag:String(c.code),img:c.img||'',hex:c.hex||'',stock:c.counted===true?Math.max(0,Number(c.qty)||0):null,
+      out:c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0)}));
+  }
+  const qm=(p.ownColorQty&&typeof p.ownColorQty==='object')?p.ownColorQty:{};const size=k==='size';
+  const im=XIMG[p.id]||{};
   const lbl=n=>{const l=size?((p.sizeLabels||{})[String(n)]):null;return (l!=null&&String(l).trim())?String(l).trim():String(n);};
-  const L=Object.keys(qm).map(Number).filter(n=>n>0).map(n=>{const q=qm[String(n)];return {num:n,tag:lbl(n),stock:q==null?null:Math.max(0,Number(q)||0)};});
+  const L=Object.keys(qm).map(Number).filter(n=>n>0).map(n=>{const q=qm[String(n)];const st=q==null?null:Math.max(0,Number(q)||0);
+    return {num:n,tag:lbl(n),img:im[String(n)]||'',stock:st,out:st===0};});
   const v=x=>{const f=parseFloat(String(x.tag).replace('٫','.'));return isNaN(f)?1e9+x.num:f;};
   return L.sort((a,b)=>size?(v(a)-v(b)||a.num-b.num):a.num-b.num);
 }
@@ -304,38 +340,50 @@ function fixX(){
   Object.keys(XC).forEach(id=>{
     if(!XIDS.includes(id)){if(Object.keys(CFG).length){delete XC[id];ch=true;}return;}
     const p=XP[id];if(!p)return;
-    const os=xOpts(p),c=XC[id];
-    if(os&&c.n){Object.keys(c.n).forEach(k=>{const o=os.find(x=>String(x.num)===k);if(!o||o.stock===0){delete c.n[k];ch=true;}else if(o.stock!=null&&c.n[k]>o.stock){c.n[k]=o.stock;ch=true;}});
+    const c=XC[id],kd=xKind(p);if(kd!=='plain'&&!c.n){delete XC[id];ch=true;return;}
+    const os=xOpts(p);if(!os)return;
+    if(c.n){Object.keys(c.n).forEach(k=>{const o=os.find(x=>String(x.num)===k);if(!o||o.out){delete c.n[k];ch=true;}else if(o.stock!=null&&c.n[k]>o.stock){c.n[k]=o.stock;ch=true;}});
       if(!Object.keys(c.n).length){delete XC[id];ch=true;}}
-    else if(os&&!c.n){delete XC[id];ch=true;}
   });
   if(ch)saveX();
 }
 function renderX(){
   const L=XIDS.map(id=>XP[id]).filter(Boolean);
   $('#xs').hidden=!L.length;if(!L.length){$('#xr').innerHTML='';return;}
-  $('#xr').innerHTML=L.map(p=>{const q=xQty(p.id),os=xOpts(p),img=xImg(p),pr=Number(p.sellPrice)||0;
-    const lib=p.hasColorNumbers&&!os;
+  $('#xr').innerHTML=L.map(p=>{const q=xQty(p.id),kd=xKind(p),img=xImg(p),pr=Number(p.sellPrice)||0;
     let ctl;
-    if(os)ctl=`<button class="xadd" data-xo="${esc(p.id)}">${q?`✓ <span class="n">${q}</span> — عدّل`:'＋ اختار '+xWord(p)}</button>`;
+    if(kd!=='plain')ctl=`<button class="xadd" data-xo="${esc(p.id)}">${q?`✓ <span class="n">${q}</span> — عدّل`:'＋ اختار '+xWord(p)}</button>`;
     else ctl=q?`<button data-xa="${esc(p.id)}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-xa="${esc(p.id)}:1" aria-label="أكثر">＋</button>`
       :`<button class="xadd" data-xa="${esc(p.id)}:1">＋ أضف</button>`;
     return `<div class="xc${q?' sel':''}"><i style="${img?`background-image:url('${img}')`:''}">${img?'<span></span>':''}</i><div class="xb"><b>${esc(p.name||'')}</b>
-      ${pr>0?`<small><span class="n">${f2(pr)}</span> د.أ</small>`:''}${lib?'<small class="nt">اكتب اللون بالملاحظات</small>':''}
+      ${pr>0?`<small><span class="n">${f2(pr)}</span> د.أ</small>`:''}
       <div class="xq">${ctl}</div></div></div>`;}).join('');
 }
 function xSet(id,q){if(q>0)XC[id]={q};else delete XC[id];saveX();renderX();paintBar();}
 function xSetN(id,num,q){const c=XC[id]&&XC[id].n?XC[id]:{n:{}};if(q>0)c.n[num]=q;else delete c.n[num];
   if(Object.keys(c.n).length)XC[id]=c;else delete XC[id];saveX();renderX();paintBar();}
 let xOpen='';
-function openXOpts(id){
-  const p=XP[id];const os=xOpts(p);if(!p||!os)return;xOpen=id;view='xopt';
-  const c=(XC[id]&&XC[id].n)||{};
-  $('#sl').innerHTML=os.map(o=>{const q=c[o.num]||0,out=o.stock===0;
-    return `<div class="si"${out?' style="opacity:.45"':''}><div class="m">${esc(xWord(p))} <bdi>${esc(o.tag)}</bdi><small>${out?'خلص':o.stock!=null?'متوفّر <span class="n">'+o.stock+'</span>':''}</small></div>
-      ${out?'':`<div class="q"><button data-xn="${esc(id)}:${o.num}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-xn="${esc(id)}:${o.num}:1" aria-label="أكثر">＋</button></div>`}</div>`;}).join('')||'<div class="empty">ما في إشي متوفّر هلّأ</div>';
-  paintSheet();$('#shH').textContent=(p.name||'')+' — اختار '+xWord(p);
+function openXOpts(id,keep){
+  const p=XP[id];if(!p||xKind(p)==='plain')return;xNeed(p);xOpen=id;view='xopt';
+  const os=xOpts(p),c=(XC[id]&&XC[id].n)||{},sl=$('#sl'),top=keep?sl.scrollTop:0;
+  if(!os)sl.innerHTML='<div class="empty">⏳ عم نجيب الألوان…</div>';
+  else if(xKind(p)==='size')sl.innerHTML=os.map(o=>{const q=c[o.num]||0;
+    return `<div class="si"${o.out?' style="opacity:.45"':''}><div class="m">${esc(xWord(p))} <bdi>${esc(o.tag)}</bdi><small>${o.out?'خلص':o.stock!=null?'متوفّر <span class="n">'+o.stock+'</span>':''}</small></div>
+      ${o.out?'':`<div class="q"><button data-xn="${esc(id)}:${o.num}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-xn="${esc(id)}:${o.num}:1" aria-label="أكثر">＋</button></div>`}</div>`;}).join('')||'<div class="empty">ما في إشي متوفّر هلّأ</div>';
+  else{
+    // نفس شكل الكتالوج: صورة اللون ورقمه — ضغطة على الصورة بتزيد وحدة
+    const L=[...os.filter(o=>!o.out),...os.filter(o=>o.out)];
+    sl.innerHTML=L.length?`<div class="xhint">اضغط على اللون لتضيفه — وكل ضغطة بتزيد قطعة</div><div class="xg">`+L.map(o=>{const q=c[o.num]||0;
+      const bg=o.img?`background-image:url('${o.img}')`:(o.hex?`background:${esc(o.hex)}`:'');
+      return `<div class="xt${q?' sel':''}${o.out?' out':''}"><button class="ph"${o.out?' disabled':` data-xn="${esc(id)}:${o.num}:1"`} style="${bg}" aria-label="لون ${esc(o.tag)}"><span class="num n">${esc(o.tag)}</span>${q?`<span class="pick n">×${q}</span>`:''}</button>
+        <div class="xtc">${o.out?'خلص':o.stock!=null?'متوفّر <span class="n">'+o.stock+'</span>':''}</div>
+        ${q?`<div class="xtq"><button data-xn="${esc(id)}:${o.num}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-xn="${esc(id)}:${o.num}:1" aria-label="أكثر">＋</button></div>`:''}</div>`;}).join('')+'</div>'
+      :'<div class="empty">ما في ألوان متوفّرة هلّأ</div>';
+  }
+  paintSheet();const q=xQty(id);$('#shH').textContent=(p.name||'')+' — اختار '+xWord(p)+(q?' ('+q+')':'');
+  if(q)$('#sheetWa').textContent='✓ تمام — '+q+' قطعة';
   $('#scrim').classList.add('on');$('#sheet').classList.add('on');
+  if(keep)sl.scrollTop=top;
 }
 // كل اللي بالطلب (الألوان + الإضافات) — للشريط والملخّص والإرسال
 function xLines(){
@@ -429,7 +477,7 @@ async function openChat(text){
 let view='cart',lastReq=null,sending=false;
 function sendWa(){
   if(view==='done'){openChat(lastReq.text);return;}
-  if(view==='xopt'){xOpen='';if(cartEmpty())closeSheet();else openSheet();return;}
+  if(view==='xopt'){const q=xQty(xOpen),nm=(XP[xOpen]&&XP[xOpen].name)||'';xOpen='';closeSheet();if(q)toast('✓ '+nm+' — '+q+' قطعة بطلبك');return;}
   if(cartEmpty()){toast('اختار لون أوّل');return;}
   if(view!=='form'){showForm();return;}
   submitReq();
@@ -524,7 +572,7 @@ document.addEventListener('click',e=>{
     const cq=(XC[id]&&XC[id].n&&XC[id].n[n])||0,nv=cq+Number(d);
     if(Number(d)>0&&o&&o.stock!=null&&nv>o.stock){toast('الموجود من '+xWord(p)+' '+o.tag+' '+o.stock+' بس');return;}
     xSetN(id,n,nv);
-    if(view==='xopt')openXOpts(id);else{openSheet();if(cartEmpty())closeSheet();}return;}
+    if(view==='xopt')openXOpts(id,true);else{openSheet();if(cartEmpty())closeSheet();}return;}
 });
 $('#lbX').onclick=()=>closeLb();
 $('#lb').addEventListener('click',e=>{if(e.target.id==='lb')closeLb();});
