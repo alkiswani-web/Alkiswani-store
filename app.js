@@ -3692,7 +3692,7 @@ function _catLinkPaint(){
     if(L.xOpen)body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;">علّم المنتجات اللي بتبيّن للزبون بالكتالوج — بترتيب ما بتعلّمها، وبتتحدّث مباشرة على كل الروابط</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">${all.map(p=>chip(xs.includes(p.id),`_catXToggle('${p.id}')`,(xs.includes(p.id)?'✓ ':'')+_clrEsc(p.name),'#b45309')).join('')}</div>
       <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:10px;">اسم الكتالوج (بيطلع فوق عند الزبون)</div>
-      <input id="catTitle" value="${_clrEsc((L.cfg&&L.cfg._title!=null)?L.cfg._title:((L.cfg&&L.cfg.title)||''))}" placeholder="كتالوج الألوان" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;">`;
+      <input id="catTitle" value="${_clrEsc((L.cfg&&L.cfg._title!=null)?L.cfg._title:((L.cfg&&L.cfg.title)||''))}" placeholder="كتالوج المنتجات" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;">`;
     const ws=L.workers;
     body+=H('الطلب بيوصل لمين؟')+(ws==null?'<div style="color:#9ca3af;font-size:.8rem;">⏳</div>':
       `<div style="display:flex;flex-wrap:wrap;gap:6px;">${chip(!L.wid,"_catLinkSet('wid','')",'👥 أي موظف','#7c3aed')}${ws.map(w=>chip(L.wid===w.id,`_catLinkSet('wid','${w.id}')`,'👤 '+_clrEsc(w.name||w.username),'#7c3aed')).join('')}</div>`);
@@ -3755,7 +3755,7 @@ async function _catLinkShare(){
   const p=_prodById(L.pid);
   await Promise.race([_catPagesLoad(),new Promise(r=>setTimeout(r,1500))]);
   const url=_catLinkUrl(L.pid,L.ch,L.wid);
-  const ttl=p?'ألوان '+(p.name||''):(((L.cfg&&L.cfg.title)||'').trim()||'كتالوج الألوان');
+  const ttl=p?'ألوان '+(p.name||''):(((L.cfg&&L.cfg.title)||'').trim()||'كتالوج المنتجات');
   const text=ttl+' — اختار اللي بدك ياه واطلب من هون 👇';
   if(L.cfg){delete L.cfg._ms;delete L.cfg._title;}
   document.getElementById('clrCatPick')?.remove();

@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>كتالوج الألوان</title>
-<meta name="description" content="اختار ألوانك من الصور واطلب من هون">
-<meta property="og:title" content="كتالوج الألوان">
-<meta property="og:description" content="اختار ألوانك من الصور واطلب من هون">
+<title>كتالوج المنتجات</title>
+<meta name="description" content="اختار المنتج وألوانه من الصور واطلب من هون">
+<meta property="og:title" content="كتالوج المنتجات">
+<meta property="og:description" content="اختار المنتج وألوانه من الصور واطلب من هون">
 <meta name="theme-color" content="#1a3a2a">
 <link rel="icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -150,7 +150,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   <header class="hero">
     <button class="back" id="back" hidden>→ كل المنتجات</button>
     <div class="brand">الكسواني روزميري</div>
-    <h1 class="kufi" id="pName">كتالوج الألوان</h1>
+    <h1 class="kufi" id="pName">كتالوج المنتجات</h1>
     <p id="pSub">عم نجهّز الكتالوج…</p>
     <div class="price" id="pPrice" hidden>سعر القطعة <b class="n" id="pPriceV"></b> د.أ</div>
   </header>
@@ -346,7 +346,7 @@ function render(){
 }
 function renderHome(){
   $('#tools').hidden=true;$('#pPrice').hidden=true;
-  const title=String(CFG.title||'').trim()||'كتالوج الألوان';
+  const title=String(CFG.title||'').trim()||'كتالوج المنتجات';
   $('#pName').textContent=title;document.title=title;
   const L=HOME.map(id=>PR[id]).filter(Boolean);
   const loading=!cfgReady||HOME.some(id=>!(id in PR));
