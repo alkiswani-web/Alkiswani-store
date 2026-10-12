@@ -146,43 +146,66 @@ try{CART=JSON.parse(localStorage.getItem(cartKey)||'{}')||{};}catch(e){CART={};}
 const saveCart=()=>{try{localStorage.setItem(cartKey,JSON.stringify(CART));}catch(e){}};
 
 function skeleton(){$('#grid').innerHTML=Array.from({length:9},()=>'<div class="skel"></div>').join('');}
+// تحديث مباشر: بنسمع للمنتج (الكميات) ولصور الألوان — والزبون فاتح الصفحة
+let IMGS={},LIB=[],mode='',unsub=[];
 async function load(){
   skeleton();
   firebase.initializeApp({apiKey:"AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU",authDomain:"alkiswani-store.firebaseapp.com",projectId:"alkiswani-store",
     storageBucket:"alkiswani-store.firebasestorage.app",messagingSenderId:"60330492719",appId:"1:60330492719:web:71e36dd5327db3e54017da"});
   db=firebase.firestore();
   if(!pid){fail('الرابط ناقص — اطلب الرابط من المحل');return;}
-  let d;try{d=await db.collection('operator_products').doc(pid).get();}catch(e){fail('ما قدرنا نفتح الكتالوج — تأكّد من النت وجرّب كمان مرّة');return;}
-  if(!d.exists){fail('هاد الكتالوج مش موجود');return;}
-  P={id:d.id,...d.data()};
-  document.title='ألوان '+(P.name||'')+' — الكسواني روزميري';
-  $('#pName').textContent=P.name||'الألوان';
-  if(Number(P.sellPrice)>0){$('#pPrice').hidden=false;$('#pPriceV').textContent=f2(P.sellPrice);}
-  try{
-    if(P.ownColorNumbers){
-      const imgs={};
-      try{const s=await db.collection('own_color_imgs').where('pid','==',pid).get();s.docs.forEach(x=>{const v=x.data();if(v&&v.img)imgs[String(v.num)]=v.img;});}catch(e){}
-      const qm=(P.ownColorQty&&typeof P.ownColorQty==='object')?P.ownColorQty:{};
-      const size=P.cnKind==='size';
-      const lbl=n=>{const l=size?((P.sizeLabels||{})[String(n)]):null;return (l!=null&&String(l).trim())?String(l).trim():String(n);};
-      ITEMS=Object.keys(qm).map(Number).filter(n=>n>0).map(n=>{const q=qm[String(n)];return {key:'own__'+pid+'__'+n,num:n,tag:lbl(n),name:(size?'قياس ':'لون ')+lbl(n),
-        img:imgs[String(n)]||'',out:q!=null&&(Number(q)||0)<=0};});
-      const v=x=>{const f=parseFloat(String(x.tag).replace('٫','.'));return isNaN(f)?1e9+x.num:f;};
-      ITEMS.sort((a,b)=>size?(v(a)-v(b)||a.num-b.num):a.num-b.num);
-    }else{
-      const s=await db.collection('color_library').get();
-      let L=s.docs.map(x=>({id:x.id,...x.data(),code:Number(x.data().code)||0})).filter(c=>c.code>0&&c.status!=='retired');
-      const codes=Array.isArray(P.colorCodes)&&P.colorCodes.length?P.colorCodes.map(Number):null;
-      if(codes)L=L.filter(c=>codes.includes(c.code));
-      L.sort((a,b)=>((a.sort==null?a.code:a.sort)-(b.sort==null?b.code:b.sort))||a.code-b.code);
-      ITEMS=L.map(c=>({key:c.id,num:c.code,tag:String(c.code),name:c.name||('لون '+c.code),img:c.img||'',hex:c.hex||'',
-        out:c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0)}));
+  let first=true;
+  db.collection('operator_products').doc(pid).onSnapshot(d=>{
+    if(!d.exists){fail('هاد الكتالوج مش موجود');return;}
+    P={id:d.id,...d.data()};
+    document.title='ألوان '+(P.name||'')+' — الكسواني روزميري';
+    $('#pName').textContent=P.name||'الألوان';
+    if(Number(P.sellPrice)>0){$('#pPrice').hidden=false;$('#pPriceV').textContent=f2(P.sellPrice);}else $('#pPrice').hidden=true;
+    const m=P.ownColorNumbers?'own':'lib';
+    if(m!==mode){mode=m;unsub.forEach(u=>{try{u();}catch(e){}});unsub=[];
+      if(m==='own') unsub.push(db.collection('own_color_imgs').where('pid','==',pid).onSnapshot(s=>{
+        const n={};s.docs.forEach(x=>{const v=x.data();if(v&&v.img)n[String(v.num)]=v.img;});
+        Object.keys(n).forEach(k=>{if(IMGS[k]&&IMGS[k]!==n[k])delete FULL['own__'+pid+'__'+k];});   // صورة جديدة ⇒ الكبيرة كمان
+        IMGS=n;build();},()=>{}));
+      else unsub.push(db.collection('color_library').onSnapshot(s=>{
+        const old={};LIB.forEach(c=>old[c.id]=c.img);
+        LIB=s.docs.map(x=>({id:x.id,...x.data(),code:Number(x.data().code)||0}));
+        LIB.forEach(c=>{if(old[c.id]&&old[c.id]!==c.img)delete FULL[c.id];});
+        build();},()=>{}));
     }
-  }catch(e){fail('ما قدرنا نجيب الألوان — جرّب كمان مرّة');return;}
+    build();
+    if(first){first=false;lazyFull();}
+  },()=>fail('ما قدرنا نفتح الكتالوج — تأكّد من النت وجرّب كمان مرّة'));
+}
+function build(){
+  if(!P)return;
+  const prevOut={};ITEMS.forEach(x=>prevOut[x.num]=x.out);
+  const curKey=cur>=0&&ITEMS[cur]?ITEMS[cur].key:null;
+  if(mode==='own'){
+    const qm=(P.ownColorQty&&typeof P.ownColorQty==='object')?P.ownColorQty:{};
+    const size=P.cnKind==='size';
+    const lbl=n=>{const l=size?((P.sizeLabels||{})[String(n)]):null;return (l!=null&&String(l).trim())?String(l).trim():String(n);};
+    ITEMS=Object.keys(qm).map(Number).filter(n=>n>0).map(n=>{const q=qm[String(n)];return {key:'own__'+pid+'__'+n,num:n,tag:lbl(n),name:(size?'قياس ':'لون ')+lbl(n),
+      img:IMGS[String(n)]||'',out:q!=null&&(Number(q)||0)<=0};});
+    const v=x=>{const f=parseFloat(String(x.tag).replace('٫','.'));return isNaN(f)?1e9+x.num:f;};
+    ITEMS.sort((a,b)=>size?(v(a)-v(b)||a.num-b.num):a.num-b.num);
+  }else{
+    let L=LIB.filter(c=>c.code>0&&c.status!=='retired');
+    const codes=Array.isArray(P.colorCodes)&&P.colorCodes.length?P.colorCodes.map(Number):null;
+    if(codes)L=L.filter(c=>codes.includes(c.code));
+    L.sort((a,b)=>((a.sort==null?a.code:a.sort)-(b.sort==null?b.code:b.sort))||a.code-b.code);
+    ITEMS=L.map(c=>({key:c.id,num:c.code,tag:String(c.code),name:c.name||('لون '+c.code),img:c.img||'',hex:c.hex||'',
+      out:c.status==='out'||(c.counted===true&&(Number(c.qty)||0)<=0)}));
+  }
+  // لون بالسلّة خلص أو انشال ⇒ منشيله ومنقول للزبون
+  const gone=Object.keys(CART).filter(k=>{const x=ITEMS.find(i=>String(i.num)===k);return !x||x.out;});
+  if(gone.length&&Object.keys(prevOut).length){gone.forEach(k=>delete CART[k]);saveCart();
+    toast('⚠️ '+gone.map(k=>{const x=ITEMS.find(i=>String(i.num)===k);return x?x.name:('لون '+k);}).join('، ')+' خلص هلّأ — شلناه من طلبك');}
   const av=ITEMS.filter(x=>!x.out).length;
   $('#pSub').textContent=ITEMS.length?`${av} لون متوفّر${ITEMS.length>av?` · ${ITEMS.length-av} خالص`:''}`:'';
   render();paintBar();
-  if(ITEMS.length)lazyFull();
+  // العرض الكبير مفتوح؟ منحدّثه على نفس اللون
+  if(curKey&&$('#lb').classList.contains('on')){const i=ITEMS.findIndex(x=>x.key===curKey);if(i>=0)refreshLb(i);else closeLb();}
 }
 function fail(m){$('#grid').innerHTML=`<div class="empty" style="grid-column:1/-1">${esc(m)}</div>`;$('#pSub').textContent='';}
 function visible(){
@@ -208,6 +231,7 @@ function render(){
 const FULL={};let io=null;
 function lazyFull(){
   if(!('IntersectionObserver' in window))return;
+  if(io)return;
   io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;io.unobserve(e.target);fetchFull(Number(e.target.dataset.ph));}),{rootMargin:'300px'});
   observe();
 }
@@ -230,6 +254,14 @@ function openLb(i){
   $('#lbAdd').disabled=!!x.out;$('#lbAdd').style.opacity=x.out?.4:1;
   $('#lb').classList.add('on');fetchFull(i);
   try{if(!history.state||!history.state.lb)history.pushState({lb:1},'');}catch(e){}
+}
+function refreshLb(i){
+  cur=i;const x=ITEMS[i];const src=FULL[x.key]||x.img;
+  if(src)$('#lbImg').style.backgroundImage=`url('${src}')`;
+  $('#lbSt').textContent=x.out?'خلص حالياً — اسألنا إمتى بيرجع':'';
+  $('#lbAdd').disabled=!!x.out;$('#lbAdd').style.opacity=x.out?.4:1;
+  const inC=!!CART[x.num];$('#lbAdd').textContent=inC?'✓ بطلبي':'＋ لطلبي';$('#lbAdd').classList.toggle('on',inC);
+  fetchFull(i);
 }
 function closeLb(fromPop){$('#lb').classList.remove('on');cur=-1;if(!fromPop){try{if(history.state&&history.state.lb)history.back();}catch(e){}}}
 function step(d){const L=visible();let k=L.indexOf(ITEMS[cur]);if(k<0)return;k=(k+d+L.length)%L.length;openLb(ITEMS.indexOf(L[k]));}
