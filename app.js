@@ -3662,7 +3662,6 @@ async function clrCatalogLink(pid,opts){
   _catLink.fixedWid=!!opts.workerId;
   if(opts.workerId)_catLink.wid=opts.workerId;
   if(opts.ch)_catLink.ch=opts.ch;
-  if(!_catLink.pid){const ps=_catProducts();if(ps.length===1)_catLink.pid=ps[0].id;}
   _catLinkPaint();
   if(!_catLink.cfg)db.collection('operator_config').doc('catalog_cfg').get().then(d=>{_catLink.cfg=(d.exists&&d.data())||{};_catLinkPaint();}).catch(()=>{_catLink.cfg={};});
   if(!_catLink.fixedWid&&!_catLink.workers)db.collection('employee_workers').get().then(s=>{
@@ -3679,19 +3678,21 @@ function _catLinkPaint(){
   const ps=_catProducts();
   const H=t=>`<div style="font-size:.76rem;font-weight:900;color:#6b7280;margin:12px 0 6px;">${t}</div>`;
   let body='';
-  body+=H('المنتج')+`<div style="display:flex;flex-wrap:wrap;gap:6px;">${ps.map(p=>chip(L.pid===p.id,`_catLinkSet('pid','${p.id}')`,_clrEsc(p.name),'#166534')).join('')||'<span style="color:#9ca3af;font-size:.8rem;">ما في منتجات بألوان مرقّمة</span>'}</div>`;
+  body+=H('شو بدك تبعت؟')+`<div style="display:flex;flex-wrap:wrap;gap:6px;">${chip(!L.pid,"_catLinkSet('pid','')",'🛍️ كل الكتالوج','#166534')}${ps.map(p=>chip(L.pid===p.id,`_catLinkSet('pid','${p.id}')`,_clrEsc(p.name),'#166534')).join('')}</div>
+    <div style="font-size:.7rem;color:#9ca3af;font-weight:700;margin-top:5px;">${L.pid?'الزبون بيفتح على هالمنتج — وبيقدر يرجع لكل المنتجات':'الزبون بيشوف منتجات الكتالوج وبيختار النوع اللي بدّه ياه'}</div>`;
   body+=H('الزبون من وين؟')+`<div style="display:flex;gap:6px;">${chip(L.ch==='w',"_catLinkSet('ch','w')",'🟢 واتساب','#16a34a')}${chip(L.ch==='m',"_catLinkSet('ch','m')",'🔵 ماسنجر','#0a7cff')}</div>`;
   if(L.ch==='m'){
-    const mu=(L.cfg&&L.cfg.messengerUser)||'';
+    const mu=(L.cfg&&L.cfg._ms!=null)?L.cfg._ms:((L.cfg&&L.cfg.messengerUser)||'');
     body+=`<div style="margin-top:8px;font-size:.74rem;color:#6b7280;font-weight:700;">اسم صفحة الماسنجر — عشان رسالة التأكيد توصل لصفحتك (الصق رابط الصفحة أو اسمها)</div>
       <input id="catMsUser" value="${_clrEsc(mu)}" placeholder="مثلاً alkiswanirosemary" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;direction:ltr;text-align:left;">`;
   }
   if(!L.fixedWid){
-    const xs=(L.cfg&&Array.isArray(L.cfg.extras))?L.cfg.extras:[];
-    const all=(_opProductsList&&_opProductsList.length?_opProductsList:(_empSharedProducts||[])).filter(p=>p&&!p.isRawMaterial);
-    body+=`<button type="button" onclick="_catLink.xOpen=!_catLink.xOpen;_catLinkPaint()" style="${F}width:100%;margin-top:14px;padding:10px 12px;border:1.5px dashed #c9a84c;border-radius:11px;background:#fffbeb;color:#92400e;font-size:.84rem;font-weight:900;cursor:pointer;text-align:right;">➕ منتجات «بدك كمان؟» بتبيّن تحت كل كتالوج (${xs.length}) ${L.xOpen?'▴':'▾'}</button>`;
-    if(L.xOpen)body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;">علّم اللي بدك ياه يبيّن للزبون مع صورته وسعره — بيتحدّث مباشرة على كل الروابط</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">${all.map(p=>chip(xs.includes(p.id),`_catXToggle('${p.id}')`,(xs.includes(p.id)?'✓ ':'')+_clrEsc(p.name),'#b45309')).join('')}</div>`;
+    const xs=_catHomeIds(L.cfg),all=(_opProductsList&&_opProductsList.length?_opProductsList:(_empSharedProducts||[])).filter(p=>p&&!p.isRawMaterial);
+    body+=`<button type="button" onclick="_catLink.xOpen=!_catLink.xOpen;_catLinkPaint()" style="${F}width:100%;margin-top:14px;padding:10px 12px;border:1.5px dashed #c9a84c;border-radius:11px;background:#fffbeb;color:#92400e;font-size:.84rem;font-weight:900;cursor:pointer;text-align:right;">🛍️ منتجات الكتالوج (${xs.length}) ${L.xOpen?'▴':'▾'}</button>`;
+    if(L.xOpen)body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;">علّم المنتجات اللي بتبيّن للزبون بالكتالوج — بترتيب ما بتعلّمها، وبتتحدّث مباشرة على كل الروابط</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${all.map(p=>chip(xs.includes(p.id),`_catXToggle('${p.id}')`,(xs.includes(p.id)?'✓ ':'')+_clrEsc(p.name),'#b45309')).join('')}</div>
+      <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:10px;">اسم الكتالوج (بيطلع فوق عند الزبون)</div>
+      <input id="catTitle" value="${_clrEsc((L.cfg&&L.cfg._title!=null)?L.cfg._title:((L.cfg&&L.cfg.title)||''))}" placeholder="كتالوج الألوان" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;">`;
     const ws=L.workers;
     body+=H('الطلب بيوصل لمين؟')+(ws==null?'<div style="color:#9ca3af;font-size:.8rem;">⏳</div>':
       `<div style="display:flex;flex-wrap:wrap;gap:6px;">${chip(!L.wid,"_catLinkSet('wid','')",'👥 أي موظف','#7c3aed')}${ws.map(w=>chip(L.wid===w.id,`_catLinkSet('wid','${w.id}')`,'👤 '+_clrEsc(w.name||w.username),'#7c3aed')).join('')}</div>`);
@@ -3700,20 +3701,32 @@ function _catLinkPaint(){
     <div style="font-weight:900;color:#166534;font-size:1rem;">🔗 رابط الكتالوج للزبون</div>
     <div style="font-size:.76rem;color:#6b7280;font-weight:700;margin-top:3px;">الزبون بيختار ألوانه وبيعبّي معلوماته — والطلب بيوصل ${L.fixedWid?'إلك':'للموظف'} جاهز للبوليصة</div>
     ${body}
-    <button type="button" onclick="_catLinkShare()" ${L.pid?'':'disabled'} style="${F}width:100%;margin-top:16px;padding:14px;border:none;border-radius:13px;background:${L.pid?'#166534':'#d1d5db'};color:#fff;font-size:.95rem;font-weight:900;cursor:pointer;">📤 شارك الرابط</button>
+    <button type="button" onclick="_catLinkShare()" style="${F}width:100%;margin-top:16px;padding:14px;border:none;border-radius:13px;background:#166534;color:#fff;font-size:.95rem;font-weight:900;cursor:pointer;">📤 شارك الرابط</button>
   </div>`;
 }
 function _catLinkSet(k,v){
-  if(k==='ch'){const i=document.getElementById('catMsUser');if(i&&_catLink.cfg)_catLink.cfg.messengerUser=i.value.trim();}
+  _catKeepInputs();
   _catLink[k]=v;
   try{localStorage.setItem('_catLinkPref',JSON.stringify({ch:_catLink.ch,wid:_catLink.fixedWid?undefined:_catLink.wid}));}catch(e){}
   _catLinkPaint();
 }
+// اللي بالخانات قبل ما نعيد رسم الشيت (عشان ما يضيع اللي انكتب)
+function _catKeepInputs(){
+  const c=_catLink.cfg=_catLink.cfg||{};
+  const m=document.getElementById('catMsUser');if(m)c._ms=m.value;
+  const t=document.getElementById('catTitle');if(t)c._title=t.value;
+}
+// منتجات الكتالوج الموحّد: اللي الأدمن علّمها — وقبل ما يعلّم، كل منتجات الألوان (زي ما الزبون بيشوفها)
+function _catHomeIds(cfg){
+  if(cfg&&Array.isArray(cfg.products))return cfg.products.slice();
+  return _catProducts().map(p=>p.id);
+}
 async function _catXToggle(id){
-  const cur=(_catLink.cfg&&Array.isArray(_catLink.cfg.extras))?_catLink.cfg.extras.slice():[];
+  _catKeepInputs();
+  const cur=_catHomeIds(_catLink.cfg);
   const i=cur.indexOf(id);if(i>=0)cur.splice(i,1);else cur.push(id);
-  _catLink.cfg=Object.assign({},_catLink.cfg,{extras:cur});_catLinkPaint();
-  try{await db.collection('operator_config').doc('catalog_cfg').set({extras:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
+  _catLink.cfg=Object.assign({},_catLink.cfg,{products:cur});_catLinkPaint();
+  try{await db.collection('operator_config').doc('catalog_cfg').set({products:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
 }
 window._catXToggle=_catXToggle;
 // المنتج إله صفحة معاينة (c/<المنتج> — اسمه وصورته بالواتساب)؟ منستعملها، وإلا الرابط القديم
@@ -3725,20 +3738,26 @@ async function _catPagesLoad(){
 }
 function _catLinkUrl(pid,ch,wid){
   const q='c='+ch+(wid?'&e='+encodeURIComponent(wid):'');
+  // الكتالوج كلّه: /c/ (معاينته باسم الكتالوج) — وإذا الصفحات لسّا ما انعملت، colors.html
+  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/?'+q:location.origin+'/colors.html?'+q;
   return (_catPages&&_catPages.has(pid))?location.origin+'/c/'+encodeURIComponent(pid)+'?'+q
     :location.origin+'/colors.html?p='+encodeURIComponent(pid)+'&'+q;
 }
 async function _catLinkShare(){
-  const L=_catLink;if(!L.pid)return;
+  const L=_catLink;
+  const ti=document.getElementById('catTitle');
+  if(ti){const v=ti.value.trim().slice(0,60);if(v!==((L.cfg&&L.cfg.title)||'')){try{await db.collection('operator_config').doc('catalog_cfg').set({title:v},{merge:true});L.cfg=Object.assign({},L.cfg,{title:v});}catch(e){}}}
   const inp=document.getElementById('catMsUser');
   if(inp){const v=inp.value.trim().replace(/^https?:\/\/(www\.)?m\.me\//i,'').replace(/^@/,'').replace(/[/?#].*$/,'');
     if(v!==((L.cfg&&L.cfg.messengerUser)||'')){try{await db.collection('operator_config').doc('catalog_cfg').set({messengerUser:v},{merge:true});L.cfg=Object.assign({},L.cfg,{messengerUser:v});}catch(e){toast('⚠️ ما انحفظ اسم صفحة الماسنجر');}}}
   const p=_prodById(L.pid);
   await Promise.race([_catPagesLoad(),new Promise(r=>setTimeout(r,1500))]);
   const url=_catLinkUrl(L.pid,L.ch,L.wid);
-  const text='ألوان '+((p&&p.name)||'')+' — اختار اللي بدك ياه واطلب من هون 👇';
+  const ttl=p?'ألوان '+(p.name||''):(((L.cfg&&L.cfg.title)||'').trim()||'كتالوج الألوان');
+  const text=ttl+' — اختار اللي بدك ياه واطلب من هون 👇';
+  if(L.cfg){delete L.cfg._ms;delete L.cfg._title;}
   document.getElementById('clrCatPick')?.remove();
-  try{if(navigator.share){await navigator.share({title:'ألوان '+((p&&p.name)||''),text,url});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{if(navigator.share){await navigator.share({title:ttl,text,url});return;}}catch(e){if(e&&e.name==='AbortError')return;}
   try{await navigator.clipboard.writeText(url);toast('🔗 انسخ الرابط — الصقه للزبون');}
   catch(e){window.prompt('انسخ الرابط:',url);}
 }
@@ -3923,7 +3942,7 @@ function _renderColorHQ(){
   // الكتالوج
   const W=_hq.workers||{},byW={};
   reqs.forEach(r=>{const k=(r.workerId||'')+'|'+(r.channel||'');byW[k]=(byW[k]||0)+1;});
-  const ex=((_hq.cfg&&_hq.cfg.extras)||[]).map(i=>_prodById(i)).filter(Boolean);
+  const ex=_catHomeIds(_hq.cfg||{}).map(i=>_prodById(i)).filter(Boolean);
   const box=(id,t,sub,inner)=>`<div ${id?`id="${id}" `:''}style="border:1.5px solid #e5e7eb;border-radius:14px;padding:12px;margin-bottom:8px;background:#fff;">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><b style="font-size:.9rem;color:#111827;">${t}</b><span style="margin-right:auto;font-size:.7rem;color:#9ca3af;font-weight:700;">${sub}</span></div>${inner}</div>`;
   const stat=(v,t,c)=>`<div style="flex:1;background:#f9fafb;border-radius:10px;padding:7px 4px;text-align:center;"><div style="font-size:1.1rem;font-weight:900;color:${c};">${v}</div><div style="font-size:.68rem;font-weight:800;color:#6b7280;">${t}</div></div>`;
@@ -3931,10 +3950,10 @@ function _renderColorHQ(){
   h+=box('hqCat','🛒 الكتالوج للزباين','اليوم',
     `<div style="display:flex;gap:6px;">${stat(_hq.reqs?reqs.length:'…','جديد','#166534')}${stat(_hq.today?today.filter(r=>r.status==='done').length:'…','انسجّل','#1e40af')}${stat(_hq.today?today.filter(r=>r.status==='dismissed').length:'…','انشال','#6b7280')}</div>
     ${Object.keys(byW).map(k=>{const [w,ch]=k.split('|');return `<div style="display:flex;align-items:center;gap:7px;margin-top:7px;font-size:.8rem;font-weight:800;color:#374151;"><span style="width:9px;height:9px;border-radius:50%;background:${ch==='messenger'?'#0a7cff':'#16a34a'};"></span><span style="flex:1;">${w?_clrEsc(W[w]||'موظف'):'👥 أي موظف'} · ${ch==='messenger'?'ماسنجر':'واتساب'}</span><span style="color:#166534;">${byW[k]} جديد</span></div>`;}).join('')}
-    ${reqs.slice(0,3).map(r=>`<div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:6px;line-height:1.6;">• ${_clrEsc((r.customer||{}).name||'زبون')} — ${_clrEsc(r.productName||'')}${(r.extras||[]).length?' + '+r.extras.length:''} · ${r.pieces||0} قطعة <span style="color:#9ca3af;">${_hqAgo(r.createdAt)}</span></div>`).join('')}
-    <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:9px;line-height:1.8;">➕ «بدك كمان؟»: ${ex.length?ex.map(x=>`<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:#fffbeb;color:#92400e;margin-left:3px;">${_clrEsc(x.name)}</span>`).join(''):'<span style="color:#9ca3af;">ولا منتج</span>'}<br>
+    ${reqs.slice(0,3).map(r=>`<div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:6px;line-height:1.6;">• ${_clrEsc((r.customer||{}).name||'زبون')} — ${_clrEsc(r.productName||'')}${(r.items||[]).length&&(r.extras||[]).length?' + '+r.extras.length:''} · ${r.pieces||0} قطعة <span style="color:#9ca3af;">${_hqAgo(r.createdAt)}</span></div>`).join('')}
+    <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:9px;line-height:1.8;">🛍️ منتجات الكتالوج: ${ex.length?ex.map(x=>`<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:#fffbeb;color:#92400e;margin-left:3px;">${_clrEsc(x.name)}</span>`).join(''):'<span style="color:#9ca3af;">ولا منتج</span>'}<br>
       💬 صفحة الماسنجر: <b dir="ltr" style="color:#374151;">${_clrEsc((_hq.cfg&&_hq.cfg.messengerUser)||'')||'<span style="color:#dc2626;">مش محدّدة</span>'}</b></div>
-    <button onclick="clrCatalogLink('')" style="width:100%;margin-top:10px;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;${F}font-size:.84rem;font-weight:900;cursor:pointer;">🔗 اعمل رابط كتالوج (والإعدادات)</button>`);
+    <button onclick="clrCatalogLink('')" style="width:100%;margin-top:10px;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:10px;${F}font-size:.84rem;font-weight:900;cursor:pointer;">🔗 رابط الكتالوج (والإعدادات)</button>`);
   const cbTxt=cbD&&cbN?_clrEsc(_cbText(cbD)).replace(/\n/g,'<br>'):'';
   const nbc=sum('noBc');
   h+=box('','📢 تحديث الألوان للموظفين',_hq.cbAt?'آخر تحديث '+_hqAgo(_hq.cbAt):'',
@@ -7571,7 +7590,7 @@ function _empCatPaint(){
           <span title="${r.channel==='messenger'?'ماسنجر':'واتساب'}">${r.channel==='messenger'?'🔵':'🟢'}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <span style="direction:ltr;unicode-bidi:isolate;">${_clrEsc(c.phone||'')}</span></span>
           <span style="font-size:.7rem;color:#9ca3af;font-weight:700;white-space:nowrap;">${ago(r)}</span></div>
-        <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 ${_clrEsc(r.productName||'')}: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`➕ ${_clrEsc(x.name)}${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''} ×${x.qty}<br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
+        <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 ${_clrEsc(r.productName||'')}: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} ${_clrEsc(x.name)}${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''} ×${x.qty}<br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>
           <button type="button" onclick="empCatDismiss('${r.id}')" title="مش طلب حقيقي / مكرّر" style="${F}padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;color:#6b7280;font-weight:800;font-size:.8rem;cursor:pointer;">✕ شيله</button>
