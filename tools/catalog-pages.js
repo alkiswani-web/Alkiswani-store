@@ -23,6 +23,29 @@ function jpegSize(b) {
   return null;
 }
 
+// 1200×630 (مقاس معاينة الواتساب الكبيرة): صور المنتجات مربّعات مرتّبة على خلفية الموقع
+async function collage(list) {
+  if (list.length < 2) return null;
+  let sharp; try { sharp = require('sharp'); } catch (e) { return null; }
+  const W = 1200, H = 630, GAP = 18, PAD = 30;
+  const rows = list.length > 4 ? 2 : list.length === 4 ? 2 : 1, cols = Math.ceil(list.length / rows);
+  const t = Math.floor(Math.min((W - PAD * 2 - GAP * (cols - 1)) / cols, (H - PAD * 2 - GAP * (rows - 1)) / rows));
+  const mask = Buffer.from(`<svg width="${t}" height="${t}"><rect width="${t}" height="${t}" rx="${Math.round(t * .09)}" fill="#fff"/></svg>`);
+  const comps = [];
+  for (let i = 0; i < list.length; i++) {
+    const r = Math.floor(i / cols), inRow = r === rows - 1 ? list.length - cols * (rows - 1) : cols;
+    const rowW = inRow * t + (inRow - 1) * GAP, x0 = Math.round((W - rowW) / 2), y0 = Math.round((H - (rows * t + (rows - 1) * GAP)) / 2);
+    const c = i - r * cols;
+    const buf = Buffer.from(list[i].img.split(',')[1], 'base64');
+    const tile = await sharp(buf).resize(t, t, { fit: 'cover' }).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
+    comps.push({ input: tile, left: W - x0 - (c + 1) * t - c * GAP, top: y0 + r * (t + GAP) });   // من اليمين لليسار زي الصفحة
+  }
+  const out = await sharp({ create: { width: W, height: H, channels: 3, background: '#1a3a2a' } }).composite(comps).jpeg({ quality: 84 }).toBuffer();
+  fs.writeFileSync(path.join(OUT, 'img', '_catalog.jpg'), out);
+  const v = require('crypto').createHash('md5').update(out).digest('hex').slice(0, 8);
+  return { url: `${SITE}/c/img/_catalog.jpg?v=${v}`, size: { w: W, h: H } };
+}
+
 async function main() {
   const res = await fetch(`https://firestore.googleapis.com/v1/projects/alkiswani-store/databases/(default)/documents:runQuery?key=${KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -84,7 +107,11 @@ ${size ? `<meta property="og:image:width" content="${size.w}">\n<meta property="
   }
   // الكتالوج الموحّد: c/index.html ⇒ /c/?c=…&e=…
   const home = (Array.isArray(cfg.products) ? cfg.products.map(id => all.find(p => p.id === id)) : rows).filter(p => p && !p.raw && p.name);
-  const cover = home.map(ogOf).find(Boolean) || { url: `${SITE}/icon-512.png`, size: { w: 512, h: 512 } };
+  // صورة المعاينة: كولاج من صور كل منتجات الكتالوج (مش أوّل منتج بس — عشان ما يبيّن إنه للصوف بس)
+  let cover = null;
+  try { cover = await collage(home.filter(p => /^data:image\//.test(p.img)).slice(0, 8)); } catch (e) { console.error('collage:', e.message); }
+  if (cover) keep.add('img/_catalog.jpg');
+  cover = cover || home.map(ogOf).find(Boolean) || { url: `${SITE}/icon-512.png`, size: { w: 512, h: 512 } };
   const hTitle = (cfg.title || '').trim() || 'كتالوج الألوان';
   const hDesc = home.length ? home.map(p => p.name).join(' · ') + ' — اختار واطلب من هون' : 'اختار ألوانك من الصور واطلب من هون';
   fs.writeFileSync(path.join(OUT, 'index.html'), `<!DOCTYPE html>

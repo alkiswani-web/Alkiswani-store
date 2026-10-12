@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # sharp: كولاج صور المنتجات لمعاينة رابط الكتالوج
+      - run: npm i --no-save --no-audit --no-fund sharp@0.33.5
       - run: node tools/catalog-pages.js
       - name: Commit if changed
         run: |
