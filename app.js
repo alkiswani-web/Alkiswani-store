@@ -3735,7 +3735,10 @@ function _clrScopeBar(){
   const ps=_clrOwnProds();
   if(!ps.length){el.innerHTML='';return;}
   const B=(id,t)=>{const on=_clrScope===id;return `<button onclick="clrSetScope('${id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${on?'#1e3a8a':'#e5e7eb'};background:${on?'#1e3a8a':'#fff'};color:${on?'#fff':'#374151'};font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${t}</button>`;};
-  el.innerHTML=B('','🎨 المكتبة المشتركة')+ps.map(p=>B(p.id,(_cnIsSize(p)?'📏 ':'🔢 ')+_clrEsc(p.name))).join('');
+  // المكتبة المشتركة باسم المنتجات اللي بتستعملها فعلاً (حالياً اعواد مخمل)
+  const lp=(_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.ownColorNumbers&&!p.isRawMaterial).map(p=>_clrEsc(p.name));
+  const libT=lp.length&&lp.length<=2?'🎨 '+lp.join('، '):lp.length?'🎨 المكتبة المشتركة ('+lp.length+' منتجات)':'🎨 المكتبة المشتركة';
+  el.innerHTML=B('',libT)+ps.map(p=>B(p.id,(_cnIsSize(p)?'📏 ':'🔢 ')+_clrEsc(p.name))).join('');
 }
 async function clrSetScope(id){
   _clrScope=id||'';
