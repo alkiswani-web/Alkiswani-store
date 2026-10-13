@@ -7609,6 +7609,11 @@ function _empCatHeld(pid,num){
   if(p&&_prodOwnColors(p))return Number((r.reservation.own||{})[pid+'|'+num])||0;
   return Number((r.reservation.lib||{})[num])||0;
 }
+// لون بالاسم وكتابة (المباخر مثلاً) — اللي الزبون اختاره
+function _catOptHtml(x){
+  const a=[];if(x&&x.color)a.push(`🎨 ${_clrEsc(x.color)}`);if(x&&x.writing)a.push(`✍️ «${_clrEsc(x.writing)}»`);
+  return a.length?` <span style="background:#f5f3ff;color:#5b21b6;border-radius:6px;padding:0 6px;">${a.join(' · ')}</span>`:'';
+}
 function _empCatItems(r){return (r.items||[]).map(i=>`<bdi dir="ltr" style="background:#fff;border:1px solid #fcd34d;border-radius:6px;padding:0 5px;">${_clrEsc(i.tag!=null?i.tag:i.num)} ×${i.qty}</bdi>`).join(' ');}
 function _empCatPaint(){
   const box=document.getElementById('empCatReqs');if(!box)return;
@@ -7630,7 +7635,7 @@ function _empCatPaint(){
           ${r.reserved?`<span title="ألوانه محجوزة من المخزون — بترجع لحالها بعد ${CAT_HOLD_H} ساعة إذا ما انأكّد" style="font-size:.68rem;font-weight:800;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px;white-space:nowrap;">🔒 محجوز${(()=>{const a=_catAgeH(r);return a==null?'':' · باقي '+Math.max(1,Math.ceil(CAT_HOLD_H-a))+' س';})()}</span>`
             :r.holdExpired?'<span title="مرق 24 ساعة بلا تأكيد — الألوان رجعت للمخزون. لو أكّدته، البوليصة بتخصم من الموجود" style="font-size:.68rem;font-weight:800;color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 7px;white-space:nowrap;">⏰ انتهى الحجز</span>':''}
           <span style="font-size:.7rem;color:#9ca3af;font-weight:700;white-space:nowrap;">${ago(r)}</span></div>
-        <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 <bdi>${_clrEsc(r.productName||'')}</bdi>: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} <bdi>${_clrEsc(x.name)}</bdi>${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''} <bdi dir="ltr">×${x.qty}</bdi><br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
+        <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 <bdi>${_clrEsc(r.productName||'')}</bdi>: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} <bdi>${_clrEsc(x.name)}</bdi>${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''}${_catOptHtml(x)} <bdi dir="ltr">×${x.qty}</bdi><br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>
           <button type="button" onclick="empCatDismiss('${r.id}')" title="مش طلب حقيقي / مكرّر" style="${F}padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;color:#6b7280;font-weight:800;font-size:.8rem;cursor:pointer;">✕ شيله</button>
@@ -7660,7 +7665,7 @@ async function empCatFill(id){
   (r.extras||[]).forEach(x=>{const xp=_prodById(x.pid);
     const xc=(x.colorNumbers||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0);
     _empOrderCart.push({id:x.pid,name:(xp&&xp.name)||x.name||'',price:parseFloat((xp&&xp.sellPrice)||x.price||0),
-      qty:xc.length?xc.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),color:'',writing:'',...(xc.length?{colorNumbers:xc}:{})});});
+      qty:xc.length?xc.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),color:x.color||'',writing:x.writing||'',...(xc.length?{colorNumbers:xc}:{})});});
   _empCatReqId=id;
   renderEmpOrderCart();
   if(c.phone&&typeof _empShowCRM==='function')_empShowCRM(c.phone);
@@ -12106,7 +12111,7 @@ function _catAdmPaint(){
       <div style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:4px;font-size:.72rem;font-weight:800;">
         <span style="color:#7c3aed;">👤 ${_clrEsc(_catAdmWName(r.workerId))}</span>${st}${r.ref?`<span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
       <div style="font-size:.78rem;color:#374151;font-weight:700;margin-top:6px;line-height:1.75;">
-        ${lines.map(x=>`📦 <bdi>${_clrEsc(x.name||'')}</bdi> ${chips(x.colorNumbers)} <bdi dir="ltr">×${x.qty}</bdi>`).join('<br>')}
+        ${lines.map(x=>`📦 <bdi>${_clrEsc(x.name||'')}</bdi> ${chips(x.colorNumbers)}${_catOptHtml(x)} <bdi dir="ltr">×${x.qty}</bdi>`).join('<br>')}
         ${r.extraText?`<br>✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}`:''}
         <br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}</div>
       ${r.status==='new'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
@@ -12175,7 +12180,8 @@ async function catAdmRegGo(rid){
     if(!(_opProductsList||[]).length&&typeof loadOpProducts==='function')await loadOpProducts(true);
     const src=[...((r.items||[]).length?[{pid:r.pid,name:r.productName,price:r.price,colorNumbers:r.items}]:[]),...(r.extras||[])];
     const products=src.map(x=>{const p=_prodById(x.pid),cns=(x.colorNumbers||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0);
-      return {id:x.pid,name:(p&&p.name)||x.name||'',price:parseFloat((p&&p.sellPrice)||x.price||0),qty:cns.length?cns.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),...(cns.length?{colorNumbers:cns}:{})};});
+      return {id:x.pid,name:(p&&p.name)||x.name||'',price:parseFloat((p&&p.sellPrice)||x.price||0),qty:cns.length?cns.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),
+        ...(cns.length?{colorNumbers:cns}:{}),...(x.color?{color:x.color}:{}),...(x.writing?{writing:x.writing}:{})};});
     const sub=products.reduce((t,i)=>t+i.price*i.qty,0);
     const W=_catAdm.workers||{};
     const note=[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'','🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — ');
