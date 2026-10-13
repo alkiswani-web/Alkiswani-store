@@ -126,6 +126,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .pc .pq button{height:38px;min-width:38px;border-radius:11px;border:1.5px solid var(--ln);background:#fff;font-weight:900}
 .pc .pq .add1{flex:1;background:var(--g);color:#fff;border-color:var(--g);font-size:.84rem}
 .pc.out .im{filter:grayscale(.8);opacity:.6}
+/* أقسام الكتالوج */
+.catbar{position:sticky;top:0;z-index:5;background:var(--cream);display:flex;gap:8px;overflow-x:auto;padding:8px 0 10px;scrollbar-width:none}
+.catbar::-webkit-scrollbar{display:none}
+.catbar button{flex:0 0 auto;border:1.5px solid var(--ln);background:#fff;border-radius:999px;padding:8px 14px;font-weight:800;font-size:.85rem;white-space:nowrap}
+.catbar button.on{background:var(--g);color:#fff;border-color:var(--g)}
+.cath{font-size:1.08rem;font-weight:900;margin:16px 2px 10px;display:flex;align-items:center;gap:8px;scroll-margin-top:62px}
+.cath small{font-size:.78rem;color:var(--mu);font-weight:800}
+.cath::after{content:'';flex:1;border-top:1.5px dashed var(--ln)}
 /* قائمة (قياسات / ألوان بلا صور) */
 .rows{display:flex;flex-direction:column;gap:8px}
 .rw{display:flex;align-items:center;gap:10px;background:var(--paper);border-radius:14px;padding:10px 12px;box-shadow:0 1px 0 rgba(0,0,0,.04),0 6px 14px -12px rgba(26,58,42,.5)}
@@ -354,7 +362,15 @@ function renderHome(){
   $('#foot').innerHTML='بتقدر تختار من أكثر من نوع — وكلهم بطلب واحد.<br>الصور حقيقية بس الشاشة ممكن تغيّر درجة اللون شوي.';
   const g=$('#grid');g.className='hp';
   if(!L.length){if(loading){skeleton();return;}g.className='grid';g.innerHTML='<div class="empty" style="grid-column:1/-1">لسّا ما في منتجات بالكتالوج</div>';return;}
-  g.innerHTML=L.map(p=>{
+  // أقسام: بنفس أقسام المنتجات، وبترتيب أوّل منتج من كل قسم بالكتالوج
+  const groups=[];L.forEach(p=>{const c=String(p.category||'').trim()||'منتجات أخرى';let gr=groups.find(x=>x.c===c);if(!gr)groups.push(gr={c,ps:[]});gr.ps.push(p);});
+  const oi=groups.findIndex(x=>x.c==='منتجات أخرى');if(oi>=0&&oi<groups.length-1)groups.push(groups.splice(oi,1)[0]);
+  if(groups.length<2){g.innerHTML=L.map(cardHTML).join('');return;}
+  g.className='';
+  g.innerHTML=`<div class="catbar">${groups.map((x,i)=>`<button data-cat="${i}">${esc(x.c)}</button>`).join('')}</div>`+
+    groups.map((x,i)=>`<div class="cath" id="cat${i}">${esc(x.c)} <small class="n">${x.ps.length}</small></div><div class="hp">${x.ps.map(cardHTML).join('')}</div>`).join('');
+}
+function cardHTML(p){
     const k=kind(p),os=opts(p),img=pImg(p),t=cTot(p.id),pr=Number(p.sellPrice)||0;
     const av=os?os.filter(o=>!o.out).length:null;
     const sub=k==='plain'?'':av==null?'…':av?`${av} ${k==='size'?'قياس':'لون'} متوفّر`:'خلص كلّه حالياً';
@@ -363,7 +379,7 @@ function renderHome(){
       :`<span class="go2">${t?'✓ عدّل اختيارك':k==='size'?'اختار القياس ←':'اختار الألوان ←'}</span>`;
     return `<${k==='plain'?'div':'button'} class="pc${t?' sel':''}${k!=='plain'&&av===0?' out':''}"${k==='plain'?'':` data-open="${esc(p.id)}"`}>
       <div class="im" style="${img?`background-image:url('${img}')`:''}">${img?'':'🧶'}</div>${t?`<span class="in n">×${t} بطلبك</span>`:''}
-      <div class="bd"><b>${esc(p.name||'')}</b>${pr>0?`<small><span class="n">${f2(pr)}</span> د.أ للقطعة</small>`:''}${sub?`<small class="mu">${sub}</small>`:''}${ctl}</div></${k==='plain'?'div':'button'}>`;}).join('');
+      <div class="bd"><b>${esc(p.name||'')}</b>${pr>0?`<small><span class="n">${f2(pr)}</span> د.أ للقطعة</small>`:''}${sub?`<small class="mu">${sub}</small>`:''}${ctl}</div></${k==='plain'?'div':'button'}>`;
 }
 function renderProd(){
   const p=PR[CUR];
@@ -409,7 +425,9 @@ function tileHTML(x){
     <div class="ph" data-ph="${i}" style="${bg}"><span class="num n">${esc(x.tag)}</span>${c?`<span class="pick n">×${c}</span>`:''}</div>
     <div class="cap">${x.out?'خلص':esc(x.name)}${!x.out&&x.stock!=null?`<small class="stk${x.stock<=2?' low':''}">متوفّر <span class="n">${x.stock}</span></small>`:''}</div></button>`;
 }
+let homeY=0;
 function openProd(id,push){
+  if(view==='home')homeY=window.scrollY;
   view='prod';CUR=id;cur=-1;$('#q').value='';onlyAv=false;$('#onlyAv').setAttribute('aria-pressed','false');
   watchP(id);if(PR[id])need(PR[id]);
   if(push){fromHome=true;try{history.pushState({pv:1},'');}catch(e){}}
@@ -418,7 +436,7 @@ function openProd(id,push){
 function showHome(fromPop){
   if(view==='home')return;
   const back=!fromPop&&fromHome;
-  view='home';CUR='';fromHome=false;render();paint();window.scrollTo(0,0);
+  view='home';CUR='';fromHome=false;render();paint();window.scrollTo(0,homeY);   // نرجع لنفس المكان بالقائمة
   if(back){try{if(history.state&&history.state.pv)popSelf();}catch(e){}}
 }
 // الصور الكبيرة (بلا قصّ) بتنجاب بس للّي بيبيّن عالشاشة
@@ -626,6 +644,8 @@ function bump(id,num,d){
 document.addEventListener('click',e=>{
   const op=e.target.closest('[data-open]');if(op){openProd(op.dataset.open,true);return;}
   if(e.target.closest('[data-home]')){showHome();return;}
+  const ct=e.target.closest('[data-cat]');if(ct){document.querySelectorAll('.catbar button').forEach(b=>b.classList.toggle('on',b===ct));
+    document.getElementById('cat'+ct.dataset.cat)?.scrollIntoView({behavior:'smooth',block:'start'});return;}
   const t=e.target.closest('[data-i]');if(t){openLb(Number(t.dataset.i));return;}
   const ar=e.target.closest('[data-ar]');if(ar){paintAreas(ar.dataset.ar);$('#ckErr').textContent='';return;}
   const pq=e.target.closest('[data-pq]');if(pq){const [id,d]=pq.dataset.pq.split(':');const was=cTot(id);bump(id,null,Number(d));

@@ -3689,20 +3689,34 @@ function _catLinkPaint(){
   if(!L.fixedWid){
     const xs=_catHomeIds(L.cfg),all=(_opProductsList&&_opProductsList.length?_opProductsList:(_empSharedProducts||[])).filter(p=>p&&!p.isRawMaterial);
     body+=`<button type="button" onclick="_catLink.xOpen=!_catLink.xOpen;_catLinkPaint()" style="${F}width:100%;margin-top:14px;padding:10px 12px;border:1.5px dashed #c9a84c;border-radius:11px;background:#fffbeb;color:#92400e;font-size:.84rem;font-weight:900;cursor:pointer;text-align:right;">🛍️ منتجات الكتالوج (${xs.length}) ${L.xOpen?'▴':'▾'}</button>`;
-    if(L.xOpen)body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;">علّم المنتجات اللي بتبيّن للزبون بالكتالوج — بترتيب ما بتعلّمها، وبتتحدّث مباشرة على كل الروابط</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">${all.map(p=>chip(xs.includes(p.id),`_catXToggle('${p.id}')`,(xs.includes(p.id)?'✓ ':'')+_clrEsc(p.name),'#b45309')).join('')}</div>
-      <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:10px;">اسم الكتالوج (بيطلع فوق عند الزبون)</div>
+    if(L.xOpen){
+      // مقسّمة بأقسام المنتجات (زي قسم المنتجات) — وكل قسم إله «علّم الكل»
+      const groups={};all.forEach(p=>{const c=((p.category||'').trim())||'بدون قسم';(groups[c]=groups[c]||[]).push(p);});
+      const cats=Object.keys(groups).sort((a,b)=>a==='بدون قسم'?1:b==='بدون قسم'?-1:a.localeCompare(b,'ar'));
+      body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;">علّم المنتجات اللي بتبيّن للزبون بالكتالوج — بتطلعله مقسّمة بنفس الأقسام، وبتتحدّث مباشرة على كل الروابط</div>`+
+        cats.map(c=>{const ps=groups[c],n=ps.filter(p=>xs.includes(p.id)).length,allOn=n===ps.length;
+          return `<div style="margin-top:10px;border:1.5px solid #f3e8d0;border-radius:12px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fffbeb;">
+              <b style="flex:1;font-size:.84rem;color:#92400e;">📂 ${_clrEsc(c)} <span style="font-weight:700;opacity:.75;">(${n}/${ps.length})</span></b>
+              <button type="button" onclick="_catXCat(${_clrEsc(JSON.stringify(ps.map(p=>p.id)))},${allOn?0:1})" style="${F}padding:5px 10px;border-radius:9px;border:1.5px solid #e5c98a;background:#fff;color:#92400e;font-size:.74rem;font-weight:800;cursor:pointer;">${allOn?'شيل الكل':'✓ علّم الكل'}</button></div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;">${ps.map(p=>chip(xs.includes(p.id),`_catXToggle('${p.id}')`,(xs.includes(p.id)?'✓ ':'')+_clrEsc(p.name),'#b45309')).join('')}</div></div>`;}).join('');
+      body+=`
+<div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:10px;">اسم الكتالوج (بيطلع فوق عند الزبون)</div>
       <input id="catTitle" value="${_clrEsc((L.cfg&&L.cfg._title!=null)?L.cfg._title:((L.cfg&&L.cfg.title)||''))}" placeholder="كتالوج المنتجات" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;">`;
+    }
     const ws=L.workers;
     body+=H('الطلب بيوصل لمين؟')+(ws==null?'<div style="color:#9ca3af;font-size:.8rem;">⏳</div>':
       `<div style="display:flex;flex-wrap:wrap;gap:6px;">${chip(!L.wid,"_catLinkSet('wid','')",'👥 أي موظف','#7c3aed')}${ws.map(w=>chip(L.wid===w.id,`_catLinkSet('wid','${w.id}')`,'👤 '+_clrEsc(w.name||w.username),'#7c3aed')).join('')}</div>`);
   }
+  // كل ضغطة بتعيد رسم الشيت — منرجّع مكان التمرير عشان ما يطلع لفوق مع كل اختيار
+  const st0=ov.firstElementChild?ov.firstElementChild.scrollTop:0;
   ov.innerHTML=`<div style="width:100%;max-width:520px;max-height:88vh;overflow-y:auto;background:#fff;border-radius:18px 18px 0 0;padding:14px 16px 18px;${F}">
     <div style="font-weight:900;color:#166534;font-size:1rem;">🔗 رابط الكتالوج للزبون</div>
     <div style="font-size:.76rem;color:#6b7280;font-weight:700;margin-top:3px;">الزبون بيختار ألوانه وبيعبّي معلوماته — والطلب بيوصل ${L.fixedWid?'إلك':'للموظف'} جاهز للبوليصة</div>
     ${body}
     <button type="button" onclick="_catLinkShare()" style="${F}width:100%;margin-top:16px;padding:14px;border:none;border-radius:13px;background:#166534;color:#fff;font-size:.95rem;font-weight:900;cursor:pointer;">📤 شارك الرابط</button>
   </div>`;
+  if(st0&&ov.firstElementChild)ov.firstElementChild.scrollTop=st0;
 }
 function _catLinkSet(k,v){
   _catKeepInputs();
@@ -3728,7 +3742,14 @@ async function _catXToggle(id){
   _catLink.cfg=Object.assign({},_catLink.cfg,{products:cur});_catLinkPaint();
   try{await db.collection('operator_config').doc('catalog_cfg').set({products:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
 }
-window._catXToggle=_catXToggle;
+async function _catXCat(ids,on){
+  _catKeepInputs();
+  let cur=_catHomeIds(_catLink.cfg);
+  if(on)ids.forEach(id=>{if(!cur.includes(id))cur.push(id);});else cur=cur.filter(id=>!ids.includes(id));
+  _catLink.cfg=Object.assign({},_catLink.cfg,{products:cur});_catLinkPaint();
+  try{await db.collection('operator_config').doc('catalog_cfg').set({products:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
+}
+window._catXToggle=_catXToggle;window._catXCat=_catXCat;
 // المنتج إله صفحة معاينة (c/<المنتج> — اسمه وصورته بالواتساب)؟ منستعملها، وإلا الرابط القديم
 let _catPages=null,_catVer='';
 async function _catPagesLoad(){
