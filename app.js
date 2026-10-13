@@ -11955,7 +11955,7 @@ async function sendDailyReport(){
 // عائلات تبين كلّها بالشاشة بلا تزحلق، وكل عائلة بتفتح على شاشتها الرئيسية
 // فوراً — فالشي اليومي لسا بضغطة وحدة — ومعها صفُّ وجهاتها.
 const OP_FAM=[
-  {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
+  {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['@catreq','🛍️ الكتالوج','openCatAdmin()'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
   {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي']]},
   // «@» = وجهةٌ بتفتح نافذة لا لوحة. الألوان والمخزون كانوا مدفونين جوّا
   // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
@@ -11989,12 +11989,197 @@ function _renderOpTabs(active){
     const on=t===active;
     const id=t[0]==='@'?'':`id="optab-btn-${t}" `;
     const go=act?act.replace(/"/g,'&quot;'):`switchOpTab('${t}')`;
-    return `<button ${id}onclick="${go}" style="flex:1 1 0;min-width:0;padding:12px 5px;border:none;background:${on?'var(--green-dark)':'var(--card-bg)'};color:${on?'#fff':'var(--text-mid)'};font-family:'Tajawal',sans-serif;font-size:${fs};font-weight:${on?'700':'400'};cursor:pointer;${i?'border-right:1px solid var(--border);':''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lbl}</button>`;
+    return `<button ${id}onclick="${go}" style="flex:1 1 0;min-width:0;padding:12px 5px;border:none;background:${on?'var(--green-dark)':'var(--card-bg)'};color:${on?'#fff':'var(--text-mid)'};font-family:'Tajawal',sans-serif;font-size:${fs};font-weight:${on?'700':'400'};cursor:pointer;${i?'border-right:1px solid var(--border);':''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lbl}${t==='@catreq'?`<span class="catAdmCnt" style="${_catAdm.reqs.length?'':'display:none;'}margin-right:4px;background:#dc2626;color:#fff;border-radius:999px;padding:0 6px;font-size:.72rem;font-weight:900;">${_catAdm.reqs.length}</span>`:''}</button>`;
   }).join('');
 }
 window.opFamily=opFamily;
 
+// ═════════ 🛍️ طلبات كتالوج المنتجات — للأدمن ═════════
+// الموظف ممكن ما ينتبه: الأدمن بيشوف كل الطلبات اللي لسّا ما انسجّلت (لكل الموظفين)،
+// وبيقدر يسجّلها بوليصة بنفسه، يحوّلها لموظف، يتواصل مع الزبون، أو يشيلها.
+let _catAdm={unsub:null,reqs:[],seen:null,tab:'new',done:null,workers:null,pages:null,open:''};
+function _catAdmWatch(){
+  if(_catAdm.unsub||typeof db==='undefined')return;
+  _catAdm.unsub=db.collection('catalog_requests').where('status','==','new').onSnapshot(s=>{
+    // الأقدم أوّل — هاد اللي ممكن يكون الموظف ما انتبهله
+    _catAdm.reqs=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt?.seconds||9e9)-(b.createdAt?.seconds||9e9));
+    const ids=_catAdm.reqs.map(r=>r.id);
+    if(_catAdm.seen&&ids.some(i=>!_catAdm.seen.has(i))){
+      toast('🛍️ طلب جديد من كتالوج المنتجات');try{navigator.vibrate&&navigator.vibrate([120,60,120]);}catch(e){}}
+    _catAdm.seen=new Set(ids);
+    _catAdmBadge();
+    if(document.getElementById('catAdmModal'))_catAdmPaint();
+  },()=>{});
+  _catSweep();
+}
+function _catAdmBadge(){
+  const n=_catAdm.reqs.length;
+  document.querySelectorAll('.catAdmCnt').forEach(e=>{e.textContent=n;e.style.display=n?'':'none';});
+  const b=document.getElementById('opCatBanner');if(!b)return;
+  if(!n){b.style.display='none';b.innerHTML='';return;}
+  const old=_catAdm.reqs.filter(r=>(_catAgeH(r)||0)>=2).length;
+  b.style.display='block';
+  b.innerHTML=`<button onclick="openCatAdmin()" style="width:100%;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:11px 14px;background:#fffbeb;border:2px solid #f59e0b;border-radius:14px;font-family:'Tajawal',sans-serif;cursor:pointer;text-align:right;">
+    <span style="font-size:1.3rem;">🛍️</span><span style="flex:1;"><b style="color:#92400e;font-size:.92rem;">${n} طلب من كتالوج المنتجات لسّا ما انسجّل</b>
+    ${old?`<br><span style="font-size:.74rem;color:#b45309;font-weight:700;">⏳ ${old} منهم صار إلهم أكثر من ساعتين</span>`:''}</span>
+    <span style="color:#92400e;font-weight:900;font-size:.85rem;">افتح ←</span></button>`;
+}
+async function openCatAdmin(){
+  _catAdmWatch();_catAdm.open='';
+  document.getElementById('catAdmModal')?.remove();
+  const ov=document.createElement('div');ov.id='catAdmModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100001;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="font-weight:900;font-size:1rem;color:#166534;">🛍️ طلبات كتالوج المنتجات</div>
+        <button onclick="document.getElementById('catAdmModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button>
+      </div>
+      <div id="catAdmTabs" style="display:flex;gap:6px;margin-top:10px;"></div>
+    </div>
+    <div id="catAdmList" style="flex:1;overflow-y:auto;padding:10px 12px 20px;"></div>
+  </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  _catAdmPaint();
+  try{
+    const [w,pg]=await Promise.all([db.collection('employee_workers').get(),db.collection('employee_pages').get()]);
+    _catAdm.workers={};w.docs.forEach(d=>{const v=d.data();_catAdm.workers[d.id]={name:v.name||v.username||'',defaultPage:v.defaultPage||'',perm:v.permissions||{}};});
+    _catAdm.pages=pg.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.hiddenFromEmployee);
+  }catch(e){_catAdm.workers=_catAdm.workers||{};_catAdm.pages=_catAdm.pages||[];}
+  _catAdmPaint();
+}
+async function catAdmTab(t){
+  _catAdm.tab=t;_catAdm.open='';_catAdmPaint();
+  if(t!=='new'){
+    // آخر 7 أيام: اللي انسجّل واللي انشال
+    try{const t0=new Date(Date.now()-7*864e5);
+      const s=await db.collection('catalog_requests').where('createdAt','>=',t0).get();
+      _catAdm.done=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.status!=='new').sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));}
+    catch(e){_catAdm.done=[];}
+    _catAdmPaint();
+  }
+}
+function _catAdmWName(id){return id?((_catAdm.workers&&_catAdm.workers[id]&&_catAdm.workers[id].name)||'موظف'):'👥 أي موظف';}
+function _catAdmPaint(){
+  const tabs=document.getElementById('catAdmTabs'),list=document.getElementById('catAdmList');if(!tabs||!list)return;
+  const F="font-family:'Tajawal',sans-serif;";
+  const T=(k,l)=>{const on=_catAdm.tab===k;return `<button onclick="catAdmTab('${k}')" style="${F}flex:1;padding:8px;border-radius:10px;border:1.5px solid ${on?'#166534':'#e5e7eb'};background:${on?'#166534':'#fff'};color:${on?'#fff':'#374151'};font-size:.82rem;font-weight:800;cursor:pointer;">${l}</button>`;};
+  tabs.innerHTML=T('new',`🆕 لسّا ما انسجّل${_catAdm.reqs.length?' ('+_catAdm.reqs.length+')':''}`)+T('done','📚 آخر 7 أيام');
+  const L=_catAdm.tab==='new'?_catAdm.reqs:(_catAdm.done||null);
+  if(L==null){list.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;">⏳</div>';return;}
+  if(!L.length){list.innerHTML=`<div style="padding:30px 10px;text-align:center;color:#9ca3af;font-size:.88rem;line-height:1.9;">${_catAdm.tab==='new'?'👌 ما في طلبات معلّقة — كل طلبات الكتالوج انسجّلت':'ما في طلبات بآخر 7 أيام'}</div>`;return;}
+  const chips=xs=>(xs||[]).map(i=>`<bdi dir="ltr" style="display:inline-block;background:#fff;border:1px solid #fcd34d;border-radius:6px;padding:0 5px;margin:1px 2px;">${_clrEsc(i.tag!=null?i.tag:i.num)} ×${i.qty}</bdi>`).join('');
+  list.innerHTML=L.map(r=>{
+    const c=r.customer||{},age=_catAgeH(r),ph=String(c.phone||'').replace(/\D/g,''),wa=ph.startsWith('0')?'962'+ph.slice(1):ph;
+    const lines=[...((r.items||[]).length?[{name:r.productName,colorNumbers:r.items,qty:(r.items||[]).reduce((t,i)=>t+(i.qty||0),0)}]:[]),...(r.extras||[])];
+    const st=r.status==='done'?`<span style="color:#166534;">✅ انسجّل${r.doneBy?' — '+_clrEsc(r.doneBy):''}</span>`:r.status==='dismissed'?`<span style="color:#6b7280;">🗑 انشال${r.doneBy?' — '+_clrEsc(r.doneBy):''}</span>`
+      :r.reserved?`<span style="color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px;">🔒 محجوز${age!=null?' · باقي '+Math.max(1,Math.ceil(CAT_HOLD_H-age))+' س':''}</span>`
+      :r.holdExpired?'<span style="color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 7px;">⏰ انتهى الحجز</span>':'';
+    const late=r.status==='new'&&age!=null&&age>=2;
+    const open=_catAdm.open===r.id;
+    return `<div style="border:1.5px solid ${late?'#f59e0b':'#e5e7eb'};border-radius:14px;padding:11px 12px;margin-bottom:9px;background:${late?'#fffbeb':'#fff'};">
+      <div style="display:flex;align-items:center;gap:6px;font-size:.88rem;font-weight:900;color:#111827;">
+        <span>${r.channel==='messenger'?'🔵':'🟢'}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <bdi>${_clrEsc(c.phone||'')}</bdi></span>
+        <span style="font-size:.7rem;color:${late?'#b45309':'#9ca3af'};font-weight:800;white-space:nowrap;">${_hqAgo(r.createdAt)}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:4px;font-size:.72rem;font-weight:800;">
+        <span style="color:#7c3aed;">👤 ${_clrEsc(_catAdmWName(r.workerId))}</span>${st}${r.ref?`<span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
+      <div style="font-size:.78rem;color:#374151;font-weight:700;margin-top:6px;line-height:1.75;">
+        ${lines.map(x=>`📦 <bdi>${_clrEsc(x.name||'')}</bdi> ${chips(x.colorNumbers)} <bdi dir="ltr">×${x.qty}</bdi>`).join('<br>')}
+        ${r.extraText?`<br>✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}`:''}
+        <br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}</div>
+      ${r.status==='new'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+        <button onclick="catAdmReg('${r.id}')" style="${F}flex:1 1 140px;padding:9px;background:#166534;color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:900;cursor:pointer;">📝 سجّله بوليصة</button>
+        <button onclick="_catAdm.open=_catAdm.open==='${r.id}'?'':'${r.id}';_catAdmPaint()" style="${F}padding:9px 11px;background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:10px;font-size:.78rem;font-weight:800;cursor:pointer;">👤 حوّل</button>
+        ${wa?`<a href="https://wa.me/${wa}" target="_blank" rel="noopener" style="${F}padding:9px 11px;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">💬</a>
+        <a href="tel:${_clrEsc(c.phone||'')}" style="${F}padding:9px 11px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">📞</a>`:''}
+        <button onclick="catAdmDismiss('${r.id}')" style="${F}padding:9px 11px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.78rem;font-weight:800;cursor:pointer;">✕</button></div>
+      ${open?`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #d1d5db;"><div style="font-size:.74rem;color:#6b7280;font-weight:800;margin-bottom:6px;">حوّل الطلب لـ:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${_catAdm.workers==null?'⏳':Object.keys(_catAdm.workers).filter(id=>!(_catAdm.workers[id].perm.isDelivery||_catAdm.workers[id].perm.isQRViewer)).map(id=>
+          `<button onclick="catAdmAssign('${r.id}','${id}')" style="${F}padding:7px 11px;border-radius:10px;border:1.5px solid ${r.workerId===id?'#7c3aed':'#e5e7eb'};background:${r.workerId===id?'#7c3aed':'#fff'};color:${r.workerId===id?'#fff':'#374151'};font-size:.78rem;font-weight:800;cursor:pointer;">👤 ${_clrEsc(_catAdm.workers[id].name)}</button>`).join('')}
+          <button onclick="catAdmAssign('${r.id}','')" style="${F}padding:7px 11px;border-radius:10px;border:1.5px solid ${!r.workerId?'#7c3aed':'#e5e7eb'};background:${!r.workerId?'#7c3aed':'#fff'};color:${!r.workerId?'#fff':'#374151'};font-size:.78rem;font-weight:800;cursor:pointer;">👥 أي موظف</button></div></div>`:''}`
+      :(r.orderId?`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin-top:6px;">البوليصة: <bdi>${_clrEsc(r.orderId)}</bdi></div>`:'')}
+    </div>`;}).join('');
+}
+async function catAdmAssign(rid,wid){
+  try{await db.collection('catalog_requests').doc(rid).update({workerId:wid||'',reassignedBy:_currentAdminUser||'الأدمن'});
+    _catAdm.open='';toast('👤 انحوّل لـ '+(wid?_catAdmWName(wid):'أي موظف'));}
+  catch(e){toast('❌ '+e.message);}
+}
+async function catAdmDismiss(rid){
+  if(!confirm('نشيل هاد الطلب؟ (ما رح يتسجّل — والألوان المحجوزة إله بترجع للمخزون)'))return;
+  await _catRelease(rid);
+  try{await db.collection('catalog_requests').doc(rid).update({status:'dismissed',doneBy:'الأدمن',doneAt:firebase.firestore.FieldValue.serverTimestamp()});toast('🗑 انشال');}
+  catch(e){toast('❌ '+e.message);}
+}
+// سجّله بوليصة من الأدمن: نفس اللي بيعمله الموظف بـ «حطّه بالبوليصة» + «اختم»
+function catAdmReg(rid){
+  const r=_catAdm.reqs.find(x=>x.id===rid);if(!r)return;
+  const W=_catAdm.workers||{},P=_catAdm.pages||[];
+  const wid=r.workerId&&W[r.workerId]?r.workerId:'';
+  const dp=wid?W[wid].defaultPage:'';
+  const pg=(P.find(p=>p.id===dp||p.name===dp)||{}).id||'';
+  const lines=[...((r.items||[]).length?[{pid:r.pid,name:r.productName,price:r.price,qty:(r.items||[]).reduce((t,i)=>t+(i.qty||0),0),colorNumbers:r.items}]:[]),...(r.extras||[])];
+  const sub=lines.reduce((t,x)=>t+(Number((_prodById(x.pid)||{}).sellPrice)||Number(x.price)||0)*(x.qty||0),0);
+  const F="font-family:'Tajawal',sans-serif;",S=`${F}width:100%;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;background:#fff;`;
+  document.getElementById('catAdmReg')?.remove();
+  const ov=document.createElement('div');ov.id='catAdmReg';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="width:100%;max-width:520px;background:#fff;border-radius:18px 18px 0 0;padding:14px 16px 18px;${F}">
+    <div style="font-weight:900;color:#166534;font-size:1rem;">📝 سجّل طلب ${_clrEsc((r.customer||{}).name||'')} بوليصة</div>
+    <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin:3px 0 10px;">بتنسجّل بنفس شكل بوليصة الموظف (حالتها «جديد»)، والحجز بيتحوّل إلها</div>
+    <label style="font-size:.76rem;font-weight:800;color:#374151;">باسم مين</label>
+    <select id="car_w" style="${S}margin:4px 0 9px;">${Object.keys(W).filter(id=>!(W[id].perm.isDelivery||W[id].perm.isQRViewer)).map(id=>`<option value="${id}" ${id===wid?'selected':''}>${_clrEsc(W[id].name)}</option>`).join('')}<option value="" ${!wid?'selected':''}>الأدمن</option></select>
+    <label style="font-size:.76rem;font-weight:800;color:#374151;">الصفحة</label>
+    <select id="car_p" style="${S}margin:4px 0 9px;"><option value="">— اختار الصفحة —</option>${P.map(p=>`<option value="${p.id}" ${p.id===pg?'selected':''}>${_clrEsc(p.name)}</option>`).join('')}</select>
+    <label style="font-size:.76rem;font-weight:800;color:#374151;">أجرة التوصيل</label>
+    <input id="car_f" type="number" step="0.5" min="0" value="2" style="${S}margin:4px 0 9px;direction:ltr;text-align:right;">
+    <div style="background:#f9fafb;border-radius:10px;padding:9px 11px;font-size:.84rem;font-weight:800;color:#374151;">المنتجات: <span class="n">${sub.toFixed(2)}</span> د.أ — المجموع مع التوصيل بيطلع بالبوليصة</div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button onclick="catAdmRegGo('${rid}')" id="car_go" style="${F}flex:1;padding:13px;border:none;border-radius:12px;background:#166534;color:#fff;font-size:.95rem;font-weight:900;cursor:pointer;">✅ سجّلها</button>
+      <button onclick="document.getElementById('catAdmReg').remove()" style="${F}padding:13px 16px;border:1.5px solid #e5e7eb;border-radius:12px;background:#fff;color:#374151;font-size:.88rem;font-weight:800;cursor:pointer;">رجوع</button></div>
+  </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+}
+async function catAdmRegGo(rid){
+  const r=_catAdm.reqs.find(x=>x.id===rid);if(!r)return;
+  const wid=document.getElementById('car_w').value,pageSel=document.getElementById('car_p'),pageId=pageSel.value;
+  if(!pageId){toast('⚠️ اختار الصفحة');return;}
+  const fee=Math.max(0,parseFloat(document.getElementById('car_f').value)||0);
+  const c=r.customer||{},phone=normalizePhone(c.phone||'');
+  {const e=phoneError(phone);if(e){toast(e);return;}}
+  const btn=document.getElementById('car_go');if(btn){btn.disabled=true;btn.textContent='⏳';}
+  try{
+    if(!(_opProductsList||[]).length&&typeof loadOpProducts==='function')await loadOpProducts(true);
+    const src=[...((r.items||[]).length?[{pid:r.pid,name:r.productName,price:r.price,colorNumbers:r.items}]:[]),...(r.extras||[])];
+    const products=src.map(x=>{const p=_prodById(x.pid),cns=(x.colorNumbers||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0);
+      return {id:x.pid,name:(p&&p.name)||x.name||'',price:parseFloat((p&&p.sellPrice)||x.price||0),qty:cns.length?cns.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),...(cns.length?{colorNumbers:cns}:{})};});
+    const sub=products.reduce((t,i)=>t+i.price*i.qty,0);
+    const W=_catAdm.workers||{};
+    const note=[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'','🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — ');
+    // الحجز بيتحوّل للبوليصة: منفكّه أوّل، وبعدين البوليصة بتخصم اللي فيها
+    await _catRelease(rid);
+    const ref=await db.collection('employee_orders').add({
+      workerId:wid||'admin',workerName:wid?(W[wid]&&W[wid].name)||'':'الأدمن',
+      pageId,pageName:pageSel.selectedOptions[0]?.text||'',
+      products,customerPhone:phone,...(c.name?{customerName:c.name}:{}),
+      address:c.address||'',notes:note,...(c.area?{area:c.area}:{}),catalogReq:rid,
+      status:'pending',totalPrice:sub+fee,deliveryFee:fee,netPrice:sub+fee,
+      date:jordanDateStr(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),editHistory:[],
+      createdByAdmin:_currentAdminUser||'admin'
+    });
+    _orderStockSync(ref.id,null,{products},false,true);
+    _empUpsertCustomer(phone,c.name||'',c.address||'',c.area||'',products[0]?.name||'');
+    await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:ref.id,doneBy:'الأدمن',doneAt:firebase.firestore.FieldValue.serverTimestamp()});
+    document.getElementById('catAdmReg')?.remove();
+    toast('✅ انسجّلت البوليصة');
+  }catch(e){toast('❌ '+e.message);if(btn){btn.disabled=false;btn.textContent='✅ سجّلها';}}
+}
+window.openCatAdmin=openCatAdmin;window.catAdmTab=catAdmTab;window.catAdmAssign=catAdmAssign;window.catAdmDismiss=catAdmDismiss;window.catAdmReg=catAdmReg;window.catAdmRegGo=catAdmRegGo;
+
 function switchOpTab(tab){
+  _catAdmWatch();
   _renderOpTabs(tab);
   const allTabs=['oporders','products','stores','sales','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
   allTabs.forEach(t=>{
