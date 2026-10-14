@@ -3650,11 +3650,8 @@ async function openColorLib(){
 }
 // 🔗 كتالوج عام للزباين: colors.html?p=<المنتج>&c=<w|m>&e=<الموظف> — الزبون بيختار
 // ألوانه وبيعبّي معلوماته، والطلب بيوصل لموظف القناة (واتساب/ماسنجر) جاهز للبوليصة.
-let _catLink={pid:'',ch:'w',wid:'',pg:'',fixedWid:false,workers:null,cfg:null,pages:null};
-try{const v=JSON.parse(localStorage.getItem('_catLinkPref')||'{}');if(v.ch)_catLink.ch=v.ch;if(v.wid!=null)_catLink.wid=v.wid;if(v.pg)_catLink.pg=v.pg;}catch(e){}
-// رقم الواتساب بصيغة wa.me (962…)
-function _waIntl(v){let d=String(v||'').replace(/[٠-٩]/g,x=>'٠١٢٣٤٥٦٧٨٩'.indexOf(x)).replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('07'))d='962'+d.slice(1);else if(d.length===9&&d[0]==='7')d='962'+d;return d;}
-function _msUser(v){return String(v||'').trim().replace(/^https?:\/\/(www\.)?(m\.me|facebook\.com|fb\.com)\//i,'').replace(/^@/,'').replace(/[/?#].*$/,'');}
+let _catLink={pid:'',wid:'',fixedWid:false,workers:null,cfg:null};
+try{const v=JSON.parse(localStorage.getItem('_catLinkPref')||'{}');if(v.wid!=null)_catLink.wid=v.wid;}catch(e){}
 function _catProducts(){
   const L=(_opProductsList&&_opProductsList.length?_opProductsList:(_empSharedProducts||[]));
   return L.filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);
@@ -3664,14 +3661,7 @@ async function clrCatalogLink(pid,opts){
   _catLink.pid=pid||'';
   _catLink.fixedWid=!!opts.workerId;
   if(opts.workerId)_catLink.wid=opts.workerId;
-  if(opts.ch)_catLink.ch=opts.ch;
-  // الصفحة/المتجر: آخر وحدة اختارها، أو صفحة الموظف الأساسية
-  if(!_catLink.pg&&_empCurrentUser&&_catLink.fixedWid)_catLink.pg=_empCurrentUser.defaultPage||'';
   _catLinkPaint();
-  if(!_catLink.pages)db.collection('employee_pages').get().then(s=>{
-    _catLink.pages=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.hiddenFromEmployee).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar'));
-    const m=_catLink.pages.find(p=>p.id===_catLink.pg||p.name===_catLink.pg);_catLink.pg=m?m.id:'';
-    _catLinkPaint();}).catch(()=>{_catLink.pages=[];});
   if(!_catLink.cfg)db.collection('operator_config').doc('catalog_cfg').get().then(d=>{_catLink.cfg=(d.exists&&d.data())||{};_catLinkPaint();}).catch(()=>{_catLink.cfg={};});
   if(!_catLink.fixedWid&&!_catLink.workers)db.collection('employee_workers').get().then(s=>{
     _catLink.workers=s.docs.map(d=>({id:d.id,...d.data()})).filter(w=>!(w.permissions&&(w.permissions.isDelivery||w.permissions.isQRViewer)))
@@ -3689,23 +3679,8 @@ function _catLinkPaint(){
   let body='';
   body+=H('شو بدك تبعت؟')+`<div style="display:flex;flex-wrap:wrap;gap:6px;">${chip(!L.pid,"_catLinkSet('pid','')",'🛍️ كل الكتالوج','#166534')}${ps.map(p=>chip(L.pid===p.id,`_catLinkSet('pid','${p.id}')`,_clrEsc(p.name),'#166534')).join('')}</div>
     <div style="font-size:.7rem;color:#9ca3af;font-weight:700;margin-top:5px;">${L.pid?'الزبون بيفتح على هالمنتج — وبيقدر يرجع لكل المنتجات':'الزبون بيشوف منتجات الكتالوج وبيختار النوع اللي بدّه ياه'}</div>`;
-  body+=H('الزبون من وين؟')+`<div style="display:flex;gap:6px;">${chip(L.ch==='w',"_catLinkSet('ch','w')",'🟢 واتساب','#16a34a')}${chip(L.ch==='m',"_catLinkSet('ch','m')",'🔵 ماسنجر','#0a7cff')}</div>`;
-  // الصفحة/المتجر: رسالة التأكيد بترجع على واتساب/ماسنجر هالصفحة، والطلب بيوصل والصفحة مختارة
-  const PG=L.pages||[],pgo=PG.find(p=>p.id===L.pg);
-  if(PG.length){
-    body+=H('من أي صفحة / متجر؟')+`<div style="display:flex;flex-wrap:wrap;gap:6px;">${PG.map(p=>chip(L.pg===p.id,`_catLinkSet('pg','${p.id}')`,'📄 '+_clrEsc(p.name),'#0f766e')).join('')}</div>`;
-    if(pgo){
-      const isW=L.ch==='w',v=isW?(L._pgWa!=null?L._pgWa:(pgo.waNumber||'')):(L._pgMs!=null?L._pgMs:(pgo.messengerUser||''));
-      body+=`<div style="margin-top:8px;font-size:.74rem;color:#6b7280;font-weight:700;">${isW?`رقم واتساب «${_clrEsc(pgo.name)}» — رسالة تأكيد الزبون بتوصل عليه`:`صفحة ماسنجر «${_clrEsc(pgo.name)}» — الصق رابط الصفحة أو اسمها`}</div>
-        <input id="${isW?'catPgWa':'catPgMs'}" value="${_clrEsc(v)}" placeholder="${isW?'07XXXXXXXX':'مثلاً alkiswanirosemary'}" inputmode="${isW?'tel':'text'}" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid ${v?'#99f6e4':'#fca5a5'};border-radius:10px;font-size:.9rem;direction:ltr;text-align:left;">
-        ${v?'':`<div style="font-size:.7rem;color:#b91c1c;font-weight:700;margin-top:3px;">⚠️ لسّا مش محدّد — ${isW?'بيروح على رقم المحل العام':'الزبون بينسخ الرسالة بس'}</div>`}`;
-    }
-  }
-  if(L.ch==='m'&&!pgo){
-    const mu=(L.cfg&&L.cfg._ms!=null)?L.cfg._ms:((L.cfg&&L.cfg.messengerUser)||'');
-    body+=`<div style="margin-top:8px;font-size:.74rem;color:#6b7280;font-weight:700;">اسم صفحة الماسنجر — عشان رسالة التأكيد توصل لصفحتك (الصق رابط الصفحة أو اسمها)</div>
-      <input id="catMsUser" value="${_clrEsc(mu)}" placeholder="مثلاً alkiswanirosemary" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;direction:ltr;text-align:left;">`;
-  }
+  // رابط واحد: القناة (واتساب/ماسنجر) بتنعرف لحالها عند الزبون، والتأكيد بيرجع لنفس المحادثة،
+  // والمتجر بالبوليصة بينختار من آخر طلب للزبون — فما في داعي يختار قناة ولا متجر
   if(!L.fixedWid){
     const xs=_catHomeIds(L.cfg),all=(_opProductsList&&_opProductsList.length?_opProductsList:(_empSharedProducts||[])).filter(p=>p&&!p.isRawMaterial);
     body+=`<button type="button" onclick="_catLink.xOpen=!_catLink.xOpen;_catLinkPaint()" style="${F}width:100%;margin-top:14px;padding:10px 12px;border:1.5px dashed #c9a84c;border-radius:11px;background:#fffbeb;color:#92400e;font-size:.84rem;font-weight:900;cursor:pointer;text-align:right;">🛍️ منتجات الكتالوج (${xs.length}) ${L.xOpen?'▴':'▾'}</button>`;
@@ -3732,7 +3707,7 @@ function _catLinkPaint(){
   const st0=ov.firstElementChild?ov.firstElementChild.scrollTop:0;
   ov.innerHTML=`<div style="width:100%;max-width:520px;max-height:88vh;overflow-y:auto;background:#fff;border-radius:18px 18px 0 0;padding:14px 16px 18px;${F}">
     <div style="font-weight:900;color:#166534;font-size:1rem;">🔗 رابط الكتالوج للزبون</div>
-    <div style="font-size:.76rem;color:#6b7280;font-weight:700;margin-top:3px;">الزبون بيختار ألوانه وبيعبّي معلوماته — والطلب بيوصل ${L.fixedWid?'إلك':'للموظف'} جاهز للبوليصة</div>
+    <div style="font-size:.76rem;color:#6b7280;font-weight:700;margin-top:3px;line-height:1.7;">${L.fixedWid?'رابط واحد إلك لكل المتاجر — واتساب وماسنجر. ابعتيه من أي محادثة، والطلب بيوصلك جاهز للبوليصة، وتأكيد الزبون بيرجع لنفس المحادثة':'رابط واحد لكل الموظف — واتساب وماسنجر ومن أي متجر. والطلب بيوصل للموظف جاهز للبوليصة'}</div>
     ${body}
     <button type="button" onclick="_catLinkShare()" style="${F}width:100%;margin-top:16px;padding:14px;border:none;border-radius:13px;background:#166534;color:#fff;font-size:.95rem;font-weight:900;cursor:pointer;">📤 شارك الرابط</button>
   </div>`;
@@ -3740,17 +3715,13 @@ function _catLinkPaint(){
 }
 function _catLinkSet(k,v){
   _catKeepInputs();
-  if(k==='pg'){_catLink._pgWa=null;_catLink._pgMs=null;}
   _catLink[k]=v;
-  try{localStorage.setItem('_catLinkPref',JSON.stringify({ch:_catLink.ch,wid:_catLink.fixedWid?undefined:_catLink.wid,pg:_catLink.pg}));}catch(e){}
+  try{localStorage.setItem('_catLinkPref',JSON.stringify({wid:_catLink.fixedWid?undefined:_catLink.wid}));}catch(e){}
   _catLinkPaint();
 }
 // اللي بالخانات قبل ما نعيد رسم الشيت (عشان ما يضيع اللي انكتب)
 function _catKeepInputs(){
   const c=_catLink.cfg=_catLink.cfg||{};
-  const a=document.getElementById('catPgWa');if(a)_catLink._pgWa=a.value;
-  const b=document.getElementById('catPgMs');if(b)_catLink._pgMs=b.value;
-  const m=document.getElementById('catMsUser');if(m)c._ms=m.value;
   const t=document.getElementById('catTitle');if(t)c._title=t.value;
 }
 // منتجات الكتالوج الموحّد: اللي الأدمن علّمها — وقبل ما يعلّم، كل منتجات الألوان (زي ما الزبون بيشوفها)
@@ -3782,35 +3753,24 @@ async function _catPagesLoad(){
   return _catPages;
 }
 function _catLinkUrl(pid,ch,wid,pg){
-  const q='c='+ch+(wid?'&e='+encodeURIComponent(wid):'')+(pg?'&g='+encodeURIComponent(pg):'');
+  const q=[ch?'c='+ch:'',wid?'e='+encodeURIComponent(wid):'',pg?'g='+encodeURIComponent(pg):''].filter(Boolean).join('&');
   // الكتالوج كلّه: /c/ (معاينته باسم الكتالوج) — وإذا الصفحات لسّا ما انعملت، colors.html
   // &v=: نسخة صورة المعاينة — تتغيّر الصورة ⇒ يتغيّر الرابط ⇒ الواتساب بيجيب المعاينة الجديدة
-  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/?'+q+(_catVer?'&v='+_catVer:''):location.origin+'/colors.html?'+q;
-  return (_catPages&&_catPages.has(pid))?location.origin+'/c/'+encodeURIComponent(pid)+'?'+q
-    :location.origin+'/colors.html?p='+encodeURIComponent(pid)+'&'+q;
+  const qs=(a,b)=>{const x=[a,b].filter(Boolean).join('&');return x?'?'+x:'';};
+  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/'+qs(q,_catVer?'v='+_catVer:''):location.origin+'/colors.html'+qs(q,'');
+  return (_catPages&&_catPages.has(pid))?location.origin+'/c/'+encodeURIComponent(pid)+qs(q,'')
+    :location.origin+'/colors.html'+qs('p='+encodeURIComponent(pid),q);
 }
 async function _catLinkShare(){
   const L=_catLink;
   const ti=document.getElementById('catTitle');
   if(ti){const v=ti.value.trim().slice(0,60);if(v!==((L.cfg&&L.cfg.title)||'')){try{await db.collection('operator_config').doc('catalog_cfg').set({title:v},{merge:true});L.cfg=Object.assign({},L.cfg,{title:v});}catch(e){}}}
-  const inp=document.getElementById('catMsUser');
-  if(inp){const v=inp.value.trim().replace(/^https?:\/\/(www\.)?m\.me\//i,'').replace(/^@/,'').replace(/[/?#].*$/,'');
-    if(v!==((L.cfg&&L.cfg.messengerUser)||'')){try{await db.collection('operator_config').doc('catalog_cfg').set({messengerUser:v},{merge:true});L.cfg=Object.assign({},L.cfg,{messengerUser:v});}catch(e){toast('⚠️ ما انحفظ اسم صفحة الماسنجر');}}}
-  // رقم واتساب/ماسنجر الصفحة بينحفظ على الصفحة نفسها
-  const pgo=(L.pages||[]).find(p=>p.id===L.pg),pw=document.getElementById('catPgWa'),pm=document.getElementById('catPgMs');
-  if(pgo&&(pw||pm)){
-    const up={};
-    if(pw){const v=_waIntl(pw.value);if(pw.value.trim()&&v.length<11){toast('⚠️ رقم الواتساب مش صحيح');return;}if(v!==(pgo.waNumber||''))up.waNumber=v;}
-    if(pm){const v=_msUser(pm.value);if(v!==(pgo.messengerUser||''))up.messengerUser=v;}
-    if(Object.keys(up).length){try{await db.collection('employee_pages').doc(pgo.id).update(up);Object.assign(pgo,up);}catch(e){toast('⚠️ ما انحفظ رقم الصفحة');}}
-    L._pgWa=null;L._pgMs=null;
-  }
   const p=_prodById(L.pid);
   await Promise.race([_catPagesLoad(),new Promise(r=>setTimeout(r,1500))]);
-  const url=_catLinkUrl(L.pid,L.ch,L.wid,pgo?pgo.id:'');
+  const url=_catLinkUrl(L.pid,'',L.wid,'');
   const ttl=p?'ألوان '+(p.name||''):(((L.cfg&&L.cfg.title)||'').trim()||'كتالوج المنتجات');
   const text=ttl+' — اختار اللي بدك ياه واطلب من هون 👇';
-  if(L.cfg){delete L.cfg._ms;delete L.cfg._title;}
+  if(L.cfg){delete L.cfg._title;}
   document.getElementById('clrCatPick')?.remove();
   try{if(navigator.share){await navigator.share({title:ttl,text,url});return;}}catch(e){if(e&&e.name==='AbortError')return;}
   try{await navigator.clipboard.writeText(url);toast('🔗 انسخ الرابط — الصقه للزبون');}
@@ -7814,6 +7774,17 @@ function _empCatPaint(){
         </div></div>`;}).join(''):''}
   </div>`;
 }
+// المتجر بالبوليصة: من الرابط إذا محدّد، وإلا من آخر طلب لنفس الزبون (رقمه)
+async function _catGuessPage(r,pages){
+  const ids=new Set((pages||[]).map(p=>p.id));
+  if(r.pageId&&ids.has(r.pageId))return {id:r.pageId,why:'link'};
+  const ph=normalizePhone((r.customer||{}).phone||'');if(!ph)return null;
+  try{
+    const s=await db.collection('employee_orders').where('customerPhone','==',ph).get();
+    const o=s.docs.map(d=>d.data()).filter(x=>x.pageId&&ids.has(x.pageId)).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))[0];
+    return o?{id:o.pageId,why:'last'}:null;
+  }catch(e){return null;}
+}
 async function empCatFill(id){
   const r=_empCatReqs.find(x=>x.id===id);if(!r)return;
   if(_empOrderCart.length&&_empCatReqId!==id&&!confirm('البوليصة فيها منتجات — نفضّيها ونحط طلب الكتالوج؟'))return;
@@ -7822,7 +7793,9 @@ async function empCatFill(id){
   const prod=_prodById(r.pid);
   // الصفحة: صفحة الرابط اللي إجا منه الزبون، وإلا صفحة الموظف الأساسية إذا مش مختارة
   const sel=document.getElementById('emp_page');
-  if(sel&&r.pageId&&(_empPagesCache||[]).some(p=>p.id===r.pageId))_empPickPage(r.pageId);
+  const gp=await _catGuessPage(r,_empPagesCache);
+  if(sel&&gp){_empPickPage(gp.id);
+    if(gp.why==='last')setTimeout(()=>toast('📄 المتجر: '+(((_empPagesCache||[]).find(p=>p.id===gp.id)||{}).name||'')+' — من آخر طلب للزبون، غيّريه إذا لازم'),1200);}
   else if(sel&&!sel.value&&_empCurrentUser.defaultPage){
     const m=(_empPagesCache||[]).find(p=>p.id===_empCurrentUser.defaultPage||p.name===_empCurrentUser.defaultPage);
     if(m)_empPickPage(m.id);
@@ -12312,12 +12285,13 @@ async function catAdmDismiss(rid){
   catch(e){toast('❌ '+e.message);}
 }
 // سجّله بوليصة من الأدمن: نفس اللي بيعمله الموظف بـ «حطّه بالبوليصة» + «اختم»
-function catAdmReg(rid){
+async function catAdmReg(rid){
   const r=_catAdm.reqs.find(x=>x.id===rid);if(!r)return;
   const W=_catAdm.workers||{},P=_catAdm.pages||[];
   const wid=r.workerId&&W[r.workerId]?r.workerId:'';
   const dp=wid?W[wid].defaultPage:'';
-  const pg=(r.pageId&&P.some(p=>p.id===r.pageId))?r.pageId:((P.find(p=>p.id===dp||p.name===dp)||{}).id||'');
+  const gp=await _catGuessPage(r,P);
+  const pg=gp?gp.id:((P.find(p=>p.id===dp||p.name===dp)||{}).id||'');
   const lines=[...((r.items||[]).length?[{pid:r.pid,name:r.productName,price:r.price,qty:(r.items||[]).reduce((t,i)=>t+(i.qty||0),0),colorNumbers:r.items}]:[]),...(r.extras||[])];
   const sub=lines.reduce((t,x)=>t+(Number((_prodById(x.pid)||{}).sellPrice)||Number(x.price)||0)*(x.qty||0),0);
   const F="font-family:'Tajawal',sans-serif;",S=`${F}width:100%;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;background:#fff;`;

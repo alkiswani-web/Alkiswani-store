@@ -236,7 +236,12 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clea
 const QS=new URLSearchParams(location.search);
 const PID0=String(QS.get('p')||'').slice(0,60);
 // القناة (w واتساب / m ماسنجر) والموظف اللي بعت الرابط — الطلب بيوصله هو
-const CH=QS.get('c')==='m'?'m':'w';
+// القناة: من الرابط (الروابط القديمة)، وإلا بتنعرف لحالها — فيسبوك/ماسنجر/انستغرام بيفتحوا
+// الرابط بمتصفّحهم الداخلي واسمه بيبيّن، وغير هيك منعتبره واتساب
+const IAB_FB=/FBAN|FBAV|FB_IAB|FBIOS|FB4A|Messenger|Instagram/i.test(navigator.userAgent||'');
+const CH=QS.get('c')==='m'?'m':QS.get('c')==='w'?'w':(IAB_FB?'m':'w');
+// رابط بلا متجر محدّد (رابط الموظفة الواحد): التأكيد بيرجع لنفس المحادثة اللي إجا منها الزبون
+const AUTO=!QS.get('g');
 const EMP=String(QS.get('e')||'').slice(0,60);
 // الصفحة/المتجر اللي إجا منه الزبون — رسالة التأكيد بترجع على واتسابها/ماسنجرها
 const PGID=String(QS.get('g')||'').slice(0,60);let PGD={};
@@ -590,7 +595,7 @@ function paintSheet(){
   $('#sl').hidden=sview!=='cart';$('#vForm').hidden=sview!=='form';$('#vDone').hidden=sview!=='done';
   $('#shH').textContent=sview==='form'?'معلوماتك للتوصيل':sview==='done'?'تمّ ✓':'طلبي';
   const b=$('#sheetWa');b.classList.toggle('ms',CH==='m');
-  b.textContent=sview==='cart'?'✓ كمّل الطلب':sview==='form'?'✅ ثبّت الطلب':('💬 ابعت تأكيد على '+chName());
+  b.textContent=sview==='cart'?'✓ كمّل الطلب':sview==='form'?'✅ ثبّت الطلب':(AUTO&&CH==='m'?'📋 انسخ رسالة التأكيد':'💬 ابعت تأكيد على '+chName());
 }
 function openSheet(){sview='cart';cartRows();paintSheet();sheetOn();}
 function showFormSum(){
@@ -685,20 +690,26 @@ async function submitReq(){
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
   CART={};saveCart();render();paint();
   sview='done';
-  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>بنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>ابعتلنا تأكيد على ${chName()} عشان يوصلك ردّنا أسرع 👇`;
+  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>بنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>${AUTO?(CH==='m'?'انسخ رسالة التأكيد وابعتها بنفس المحادثة 👇':'ابعتلنا تأكيد بنفس محادثة الواتساب اللي إجيت منها 👇'):'ابعتلنا تأكيد على '+chName()+' عشان يوصلك ردّنا أسرع 👇'}`;
   $('#doneRef').textContent='رقم الطلب '+ref;
   paintSheet();
 }
 // فتح المحادثة على نفس القناة اللي إجا منها الزبون
 function chatUrl(text){
+  // واتساب بلا رقم ⇒ الواتساب بيفتح قائمة المحادثات والزبون بيختار محادثتنا (أوّل وحدة لأنه لسّا كان فيها)
+  if(AUTO&&!PGD.waNumber&&!PGD.messengerUser){return CH==='m'?'':`https://wa.me/?text=${encodeURIComponent(text)}`;}
   if(CH==='m'){const u=String(PGD.messengerUser||CFG.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
   const n=String(PGD.waNumber||CFG.waNumber||WA).replace(/\D/g,'')||WA;return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
 }
 async function openChat(text){
-  if(CH==='m'){try{await navigator.clipboard.writeText(text);toast('📋 نسخنا الرسالة — الصقها بالماسنجر');}catch(e){}}
+  let copied=false;
+  if(CH==='m'){try{await navigator.clipboard.writeText(text);copied=true;}catch(e){}}
   const u=chatUrl(text);
-  if(u)setTimeout(()=>{location.href=u;},CH==='m'?700:0);
-  else toast('📋 نسخنا الرسالة — ابعتها لصفحتنا على الماسنجر');
+  if(u){if(copied)toast('📋 نسخنا الرسالة — الصقها بالماسنجر');setTimeout(()=>{location.href=u;},CH==='m'?700:0);return;}
+  // ماسنجر: الرسالة انتسخت — بيسكّر الصفحة (✕ فوق) وبيرجع لنفس المحادثة وبيلصقها
+  if(!copied){window.prompt('انسخ الرسالة والصقها بالمحادثة:',text);}
+  $('#doneP').innerHTML='📋 <b>نسخنا رسالة التأكيد</b><br>سكّر هالصفحة (✕ فوق) وارجع لمحادثتنا والصقها 👌';
+  toast('📋 نسخنا الرسالة — ارجع للمحادثة والصقها');
 }
 function go(){
   if(sview==='done'&&$('#sheet').classList.contains('on')){openChat(lastReq.text);return;}
