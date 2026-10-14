@@ -3820,7 +3820,8 @@ function _renderOwnLib(){
   const BT=(fn,bg,fg,bd,t)=>`<button onclick="${fn}" style="padding:7px 12px;background:${bg};color:${fg};border:${bd};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">${t}</button>`;
   if(tools) tools.innerHTML=BT(`clrCatalogLink('${pid}')`,'#16a34a','#fff','none','🔗 رابط الكتالوج للزباين')+BT(`openColorSheet('${pid}')`,'#7c3aed','#fff','none','🖼️ كل الألوان بصورة وحدة')
     +BT(`clrOwnRephoto('${pid}')`,'#b45309','#fff','none','📷 صوّر الألوان')
-    +BT(`openProdStock('${pid}')`,'#eff6ff','#1e40af','1.5px solid #bfdbfe','📦 وارد وصرف');
+    +BT(`openProdStock('${pid}')`,'#eff6ff','#1e40af','1.5px solid #bfdbfe','📦 وارد وصرف')
+    +BT(`openReorder('${pid}')`,'#fffbeb','#92400e','1.5px solid #fde68a','🧾 طلبية للشركة');
   list.innerHTML=items.map(c=>{
     const q=c.counted?c.qty:null,dry=c.status==='out';
     return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:8px;background:#fff;${dry?'opacity:.7;':''}">
@@ -3961,7 +3962,7 @@ function _renderColorHQ(){
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;">
         ${s.size?'':BT(`hqShoot('${id}',${ow})`,np?`📷 صوّر الناقص (${np})`:'📷 صوّر',np>0)}
         ${ow?BT(`openProdStock('${id}')`,'📦 وارد وصرف'):BT('openColorStock()','🔢 جرد')+BT('openColorIntake()','📥 وارد')}
-        ${BT(`clrCatalogLink('${id}')`,'🔗 رابط')}${s.size?'':BT(`openColorSheet('${ow?id:''}')`,'🖼️ صورة وحدة')}${BT(`openBarcodes('${id}')`,'🏷️ باركود')}
+        ${BT(`openReorder('${id}')`,'🧾 طلبية للشركة',s.low.length+s.out.length>0)}${BT(`clrCatalogLink('${id}')`,'🔗 رابط')}${s.size?'':BT(`openColorSheet('${ow?id:''}')`,'🖼️ صورة وحدة')}${BT(`openBarcodes('${id}')`,'🏷️ باركود')}
       </div></div>`;}).join('')||'<div style="padding:16px;text-align:center;color:#9ca3af;font-size:.82rem;">ولا منتج 👌</div>';
   // الكتالوج
   const W=_hq.workers||{},byW={};
@@ -3993,6 +3994,143 @@ function _renderColorHQ(){
 }
 window.hqFilter=hqFilter;window.hqOpen=hqOpen;window.hqShoot=hqShoot;window.hqFind=hqFind;
 
+// ═════════ 🧾 طلبية للشركة ═════════
+// الألوان اللي كميتها نزلت لحدّ معيّن (3 مثلاً): المتوفّر والمطلوب ورقم اللون وصورته —
+// بتنطبع أو بتنبعت للشركة. المطلوب افتراضياً = لحدّ ما يوصل الرصيد لرقم بتختاره، وبتعدّله.
+let _ro={pid:'',th:3,tgt:10,want:{},add:new Set(),drop:new Set(),more:false};
+function _roPref(pid){try{return JSON.parse(localStorage.getItem('_roPref_'+pid)||'{}')||{};}catch(e){return {};}}
+function _roSavePref(){try{localStorage.setItem('_roPref_'+_ro.pid,JSON.stringify({th:_ro.th,tgt:_ro.tgt}));}catch(e){}}
+function _roProds(){return _cbProds().filter(p=>p.hasColorNumbers);}
+// كل ألوان المنتج مع رصيدها (اللي انعدّ بس إله رصيد)
+function _roItems(p){
+  if(!p)return [];
+  if(_prodOwnColors(p)){const im=_ownImgs[p.id]||{};
+    return _ownNums(p).map(n=>{const q=_ownQty(p,n);return {num:n,tag:_cnTag(p,n),name:_cnWord(p)+' '+_cnTag(p,n),q,img:(im[String(n)]||{}).img||'',hex:(im[String(n)]||{}).hex||''};});}
+  return _prodColorCodes(p).map(code=>{const c=_clr(code);if(!c||c.status==='retired')return null;
+    return {num:code,tag:String(code),name:c.name?c.name+' ('+code+')':'لون '+code,q:c.counted===true?(Number(c.qty)||0):null,img:c.img||'',hex:c.hex||''};}).filter(Boolean);
+}
+function _roRows(){
+  const p=_prodById(_ro.pid),all=_roItems(p);
+  return all.filter(i=>!_ro.drop.has(i.num)&&((i.q!=null&&i.q<=_ro.th)||_ro.add.has(i.num)))
+    .map(i=>({...i,want:_ro.want[i.num]!=null?_ro.want[i.num]:Math.max(0,_ro.tgt-(i.q||0))}));
+}
+async function openReorder(pid){
+  if(!(_opProductsList||[]).length&&typeof loadOpProducts==='function')await loadOpProducts(true);
+  await loadColorLibrary();
+  const ps=_roProds();
+  pid=pid||_ro.pid||(ps[0]&&ps[0].id)||'';
+  _roSet(pid);
+  document.getElementById('roModal')?.remove();
+  const ov=document.createElement('div');ov.id='roModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100004;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="font-weight:900;font-size:1rem;color:#1e3a8a;">🧾 طلبية للشركة</div>
+        <button onclick="document.getElementById('roModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;">✕</button></div>
+      <div id="roProds" style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px;scrollbar-width:none;"></div>
+      <div id="roCtl" style="margin-top:8px;"></div>
+    </div>
+    <div id="roList" style="flex:1;overflow-y:auto;padding:8px 12px 12px;"></div>
+    <div id="roFoot" style="border-top:1px solid #e5e7eb;padding:10px 12px 14px;"></div>
+  </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  _roPaint();
+  if(_prodOwnColors(_prodById(pid))){await _loadOwnImgs(pid);_roPaint();}
+}
+function _roSet(pid){
+  const pr=_roPref(pid);
+  _ro={pid,th:pr.th!=null?pr.th:3,tgt:pr.tgt!=null?pr.tgt:10,want:{},add:new Set(),drop:new Set(),more:false};
+}
+async function roProd(pid){_roSet(pid);_roPaint();if(_prodOwnColors(_prodById(pid))){await _loadOwnImgs(pid);_roPaint();}}
+function roNum(k,v){
+  v=Math.max(0,Math.min(999,parseInt(v)||0));_ro[k]=v;_roSavePref();
+  if(k==='tgt')_ro.want={};          // رقم «لحدّ» جديد ⇒ المطلوب بينحسب من جديد
+  _roPaint();
+}
+function roWant(num,v,step){
+  const r=_roRows().find(x=>String(x.num)===String(num));if(!r)return;
+  const nv=Math.max(0,Math.min(999,step?r.want+step:(parseInt(v)||0)));_ro.want[r.num]=nv;
+  if(step){const el=document.getElementById('roW_'+r.num);if(el)el.value=nv;}
+  _roSum();
+}
+function roDrop(num){num=Number(num);_ro.add.delete(num);_ro.drop.add(num);_roPaint();}
+function roAdd(num){num=Number(num);_ro.drop.delete(num);_ro.add.add(num);_roPaint();}
+function _roSum(){
+  const rows=_roRows().filter(r=>r.want>0),f=document.getElementById('roSum');
+  if(f)f.innerHTML=`<b>${rows.length}</b> ${rows.length===1?'لون':'ألوان'} · <b>${rows.reduce((t,r)=>t+r.want,0)}</b> حبة`;
+}
+function _roPaint(){
+  const P=document.getElementById('roProds'),C=document.getElementById('roCtl'),L=document.getElementById('roList'),Ft=document.getElementById('roFoot');if(!L)return;
+  const F="font-family:'Tajawal',sans-serif;";
+  const p=_prodById(_ro.pid);
+  P.innerHTML=_roProds().map(x=>{const on=x.id===_ro.pid;return `<button onclick="roProd('${x.id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${on?'#1e3a8a':'#e5e7eb'};background:${on?'#1e3a8a':'#fff'};color:${on?'#fff':'#374151'};${F}font-size:0.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${_clrEsc(x.name)}</button>`;}).join('');
+  const NI=(k,v)=>`<input type="number" min="0" value="${v}" onchange="roNum('${k}',this.value)" style="width:58px;padding:6px;border:1.5px solid #bfdbfe;border-radius:8px;${F}font-size:.9rem;font-weight:800;text-align:center;">`;
+  C.innerHTML=p?`<div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:.8rem;font-weight:800;color:#374151;">
+    <span>الألوان اللي عندها ${NI('th',_ro.th)} أو أقل</span><span>اطلب لحدّ ما يصير ${NI('tgt',_ro.tgt)} حبة</span></div>`:'';
+  if(!p){L.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;">اختار المنتج</div>';Ft.innerHTML='';return;}
+  const rows=_roRows(),all=_roItems(p),notCounted=all.filter(i=>i.q==null).length;
+  const face=i=>i.img?`background:url('${i.img}') center/cover;`:i.hex?`background:${_clrEsc(i.hex)};`:'background:#f3f4f6;';
+  L.innerHTML=(rows.length?rows.map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid #f3f4f6;">
+      <div style="position:relative;width:46px;height:46px;border-radius:10px;border:1px solid rgba(0,0,0,.12);flex-shrink:0;${face(r)}"><span style="position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.93);border-radius:5px;padding:0 4px;font-size:.72rem;font-weight:900;">${_clrEsc(r.tag)}</span></div>
+      <div style="flex:1;min-width:0;"><div style="font-weight:900;font-size:.88rem;color:#111827;">${_clrEsc(r.name)}</div>
+        <div style="font-size:.74rem;font-weight:800;color:${r.q<=0?'#dc2626':'#b45309'};">${r.q==null?'ما انجرد':r.q<=0?'خلص — 0':'متوفّر '+r.q}</div></div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button onclick="roWant(${r.num},0,-1)" style="width:30px;height:32px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:900;cursor:pointer;">−</button>
+        <input id="roW_${r.num}" type="number" min="0" value="${r.want}" oninput="roWant(${r.num},this.value)" style="width:52px;padding:6px 2px;border:1.5px solid #bbf7d0;border-radius:8px;${F}font-size:.95rem;font-weight:900;text-align:center;color:#166534;">
+        <button onclick="roWant(${r.num},0,1)" style="width:30px;height:32px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:900;cursor:pointer;">＋</button>
+        <button onclick="roDrop(${r.num})" title="شيله من الطلبية" style="width:28px;height:32px;border:none;background:none;color:#9ca3af;font-size:.9rem;cursor:pointer;">✕</button></div></div>`).join('')
+    :`<div style="padding:22px 10px;text-align:center;color:#16a34a;font-weight:800;font-size:.88rem;">👌 ولا لون عنده ${_ro.th} أو أقل</div>`)+
+    (()=>{const others=all.filter(i=>!rows.some(r=>r.num===i.num));if(!others.length)return '';
+      return `<button onclick="_ro.more=!_ro.more;_roPaint()" style="${F}width:100%;margin-top:10px;padding:9px;border:1.5px dashed #c7d2fe;border-radius:10px;background:#f8faff;color:#3730a3;font-size:.8rem;font-weight:800;cursor:pointer;">＋ ضيف لون ثاني للطلبية (${others.length}) ${_ro.more?'▴':'▾'}</button>`+
+        (_ro.more?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${others.map(i=>`<button onclick="roAdd(${i.num})" style="${F}padding:6px 10px;border-radius:9px;border:1.5px solid #e5e7eb;background:#fff;font-size:.78rem;font-weight:800;cursor:pointer;"><bdi>${_clrEsc(i.tag)}</bdi> <span style="color:#6b7280;">${i.q==null?'—':i.q}</span></button>`).join('')}</div>`:'');})()+
+    (notCounted?`<div style="font-size:.7rem;color:#9ca3af;margin-top:8px;">${notCounted} لون ما انجرد — ما إله رصيد، بتقدر تضيفه من «ضيف لون ثاني»</div>`:'');
+  Ft.innerHTML=`<div id="roSum" style="font-size:.84rem;color:#374151;font-weight:700;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:7px;">
+      <button onclick="roPrint()" style="${F}flex:1;padding:12px;border:none;border-radius:11px;background:#1e3a8a;color:#fff;font-size:.9rem;font-weight:900;cursor:pointer;">🖨️ اطبع</button>
+      <button onclick="roShare()" style="${F}flex:1;padding:12px;border:none;border-radius:11px;background:#16a34a;color:#fff;font-size:.9rem;font-weight:900;cursor:pointer;">📤 ابعت للشركة</button></div>`;
+  _roSum();
+}
+function _roFinal(){return _roRows().filter(r=>r.want>0);}
+function roText(){
+  const p=_prodById(_ro.pid),rows=_roFinal();
+  return `طلبية الكسواني روزميري — ${(p&&p.name)||''}\nالتاريخ: ${jordanDateStr()}\n\n`+
+    rows.map(r=>`• ${r.name} — المطلوب ${r.want} (عنّا ${r.q==null?'—':r.q})`).join('\n')+
+    `\n\nالمجموع: ${rows.length} ${rows.length===1?'لون':'ألوان'} · ${rows.reduce((t,r)=>t+r.want,0)} حبة`;
+}
+async function roShare(){
+  if(!_roFinal().length){toast('⚠️ ما في إشي مطلوب');return;}
+  const t=roText();
+  try{if(navigator.share){await navigator.share({text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(t);toast('📋 انسخت الطلبية — الصقها للشركة');}catch(e){window.prompt('انسخ الطلبية:',t);}
+}
+function roPrint(){
+  const p=_prodById(_ro.pid),rows=_roFinal();
+  if(!rows.length){toast('⚠️ ما في إشي مطلوب');return;}
+  const pw=window.open('','_blank');if(!pw){toast('⚠️ اسمح بفتح النوافذ عشان تطبع');return;}
+  const esc=_clrEsc,tot=rows.reduce((t,r)=>t+r.want,0);
+  const face=i=>i.img?`<img src="${i.img}" alt="">`:`<i style="background:${esc(i.hex||'#eee')}"></i>`;
+  pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>طلبية ${esc(p&&p.name||'')} — ${jordanDateStr()}</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap">
+  <style>@page{size:A4;margin:12mm}body{font-family:'Tajawal',Arial,sans-serif;color:#111;margin:0;padding:16px;max-width:760px;margin:0 auto}
+  .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1a3a2a;padding-bottom:8px;margin-bottom:12px}
+  .hd h1{margin:0;font-size:22px;color:#1a3a2a}.hd small{display:block;color:#6b7280;font-weight:700;font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:14px}th{background:#1a3a2a;color:#fff;padding:8px;font-weight:900}td{padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center}
+  td.nm{text-align:right;font-weight:800}td img,td i{display:block;width:40px;height:40px;border-radius:8px;object-fit:cover;margin:0 auto;border:1px solid #ddd}
+  td.w{font-size:18px;font-weight:900;color:#166534}td.box{width:44px}td.box span{display:inline-block;width:18px;height:18px;border:2px solid #9ca3af;border-radius:4px}
+  tfoot td{font-weight:900;font-size:15px;border-top:2px solid #1a3a2a;border-bottom:0}.np{text-align:center;margin:0 0 14px}
+  @media print{.np{display:none}}tr{page-break-inside:avoid}</style></head><body>
+  <div class="np"><button onclick="window.print()" style="padding:10px 26px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;">🖨️ اطبع / احفظ PDF</button></div>
+  <div class="hd"><div><small>الكسواني روزميري — طلبية للشركة</small><h1>${esc(p&&p.name||'')}</h1></div><div style="text-align:left;font-weight:700;color:#374151;">${jordanDateStr()}</div></div>
+  <table><thead><tr><th>#</th><th>اللون</th><th>رقم اللون</th><th>المتوفّر</th><th>المطلوب</th><th>✓</th></tr></thead><tbody>
+  ${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${face(r)}</td><td class="nm">${esc(r.name)}</td><td>${r.q==null?'—':r.q}</td><td class="w">${r.want}</td><td class="box"><span></span></td></tr>`).join('')}
+  </tbody><tfoot><tr><td colspan="4" style="text-align:right">المجموع: ${rows.length} ${rows.length===1?'لون':'ألوان'}</td><td class="w">${tot}</td><td></td></tr></tfoot></table>
+  <script>window.onload=()=>setTimeout(()=>window.print(),500);<\/script></body></html>`);
+  pw.document.close();
+}
+window.openReorder=openReorder;window.roProd=roProd;window.roNum=roNum;window.roWant=roWant;window.roDrop=roDrop;window.roAdd=roAdd;window.roShare=roShare;window.roPrint=roPrint;
+
 function renderColorLib(){
   const list=document.getElementById('clrList');if(!list)return;
   _clrScopeBar();
@@ -4009,6 +4147,7 @@ function renderColorLib(){
     `<button onclick="clrAdd()" style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">➕ لون جديد</button>`+
     `<button onclick="openColorStock()" style="padding:7px 12px;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔢 جرد سريع</button>`+
     (_colorLib.length?`<button onclick="openColorIntake()" style="padding:7px 12px;background:#eff6ff;color:#1e40af;border:1.5px solid #bfdbfe;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📥 وارد جديد</button>`:'')+
+    (_colorLib.length?`<button onclick="openReorder((_roProds().find(p=>!_prodOwnColors(p))||{}).id||'')" style="padding:7px 12px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🧾 طلبية للشركة</button>`:'')+
     (_colorLib.length?`<button onclick="clrCatalogPick()" style="padding:7px 12px;background:#16a34a;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🔗 رابط الكتالوج للزباين</button>`:'')+
     (_colorLib.length?`<button onclick="openColorSheet()" style="padding:7px 12px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">🖼️ كل الألوان بصورة وحدة</button>`:'')+
     (_colorLib.length?`<button onclick="openColorBulk()" style="padding:7px 12px;background:#1f2937;color:#fff;border:none;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer;">📷 صورة وحدة للكل</button>`:'')+
