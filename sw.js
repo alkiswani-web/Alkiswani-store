@@ -29,7 +29,7 @@ try {
   // بلا إشعارات خلفية — لكنّ التخزين المؤقّت أدناه يعمل، وهو الأهم للسرعة.
 }
 
-const CACHE = 'alkiswani-v370';
+const CACHE = 'alkiswani-v371';
 // كاش ثابت لملفات لا تتغيّر أبداً (رابطها يحمل رقم إصدارها).
 // اسمه لا يتغيّر مع رفع النسخة، فلا يُعاد تنزيل Firebase SDK في كل مرة.
 const STATIC = 'alkiswani-static-1';
@@ -178,6 +178,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // كتالوج الزباين (colors.html و /c/…): دايماً من الشبكة — نسخة قديمة مخزّنة كانت تبعت
+  // تأكيد الزبون على رقم غلط. منخلّي المتصفّح يجيبها عادي بلا كاش التطبيق.
+  try{const u=new URL(url);if(u.origin===self.location.origin&&(u.pathname==='/colors.html'||u.pathname.startsWith('/c/')))return;}catch(_){}
   // HTML (navigation): الشبكة أولاً بمهلة قصيرة — التحديث يصل من أول فتحة.
   if(e.request.mode === 'navigate' || e.request.destination === 'document') {
     e.respondWith(navigationStrategy(e.request, CACHE, 1500));
