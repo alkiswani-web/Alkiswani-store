@@ -227,7 +227,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 // كتالوج موحّد: الصفحة الرئيسية فيها المنتجات اللي الأدمن اختارها (catalog_cfg.products)،
 // الزبون بيفوت على النوع وبيختار ألوانه، وبيجمع من أكثر من منتج بطلب واحد.
 // ?p=<منتج> بيفتح المنتج على طول (الروابط القديمة) و«كل المنتجات» بترجّعه للرئيسية.
-const WA='962775665598';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f2=v=>(Math.round((Number(v)||0)*100)/100).toFixed(2);
@@ -240,8 +239,9 @@ const PID0=String(QS.get('p')||'').slice(0,60);
 // الرابط بمتصفّحهم الداخلي واسمه بيبيّن، وغير هيك منعتبره واتساب
 const IAB_FB=/FBAN|FBAV|FB_IAB|FBIOS|FB4A|Messenger|Instagram/i.test(navigator.userAgent||'');
 const CH=QS.get('c')==='m'?'m':QS.get('c')==='w'?'w':(IAB_FB?'m':'w');
-// رابط بلا متجر محدّد (رابط الموظفة الواحد): التأكيد بيرجع لنفس المحادثة اللي إجا منها الزبون
-const AUTO=!QS.get('g');
+// التأكيد بيرجع لنفس المحادثة اللي إجا منها الزبون — إلا إذا الرابط لمتجر إله رقم/صفحة محفوظة.
+// ما في رجوع لرقم المحل العام أبداً: موظفة ماسكة كذا متجر، والرقم العام بيضيّع الطلب على صفحة ثانية
+let AUTO=true;
 const EMP=String(QS.get('e')||'').slice(0,60);
 // الصفحة/المتجر اللي إجا منه الزبون — رسالة التأكيد بترجع على واتسابها/ماسنجرها
 const PGID=String(QS.get('g')||'').slice(0,60);let PGD={};
@@ -366,7 +366,7 @@ function load(){
   db=firebase.firestore();
   skeleton();
   db.collection('operator_config').doc('catalog_cfg').onSnapshot(d=>{CFG=(d.exists&&d.data())||{};cfgReady=true;syncHome();},()=>{cfgReady=true;syncHome();});
-  if(PGID)db.collection('employee_pages').doc(PGID).get().then(d=>{PGD=(d.exists&&d.data())||{};}).catch(()=>{});
+  if(PGID)db.collection('employee_pages').doc(PGID).get().then(d=>{PGD=(d.exists&&d.data())||{};AUTO=!(CH==='m'?PGD.messengerUser:PGD.waNumber);}).catch(()=>{});
   if(PID0)watchP(PID0);
   Object.keys(CART).forEach(watchP);
   lazyFull();
@@ -697,9 +697,9 @@ async function submitReq(){
 // فتح المحادثة على نفس القناة اللي إجا منها الزبون
 function chatUrl(text){
   // واتساب بلا رقم ⇒ الواتساب بيفتح قائمة المحادثات والزبون بيختار محادثتنا (أوّل وحدة لأنه لسّا كان فيها)
-  if(AUTO&&!PGD.waNumber&&!PGD.messengerUser){return CH==='m'?'':`https://wa.me/?text=${encodeURIComponent(text)}`;}
-  if(CH==='m'){const u=String(PGD.messengerUser||CFG.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
-  const n=String(PGD.waNumber||CFG.waNumber||WA).replace(/\D/g,'')||WA;return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+  if(CH==='m'){const u=String(PGD.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
+  const n=String(PGD.waNumber||'').replace(/\D/g,'');
+  return n?`https://wa.me/${n}?text=${encodeURIComponent(text)}`:`https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 async function openChat(text){
   let copied=false;
