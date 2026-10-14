@@ -238,6 +238,8 @@ const PID0=String(QS.get('p')||'').slice(0,60);
 // القناة (w واتساب / m ماسنجر) والموظف اللي بعت الرابط — الطلب بيوصله هو
 const CH=QS.get('c')==='m'?'m':'w';
 const EMP=String(QS.get('e')||'').slice(0,60);
+// الصفحة/المتجر اللي إجا منه الزبون — رسالة التأكيد بترجع على واتسابها/ماسنجرها
+const PGID=String(QS.get('g')||'').slice(0,60);let PGD={};
 const chName=()=>CH==='m'?'الماسنجر':'الواتساب';
 const AREAS=['عمان','اربد','الزرقاء','البلقاء','مادبا','الكرك','الطفيلة','معان','العقبة','جرش','عجلون','المفرق','الاغوار','الشونة','الازرق','رصيفة'];
 const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
@@ -359,6 +361,7 @@ function load(){
   db=firebase.firestore();
   skeleton();
   db.collection('operator_config').doc('catalog_cfg').onSnapshot(d=>{CFG=(d.exists&&d.data())||{};cfgReady=true;syncHome();},()=>{cfgReady=true;syncHome();});
+  if(PGID)db.collection('employee_pages').doc(PGID).get().then(d=>{PGD=(d.exists&&d.data())||{};}).catch(()=>{});
   if(PID0)watchP(PID0);
   Object.keys(CART).forEach(watchP);
   lazyFull();
@@ -663,6 +666,7 @@ async function submitReq(){
   const r={ref,pid:'',productName:extras.map(x=>x.name).join('، '),items:[],extras,...(extraText?{extraText}:{}),
     pieces:extras.reduce((t,x)=>t+x.qty,0),customer:{name,phone,area:AREA,address,notes},
     channel:CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',source:'catalog',
+    ...(PGID?{pageId:PGID,...(PGD.name?{pageName:PGD.name}:{})}:{}),
     createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   sending=true;const b=$('#sheetWa');b.disabled=true;b.textContent='⏳ عم نسجّل طلبك…';
   let saved=false,short=[];
@@ -687,8 +691,8 @@ async function submitReq(){
 }
 // فتح المحادثة على نفس القناة اللي إجا منها الزبون
 function chatUrl(text){
-  if(CH==='m'){const u=String(CFG.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
-  const n=String(CFG.waNumber||WA).replace(/\D/g,'')||WA;return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+  if(CH==='m'){const u=String(PGD.messengerUser||CFG.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
+  const n=String(PGD.waNumber||CFG.waNumber||WA).replace(/\D/g,'')||WA;return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
 }
 async function openChat(text){
   if(CH==='m'){try{await navigator.clipboard.writeText(text);toast('📋 نسخنا الرسالة — الصقها بالماسنجر');}catch(e){}}
