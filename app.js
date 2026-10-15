@@ -7740,6 +7740,25 @@ function _empCatHeld(pid,num){
   if(p&&_prodOwnColors(p))return Number((r.reservation.own||{})[pid+'|'+num])||0;
   return Number((r.reservation.lib||{})[num])||0;
 }
+// رسالة جاهزة للزبون: الموظفة هي اللي بتأكّد معه من محادثة المتجر نفسه (واتساب أو ماسنجر)
+function _catMsg(r){
+  const c=r.customer||{};
+  const L=[...((r.items||[]).length?[{name:r.productName,price:r.price,qty:(r.items||[]).reduce((t,i)=>t+(i.qty||0),0),colorNumbers:r.items}]:[]),...(r.extras||[])];
+  const it=L.map(x=>'• '+(x.name||'')+((x.colorNumbers||[]).length?': '+x.colorNumbers.map(i=>(i.tag!=null?i.tag:i.num)+' ×'+i.qty).join('، '):'')
+    +(x.color?' — '+x.color:'')+(x.writing?' — «'+x.writing+'»':'')+' ('+x.qty+')').join('\n');
+  const sub=L.reduce((t,x)=>t+(Number(x.price)||0)*(Number(x.qty)||0),0);
+  return `مرحبا ${c.name||''} 👋\nوصلنا طلبك من كتالوج الكسواني روزميري${r.ref?' (رقم '+r.ref+')':''}:\n${it}\n\nالمجموع ${sub.toFixed(2)} د.أ + التوصيل\nالتوصيل لـ ${c.area||''} — ${c.address||''}${r.extraText?'\nوطلبت كمان: '+r.extraText:''}\n\nمنأكّد الطلب؟ 🌿`;
+}
+function _catWaUrl(r){
+  const ph=String((r.customer||{}).phone||'').replace(/\D/g,''),intl=ph.startsWith('0')?'962'+ph.slice(1):ph;
+  return intl?`https://wa.me/${intl}?text=${encodeURIComponent(_catMsg(r))}`:'';
+}
+async function catCopyMsg(id){
+  const r=(_empCatReqs||[]).find(x=>x.id===id)||(_catAdm.reqs||[]).find(x=>x.id===id);if(!r)return;
+  const t=_catMsg(r);
+  try{await navigator.clipboard.writeText(t);toast('📋 انسخت الرسالة — الصقيها بمحادثة الزبون');}catch(e){window.prompt('انسخي الرسالة:',t);}
+}
+window.catCopyMsg=catCopyMsg;
 // لون بالاسم وكتابة (المباخر مثلاً) — اللي الزبون اختاره
 function _catOptHtml(x){
   const a=[];if(x&&x.color)a.push(`🎨 ${_clrEsc(x.color)}`);if(x&&x.writing)a.push(`✍️ «${_clrEsc(x.writing)}»`);
@@ -7770,6 +7789,9 @@ function _empCatPaint(){
         <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 <bdi>${_clrEsc(r.productName||'')}</bdi>: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} <bdi>${_clrEsc(x.name)}</bdi>${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''}${_catOptHtml(x)} <bdi dir="ltr">×${x.qty}</bdi><br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>
+          ${r.channel==='messenger'
+            ?`<button type="button" onclick="catCopyMsg('${r.id}')" title="انسخي رسالة للزبون والصقيها بمحادثة الماسنجر" style="${F}padding:9px 11px;border:1.5px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:.8rem;cursor:pointer;">📋 رسالة</button>`
+            :(_catWaUrl(r)?`<a href="${_catWaUrl(r)}" target="_blank" rel="noopener" title="راسلي الزبون من واتساب المتجر" style="${F}padding:9px 11px;border:1.5px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#15803d;font-weight:800;font-size:.8rem;text-decoration:none;white-space:nowrap;">💬 راسليه</a>`:'')}
           <button type="button" onclick="empCatDismiss('${r.id}')" title="مش طلب حقيقي / مكرّر" style="${F}padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;color:#6b7280;font-weight:800;font-size:.8rem;cursor:pointer;">✕ شيله</button>
         </div></div>`;}).join(''):''}
   </div>`;
@@ -12263,7 +12285,7 @@ function _catAdmPaint(){
       ${r.status==='new'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
         <button onclick="catAdmReg('${r.id}')" style="${F}flex:1 1 140px;padding:9px;background:#166534;color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:900;cursor:pointer;">📝 سجّله بوليصة</button>
         <button onclick="_catAdm.open=_catAdm.open==='${r.id}'?'':'${r.id}';_catAdmPaint()" style="${F}padding:9px 11px;background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:10px;font-size:.78rem;font-weight:800;cursor:pointer;">👤 حوّل</button>
-        ${wa?`<a href="https://wa.me/${wa}" target="_blank" rel="noopener" style="${F}padding:9px 11px;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">💬</a>
+        ${wa?`<a href="${_catWaUrl(r)}" target="_blank" rel="noopener" style="${F}padding:9px 11px;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">💬</a>
         <a href="tel:${_clrEsc(c.phone||'')}" style="${F}padding:9px 11px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">📞</a>`:''}
         <button onclick="catAdmDismiss('${r.id}')" style="${F}padding:9px 11px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.78rem;font-weight:800;cursor:pointer;">✕</button></div>
       ${open?`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #d1d5db;"><div style="font-size:.74rem;color:#6b7280;font-weight:800;margin-bottom:6px;">حوّل الطلب لـ:</div>

@@ -595,7 +595,7 @@ function paintSheet(){
   $('#sl').hidden=sview!=='cart';$('#vForm').hidden=sview!=='form';$('#vDone').hidden=sview!=='done';
   $('#shH').textContent=sview==='form'?'معلوماتك للتوصيل':sview==='done'?'تمّ ✓':'طلبي';
   const b=$('#sheetWa');b.classList.toggle('ms',CH==='m');
-  b.textContent=sview==='cart'?'✓ كمّل الطلب':sview==='form'?'✅ ثبّت الطلب':(AUTO&&CH==='m'?'📋 انسخ رسالة التأكيد':'💬 ابعت تأكيد على '+chName());
+  b.textContent=sview==='cart'?'✓ كمّل الطلب':sview==='form'?'✅ ثبّت الطلب':'تمام 👌';
 }
 function openSheet(){sview='cart';cartRows();paintSheet();sheetOn();}
 function showFormSum(){
@@ -690,7 +690,8 @@ async function submitReq(){
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
   CART={};saveCart();render();paint();
   sview='done';
-  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>بنتواصل معك على <b class="n">${esc(phone)}</b> لنأكّد.<br>${AUTO?(CH==='m'?'انسخ رسالة التأكيد وابعتها بنفس المحادثة 👇':'ابعتلنا تأكيد بنفس محادثة الواتساب اللي إجيت منها 👇'):'ابعتلنا تأكيد على '+chName()+' عشان يوصلك ردّنا أسرع 👇'}`;
+  // ما في رسالة تأكيد يبعتها الزبون: الطلب وصل للموظفة، وهي بتتواصل معه من نفس محادثة المتجر
+  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>رح نتواصل معك بنفس المحادثة لنأكّد التوصيل 💚`;
   $('#doneRef').textContent='رقم الطلب '+ref;
   paintSheet();
 }
@@ -712,7 +713,7 @@ async function openChat(text){
   toast('📋 نسخنا الرسالة — ارجع للمحادثة والصقها');
 }
 function go(){
-  if(sview==='done'&&$('#sheet').classList.contains('on')){openChat(lastReq.text);return;}
+  if(sview==='done'&&$('#sheet').classList.contains('on')){closeSheet();return;}
   if(cartEmpty()){toast('اختار إشي أوّل');return;}
   if(!$('#sheet').classList.contains('on')||sview==='done'){showForm();return;}
   if(sview==='cart'){showForm();return;}
