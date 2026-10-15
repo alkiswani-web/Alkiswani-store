@@ -126,6 +126,25 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .pc .pq button{height:38px;min-width:38px;border-radius:11px;border:1.5px solid var(--ln);background:#fff;font-weight:900}
 .pc .pq .add1{flex:1;background:var(--g);color:#fff;border-color:var(--g);font-size:.84rem}
 .pc.out .im{filter:grayscale(.8);opacity:.6}
+/* طلباتي: حالة الطلب + الزيادة عليه */
+#mine{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+#mine[hidden]{display:none}
+.mo{background:var(--paper);border:1.5px solid var(--ln);border-radius:16px;padding:12px 14px;box-shadow:0 8px 18px -14px rgba(26,58,42,.45)}
+.mo .h{display:flex;align-items:center;gap:8px}
+.mo .h b{flex:1;font-size:.95rem;font-weight:900}
+.mo .st{font-size:.82rem;font-weight:900;border-radius:999px;padding:3px 10px;white-space:nowrap;background:#ecfdf5;color:#166534}
+.mo .st.p{background:#fef3c7;color:#92400e}.mo .st.x{background:#fee2e2;color:var(--rd)}.mo .st.d{background:#dcfce7;color:#166534}
+.mo .steps{display:flex;gap:4px;margin:10px 0 2px}
+.mo .steps i{flex:1;height:6px;border-radius:999px;background:var(--ln)}
+.mo .steps i.on{background:var(--g2)}
+.mo .stl{display:flex;justify-content:space-between;font-size:.68rem;font-weight:800;color:var(--mu)}
+.mo .it{font-size:.8rem;font-weight:700;color:var(--mu);margin-top:8px;line-height:1.7}
+.mo .acts{display:flex;gap:8px;margin-top:10px}
+.mo .acts button{flex:1;height:42px;border-radius:12px;border:1.5px solid var(--ln);background:#fff;font-weight:900;font-size:.86rem}
+.mo .acts .add{background:var(--g);color:#fff;border-color:var(--g)}
+.addbar{background:#fffbeb;border:2px solid var(--gold);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:.86rem;font-weight:900}
+.addbar span{flex:1}
+.addbar button{border:0;background:none;color:var(--rd);font-weight:900;font-size:.82rem}
 /* أقسام الكتالوج */
 .catbar{position:sticky;top:0;z-index:5;background:var(--cream);display:flex;gap:8px;overflow-x:auto;padding:8px 0 10px;scrollbar-width:none}
 .catbar::-webkit-scrollbar{display:none}
@@ -183,6 +202,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
     <label class="search">🔎<input id="q" inputmode="numeric" placeholder="دوّر برقم اللون" autocomplete="off"></label>
     <button class="tog" id="onlyAv" aria-pressed="false">المتوفّر بس</button>
   </div>
+  <div id="mine" hidden></div>
   <div class="grid" id="grid"></div>
   <div class="foot" id="foot"></div>
 </div>
@@ -370,6 +390,7 @@ function load(){
   if(PGID)db.collection('employee_pages').doc(PGID).get().then(d=>{PGD=(d.exists&&d.data())||{};AUTO=!(CH==='m'?PGD.messengerUser:PGD.waNumber);}).catch(()=>{});
   if(PID0)watchP(PID0);
   Object.keys(CART).forEach(watchP);
+  watchMine();
   lazyFull();
 }
 // منتجات الرئيسية: اللي الأدمن حدّدها — وإذا لسّا ما حدّد، كل منتجات الألوان
@@ -392,6 +413,7 @@ function skeleton(){$('#grid').className='grid';$('#grid').innerHTML=Array.from(
 // ── العرض ──
 function render(){
   $('#back').hidden=view!=='prod';
+  paintMine();
   if(view==='home')return renderHome();
   renderProd();
 }
@@ -568,6 +590,7 @@ function paint(){
     $('#barT').textContent=(types>1?types+' أنواع':!XL[0].colorNumbers?'طلبك':XL.length===1?(XL[0].colorNumbers?XL[0].colorNumbers.length+' '+(XL[0].word==='قياس'?'قياس':XL[0].colorNumbers.length===1?'لون':'ألوان'):XL[0].name):XL[0].name)+` · ${pcs} قطعة`+(money>0?` · ${f2(money)} د.أ`:'');
     $('#barS').textContent=XL.map(x=>x.colorNumbers?x.name+' ('+x.colorNumbers.map(c=>c.tag+'×'+c.qty).join('، ')+')':x.name+(optTxt(x)?' ('+optTxt(x)+')':'')+'×'+x.qty).join(' · ');
   }
+  $('#barWa').textContent=ADD?'➕ ضيف لطلبك':'💬 اطلب';
   if($('#sheet').classList.contains('on')&&sview==='cart')cartRows();
 }
 let sview='cart',lastReq=null,sending=false;
@@ -596,7 +619,7 @@ function paintSheet(){
   $('#sl').hidden=sview!=='cart';$('#vForm').hidden=sview!=='form';$('#vDone').hidden=sview!=='done';
   $('#shH').textContent=sview==='form'?'معلوماتك للتوصيل':sview==='done'?'تمّ ✓':'طلبي';
   const b=$('#sheetWa');b.classList.toggle('ms',CH==='m');
-  b.textContent=sview==='cart'?'✓ كمّل الطلب':sview==='form'?'✅ ثبّت الطلب':'تمام 👌';
+  b.textContent=sview==='cart'?(ADD?'➕ ضيفهم لطلب #'+ADD.ref:'✓ كمّل الطلب'):sview==='form'?'✅ ثبّت الطلب':'تمام 👌';
 }
 function openSheet(){sview='cart';cartRows();paintSheet();sheetOn();}
 function showFormSum(){
@@ -634,34 +657,44 @@ function reqText(r){
 // 🔒 الحجز: أوّل ما الزبون يثبّت، الكمية بتنخصم من المخزون بنفس اللحظة اللي بينحفظ فيها الطلب
 // (معاملة وحدة) — فلو موظف الطلبات تأخّر بالتأكيد، ألوان الزبون محجوزة إله. واللون اللي ما
 // انعدّ (ما إله رصيد معروف) ما في إشي نحجزه. لو اثنين طلبوا آخر قطعة، الثاني بيعرف شو ضلّ.
-async function reserveAndSave(r,XL){
-  const ref=db.collection('catalog_requests').doc();
+// الحجز جوّا معاملة: بيقرا المخزون، وبيرجّع الناقص + الحجز + دالة بتخصم (بعد كل القراءات)
+function prepReserve(XL){
   const ownIds=[...new Set(XL.filter(x=>x.colorNumbers&&kind(PR[x.pid])!=='lib').map(x=>x.pid))];
   const libNeed={};
   XL.filter(x=>x.colorNumbers&&kind(PR[x.pid])==='lib').forEach(x=>x.colorNumbers.forEach(c=>{libNeed[c.num]=(libNeed[c.num]||0)+c.qty;}));
   const libRefs=Object.keys(libNeed).map(code=>{const c=(LIB||[]).find(z=>z.code===Number(code));return c?{code,ref:db.collection('color_library').doc(c.id)}:null;}).filter(Boolean);
-  let short=[],res={own:{},lib:{}};
+  return {ownIds,libNeed,libRefs};
+}
+async function reserveIn(tx,XL,P){
+  const short=[],res={own:{},lib:{}},upd=[];
+  const ownRefs=P.ownIds.map(id=>db.collection('operator_products').doc(id));
+  const os=[];for(const rf of ownRefs)os.push(await tx.get(rf));
+  const ls=[];for(const d of P.libRefs)ls.push(await tx.get(d.ref));
+  os.forEach((sn,i)=>{const id=P.ownIds[i],qm=(sn.exists&&sn.data().ownColorQty)||{},u={};
+    XL.filter(x=>x.pid===id).forEach(x=>x.colorNumbers.forEach(c=>{const have=qm[String(c.num)];
+      if(have==null)return;
+      const h=Number(have)||0;
+      if(h<c.qty){short.push({pid:id,num:c.num,name:x.name+' — '+x.word+' '+c.tag,have:Math.max(0,h)});return;}
+      u['ownColorQty.'+c.num]=h-c.qty;res.own[id+'|'+c.num]=c.qty;}));
+    if(Object.keys(u).length)upd.push([ownRefs[i],u]);});
+  ls.forEach((sn,i)=>{const d=P.libRefs[i],v=(sn.exists&&sn.data())||{};if(v.counted!==true)return;
+    const h=Number(v.qty)||0,need=P.libNeed[d.code];
+    if(v.status==='out'||h<need){short.push({lib:Number(d.code),name:'لون '+d.code,have:v.status==='out'?0:Math.max(0,h)});return;}
+    upd.push([d.ref,{qty:h-need}]);res.lib[d.code]=need;});
+  return {short,res,apply:()=>upd.forEach(([rf,u])=>tx.update(rf,u))};
+}
+const resCount=res=>Object.keys((res&&res.own)||{}).length+Object.keys((res&&res.lib)||{}).length;
+async function reserveAndSave(r,XL){
+  const ref=db.collection('catalog_requests').doc(),P=prepReserve(XL);
+  let short=[],res=null;
   await db.runTransaction(async tx=>{
-    short=[];res={own:{},lib:{}};const upd=[];
-    const ownRefs=ownIds.map(id=>db.collection('operator_products').doc(id));
-    const os=[];for(const rf of ownRefs)os.push(await tx.get(rf));
-    const ls=[];for(const d of libRefs)ls.push(await tx.get(d.ref));
-    os.forEach((sn,i)=>{const id=ownIds[i],qm=(sn.exists&&sn.data().ownColorQty)||{},u={};
-      XL.filter(x=>x.pid===id).forEach(x=>x.colorNumbers.forEach(c=>{const have=qm[String(c.num)];
-        if(have==null)return;
-        const h=Number(have)||0;
-        if(h<c.qty){short.push({pid:id,num:c.num,name:x.name+' — '+x.word+' '+c.tag,have:Math.max(0,h)});return;}
-        u['ownColorQty.'+c.num]=h-c.qty;res.own[id+'|'+c.num]=c.qty;}));
-      if(Object.keys(u).length)upd.push([ownRefs[i],u]);});
-    ls.forEach((sn,i)=>{const d=libRefs[i],v=(sn.exists&&sn.data())||{};if(v.counted!==true)return;
-      const h=Number(v.qty)||0,need=libNeed[d.code];
-      if(v.status==='out'||h<need){short.push({lib:Number(d.code),name:'لون '+d.code,have:v.status==='out'?0:Math.max(0,h)});return;}
-      upd.push([d.ref,{qty:h-need}]);res.lib[d.code]=need;});
+    const R=await reserveIn(tx,XL,P);short=R.short;res=R.res;
     if(short.length)return;
-    upd.forEach(([rf,u])=>tx.update(rf,u));
-    tx.set(ref,{...r,reserved:Object.keys(res.own).length+Object.keys(res.lib).length>0,reservation:res});
+    R.apply();
+    tx.set(ref,{...r,reserved:resCount(res)>0,reservation:res});
   });
-  r.reserved=!short.length&&Object.keys(res.own).length+Object.keys(res.lib).length>0;
+  r.id=ref.id;
+  r.reserved=!short.length&&resCount(res)>0;
   return short;
 }
 async function submitReq(){
@@ -701,11 +734,137 @@ async function submitReq(){
   r.text=reqText(r);lastReq=r;
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
   CART={};saveCart();render();paint();
+  rememberMine({id:r.id,ref,t:Date.now()});
   sview='done';
   // ما في رسالة تأكيد يبعتها الزبون: الطلب وصل للموظفة، وهي بتتواصل معه من نفس محادثة المتجر
   $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>رح نتواصل معك بنفس المحادثة لنأكّد التوصيل 💚`;
   $('#doneRef').textContent='رقم الطلب '+ref;
   paintSheet();
+}
+// ── طلباتي: الزبون بيشوف حالة طلبه، وبيزيد عليه طول ما هو «جديد» ──
+// الطلبات محفوظة على نفس الموبايل. «جديد» = لسّا ما انسجّل، أو انسجّل بوليصة وحالتها لسّا «جديد».
+// أوّل ما تصير «قيد التجهيز» ما عاد فيه يزيد.
+let MINE=LS.get('_clrMine',[]);if(!Array.isArray(MINE))MINE=[];
+const TRK={};let ADD=null;
+function rememberMine(m){MINE=MINE.filter(x=>x.id!==m.id);MINE.push(m);MINE=MINE.slice(-8);LS.set('_clrMine',MINE);watchMine();}
+function watchMine(){
+  if(!db)return;
+  MINE.forEach(m=>{
+    if(TRK[m.id])return;TRK[m.id]={};
+    TRK[m.id].unsub=db.collection('catalog_requests').doc(m.id).onSnapshot(d=>{
+      const t=TRK[m.id];t.req=d.exists?d.data():null;t.loaded=true;
+      if(t.req&&t.req.orderId&&!t.osub)t.osub=db.collection('employee_orders').doc(t.req.orderId).onSnapshot(o=>{t.order=o.exists?o.data():null;paintMine();},()=>{});
+      paintMine();},()=>{TRK[m.id].loaded=true;});
+  });
+}
+const STEPS=['وصل','قيد التجهيز','جاهز','بالطريق','وصلك'];
+function stateOf(m){
+  const t=TRK[m.id]||{},v=t.req;if(!v)return null;
+  if(v.status==='dismissed')return {l:'❌ انلغى',c:'x',step:0,end:true};
+  if(v.status==='new')return {l:'🕐 وصل — رح نتواصل معك',c:'p',step:1,edit:'req'};
+  const o=t.order;if(!o)return {l:'🕐 جديد',c:'p',step:1};
+  const st=o.status;
+  if(st==='pending')return {l:'🕐 جديد',c:'p',step:1,edit:'order'};
+  if(st==='preparing')return {l:'🧶 قيد التجهيز',step:2};
+  if(st==='prepared')return {l:'📦 جاهز للتوصيل',step:3};
+  if(['queued','waiting_rep','onhold','postponed'].includes(st))return {l:'🚚 عند المندوب',step:4};
+  if(st==='delivering')return {l:'🚚 بالطريق إلك',step:4};
+  if(st==='delivered')return {l:'✅ وصلك',c:'d',step:5,end:true};
+  if(['cancelled','returned','refused'].includes(st))return {l:'❌ انلغى',c:'x',step:0,end:true};
+  return {l:'🕐 جديد',c:'p',step:1};
+}
+function paintMine(){
+  const box=$('#mine');if(!box)return;
+  if(view!=='home'){box.hidden=true;return;}
+  const now=Date.now();
+  const L=MINE.filter(m=>!m.parent).map(m=>({m,s:stateOf(m),t:TRK[m.id]||{}})).filter(x=>x.s&&!(x.s.end&&now-(x.m.t||0)>3*864e5)).reverse().slice(0,3);
+  let h='';
+  if(ADD)h+=`<div class="addbar"><span>➕ عم تزيد على طلبك <bdi class="n">#${esc(ADD.ref)}</bdi> — اختار شو بدك تزيد وبعدين «ضيف لطلبك»</span><button data-addx="1">إلغاء</button></div>`;
+  h+=L.map(({m,s,t})=>{
+    const v=t.req||{},o=t.order;
+    const items=o&&Array.isArray(o.products)?o.products.map(p=>p.name+(Array.isArray(p.colorNumbers)&&p.colorNumbers.length?' ('+p.colorNumbers.map(c=>c.num+'×'+c.qty).join('، ')+')':'')+' ×'+p.qty)
+      :(v.extras||[]).map(x=>x.name+(x.colorNumbers?' ('+x.colorNumbers.map(c=>c.tag+'×'+c.qty).join('، ')+')':'')+(x.color?' · '+x.color:'')+' ×'+x.qty);
+    const kids=MINE.filter(k=>k.parent===m.id&&TRK[k.id]&&TRK[k.id].req&&TRK[k.id].req.status==='new').length;
+    return `<div class="mo"><div class="h"><b>طلبك <bdi class="n">#${esc(m.ref)}</bdi></b><span class="st ${s.c||''}">${s.l}</span></div>
+      ${s.step?`<div class="steps">${STEPS.map((_,i)=>`<i class="${i<s.step?'on':''}"></i>`).join('')}</div><div class="stl">${STEPS.map(x=>`<span>${x}</span>`).join('')}</div>`:''}
+      <div class="it">${items.map(x=>'<bdi>'+esc(x)+'</bdi>').join(' · ')}${kids?`<br>➕ إضافتك وصلت للموظفة`:''}</div>
+      ${s.edit&&!(ADD&&ADD.id===m.id)?`<div class="acts"><button class="add" data-addto="${esc(m.id)}">➕ زيد على طلبك</button></div>`:''}</div>`;}).join('');
+  box.hidden=!h;box.innerHTML=h;
+}
+function startAdd(id){
+  const m=MINE.find(x=>x.id===id);const s=m&&stateOf(m);
+  if(!s||!s.edit){toast('طلبك صار قيد التجهيز — ما بتقدر تزيد عليه هلّأ');return;}
+  ADD={id,ref:m.ref};paintMine();paint();window.scrollTo({top:0,behavior:'smooth'});
+  toast('اختار شو بدك تزيد على طلبك 👇');
+}
+const toExtras=XL=>XL.map(x=>({pid:x.pid,name:x.name,price:x.price,qty:x.qty,...(x.colorNumbers?{colorNumbers:x.colorNumbers.map(c=>({num:c.num,tag:String(c.tag),qty:c.qty}))}:{}),
+  ...(x.color?{color:x.color}:{}),...(x.writing?{writing:x.writing}:{})}));
+// دمج الإضافة بالطلب: نفس المنتج بنفس اللون/الكتابة بيتجمّع، والألوان المرقّمة بتنجمع
+function mergeExtras(base,adds){
+  const out=base.map(x=>({...x,...(x.colorNumbers?{colorNumbers:x.colorNumbers.map(c=>({...c}))}:{})}));
+  adds.forEach(a=>{
+    const e=out.find(x=>x.pid===a.pid&&!!x.colorNumbers===!!a.colorNumbers&&(x.color||'')===(a.color||'')&&(x.writing||'')===(a.writing||''));
+    if(!e){out.push(a);return;}
+    if(a.colorNumbers){a.colorNumbers.forEach(c=>{const ec=e.colorNumbers.find(z=>z.num===c.num);if(ec)ec.qty+=c.qty;else e.colorNumbers.push({...c});});
+      e.colorNumbers.sort((p,q)=>p.num-q.num);}
+    e.qty+=a.qty;});
+  return out;
+}
+function mergeRes(a,b){const o={own:{...((a&&a.own)||{})},lib:{...((a&&a.lib)||{})}};
+  Object.keys(b.own||{}).forEach(k=>o.own[k]=(o.own[k]||0)+b.own[k]);Object.keys(b.lib||{}).forEach(k=>o.lib[k]=(o.lib[k]||0)+b.lib[k]);return o;}
+// الطلب لسّا ما انسجّل: الإضافة بتندمج فيه هو (والألوان المضافة بتنحجز بنفس المعاملة)
+async function addToReq(id,XL,adds){
+  const ref=db.collection('catalog_requests').doc(id),P=prepReserve(XL);
+  let out={short:[],moved:false};
+  await db.runTransaction(async tx=>{
+    out={short:[],moved:false};
+    const sn=await tx.get(ref),v=sn.exists?sn.data():null;
+    const R=await reserveIn(tx,XL,P);
+    if(!v||v.status!=='new'){out.moved=true;return;}
+    if(R.short.length){out.short=R.short;return;}
+    R.apply();
+    const extras=mergeExtras(v.extras||[],adds);
+    const res=mergeRes(v.reserved?v.reservation:{own:{},lib:{}},R.res);
+    tx.update(ref,{extras,productName:[...new Set(extras.map(x=>x.name))].join('، '),pieces:extras.reduce((t,x)=>t+(x.qty||0),0),
+      reservation:res,reserved:resCount(res)>0,adds:(v.adds||0)+1,addedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  });
+  return out;
+}
+async function submitAdd(){
+  if(sending||!ADD)return;
+  const XL=lines();if(!XL.length){toast('اختار إشي أوّل');return;}
+  const adds=toExtras(XL),m=MINE.find(x=>x.id===ADD.id);
+  sending=true;const b=$('#sheetWa');b.disabled=true;b.textContent='⏳ عم نضيف على طلبك…';
+  let short=[],ok=false,msg='';
+  try{
+    let s=stateOf(m);
+    if(s&&s.edit==='req'){const o=await addToReq(m.id,XL,adds);short=o.short;if(!o.moved&&!short.length){ok=true;msg='انضافوا على طلبك';}
+      if(o.moved){await new Promise(r=>setTimeout(r,800));s=stateOf(m);}}
+    if(!ok&&!short.length&&s&&s.edit==='order'){
+      // الطلب انسجّل بوليصة (لسّا «جديد»): الإضافة بتروح للموظفة «إضافة على طلب #…» لتضيفها على نفس البوليصة
+      const kid=MINE.find(k=>k.parent===m.id&&TRK[k.id]&&TRK[k.id].req&&TRK[k.id].req.status==='new');
+      if(kid){const o=await addToReq(kid.id,XL,adds);short=o.short;if(!o.moved&&!short.length)ok=true;}
+      if(!ok&&!short.length){
+        const v=TRK[m.id].req,ref=m.ref+'+'+(MINE.filter(k=>k.parent===m.id).length+1);
+        const r={ref,pid:'',productName:[...new Set(adds.map(x=>x.name))].join('، '),items:[],extras:adds,pieces:adds.reduce((t,x)=>t+x.qty,0),
+          customer:v.customer||{},channel:v.channel||'whatsapp',workerId:v.workerId||'',status:'new',source:'catalog',
+          ...(v.pageId?{pageId:v.pageId,pageName:v.pageName||''}:{}),addTo:{reqId:m.id,orderId:v.orderId||'',ref:m.ref},
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+        short=await reserveAndSave(r,XL);
+        if(!short.length){ok=true;rememberMine({id:r.id,ref,t:Date.now(),parent:m.id});}
+      }
+      if(ok)msg='الإضافة وصلت للموظفة — رح تنضاف على نفس الطلب';
+    }
+    if(!ok&&!short.length)msg='stopped';
+  }catch(e){msg='err';}
+  sending=false;b.disabled=false;
+  if(short.length){
+    short.forEach(x=>{if(x.lib!=null){Object.keys(CART).forEach(id=>{const p=PR[id];if(p&&kind(p)==='lib'&&CART[id].n&&CART[id].n[x.lib])setQ(id,x.lib,x.have);});}else setQ(x.pid,x.num,x.have);});
+    toast('⚠️ '+short.map(x=>x.have?`الموجود من ${x.name} صار ${x.have} بس`:`${x.name} خلص هلّأ`).join('، ')+' — عدّلناها');paintSheet();cartRows();return;}
+  if(msg==='stopped'){ADD=null;paintMine();paint();closeSheet();toast('طلبك صار قيد التجهيز — ما بتقدر تزيد عليه هلّأ');return;}
+  if(msg==='err'){paintSheet();toast('النت ضعيف — جرّب كمان مرّة');return;}
+  const ref=ADD.ref;ADD=null;CART={};saveCart();render();paint();paintMine();
+  sview='done';$('#doneP').innerHTML=`➕ ${msg} 💚`;$('#doneRef').textContent='رقم الطلب '+ref;paintSheet();
 }
 // فتح المحادثة على نفس القناة اللي إجا منها الزبون
 function chatUrl(text){
@@ -727,6 +886,7 @@ async function openChat(text){
 function go(){
   if(sview==='done'&&$('#sheet').classList.contains('on')){closeSheet();return;}
   if(cartEmpty()){toast('اختار إشي أوّل');return;}
+  if(ADD){if(!$('#sheet').classList.contains('on'))openSheet();else submitAdd();return;}
   if(!$('#sheet').classList.contains('on')||sview==='done'){showForm();return;}
   if(sview==='cart'){showForm();return;}
   submitReq();
@@ -748,6 +908,8 @@ document.addEventListener('click',e=>{
     document.getElementById('cat'+ct.dataset.cat)?.scrollIntoView({behavior:'smooth',block:'start'});return;}
   const t=e.target.closest('[data-i]');if(t){openLb(Number(t.dataset.i));return;}
   const ar=e.target.closest('[data-ar]');if(ar){paintAreas(ar.dataset.ar);$('#ckErr').textContent='';return;}
+  const at=e.target.closest('[data-addto]');if(at){startAdd(at.dataset.addto);return;}
+  if(e.target.closest('[data-addx]')){ADD=null;paintMine();paint();return;}
   const stb=e.target.closest('[data-st]');if(stb){STORE=stores().find(x=>x.id===stb.dataset.st)||null;paintStores();$('#ckErr').textContent='';return;}
   const pq=e.target.closest('[data-pq]');if(pq){const [id,d]=pq.dataset.pq.split(':');const was=cTot(id);bump(id,null,Number(d));
     if(!was&&cTot(id))toast('✓ انضاف '+((PR[id]&&PR[id].name)||''));render();return;}
