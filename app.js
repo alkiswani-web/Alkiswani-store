@@ -3663,6 +3663,8 @@ async function clrCatalogLink(pid,opts){
   if(opts.workerId)_catLink.wid=opts.workerId;
   _catLinkPaint();
   if(!_catLink.cfg)db.collection('operator_config').doc('catalog_cfg').get().then(d=>{_catLink.cfg=(d.exists&&d.data())||{};_catLinkPaint();}).catch(()=>{_catLink.cfg={};});
+  if(!_catLink.fixedWid&&!_catLink.pages)db.collection('employee_pages').get().then(s=>{
+    _catLink.pages=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar'));_catLinkPaint();}).catch(()=>{_catLink.pages=[];});
   if(!_catLink.fixedWid&&!_catLink.workers)db.collection('employee_workers').get().then(s=>{
     _catLink.workers=s.docs.map(d=>({id:d.id,...d.data()})).filter(w=>!(w.permissions&&(w.permissions.isDelivery||w.permissions.isQRViewer)))
       .sort((a,b)=>String(a.name||a.username).localeCompare(String(b.name||b.username),'ar'));_catLinkPaint();}).catch(()=>{_catLink.workers=[];_catLinkPaint();});
@@ -3698,6 +3700,15 @@ function _catLinkPaint(){
       body+=`
 <div style="font-size:.74rem;color:#6b7280;font-weight:700;margin-top:10px;">اسم الكتالوج (بيطلع فوق عند الزبون)</div>
       <input id="catTitle" value="${_clrEsc((L.cfg&&L.cfg._title!=null)?L.cfg._title:((L.cfg&&L.cfg.title)||''))}" placeholder="كتالوج المنتجات" style="${F}width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1.5px solid #d1d5db;border-radius:10px;font-size:.88rem;">`;
+    }
+    // 🏪 الصفحات اللي الزبون بيختار منها «مع أي صفحة عم تحكي؟» — بالاسم اللي بيعرفه الزبون
+    const ST=(L.cfg&&Array.isArray(L.cfg.stores))?L.cfg.stores:[];
+    body+=`<button type="button" onclick="_catLink.sOpen=!_catLink.sOpen;_catLinkPaint()" style="${F}width:100%;margin-top:10px;padding:10px 12px;border:1.5px dashed #5eead4;border-radius:11px;background:#f0fdfa;color:#0f766e;font-size:.84rem;font-weight:900;cursor:pointer;text-align:right;">🏪 الصفحات اللي الزبون بيختار منها (${ST.length}) ${L.sOpen?'▴':'▾'}</button>`;
+    if(L.sOpen){
+      body+=`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:6px 0;line-height:1.7;">الزبون بينسأل «مع أي صفحة عم تحكي؟» وبيختار — فالموظفة بتعرف من وين إجا الطلب والبوليصة بتتعبّى عليها. علّم الصفحات واكتب اسمها زي ما الزبون بيعرفه.</div>`+
+        (L.pages==null?'<div style="color:#9ca3af;font-size:.8rem;">⏳</div>':(L.pages||[]).map(pg=>{const on=ST.find(x=>x.id===pg.id);
+          return `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;">${chip(!!on,`_catStoreToggle('${pg.id}')`,(on?'✓ ':'')+'📄 '+_clrEsc(pg.name),'#0f766e')}
+            ${on?`<input value="${_clrEsc(on.label||'')}" placeholder="الاسم عند الزبون: ${_clrEsc(pg.name)}" onchange="_catStoreLabel('${pg.id}',this.value)" style="${F}flex:1;min-width:0;padding:8px;border:1.5px solid #99f6e4;border-radius:9px;font-size:.84rem;">`:''}</div>`;}).join(''));
     }
     const ws=L.workers;
     body+=H('الطلب بيوصل لمين؟')+(ws==null?'<div style="color:#9ca3af;font-size:.8rem;">⏳</div>':
@@ -3743,7 +3754,21 @@ async function _catXCat(ids,on){
   _catLink.cfg=Object.assign({},_catLink.cfg,{products:cur});_catLinkPaint();
   try{await db.collection('operator_config').doc('catalog_cfg').set({products:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
 }
-window._catXToggle=_catXToggle;window._catXCat=_catXCat;
+async function _catStoresSave(cur){
+  _catLink.cfg=Object.assign({},_catLink.cfg,{stores:cur});_catLinkPaint();
+  try{await db.collection('operator_config').doc('catalog_cfg').set({stores:cur},{merge:true});}catch(e){toast('❌ ما انحفظ');}
+}
+function _catStoreToggle(id){
+  _catKeepInputs();
+  const cur=((_catLink.cfg&&_catLink.cfg.stores)||[]).slice(),i=cur.findIndex(x=>x.id===id);
+  if(i>=0)cur.splice(i,1);else{const pg=(_catLink.pages||[]).find(p=>p.id===id);cur.push({id,label:(pg&&pg.name)||''});}
+  _catStoresSave(cur);
+}
+function _catStoreLabel(id,v){
+  const cur=((_catLink.cfg&&_catLink.cfg.stores)||[]).map(x=>x.id===id?{id,label:String(v||'').trim().slice(0,40)}:x);
+  _catStoresSave(cur);
+}
+window._catXToggle=_catXToggle;window._catXCat=_catXCat;window._catStoreToggle=_catStoreToggle;window._catStoreLabel=_catStoreLabel;
 // المنتج إله صفحة معاينة (c/<المنتج> — اسمه وصورته بالواتساب)؟ منستعملها، وإلا الرابط القديم
 let _catPages=null,_catVer='';
 async function _catPagesLoad(){
