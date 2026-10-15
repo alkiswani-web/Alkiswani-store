@@ -7737,6 +7737,7 @@ async function submitEmpOrder(){
 
 // ═════════ 🛒 طلبات الكتالوج — الزبون عبّاها من colors.html ═════════
 // بتوصل للموظف صاحب الرابط (e=…)، واللي بلا موظف بتبيّن لكل مدخلي الطلبات.
+let _empCatFillAdds=0;
 let _empCatReqs=[],_empCatUnsub=null,_empCatReqId=null,_empCatSeen=null,_empCatOpen=true;
 let _empCatSweepT=null;
 function _empCatWatch(){
@@ -7753,6 +7754,8 @@ function _empCatWatch(){
       if(fresh.length){toast('🛒 طلب جديد من الكتالوج');try{navigator.vibrate&&navigator.vibrate([120,60,120]);}catch(e){}_empCatOpen=true;}}
     _empCatSeen=new Set(ids);
     if(_empCatReqId&&!ids.includes(_empCatReqId))_empCatReqId=null;   // موظف ثاني سجّله
+    {const cur=_empCatReqs.find(x=>x.id===_empCatReqId);
+      if(cur&&(cur.adds||0)>(_empCatFillAdds||0)){_empCatFillAdds=cur.adds||0;toast('➕ الزبون زاد على طلبه — اضغطي «حطّه بالبوليصة» كمان مرّة لتنضاف الزيادة');try{navigator.vibrate&&navigator.vibrate([120,60,120]);}catch(e){}}}
     _empCatPaint();
   },()=>{});
 }
@@ -7804,6 +7807,8 @@ function _empCatPaint(){
       <span style="color:#92400e;font-weight:900;">${_empCatOpen?'▴':'▾'}</span></button>
     ${_empCatOpen?L.map(r=>{const c=r.customer||{};const on=_empCatReqId===r.id;
       return `<div style="border-top:1px dashed #f59e0b;padding:10px 13px;background:${on?'#fef3c7':'transparent'};">
+        ${r.addTo?`<div style="font-size:.78rem;font-weight:900;color:#7c3aed;margin-bottom:4px;">➕ إضافة على طلب <bdi>#${_clrEsc(r.addTo.ref||'')}</bdi> — الزبون زاد على طلبه بعد ما انسجّل</div>`
+          :r.adds?`<div style="font-size:.76rem;font-weight:900;color:#7c3aed;margin-bottom:4px;">➕ الزبون زاد على طلبه${r.adds>1?' ('+r.adds+' مرات)':''}</div>`:''}
         <div style="display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:900;color:#1f2937;">
           <span title="${r.channel==='messenger'?'ماسنجر':'واتساب'}">${r.channel==='messenger'?'🔵':'🟢'}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <span style="direction:ltr;unicode-bidi:isolate;">${_clrEsc(c.phone||'')}</span></span>
@@ -7813,7 +7818,8 @@ function _empCatPaint(){
         ${r.pageName?`<div style="font-size:.72rem;color:#0f766e;font-weight:800;margin-top:2px;">📄 ${_clrEsc(r.pageName)}</div>`:''}
         <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 <bdi>${_clrEsc(r.productName||'')}</bdi>: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} <bdi>${_clrEsc(x.name)}</bdi>${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''}${_catOptHtml(x)} <bdi dir="ltr">×${x.qty}</bdi><br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
-          <button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>
+          ${r.addTo?`<button type="button" onclick="catAddToOrder('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">➕ ضيفه على البوليصة</button>`
+          :`<button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>`}
           ${r.channel==='messenger'
             ?`<button type="button" onclick="catCopyMsg('${r.id}')" title="انسخي رسالة للزبون والصقيها بمحادثة الماسنجر" style="${F}padding:9px 11px;border:1.5px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:.8rem;cursor:pointer;">📋 رسالة</button>`
             :(_catWaUrl(r)?`<a href="${_catWaUrl(r)}" target="_blank" rel="noopener" title="راسلي الزبون من واتساب المتجر" style="${F}padding:9px 11px;border:1.5px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#15803d;font-weight:800;font-size:.8rem;text-decoration:none;white-space:nowrap;">💬 راسليه</a>`:'')}
@@ -7859,7 +7865,7 @@ async function empCatFill(id){
     const xc=(x.colorNumbers||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0);
     _empOrderCart.push({id:x.pid,name:(xp&&xp.name)||x.name||'',price:parseFloat((xp&&xp.sellPrice)||x.price||0),
       qty:xc.length?xc.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),color:x.color||'',writing:x.writing||'',...(xc.length?{colorNumbers:xc}:{})});});
-  _empCatReqId=id;
+  _empCatReqId=id;_empCatFillAdds=r.adds||0;
   renderEmpOrderCart();
   if(c.phone&&typeof _empShowCRM==='function')_empShowCRM(c.phone);
   _empCatPaint();_empDockSync();
@@ -7911,6 +7917,39 @@ async function _catSweep(force){
     return old.length;
   }catch(e){return 0;}
 }
+// منتجات طلب الكتالوج بشكل منتجات البوليصة
+function _catProductsOf(r){
+  const src=[...((r.items||[]).length?[{pid:r.pid,name:r.productName,price:r.price,colorNumbers:r.items}]:[]),...(r.extras||[])];
+  return src.map(x=>{const p=_prodById(x.pid),cns=(x.colorNumbers||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0);
+    return {id:x.pid,name:(p&&p.name)||x.name||'',price:parseFloat((p&&p.sellPrice)||x.price||0),qty:cns.length?cns.reduce((t,i)=>t+i.qty,0):Math.max(1,Number(x.qty)||1),
+      ...(cns.length?{colorNumbers:cns}:{}),...(x.color?{color:x.color}:{}),...(x.writing?{writing:x.writing}:{})};});
+}
+// ➕ الزبون زاد على طلب انسجّل بوليصة (ولسّا «جديد»): الإضافة بتنضاف على نفس البوليصة
+async function catAddToOrder(rid){
+  const r=(_empCatReqs||[]).find(x=>x.id===rid)||((typeof _catAdm!=='undefined'&&_catAdm.reqs)||[]).find(x=>x.id===rid);
+  if(!r||!r.addTo)return;
+  const oid=r.addTo.orderId;let od=null;
+  try{const d=await db.collection('employee_orders').doc(oid).get();od=d.exists?{id:d.id,...d.data()}:null;}catch(e){}
+  const inEmp=!!document.getElementById('empPanel')&&document.getElementById('empPanel').style.display!=='none';
+  if(!od||od.status!=='pending'){
+    if(confirm(od?'البوليصة صارت «'+(({preparing:'قيد التجهيز',prepared:'تم التجهيز',delivering:'بالطريق',delivered:'تم التوصيل',cancelled:'ملغي'})[od.status]||od.status)+'» — نسجّل الإضافة ببوليصة جديدة؟':'ما لقيت البوليصة — نسجّل الإضافة ببوليصة جديدة؟'))
+      inEmp?empCatFill(rid):catAdmReg(rid);
+    return;
+  }
+  const add=_catProductsOf(r),sub=add.reduce((t,i)=>t+i.price*i.qty,0);
+  const who=inEmp&&_empCurrentUser?(_empCurrentUser.displayName||_empCurrentUser.username):'الأدمن';
+  try{
+    await _catRelease(rid);
+    const next={...od,products:[...(od.products||[]),...add]};
+    await db.collection('employee_orders').doc(oid).update({products:next.products,
+      totalPrice:(Number(od.totalPrice)||0)+sub,netPrice:(Number(od.netPrice)||0)+sub,
+      editHistory:firebase.firestore.FieldValue.arrayUnion({by:who,at:jordanDisplayDate(),note:'➕ إضافة من الكتالوج #'+(r.ref||'')})});
+    _orderStockSync(oid,od,next,!!od.colorStockApplied,true);
+    await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:oid,doneBy:who,doneAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast('✅ انضافت على البوليصة (+'+sub.toFixed(2)+' د.أ)');
+  }catch(e){toast('❌ '+e.message);}
+}
+window.catAddToOrder=catAddToOrder;
 async function empCatDismiss(id){
   if(!confirm('نشيل هاد الطلب؟ (ما رح يتسجّل — والألوان المحجوزة إله بترجع للمخزون)'))return;
   await _catRelease(id);
@@ -12302,13 +12341,14 @@ function _catAdmPaint(){
         <span>${r.channel==='messenger'?'🔵':'🟢'}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <bdi>${_clrEsc(c.phone||'')}</bdi></span>
         <span style="font-size:.7rem;color:${late?'#b45309':'#9ca3af'};font-weight:800;white-space:nowrap;">${_hqAgo(r.createdAt)}</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:4px;font-size:.72rem;font-weight:800;">
-        <span style="color:#7c3aed;">👤 ${_clrEsc(_catAdmWName(r.workerId))}</span>${r.pageName?`<span style="color:#0f766e;">📄 ${_clrEsc(r.pageName)}</span>`:''}${st}${r.ref?`<span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
+        ${r.addTo?`<span style="color:#7c3aed;">➕ إضافة على #${_clrEsc(r.addTo.ref||'')}</span>`:r.adds?'<span style="color:#7c3aed;">➕ زاد على طلبه</span>':''}<span style="color:#7c3aed;">👤 ${_clrEsc(_catAdmWName(r.workerId))}</span>${r.pageName?`<span style="color:#0f766e;">📄 ${_clrEsc(r.pageName)}</span>`:''}${st}${r.ref?`<span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
       <div style="font-size:.78rem;color:#374151;font-weight:700;margin-top:6px;line-height:1.75;">
         ${lines.map(x=>`📦 <bdi>${_clrEsc(x.name||'')}</bdi> ${chips(x.colorNumbers)}${_catOptHtml(x)} <bdi dir="ltr">×${x.qty}</bdi>`).join('<br>')}
         ${r.extraText?`<br>✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}`:''}
         <br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}</div>
       ${r.status==='new'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
-        <button onclick="catAdmReg('${r.id}')" style="${F}flex:1 1 140px;padding:9px;background:#166534;color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:900;cursor:pointer;">📝 سجّله بوليصة</button>
+        ${r.addTo?`<button onclick="catAddToOrder('${r.id}')" style="${F}flex:1 1 140px;padding:9px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:900;cursor:pointer;">➕ ضيفه على البوليصة</button>`
+        :`<button onclick="catAdmReg('${r.id}')" style="${F}flex:1 1 140px;padding:9px;background:#166534;color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:900;cursor:pointer;">📝 سجّله بوليصة</button>`}
         <button onclick="_catAdm.open=_catAdm.open==='${r.id}'?'':'${r.id}';_catAdmPaint()" style="${F}padding:9px 11px;background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:10px;font-size:.78rem;font-weight:800;cursor:pointer;">👤 حوّل</button>
         ${wa?`<a href="${_catWaUrl(r)}" target="_blank" rel="noopener" style="${F}padding:9px 11px;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">💬</a>
         <a href="tel:${_clrEsc(c.phone||'')}" style="${F}padding:9px 11px;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:10px;font-size:.78rem;font-weight:800;text-decoration:none;">📞</a>`:''}
