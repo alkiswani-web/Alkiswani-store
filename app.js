@@ -7640,6 +7640,20 @@ function clearEmpImage(idx){
   if(c)c.value='';if(f)f.value='';
 }
 
+// 🔢 رقم تسلسلي لكل الطلبات (كتالوج أو بوليصة مباشرة): 1001، 1002… — عدّاد واحد بمعاملة
+// فما بيتكرّر حتى لو موظفتين سجّلوا بنفس اللحظة. طلب الكتالوج بياخد رقمه وقت ما الزبون يثبّت،
+// والبوليصة اللي بتنعمل منه بتاخد نفس الرقم.
+async function _nextSeq(){
+  const ref=db.collection('operator_config').doc('order_seq');let n=0;
+  await db.runTransaction(async tx=>{const d=await tx.get(ref);n=((d.exists&&Number(d.data().n))||1000)+1;tx.set(ref,{n},{merge:true});});
+  return n;
+}
+async function _orderNumFor(manual,req){
+  if(manual)return manual;
+  if(req&&req.seq)return String(req.seq);
+  if(req&&req.addTo&&/^\d+$/.test(String(req.addTo.ref||'')))return String(req.addTo.ref);
+  try{return String(await _nextSeq());}catch(e){return '';}
+}
 async function submitEmpOrder(){
   if(!_empCurrentUser){toast('⚠️ يجب تسجيل الدخول أولاً');return;}
   const pageSel=document.getElementById('emp_page');
@@ -7677,6 +7691,7 @@ async function submitEmpOrder(){
     _empCurrentImages=await _compressImagesForDoc(_empCurrentImages);
     _empCurrentImages=await _uploadImagesToStorage(_empCurrentImages,'order-images');
     const _newProducts=_empOrderCart.map(i=>{const pl=_resolveItemPriceLabel(i);return {id:i.id,name:i.name,price:i.price,qty:i.qty,...(i.color?{color:i.color}:{}),...(i.writing?{writing:i.writing}:{}),...(Array.isArray(i.colorNumbers)&&i.colorNumbers.length?{colorNumbers:i.colorNumbers}:{}),...(pl?{priceLabel:pl}:{})};});
+    const _ordNum=await _orderNumFor(orderNumInput,_empCatReqId&&(_empCatReqs||[]).find(x=>x.id===_empCatReqId));
     const _newRef=await db.collection('employee_orders').add({
       workerId:_empCurrentUser.id,
       workerName:_empCurrentUser.displayName||_empCurrentUser.username,
@@ -7686,7 +7701,7 @@ async function submitEmpOrder(){
       ...(customerName?{customerName}:{}),
       address,notes,
       ...(areaInput?{area:areaInput}:{}),
-      ...(orderNumInput?{orderNum:orderNumInput}:{}),
+      ...(_ordNum?{orderNum:_ordNum}:{}),
       ...(_empCatReqId?{catalogReq:_empCatReqId}:{}),
       ...(_empCurrentImages.length?{imageDataUrls:_empCurrentImages,imageDataUrl:_empCurrentImages[0]}:{}),
       ...(_empCurrentImages.length&&_empOrderCart.some(i=>(i.name||'').includes('برواز'))?{isFrameOrder:true}:{}),
@@ -7706,7 +7721,7 @@ async function submitEmpOrder(){
       db.collection('catalog_requests').doc(rid).update({status:'done',orderId:_newRef.id,doneBy:_empCurrentUser.displayName||_empCurrentUser.username,doneAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
       _empCatPaint();}
     toast('✅ تم تسجيل الطلب بنجاح');
-    _empStampFx(orderNumInput);
+    _empStampFx(_ordNum);
     _empOrderCart=[];_empDeliveryFee=2;_empCurrentImages=[];
     _resetEmpReadyBtn();
     renderEmpOrderCart();
@@ -12421,11 +12436,12 @@ async function catAdmRegGo(rid){
     const note=[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'','🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — ');
     // الحجز بيتحوّل للبوليصة: منفكّه أوّل، وبعدين البوليصة بتخصم اللي فيها
     await _catRelease(rid);
+    const orderNum=await _orderNumFor('',r);
     const ref=await db.collection('employee_orders').add({
       workerId:wid||'admin',workerName:wid?(W[wid]&&W[wid].name)||'':'الأدمن',
       pageId,pageName:pageSel.selectedOptions[0]?.text||'',
       products,customerPhone:phone,...(c.name?{customerName:c.name}:{}),
-      address:c.address||'',notes:note,...(c.area?{area:c.area}:{}),catalogReq:rid,
+      address:c.address||'',notes:note,...(c.area?{area:c.area}:{}),catalogReq:rid,...(orderNum?{orderNum}:{}),
       status:'pending',totalPrice:sub+fee,deliveryFee:fee,netPrice:sub+fee,
       date:jordanDateStr(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),editHistory:[],
       createdByAdmin:_currentAdminUser||'admin'

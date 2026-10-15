@@ -685,13 +685,17 @@ async function reserveIn(tx,XL,P){
   return {short,res,apply:()=>upd.forEach(([rf,u])=>tx.update(rf,u))};
 }
 const resCount=res=>Object.keys((res&&res.own)||{}).length+Object.keys((res&&res.lib)||{}).length;
+// رقم الطلب: عدّاد تسلسلي واحد لكل الطلبات (1001، 1002…) — بنفس المعاملة اللي بتحفظ الطلب.
+// الإضافة على طلب (addTo) بتاخد رقم الطلب الأصلي.
 async function reserveAndSave(r,XL){
-  const ref=db.collection('catalog_requests').doc(),P=prepReserve(XL);
-  let short=[],res=null;
+  const ref=db.collection('catalog_requests').doc(),P=prepReserve(XL),seqRef=db.collection('operator_config').doc('order_seq');
+  let short=[],res=null,n=0;
   await db.runTransaction(async tx=>{
+    const sq=r.addTo?null:await tx.get(seqRef);
     const R=await reserveIn(tx,XL,P);short=R.short;res=R.res;
     if(short.length)return;
     R.apply();
+    if(sq){n=((sq.exists&&Number(sq.data().n))||1000)+1;tx.set(seqRef,{n},{merge:true});r.seq=n;r.ref=String(n);}
     tx.set(ref,{...r,reserved:resCount(res)>0,reservation:res});
   });
   r.id=ref.id;
@@ -713,7 +717,7 @@ async function submitReq(){
   ME={name,phone,area:AREA,address,...(STORE?{store:STORE.id}:{})};LS.set('_clrMe',ME);
   const extras=XL.map(x=>({pid:x.pid,name:x.name,price:x.price,qty:x.qty,...(x.colorNumbers?{colorNumbers:x.colorNumbers.map(c=>({num:c.num,tag:String(c.tag),qty:c.qty}))}:{}),
     ...(x.color?{color:x.color}:{}),...(x.writing?{writing:x.writing}:{})}));
-  const ref=Math.random().toString(36).slice(2,7).toUpperCase();
+  const ref=String(Date.now()).slice(-6);   // مؤقّت — بيتبدّل برقم تسلسلي لما ينحفظ
   const r={ref,pid:'',productName:extras.map(x=>x.name).join('، '),items:[],extras,...(extraText?{extraText}:{}),
     pieces:extras.reduce((t,x)=>t+x.qty,0),customer:{name,phone,area:AREA,address,notes},
     channel:CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',source:'catalog',
@@ -735,11 +739,11 @@ async function submitReq(){
   r.text=reqText(r);lastReq=r;
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
   CART={};saveCart();render();paint();
-  rememberMine({id:r.id,ref,t:Date.now()});
+  rememberMine({id:r.id,ref:r.ref,t:Date.now()});
   sview='done';
   // ما في رسالة تأكيد يبعتها الزبون: الطلب وصل للموظفة، وهي بتتواصل معه من نفس محادثة المتجر
   $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>رح نتواصل معك بنفس المحادثة لنأكّد التوصيل 💚`;
-  $('#doneRef').textContent='رقم الطلب '+ref;
+  $('#doneRef').textContent='رقم الطلب '+r.ref;
   paintSheet();
 }
 // ── طلباتي: الزبون بيشوف حالة طلبه، وبيزيد عليه طول ما هو «جديد» ──
@@ -846,7 +850,7 @@ async function submitAdd(){
       const kid=MINE.find(k=>k.parent===m.id&&TRK[k.id]&&TRK[k.id].req&&TRK[k.id].req.status==='new');
       if(kid){const o=await addToReq(kid.id,XL,adds);short=o.short;if(!o.moved&&!short.length)ok=true;}
       if(!ok&&!short.length){
-        const v=TRK[m.id].req,ref=m.ref+'+'+(MINE.filter(k=>k.parent===m.id).length+1);
+        const v=TRK[m.id].req,ref=m.ref;   // الإضافة بنفس رقم الطلب
         const r={ref,pid:'',productName:[...new Set(adds.map(x=>x.name))].join('، '),items:[],extras:adds,pieces:adds.reduce((t,x)=>t+x.qty,0),
           customer:v.customer||{},channel:v.channel||'whatsapp',workerId:v.workerId||'',status:'new',source:'catalog',
           ...(v.pageId?{pageId:v.pageId,pageName:v.pageName||''}:{}),addTo:{reqId:m.id,orderId:v.orderId||'',ref:m.ref},
