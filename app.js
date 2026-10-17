@@ -4671,6 +4671,7 @@ let _posScanMsg='';
 // (مرّة وحدة للأبد) وبتضيفه للسلّة — بلا ما تطلع من البيع لشاشة الباركود.
 let _posLink=null;   // {code,pid}
 let _posCnq=null;    // {pid,n,v} — كتابة كمية لون
+let _posUP=null;     // {id} — تعديل سعر الحبّة لصنف واحد
 let _posSeq=0;
 
 const POS_CSS=`
@@ -4719,6 +4720,8 @@ const POS_CSS=`
 #posModal .pk-rc button.del{margin-inline-start:auto;color:var(--bad);border-color:rgba(255,107,107,.45);font-size:13.5px;padding:0 12px;}
 #posModal .pk-rc .q{min-width:30px;text-align:center;font-size:19px;}
 #posModal .pk-rc .cl{font-size:12px;color:#8FA39C;font-weight:800;}
+#posModal .pk-rc button.up{color:var(--amb);border-color:rgba(255,181,71,.45);font-size:13px;padding:0 10px;}
+#posModal .pk-sub [data-ta="price"]{cursor:pointer;border-bottom:1px dashed rgba(255,181,71,.6);}
 #posModal .pk-hint{text-align:center;font-size:11.5px;font-weight:700;color:#55665F;padding:10px 12px 12px;}
 #posModal .pk-row .nm b{display:block;font-size:15.5px;font-weight:900;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;}
@@ -5042,13 +5045,13 @@ function posRenderTape(){
       else sub=cns.map(c=>`<span class="pk-chip num" data-cnq="${_clrEsc(it.id)}:${c.num}" style="cursor:pointer">${_clrEsc(_cnTag(p,c.num))}&times;${c.qty}</span>`).join('');
     }
     const disc=Math.max(0,(Number(it.list)||0)-(Number(it.price)||0));
-    sub+=`<em><span class="num">${q}</span> &times; <span class="num">${(Number(it.price)||0).toFixed(2)}</span>`
+    sub+=`<em><span class="num">${q}</span> &times; <span class="num" data-ta="price" title="غيّر سعر الحبّة">${(Number(it.price)||0).toFixed(2)}</span>`
       +(disc>0.009?` · <span style="color:#FFB547">خصم <span class="num">${disc.toFixed(2)}</span></span>`:'')+`</em>`;
     // الصفّ نفسه صار زرّ: ضغطة بتفتح − الكمية ＋ و🗑 — حتى للصنف اللي انضاف من «دوّر» وما إله مفتاح تحت
     const on=_posActive===it.id;
     const rc=!on?'':(_posIsYarn(p)
-      ?`<div class="pk-rc"><span class="cl">الكمية من ${_cnIsSize(p)?'القياسات':'أرقام الألوان'} تحت ▼</span><button class="del" data-ta="del">🗑 احذف</button></div>`
-      :`<div class="pk-rc"><button class="dec" data-ta="dec">−</button><span class="q num">${q}</span><button class="inc" data-ta="inc">＋</button><button class="del" data-ta="del">🗑 احذف</button></div>`);
+      ?`<div class="pk-rc"><span class="cl">الكمية من ${_cnIsSize(p)?'القياسات':'أرقام الألوان'} تحت ▼</span><button class="up" data-ta="price">✎ سعر الحبّة</button><button class="del" data-ta="del">🗑 احذف</button></div>`
+      :`<div class="pk-rc"><button class="dec" data-ta="dec">−</button><span class="q num">${q}</span><button class="inc" data-ta="inc">＋</button><button class="up" data-ta="price">✎ سعر الحبّة</button><button class="del" data-ta="del">🗑 احذف</button></div>`);
     return `<div class="pk-row${on?' on':''}${_posHit===it.id?' hit':''}" data-tid="${_clrEsc(it.id)}" style="--hue:${_posHue(p)}">
       <div class="nm"><b>${_clrEsc(it.name)}</b><div class="pk-sub">${sub}</div>${rc}</div>
       <span class="num amt">${((Number(it.price)||0)*q).toFixed(2)}</span></div>`;
@@ -5073,6 +5076,7 @@ function _posBindTape(){
     if(ta==='inc')posAct('step:1');
     else if(ta==='dec')posAct('step:-1');
     else if(ta==='del')posAct('del');
+    else if(ta==='price'){_posUP={id};_posSheet='uprice';_posBuzz(12);posRender();}
   });
 }
 let _posLastSell=null;
@@ -5239,7 +5243,30 @@ function posFinalOk(){
   toast(dc>0.004?`🏷️ السعر النهائي ${v.toFixed(2)} — خصم ${dc.toFixed(2)}`:'🏷️ بلا خصم');
   posRender();
 }
-window.posOpenFinal=posOpenFinal;window.posFinalOk=posFinalOk;window._posFinPaint=_posFinPaint;
+function _posUPVal(){
+  const i=document.getElementById('posUP');if(!i)return NaN;
+  const v=String(i.value||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٫,]/g,'.').trim();
+  return v===''?NaN:Number(v);
+}
+function _posUPPaint(){
+  const it=_posUP&&_posLine(_posUP.id);if(!it)return;
+  const v=_posUPVal(),q=_posLq(it),L=Number(it.list)||0;
+  const t=document.getElementById('posUPT'),dd=document.getElementById('posUPD');if(!t)return;
+  if(!(v>=0)){t.textContent='—';dd.textContent='—';return;}
+  t.textContent=(v*q).toFixed(2);
+  const dc=(L-v)*q;dd.textContent=dc>0.004?dc.toFixed(2):dc<-0.004?'⚠ أكثر من الأصلي':'0.00';
+}
+function posUPOk(){
+  const it=_posUP&&_posLine(_posUP.id);if(!it){_posSheet='';_posUP=null;posRender();return;}
+  const v=_posUPVal();
+  if(!(v>0)){toast('⚠️ اكتب سعر الحبّة');_posBeep('bad');return;}
+  it.price=Math.round(v*1000)/1000;
+  const L=Number(it.list)||0;
+  _posSheet='';_posUP=null;_posBeep('dup');_posBuzz(16);
+  toast(`🏷️ ${it.name}: الحبّة بـ ${it.price.toFixed(2)}`+(L-it.price>0.004?` (خصم ${(L-it.price).toFixed(2)})`:''));
+  posRender();
+}
+window.posOpenFinal=posOpenFinal;window.posFinalOk=posFinalOk;window._posFinPaint=_posFinPaint;window._posUPPaint=_posUPPaint;window.posUPOk=posUPOk;
 function posRenderSheet(){
   const old=document.getElementById('posSheetEl'); if(old)old.remove();
   if(!_posSheet)return;
@@ -5277,6 +5304,36 @@ function posRenderSheet(){
       const idx=_posCart.findIndex(x=>x.id===pid);
       const c0=idx>=0?_posCnQty(_posCart[idx],n):0;
       if(idx>=0&&target!==c0)posCN(idx,n,target-c0);else posRender();
+    });
+    return;
+  }
+  if(_posSheet==='uprice'&&_posUP){
+    // سعر الحبّة لصنف واحد: بتكتب السعر اللي بدّك تحسبه للزبون، والمجموع بيتحسب لحاله.
+    // السعر الأصلي (list) بيضل محفوظ — فالخصم بيبيّن والربح بالتقارير صحيح
+    const it=_posLine(_posUP.id);if(!it){_posSheet='';_posUP=null;return;}
+    const L=Number(it.list)||0,q=_posLq(it),cur=Number(it.price)||0;
+    const chips=[...new Set([L-0.25,L-0.5,L-1].filter(v=>v>0).map(v=>v.toFixed(2)))];
+    d.innerHTML=`<h4>سعر الحبّة — ${_clrEsc(it.name)}</h4>
+      <div class="pk-fin">
+        <div class="ln"><span>السعر الأصلي للحبّة</span><b class="num">${L.toFixed(2)}</b></div>
+        <input id="posUP" class="fin num" type="text" inputmode="decimal" autocomplete="off" value="${cur.toFixed(2)}" oninput="_posUPPaint()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();posUPOk();}">
+        ${chips.length?`<div class="chips">${chips.map(v=>`<button type="button" class="num" data-uv="${v}">${v}</button>`).join('')}</div>`:''}
+        <div class="ln"><span>مجموع الصنف (<span class="num">${q}</span> حبّة)</span><b class="num" id="posUPT">—</b></div>
+        <div class="ln dc"><span>الخصم على الصنف</span><b class="num" id="posUPD">—</b></div>
+      </div>
+      <div class="btns">
+        <button class="key ghost mid" data-us="clear" style="flex:1"><span class="lbl">رجّع للأصلي</span></button>
+        <button class="key go mid" data-us="ok" style="flex:2"><span class="lbl" style="font-size:16px">تمّ ✓</span></button>
+      </div>`;
+    document.querySelector('#posModal .pk-wrap').appendChild(d);
+    _posUPPaint();
+    const inp=document.getElementById('posUP');if(inp){try{inp.focus();inp.select();}catch(e){}}
+    d.addEventListener('click',e=>{
+      const c=e.target.closest('[data-uv]');if(c){document.getElementById('posUP').value=c.getAttribute('data-uv');_posUPPaint();_posBuzz(10);return;}
+      const b=e.target.closest('[data-us]');if(!b)return;
+      if(b.getAttribute('data-us')==='clear'){it.price=L;_posSheet='';_posUP=null;toast('🏷️ رجع السعر الأصلي');_posBuzz(12);posRender();return;}
+      posUPOk();
     });
     return;
   }
