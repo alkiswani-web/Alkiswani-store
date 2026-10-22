@@ -14336,11 +14336,25 @@ async function saveSaleEntry(){
   }catch(e){toast('❌ خطأ في الحفظ');}
 }
 
-async function deleteSaleEntry(id){
-  if(!confirm('حذف هذه المبيعة؟')) return;
+// حذف بيعة من البيع المباشر (لزبون أو لمتجر) لازم يرجّع ألوانها للمخزون زي «إرجاع» —
+// كان بينحذف السجلّ بس والحبات بتضيع. (بيعات الطلبات مخزونها على الطلب نفسه، فما منلمسه)
+async function _saleStockBack(id){
   try{
+    const d=await db.collection('operator_sales').doc(id).get();
+    if(!d.exists)return false;
+    const s=d.data();
+    if(!(s.posSale||s.posStoreSale)||s.returned===true)return false;
+    if(!Array.isArray(s.colorNumbers)||!s.colorNumbers.length)return false;
+    await _orderStockSync(null,{products:[{id:s.productId,colorNumbers:s.colorNumbers}]},null,true,false);
+    return true;
+  }catch(e){console.error('saleStockBack',e);return false;}
+}
+async function deleteSaleEntry(id){
+  if(!confirm('حذف هذه المبيعة؟\n\nإذا كانت من البيع المباشر، ألوانها بترجع للمخزون.')) return;
+  try{
+    const back=await _saleStockBack(id);
     await db.collection('operator_sales').doc(id).delete();
-    toast('✅ تم الحذف');
+    toast(back?'✅ تم الحذف — والألوان رجعت للمخزون':'✅ تم الحذف');
   }catch(e){toast('❌ خطأ في الحذف');}
 }
 
@@ -14729,11 +14743,12 @@ async function deleteStorePayment(id){
 }
 
 async function deleteStoreSale(id){
-  if(!confirm('حذف هذه المشترية؟'))return;
+  if(!confirm('حذف هذه المشترية؟\n\nإذا كانت من البيع المباشر، ألوانها بترجع للمخزون.'))return;
   try{
+    const back=await _saleStockBack(id);
     await db.collection('operator_sales').doc(id).delete();
     _acctCurrentSales=_acctCurrentSales.filter(s=>s.id!==id);
-    toast('🗑 تم الحذف');
+    toast(back?'🗑 تم الحذف — والألوان رجعت للمخزون':'🗑 تم الحذف');
     renderAcctDetail();
   }catch(e){toast('❌ خطأ: '+e.message);}
 }
