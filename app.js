@@ -4997,6 +4997,7 @@ async function openPos(){
   <div class="pk-wrap">
     <div class="pk-hdr">
       <div class="t"><b>بيع مباشر</b><span id="posHdrSub">كاش فوري</span></div>
+      <button class="pk-x" onclick="openSwapFree()" title="تبديل ألوان — الزبونة رجّعت ألوان وأخدت غيرها" style="margin-inline-start:auto;margin-inline-end:6px;font-size:.8rem;width:auto;padding:0 10px;">🔄 تبديل</button>
       <button class="pk-x" onclick="posClose()" title="إغلاق">✕</button>
     </div>
     <div class="pk-tape" id="posTape"></div>
@@ -5816,7 +5817,10 @@ async function posLogLoad(force){
       ()=>db.collection('operator_sales').where('posSale','==',true).get());
     _posLogRows=snap.docs.map(d=>({id:d.id,...d.data()}));
   }catch(e){ _posLogRows=null; }
+  try{const sw=await _cachedQuery('operator_swaps:log',60000,()=>db.collection('operator_swaps').get());
+    _posLogSwaps=sw.docs.map(d=>({id:d.id,...d.data()}));}catch(e){_posLogSwaps=[];}
 }
+let _posLogSwaps=[];
 // سطرٌ واحد من الفاتورة: كل أرقامه من السجلّ نفسه لا من المنتج الحالي،
 // فسعرٌ تغيّر اليوم ما بيعيد كتابة بيعةٍ صارت مبارح.
 function _posRowNums(s){
@@ -5867,8 +5871,14 @@ function posLogRender(){
       <div style="font-size:0.85rem;font-weight:900;color:${profit>=0?'#1e40af':'#dc2626'};">${profit.toFixed(2)}</div></div>
   </div>${back.length?`<div style="font-size:0.68rem;color:#b91c1c;text-align:center;margin-top:6px;">↩️ مرتجع بالفترة: ${back.length} سطر · ${rAmt.toFixed(2)} د.أ (مطروحة أصلاً)</div>`:''}`;
 
+  // 🔄 التبديلات (اللي انعملت بلا بيعة) بنفس الفترة
+  const sws=(_posLogSwaps||[]).filter(w=>{const d=String(w.date||'');return !(_posLogFrom&&d<_posLogFrom)&&!(_posLogTo&&d>_posLogTo);})
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const swHtml=sws.map(w=>{const sp=_prodById(w.productId);return `<div style="border:1.5px solid #ddd6fe;background:#faf5ff;border-radius:12px;padding:9px 10px;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;gap:8px;font-size:.78rem;font-weight:800;color:#6d28d9;"><span>🔄 تبديل — ${_clrEsc(w.productName||'')}</span><span style="color:#9ca3af;">${_clrEsc(w.date||'')}</span></div>
+    <div style="font-size:.72rem;color:#374151;margin-top:3px;">رجّعت ${_clrEsc((w.out||[]).map(c=>_cnTag(sp,c.num)+'×'+c.qty).join('، '))} ⇐ أخدت ${_clrEsc((w.in||[]).map(c=>_cnTag(sp,c.num)+'×'+c.qty).join('، '))}${w.by?' · '+_clrEsc(w.by):''}</div></div>`;}).join('');
   if(!rows.length){
-    body.innerHTML='<div style="text-align:center;color:#9ca3af;font-size:0.84rem;padding:30px;">ما في بيعات مباشرة بهالفترة</div>';
+    body.innerHTML=swHtml||'<div style="text-align:center;color:#9ca3af;font-size:0.84rem;padding:30px;">ما في بيعات مباشرة بهالفترة</div>';
     return;
   }
   // الفاتورة الواحدة = posId واحد: الزبون أخد كذا منتج بقبضةٍ وحدة
@@ -5878,7 +5888,7 @@ function posLogRender(){
     const da=inv.get(a)[0].date||'',dbb=inv.get(b)[0].date||'';
     return da===dbb?String(b).localeCompare(String(a)):(da<dbb?1:-1);
   });
-  body.innerHTML=keys.map(k=>{
+  body.innerHTML=swHtml+keys.map(k=>{
     const its=inv.get(k);
     const head=its[0];
     const alive=its.filter(s=>s.returned!==true);
@@ -5936,6 +5946,22 @@ async function openPosSwap(id){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   document.body.appendChild(ov);_swapPaint();
 }
+// 🔄 تبديل بلا ما تدوّر على البيعة: الزبونة رجعت بعد كم يوم وما حدا متذكّر إمتى اشترت.
+// بتختار المنتج، شو رجّعت وشو أخدت — المخزون بيتظبط، والتبديل بينسجّل بسجلّ البيع المباشر.
+function _swapProds(){return (_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);}
+async function openSwapFree(pid){
+  if(!(_opProductsList||[]).length&&typeof loadOpProducts==='function')await loadOpProducts(true);
+  await loadColorLibrary();
+  const ps=_swapProds();
+  const p=_prodById(pid)||ps[0];if(!p){toast('⚠️ ما في منتجات بألوان');return;}
+  _swap={free:true,p,out:{},inn:{}};
+  document.getElementById('swapModal')?.remove();
+  const ov=document.createElement('div');ov.id='swapModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100006;display:flex;align-items:flex-end;justify-content:center;';
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);_swapPaint();
+}
+function swapProd(pid){if(!_swap)return;const p=_prodById(pid);if(!p)return;_swap.p=p;_swap.out={};_swap.inn={};_swapPaint();}
 // المتوفّر من لون (null = ما انجرد)
 function _swapStock(p,num){
   if(_prodOwnColors(p)){const q=_ownQty(p,num);return q==null?null:Math.max(0,Number(q)||0);}
@@ -5943,8 +5969,8 @@ function _swapStock(p,num){
 }
 function _swapPaint(){
   const ov=document.getElementById('swapModal');if(!ov||!_swap)return;
-  const {s,p,out,inn}=_swap,F="font-family:'Tajawal',sans-serif;";
-  const sold=(s.colorNumbers||[]).filter(c=>(c.qty||0)>0);
+  const {s,p,out,inn}=_swap,F="font-family:'Tajawal',sans-serif;",free=!!_swap.free;
+  const sold=free?[]:(s.colorNumbers||[]).filter(c=>(c.qty||0)>0);
   const nOut=Object.values(out).reduce((t,q)=>t+q,0),nIn=Object.values(inn).reduce((t,q)=>t+q,0);
   const codes=_prodColorCodes(p).filter(n=>_prodOwnColors(p)||_clrSt(n)!=='retired');
   const B=(fn,t)=>`<button onclick="${fn}" style="width:30px;height:30px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:900;cursor:pointer;">${t}</button>`;
@@ -5952,8 +5978,14 @@ function _swapPaint(){
   ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;padding:14px 16px 16px;${F}">
     <div style="display:flex;align-items:center;justify-content:space-between;"><b style="font-size:1rem;color:#6d28d9;">🔄 تبديل ألوان — ${_clrEsc(p.name||'')}</b>
       <button onclick="document.getElementById('swapModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;cursor:pointer;">✕</button></div>
-    <div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:3px 0 10px;">${_clrEsc(s.date||'')}${s.customerName?' · 👤 '+_clrEsc(s.customerName):''}${s.storeName&&s.posStoreSale?' · 🏪 '+_clrEsc(s.storeName):''} — المبلغ ما بيتغيّر</div>
+    ${free?`<div style="display:flex;gap:6px;overflow-x:auto;margin:8px 0 4px;padding-bottom:2px;scrollbar-width:none;">${_swapProds().map(x=>`<button onclick="swapProd('${x.id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${x.id===p.id?'#6d28d9':'#e5e7eb'};background:${x.id===p.id?'#6d28d9':'#fff'};color:${x.id===p.id?'#fff':'#374151'};${F}font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${_clrEsc(x.name)}</button>`).join('')}</div>
+      <div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:3px 0 10px;">بلا ما تدوّر على البيعة — اختار المنتج، وشو رجّعت الزبونة وشو أخدت بدلها. المبلغ ما بيتغيّر.</div>`
+    :`<div style="font-size:.72rem;color:#6b7280;font-weight:700;margin:3px 0 10px;">${_clrEsc(s.date||'')}${s.customerName?' · 👤 '+_clrEsc(s.customerName):''}${s.storeName&&s.posStoreSale?' · 🏪 '+_clrEsc(s.storeName):''} — المبلغ ما بيتغيّر</div>`}
     <div style="font-size:.82rem;font-weight:900;color:#b91c1c;margin-bottom:6px;">١ · شو رجّعت؟</div>
+    ${free?`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">${codes.map(n=>{const q=out[n]||0;
+      return `<div style="border:1.5px solid ${q?'#dc2626':'#e5e7eb'};border-radius:10px;padding:5px 3px;text-align:center;background:${q?'#fef2f2':'#fff'};">
+        <button onclick="_swapSet('out',${n},1)" style="width:100%;border:none;background:none;font-weight:900;font-size:.92rem;cursor:pointer;${F}">${_clrEsc(_cnTag(p,n))}</button>
+        ${q?`<div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:3px;"><button onclick="_swapSet('out',${n},-1)" style="width:22px;height:22px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;font-weight:900;cursor:pointer;">−</button><b class="num" style="color:#b91c1c;">${q}</b></div>`:''}</div>`;}).join('')}</div>`:''}
     ${sold.map(c=>{const q=out[c.num]||0;return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed #f3f4f6;">
       <b style="flex:1;font-size:.88rem;">${_clrEsc(_cnWord(p))} <bdi>${_clrEsc(_cnTag(p,c.num))}</bdi> <span style="color:#9ca3af;font-weight:700;font-size:.74rem;">(أخدت ${c.qty})</span></b>
       ${B(`_swapSet('out',${c.num},-1)`,'−')}<b class="num" style="min-width:22px;text-align:center;color:#b91c1c;">${q}</b>${B(`_swapSet('out',${c.num},1)`,'＋')}</div>`;}).join('')}
@@ -5973,12 +6005,12 @@ function _swapPaint(){
 function _swapSet(side,num,d){
   if(!_swap)return;const {s,p}=_swap,m=_swap[side==='out'?'out':'inn'];
   const cur=m[num]||0,nv=cur+d;if(nv<0)return;
-  if(side==='out'){const sold=((s.colorNumbers||[]).find(c=>c.num===num)||{}).qty||0;if(nv>sold){toast('⚠️ أخدت من هاللون '+sold+' بس');return;}}
+  if(side==='out'&&!_swap.free){const sold=((s.colorNumbers||[]).find(c=>c.num===num)||{}).qty||0;if(nv>sold){toast('⚠️ أخدت من هاللون '+sold+' بس');return;}}
   else if(d>0){const stk=_swapStock(p,num);if(stk!=null&&nv>stk+(_swap.out[num]||0)){toast('⚠️ المتوفّر من '+_cnTag(p,num)+' '+(stk+(_swap.out[num]||0))+' بس');return;}}
   if(nv)m[num]=nv;else delete m[num];_swapPaint();
 }
 async function posSwapSave(){
-  if(!_swap)return;const {id,s,p,out,inn}=_swap;
+  if(!_swap)return;if(_swap.free)return posSwapFreeSave();const {id,s,p,out,inn}=_swap;
   const nOut=Object.values(out).reduce((t,q)=>t+q,0),nIn=Object.values(inn).reduce((t,q)=>t+q,0);
   if(!nOut||nOut!==nIn){toast('⚠️ لازم اللي رجع واللي انأخد يكونوا نفس العدد');return;}
   const toArr=m=>Object.keys(m).map(Number).filter(n=>m[n]>0).sort((a,b)=>a-b).map(n=>({num:n,qty:m[n]}));
@@ -5997,7 +6029,23 @@ async function posSwapSave(){
     if(typeof posLogLoad==='function'&&document.getElementById('posLogBody')){await posLogLoad(true);posLogRender();}
   }catch(e){toast('❌ '+e.message);}
 }
-window.openPosSwap=openPosSwap;window._swapSet=_swapSet;window.posSwapSave=posSwapSave;
+async function posSwapFreeSave(){
+  const {p,out,inn}=_swap;
+  const toArr=m=>Object.keys(m).map(Number).filter(n=>m[n]>0).sort((a,b)=>a-b).map(n=>({num:n,qty:m[n]}));
+  const O=toArr(out),I=toArr(inn),nO=O.reduce((t,c)=>t+c.qty,0),nI=I.reduce((t,c)=>t+c.qty,0);
+  if(!nO||nO!==nI){toast('⚠️ لازم اللي رجع واللي انأخد يكونوا نفس العدد');return;}
+  const who=(_currentAdminUser&&_currentAdminUser!=='MAIN'?_currentAdminUser:'')||(_empCurrentUser&&(_empCurrentUser.displayName||_empCurrentUser.username))||'الأدمن';
+  try{
+    await db.collection('operator_swaps').add({date:jordanDateStr(),at:jordanDisplayDate(),productId:p.id,productName:p.name||'',out:O,in:I,by:who,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await _orderStockSync(null,{products:[{id:p.id,colorNumbers:O}]},{products:[{id:p.id,colorNumbers:I}]},true,true);
+    document.getElementById('swapModal')?.remove();_swap=null;
+    toast('🔄 تبدّلت — رجّعت '+O.map(c=>_cnTag(p,c.num)+'×'+c.qty).join('، ')+' وأخدت '+I.map(c=>_cnTag(p,c.num)+'×'+c.qty).join('، '));
+    _invalidateQuery&&_invalidateQuery('operator_swaps:log');
+    if(document.getElementById('posLogBody')){await posLogLoad(true);posLogRender();}
+  }catch(e){toast('❌ '+e.message);}
+}
+window.openPosSwap=openPosSwap;window._swapSet=_swapSet;window.posSwapSave=posSwapSave;window.openSwapFree=openSwapFree;window.swapProd=swapProd;
 window.openPosLog=openPosLog; window.posLogQuick=posLogQuick;
 window.posLogRender=posLogRender; window.posLogReturn=posLogReturn; window.posLogRetry=posLogRetry;
 
