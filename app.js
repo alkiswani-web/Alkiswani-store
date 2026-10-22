@@ -4014,9 +4014,14 @@ window.hqFilter=hqFilter;window.hqOpen=hqOpen;window.hqShoot=hqShoot;window.hqFi
 // ═════════ 🧾 طلبية للشركة ═════════
 // الألوان اللي كميتها نزلت لحدّ معيّن (3 مثلاً) — إنت بتكتب كم بدّك من كل لون، والطلبية
 // بتنطبع أو بتنبعت للشركة برقم اللون وصورته والمطلوب بس (المتوفّر عندك بيبيّن إلك وما بيطلع للشركة).
-let _ro={pid:'',th:3,all:10,want:{},add:new Set(),drop:new Set(),more:false};
+let _ro={pid:'',th:3,all:10,unit:'pc',want:{},add:new Set(),drop:new Set(),more:false};
+// الوحدة: بالحبة أو بالكيلو (بتنحفظ لكل منتج) — الكيلو بيقبل كسور (2.5)
+const _roKg=()=>_ro.unit==='kg';
+const _roU=()=>_roKg()?'كيلو':'حبة';
+const _roN=v=>{const x=Math.round((Number(v)||0)*100)/100;return String(x);};
+const _roParse=v=>{const x=parseFloat(String(v||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٫,]/g,'.'))||0;return Math.max(0,Math.min(9999,_roKg()?Math.round(x*100)/100:Math.round(x)));};
 function _roPref(pid){try{return JSON.parse(localStorage.getItem('_roPref_'+pid)||'{}')||{};}catch(e){return {};}}
-function _roSavePref(){try{localStorage.setItem('_roPref_'+_ro.pid,JSON.stringify({th:_ro.th,all:_ro.all}));}catch(e){}}
+function _roSavePref(){try{localStorage.setItem('_roPref_'+_ro.pid,JSON.stringify({th:_ro.th,all:_ro.all,unit:_ro.unit}));}catch(e){}}
 function _roProds(){return _cbProds().filter(p=>p.hasColorNumbers);}
 // كل ألوان المنتج مع رصيدها (اللي انعدّ بس إله رصيد)
 function _roItems(p){
@@ -4058,7 +4063,7 @@ async function openReorder(pid){
 }
 function _roSet(pid){
   const pr=_roPref(pid);
-  _ro={pid,th:pr.th!=null?pr.th:3,all:pr.all!=null?pr.all:10,want:{},add:new Set(),drop:new Set(),more:false};
+  _ro={pid,th:pr.th!=null?pr.th:3,all:pr.all!=null?pr.all:10,unit:pr.unit==='kg'?'kg':'pc',want:{},add:new Set(),drop:new Set(),more:false};
 }
 async function roProd(pid){_roSet(pid);_roPaint();if(_prodOwnColors(_prodById(pid))){await _loadOwnImgs(pid);_roPaint();}}
 function roNum(k,v){
@@ -4067,20 +4072,24 @@ function roNum(k,v){
 }
 function roWant(num,v,step){
   const r=_roRows().find(x=>String(x.num)===String(num));if(!r)return;
-  const nv=Math.max(0,Math.min(999,step?r.want+step:(parseInt(v)||0)));_ro.want[r.num]=nv;
-  if(step){const el=document.getElementById('roW_'+r.num);if(el)el.value=nv;}
+  const st=step?step*(_roKg()?0.5:1):0;
+  const nv=step?Math.max(0,Math.round((r.want+st)*100)/100):_roParse(v);_ro.want[r.num]=nv;
+  if(step){const el=document.getElementById('roW_'+r.num);if(el)el.value=_roN(nv);}
   _roSum();
 }
 // نفس الكمية لكل الألوان اللي بالقائمة (وبعدها بتعدّل اللي بدّك ياه)
+function roUnit(u){_ro.unit=u==='kg'?'kg':'pc';_roSavePref();
+  if(!_roKg())Object.keys(_ro.want).forEach(k=>{_ro.want[k]=Math.round(_ro.want[k]);});   // الحبات أرقام صحيحة
+  _roPaint();}
 function roFillAll(){
-  const v=Math.max(0,Math.min(999,parseInt((document.getElementById('roAll')||{}).value)||0));
+  const v=_roParse((document.getElementById('roAll')||{}).value);
   _ro.all=v;_roSavePref();_roRows().forEach(r=>{_ro.want[r.num]=v;});_roPaint();
 }
 function roDrop(num){num=Number(num);_ro.add.delete(num);_ro.drop.add(num);_roPaint();}
 function roAdd(num){num=Number(num);_ro.drop.delete(num);_ro.add.add(num);_roPaint();}
 function _roSum(){
   const rows=_roRows().filter(r=>r.want>0),f=document.getElementById('roSum');
-  if(f)f.innerHTML=`<b>${rows.length}</b> ${rows.length===1?'لون':'ألوان'} · <b>${rows.reduce((t,r)=>t+r.want,0)}</b> حبة`;
+  if(f)f.innerHTML=`<b>${rows.length}</b> ${rows.length===1?'لون':'ألوان'} · <b>${_roN(rows.reduce((t,r)=>t+r.want,0))}</b> ${_roU()}`;
 }
 function _roPaint(){
   const P=document.getElementById('roProds'),C=document.getElementById('roCtl'),L=document.getElementById('roList'),Ft=document.getElementById('roFoot');if(!L)return;
@@ -4089,10 +4098,12 @@ function _roPaint(){
   P.innerHTML=_roProds().map(x=>{const on=x.id===_ro.pid;return `<button onclick="roProd('${x.id}')" style="flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1.5px solid ${on?'#1e3a8a':'#e5e7eb'};background:${on?'#1e3a8a':'#fff'};color:${on?'#fff':'#374151'};${F}font-size:0.78rem;font-weight:800;cursor:pointer;white-space:nowrap;">${_clrEsc(x.name)}</button>`;}).join('');
   const NI=(k,v)=>`<input type="number" min="0" value="${v}" onchange="roNum('${k}',this.value)" style="width:58px;padding:6px;border:1.5px solid #bfdbfe;border-radius:8px;${F}font-size:.9rem;font-weight:800;text-align:center;">`;
   C.innerHTML=p?`<div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:.8rem;font-weight:800;color:#374151;">
+    <span style="display:inline-flex;gap:4px;align-items:center;">الوحدة:
+      ${['pc','kg'].map(u=>`<button onclick="roUnit('${u}')" style="${F}padding:6px 12px;border-radius:999px;border:1.5px solid ${_ro.unit===u?'#1e3a8a':'#e5e7eb'};background:${_ro.unit===u?'#1e3a8a':'#fff'};color:${_ro.unit===u?'#fff':'#374151'};font-size:.8rem;font-weight:900;cursor:pointer;">${u==='kg'?'⚖️ كيلو':'🧶 حبة'}</button>`).join('')}</span>
     <span>الألوان اللي عندها ${NI('th',_ro.th)} أو أقل</span>
-    <span>عبّي الكل بـ <input id="roAll" type="number" min="0" value="${_ro.all}" style="width:58px;padding:6px;border:1.5px solid #bbf7d0;border-radius:8px;${F}font-size:.9rem;font-weight:800;text-align:center;">
+    <span>عبّي الكل بـ <input id="roAll" type="text" inputmode="decimal" value="${_roN(_ro.all)}" style="width:58px;padding:6px;border:1.5px solid #bbf7d0;border-radius:8px;${F}font-size:.9rem;font-weight:800;text-align:center;">
       <button onclick="roFillAll()" style="${F}padding:6px 10px;border:none;border-radius:8px;background:#166534;color:#fff;font-size:.78rem;font-weight:900;cursor:pointer;">✓</button></span></div>
-    <div style="font-size:.7rem;color:#9ca3af;font-weight:700;margin-top:4px;">اكتب كم بدّك من كل لون — اللي بتتركه 0 ما بيطلع بالطلبية</div>`:'';
+    <div style="font-size:.7rem;color:#9ca3af;font-weight:700;margin-top:4px;">اكتب كم ${_roKg()?'كيلو':'حبة'} بدّك من كل لون${_roKg()?' (بتقدر تكتب 2.5)':''} — اللي بتتركه 0 ما بيطلع بالطلبية</div>`:'';
   if(!p){L.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;">اختار المنتج</div>';Ft.innerHTML='';return;}
   const rows=_roRows(),all=_roItems(p),notCounted=all.filter(i=>i.q==null).length;
   const face=i=>i.img?`background:url('${i.img}') center/cover;`:i.hex?`background:${_clrEsc(i.hex)};`:'background:#f3f4f6;';
@@ -4102,7 +4113,7 @@ function _roPaint(){
         <div style="font-size:.74rem;font-weight:800;color:${r.q<=0?'#dc2626':'#b45309'};">${r.q==null?'ما انجرد':r.q<=0?'خلص — 0':'متوفّر '+r.q}</div></div>
       <div style="display:flex;align-items:center;gap:4px;">
         <button onclick="roWant(${r.num},0,-1)" style="width:30px;height:32px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:900;cursor:pointer;">−</button>
-        <input id="roW_${r.num}" type="number" min="0" value="${r.want}" oninput="roWant(${r.num},this.value)" style="width:52px;padding:6px 2px;border:1.5px solid #bbf7d0;border-radius:8px;${F}font-size:.95rem;font-weight:900;text-align:center;color:#166534;">
+        <input id="roW_${r.num}" type="text" inputmode="decimal" value="${_roN(r.want)}" oninput="roWant(${r.num},this.value)" style="width:52px;padding:6px 2px;border:1.5px solid #bbf7d0;border-radius:8px;${F}font-size:.95rem;font-weight:900;text-align:center;color:#166534;">
         <button onclick="roWant(${r.num},0,1)" style="width:30px;height:32px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:900;cursor:pointer;">＋</button>
         <button onclick="roDrop(${r.num})" title="شيله من الطلبية" style="width:28px;height:32px;border:none;background:none;color:#9ca3af;font-size:.9rem;cursor:pointer;">✕</button></div></div>`).join('')
     :`<div style="padding:22px 10px;text-align:center;color:#16a34a;font-weight:800;font-size:.88rem;">👌 ولا لون عنده ${_ro.th} أو أقل</div>`)+
@@ -4120,8 +4131,8 @@ function _roFinal(){return _roRows().filter(r=>r.want>0);}
 function roText(){
   const p=_prodById(_ro.pid),rows=_roFinal();
   return `طلبية الكسواني روزميري — ${(p&&p.name)||''}\nالتاريخ: ${jordanDateStr()}\n\n`+
-    rows.map(r=>`• ${r.name} — ${r.want} حبة`).join('\n')+
-    `\n\nالمجموع: ${rows.length} ${rows.length===1?'لون':'ألوان'} · ${rows.reduce((t,r)=>t+r.want,0)} حبة`;
+    rows.map(r=>`• ${r.name} — ${_roN(r.want)} ${_roU()}`).join('\n')+
+    `\n\nالمجموع: ${rows.length} ${rows.length===1?'لون':'ألوان'} · ${_roN(rows.reduce((t,r)=>t+r.want,0))} ${_roU()}`;
 }
 async function roShare(){
   if(!_roFinal().length){toast('⚠️ ما في إشي مطلوب');return;}
@@ -4147,13 +4158,13 @@ function roPrint(){
   @media print{.np{display:none}}tr{page-break-inside:avoid}</style></head><body>
   <div class="np"><button onclick="window.print()" style="padding:10px 26px;background:#1a3a2a;color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;">🖨️ اطبع / احفظ PDF</button></div>
   <div class="hd"><div><small>الكسواني روزميري — طلبية للشركة</small><h1>${esc(p&&p.name||'')}</h1></div><div style="text-align:left;font-weight:700;color:#374151;">${jordanDateStr()}</div></div>
-  <table><thead><tr><th>#</th><th>اللون</th><th>رقم اللون</th><th>المطلوب</th><th>✓</th></tr></thead><tbody>
-  ${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${face(r)}</td><td class="nm">${esc(r.name)}</td><td class="w">${r.want}</td><td class="box"><span></span></td></tr>`).join('')}
-  </tbody><tfoot><tr><td colspan="3" style="text-align:right">المجموع: ${rows.length} ${rows.length===1?'لون':'ألوان'}</td><td class="w">${tot}</td><td></td></tr></tfoot></table>
+  <table><thead><tr><th>#</th><th>اللون</th><th>رقم اللون</th><th>المطلوب (${_roU()})</th><th>✓</th></tr></thead><tbody>
+  ${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${face(r)}</td><td class="nm">${esc(r.name)}</td><td class="w">${_roN(r.want)} <small style="font-size:12px;color:#6b7280">${_roU()}</small></td><td class="box"><span></span></td></tr>`).join('')}
+  </tbody><tfoot><tr><td colspan="3" style="text-align:right">المجموع: ${rows.length} ${rows.length===1?'لون':'ألوان'}</td><td class="w">${_roN(tot)} <small style="font-size:12px;color:#6b7280">${_roU()}</small></td><td></td></tr></tfoot></table>
   <script>window.onload=()=>setTimeout(()=>window.print(),500);<\/script></body></html>`);
   pw.document.close();
 }
-window.openReorder=openReorder;window.roFillAll=roFillAll;window.roProd=roProd;window.roNum=roNum;window.roWant=roWant;window.roDrop=roDrop;window.roAdd=roAdd;window.roShare=roShare;window.roPrint=roPrint;
+window.openReorder=openReorder;window.roFillAll=roFillAll;window.roUnit=roUnit;window.roProd=roProd;window.roNum=roNum;window.roWant=roWant;window.roDrop=roDrop;window.roAdd=roAdd;window.roShare=roShare;window.roPrint=roPrint;
 
 function renderColorLib(){
   const list=document.getElementById('clrList');if(!list)return;
