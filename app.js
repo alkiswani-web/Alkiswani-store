@@ -17153,9 +17153,14 @@ async function adjustCashToActual(){
   }catch(e){toast('❌ '+e.message);}
 }
 async function deleteCashAdjust(id){
-  if(!confirm('حذف هذه التسوية؟ سيرجع صافي التحصيل كما كان قبلها.'))return;
+  const ca=(_opCashAdjust||[]).find(a=>a.id===id);
+  if(!confirm(ca&&ca.purchaseId?'حذف هاد المبلغ من الكاش؟ بيرجع ينحسب برأس المال زي باقي المشترى.':'حذف هذه التسوية؟ سيرجع صافي التحصيل كما كان قبلها.'))return;
   try{
-    await db.collection('operator_cash_adjust').doc(id).delete();
+    const batch=db.batch();
+    batch.delete(db.collection('operator_cash_adjust').doc(id));
+    if(ca&&ca.purchaseId) batch.update(db.collection('operator_purchases').doc(ca.purchaseId),{cashIn:firebase.firestore.FieldValue.delete()});
+    await batch.commit();
+    if(ca&&ca.purchaseId){const p=(_opBalPurchases||[]).find(x=>x.id===ca.purchaseId); if(p) delete p.cashIn;}
     _opCashAdjust=(_opCashAdjust||[]).filter(a=>a.id!==id);
     renderOperatorDailyView();
     toast('🗑 تم حذف التسوية');
@@ -23109,7 +23114,8 @@ function renderBalanceSummary(){
   if(!wrap) return;
   const capitalBase=_opBalSettings.capitalBase||0;
   const capStart=_opBalSettings.capitalStart||'0000-00-00';
-  const totalPurchases=_opBalPurchases.filter(p=>(p.date||'9999')>=capStart).reduce((s,p)=>s+(p.amount||0),0);
+  const totalPurchases=_opBalPurchases.filter(p=>(p.date||'9999')>=capStart).reduce((s,p)=>s+_purCap(p),0);
+  const _purCashTot=_opBalPurchases.filter(p=>(p.date||'9999')>=capStart).reduce((s,p)=>s+(Number(p.amount)||0)-_purCap(p),0);
   const treeSold=_opBalTreeSold;   // تكلفة الشجر (مورد شجر) — تُضاف كشراء وتُطرح كمباع = تلغي حالها
   const rawSold=_opBalRawSold;     // المواد الخام — تُطرح من رأس المال (مستهلكة)
   // رأس المال = المتفق + مشتريات الموردين + شجر(شراء) − شجر(مباع) − مواد خام مباعة  → الشجر يلغي حاله
@@ -23223,10 +23229,11 @@ function renderBalanceSummary(){
     const paid=sPays.reduce((s,p)=>s+(p.amount||0),0);
     const bal=buys-paid;
     const safe=(sup.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const txs=[...sBuys.map(p=>({t:'buy',id:p.id,date:p.date,notes:p.notes,amount:p.amount})),...sPays.map(p=>({t:'pay',id:p.id,date:p.date,notes:p.notes,amount:p.amount,noCash:p.noCash}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const txs=[...sBuys.map(p=>({t:'buy',id:p.id,date:p.date,notes:p.notes,amount:p.amount,cashIn:Number(p.cashIn)||0})),...sPays.map(p=>({t:'pay',id:p.id,date:p.date,notes:p.notes,amount:p.amount,noCash:p.noCash}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     const txRows=txs.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06);gap:8px;">
-      <span style="font-size:0.72rem;color:#9fc7b4;">${x.t==='buy'?'🧾 شراء':'💳 دفعة'}${x.noCash?' <span style="color:#e7c66b;">(بدون كاش)</span>':''} · ${x.date||''}${x.notes?' — '+x.notes:''}</span>
+      <span style="font-size:0.72rem;color:#9fc7b4;">${x.t==='buy'?'🧾 شراء':'💳 دفعة'}${x.noCash?' <span style="color:#e7c66b;">(بدون كاش)</span>':''} · ${x.date||''}${x.notes?' — '+x.notes:''}${x.cashIn>0?`<br><span style="color:#e7c66b;font-weight:700;">💵 ${x.cashIn.toFixed(2)} دخلوا الكاش · رأس المال ${((x.amount||0)-x.cashIn).toFixed(2)}</span>`:''}</span>
       <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        ${x.t==='buy'&&!x.cashIn?`<button onclick="splitPurchaseCash('${x.id}')" title="جزء منه دخل الكاش" style="background:rgba(231,198,107,.14);color:#e7c66b;border:1px solid rgba(231,198,107,.35);border-radius:5px;height:20px;padding:0 6px;font-family:'Tajawal',sans-serif;font-size:0.66rem;cursor:pointer;font-weight:800;line-height:1;">💵</button>`:''}
         <span style="font-weight:800;font-size:0.8rem;color:${x.t==='buy'?'#6ee7a8':'#e7c66b'};font-variant-numeric:tabular-nums;">${x.t==='buy'?'+':'−'}${(x.amount||0).toFixed(2)}</span>
         <button onclick="${x.t==='buy'?`deleteSupplierPurchase('${x.id}')`:`deleteSupplierPayment('${x.id}')`}" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:5px;width:20px;height:20px;font-size:0.72rem;cursor:pointer;font-weight:900;line-height:1;">×</button>
       </span>
@@ -23251,7 +23258,7 @@ function renderBalanceSummary(){
       <div style="position:relative;">
       <div style="font-size:0.78rem;color:#c9b981;font-weight:700;margin-bottom:6px;">💼 رأس المال الرئيسي</div>
       <div style="font-size:2.2rem;font-weight:900;margin-bottom:6px;line-height:1;font-variant-numeric:tabular-nums;color:#f2e9d3;">${totalCapital.toFixed(2)} <span style="font-size:0.85rem;font-weight:700;color:#e6cf92;">د.أ</span></div>
-      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)} − مواد خام مباعة ${rawSold.toFixed(2)} <span style="opacity:.65;">(الشجر ${treeSold.toFixed(2)} يلغي حاله: شراء−بيع)</span></div>
+      <div style="font-size:0.66rem;color:rgba(255,255,255,.62);">أولي ${capitalBase.toFixed(2)} + مشتريات ${totalPurchases.toFixed(2)}${_purCashTot>0?` <span style="opacity:.75;">(بعد ${_purCashTot.toFixed(2)} دخلوا الكاش)</span>`:''} − مواد خام مباعة ${rawSold.toFixed(2)} <span style="opacity:.65;">(الشجر ${treeSold.toFixed(2)} يلغي حاله: شراء−بيع)</span></div>
       <div style="position:absolute;top:0;left:0;display:flex;gap:6px;">
         <button onclick="document.getElementById('opbal_base_form').style.display='block';document.getElementById('opbal_base_inp').value='${capitalBase}'"
           style="background:rgba(230,207,146,.2);color:#f2e9d3;border:1px solid rgba(230,207,146,.3);padding:5px 10px;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ المتفق</button>
@@ -23378,9 +23385,15 @@ async function deleteSupplierPayment(id){
   }catch(e){toast('❌ '+e.message);}
 }
 async function deleteSupplierPurchase(id){
-  if(!confirm('حذف هذا المشترى؟ (بينقص من رأس المال وحساب المورد)'))return;
+  const _p=(_opBalPurchases||[]).find(x=>x.id===id);
+  if(!confirm('حذف هذا المشترى؟ (بينقص من رأس المال وحساب المورد'+(_p&&_p.cashIn>0?' — والـ '+Number(_p.cashIn).toFixed(2)+' اللي دخلوا الكاش بينشالوا من الكاش':'')+')'))return;
   try{
-    await db.collection('operator_purchases').doc(id).delete();
+    const adj=await db.collection('operator_cash_adjust').where('purchaseId','==',id).get();
+    const batch=db.batch();
+    batch.delete(db.collection('operator_purchases').doc(id));
+    adj.docs.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    if(!adj.empty) await _reloadCashAdjust();
     toast('🗑 تم حذف المشترى');
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
@@ -23413,7 +23426,9 @@ function addSupplierPurchase(){
   _supModal(`
     <div style="font-weight:800;font-size:1.05rem;color:#166534;margin-bottom:16px;text-align:center;">🧾 تسجيل مشترى من مورد</div>
     <label style="${L}">المورد</label><select id="sup_pur_sel" style="${F}">${opts}</select>
-    <label style="${L}">المبلغ (د.أ)</label><input id="sup_pur_amt" type="number" min="0" step="0.5" placeholder="0.00" style="${F}">
+    <label style="${L}">المبلغ (د.أ)</label><input id="sup_pur_amt" type="number" min="0" step="0.5" placeholder="0.00" oninput="_supPurHint()" style="${F}">
+    <label style="${L}">💵 منهم دخل الكاش (اختياري)</label><input id="sup_pur_cash" type="number" min="0" step="0.5" placeholder="0.00" oninput="_supPurHint()" style="${F}margin-bottom:4px;">
+    <div id="sup_pur_hint" style="font-size:0.72rem;color:#6b7280;margin-bottom:12px;">لو جزء من المبلغ مصاري كاش (مش بضاعة) — بينضاف للكاش، ومصاريفه بتسجّلها عادي من «تسجيل مصروف»</div>
     <label style="${L}">تاريخ الاستحقاق (اختياري)</label><input id="sup_pur_due" type="date" style="${F}">
     <label style="${L}">ملاحظة (اختياري)</label><input id="sup_pur_notes" type="text" placeholder="..." style="${F}">
     <div style="display:flex;gap:10px;">
@@ -23429,14 +23444,70 @@ async function saveSupplierPurchase(){
   const dueDate=document.getElementById('sup_pur_due')?.value||'';
   const notes=(document.getElementById('sup_pur_notes')?.value||'').trim();
   if(!supplierId){toast('⚠️ اختر المورد');return;}
+  const cashIn=Math.round((parseFloat(document.getElementById('sup_pur_cash')?.value||'0')||0)*100)/100;
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً');return;}
+  if(cashIn<0||cashIn>amount){toast('⚠️ اللي دخل الكاش لازم يكون بين 0 والمبلغ كامل');return;}
+  if(cashIn>0&&!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
   try{
-    await db.collection('operator_purchases').add({supplierId,supplierName,amount,date:jordanDateStr(),dueDate,notes,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const pRef=db.collection('operator_purchases').doc();
+    const batch=db.batch();
+    batch.set(pRef,{supplierId,supplierName,amount,...(cashIn>0?{cashIn}:{}),date:jordanDateStr(),dueDate,notes,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    if(cashIn>0) batch.set(db.collection('operator_cash_adjust').doc(),_supCashDoc(cashIn,supplierName,pRef.id));
+    await batch.commit();
     document.getElementById('sup_modal')?.remove();
-    toast('✅ تم تسجيل المشترى — أُضيف لرأس المال وحساب المورد');
+    toast(cashIn>0?`✅ تم — رأس المال +${(amount-cashIn).toFixed(2)} · الكاش +${cashIn.toFixed(2)} · المورد ${amount.toFixed(2)}`:'✅ تم تسجيل المشترى — أُضيف لرأس المال وحساب المورد');
+    if(cashIn>0) await _reloadCashAdjust();
     loadBalanceTab();
   }catch(e){toast('❌ '+e.message);}
 }
+// مصاري المورد ما بتكون كلها بضاعة: جزء منها ممكن يدخل الصندوق كاش. هاد الجزء
+// بيضل دين على المحل للمورد، بس ما بينحسب برأس المال — بينضاف للكاش كتسوية
+// مربوطة بالمشترى (purchaseId)، ومصاريفه بتنسجّل عادي فبتنزّل الكاش والربح.
+function _purCap(p){return (Number(p.amount)||0)-Math.min(Number(p.amount)||0,Math.max(0,Number(p.cashIn)||0));}
+function _supCashDoc(amount,supplierName,purchaseId){
+  return {amount,date:jordanDateStr(),notes:'💵 من المورد'+(supplierName?' '+supplierName:''),
+    purchaseId,source:'supplier',sessionId:_opCurrentSession.id,
+    addedBy:_currentAdminUser||'أدمن',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+}
+async function _reloadCashAdjust(){
+  if(!_opCurrentSession) return;
+  try{
+    const caSnap=await db.collection('operator_cash_adjust').where('sessionId','==',_opCurrentSession.id).get();
+    _opCashAdjust=caSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    if(typeof renderOperatorDailyView==='function') renderOperatorDailyView();
+  }catch(e){}
+}
+function _supPurHint(){
+  const h=document.getElementById('sup_pur_hint'); if(!h) return;
+  const a=parseFloat(document.getElementById('sup_pur_amt')?.value||'0')||0;
+  const c=parseFloat(document.getElementById('sup_pur_cash')?.value||'0')||0;
+  if(c<=0){h.style.color='#6b7280';h.textContent='لو جزء من المبلغ مصاري كاش (مش بضاعة) — بينضاف للكاش، ومصاريفه بتسجّلها عادي من «تسجيل مصروف»';return;}
+  if(c>a){h.style.color='#dc2626';h.textContent='⚠️ أكبر من المبلغ كامل';return;}
+  const N=v=>`<bdi dir="ltr" style="font-weight:800;">${v}</bdi>`;
+  h.style.color='#166534';h.innerHTML=`رأس المال ${N('+'+(a-c).toFixed(2))} · الكاش ${N('+'+c.toFixed(2))} · على المحل للمورد ${N(a.toFixed(2))}`;
+}
+// مشترى قديم انسجّل كلّه رأس مال وجزء منه كان كاش ⇒ نقسمه بعد الحفظ
+async function splitPurchaseCash(id){
+  const p=(_opBalPurchases||[]).find(x=>x.id===id); if(!p) return;
+  const amt=Number(p.amount)||0;
+  const raw=prompt(`💵 كم من الـ ${amt.toFixed(2)} دخل الكاش؟\n\nبينزل من رأس المال وبينضاف للكاش — حساب المورد بيضل ${amt.toFixed(2)}`);
+  if(raw===null) return;
+  const c=Math.round((parseFloat(String(raw).replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[^\d.]/g,''))||0)*100)/100;
+  if(!(c>0)||c>amt){toast('⚠️ أدخل مبلغ بين 0 و '+amt.toFixed(2));return;}
+  if(!await _needSession()){toast('❌ تعذّر فتح فترة الحساب — جرّب كمان مرّة');return;}
+  try{
+    const batch=db.batch();
+    batch.update(db.collection('operator_purchases').doc(id),{cashIn:c});
+    batch.set(db.collection('operator_cash_adjust').doc(),_supCashDoc(c,p.supplierName||'',id));
+    await batch.commit();
+    p.cashIn=c;
+    toast(`✅ رأس المال −${c.toFixed(2)} · الكاش +${c.toFixed(2)}`);
+    await _reloadCashAdjust();
+    loadBalanceTab();
+  }catch(e){toast('❌ '+e.message);}
+}
+window.splitPurchaseCash=splitPurchaseCash;
+window._supPurHint=_supPurHint;
 function paySupplier(supplierId,name){
   const F='width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:\'Tajawal\',sans-serif;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;';
   const L='font-size:0.8rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;';
