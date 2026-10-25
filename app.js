@@ -3208,7 +3208,7 @@ function openColorRephoto(){
   ov.innerHTML=`<div style="width:100%;max-width:560px;max-height:92vh;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;">
       <div><div style="font-weight:900;font-size:1rem;color:#92400e;">📷 صوّر الألوان من جديد</div>
-        <div style="font-size:0.72rem;color:#6b7280;">اكبس على اللون ← صوّره قريب وبضوّ منيح ← بينحفظ لحاله</div></div>
+        <div style="font-size:0.72rem;color:#6b7280;">اكبس على اللون ← صوّره أو اختار صورته من المعرض ← بينحفظ لحاله</div></div>
       <button onclick="crClose()" style="background:#f3f4f6;border:none;border-radius:9px;width:34px;height:34px;cursor:pointer;">✕</button></div>
     <div id="crProg" style="padding:0 16px 8px;font-size:.78rem;font-weight:800;color:#166534;"></div>
     <div id="crGrid" style="flex:1;overflow-y:auto;padding:4px 16px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
@@ -3227,7 +3227,7 @@ function _crPaint(){
     ||'<div style="grid-column:1/-1;text-align:center;color:#16a34a;font-weight:800;padding:20px;">✓ كل الألوان صورها واضحة</div>';
 }
 function crShoot(id){
-  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.setAttribute('capture','environment');
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
   inp.onchange=async()=>{
     const f=inp.files&&inp.files[0];if(!f)return;
     try{
@@ -3848,12 +3848,12 @@ function _renderOwnLib(){
       <div style="flex:1;min-width:0;">
         <div style="font-weight:900;font-size:0.92rem;color:#111827;">${_clrEsc(c.name)}</div>
         <div style="font-size:0.76rem;font-weight:800;color:${dry?'#dc2626':(q!=null&&q<=2?'#b45309':'#16a34a')};">${dry?'🟡 خلص':(q!=null?`🟢 متوفّر · ${q} قطعة`:'🟢 متوفّر')}</div>
-        <div style="font-size:0.66rem;color:#9ca3af;">${c.img?'اضغط الصورة لتبدّلها':'اضغط المربّع وصوّره'}</div>
+        <div style="font-size:0.66rem;color:#9ca3af;">${c.img?'اضغط الصورة لتبدّلها':'اضغط المربّع: صوّر أو اختار من المعرض'}</div>
       </div></div>`;}).join('')||'<div style="padding:24px;text-align:center;color:#9ca3af;">ما في أرقام لهالمنتج — ضيفها من تعديل المنتج</div>';
 }
 function clrOwnShoot(pid,num){
   _csPid=pid;
-  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.setAttribute('capture','environment');
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
   inp.onchange=async()=>{
     const f=inp.files&&inp.files[0];if(!f)return;
     toast('⏳ جاري تجهيز الصورة...');
