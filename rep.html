@@ -619,10 +619,11 @@ async function orderSheet(id){
         ${o.status!=='postponed'?`<button class="stp" data-act="postponed:${esc(o.id)}">⏸ أجّل</button>`:''}
         ${o.status!=='onhold'?`<button class="stp" data-act="onhold:${esc(o.id)}">📵 ما ردّ / عالق</button>`:''}
         ${o.status!=='delivering'?`<button class="stp" data-act="delivering:${esc(o.id)}">▶ رجّعه بالطريق</button>`:''}
-        <button class="stp" data-issue="${esc(o.id)}">✕ رفض / إلغاء</button>
+        <button class="stp" data-cxl="${esc(o.id)}" style="color:var(--rd)">🚫 ملغي / رفض</button>
         <button class="stp" data-xfer="${esc(o.id)}">↔ لمندوب ثاني</button>
+        <button class="stp" data-issue="${esc(o.id)}">🔔 مشكلة ثانية</button>
       </div>
-      <div class="note">الإلغاء والرفض بيروحوا للمدير — هو اللي بيرجّع البضاعة للمخزون ويعدّل حساب المتجر.</div>`;
+      <div class="note">«ملغي» بيطلّع الطلب من حسابك فوراً، والبضاعة بترجع للمخزون لحالها — بس رجّعها للمحل.</div>`;
   }else if(!isSup&&claimable){
     actions=`<button class="btn" data-claim="${esc(o.id)}">✋ خذ الطلب عليّ</button><div class="note">الطلب جاهز وما إله مندوب — بتاخده وبيصير بحسابك.</div>`;
   }else if(!isSup&&o.status==='delivered'&&isMine){
@@ -703,6 +704,30 @@ async function claim(id){
   }catch(e){const m=String(e&&e.message||'');
     toast(m.startsWith('taken:')?'سبقك عليه '+m.slice(6):m.startsWith('state:')?'الطلب «'+(LBL[m.slice(6)]||m.slice(6))+'» — ما بينفع تاخده':'ما زبط — تأكّد من النت');return;}
   closeSh();slam('صار معك','');
+}
+// إلغاء مباشر من المندوب: الطلب بيصير «ملغي/رفض الاستلام» وبيطلع من حسابه فوراً.
+// رجوع البضاعة للمخزون وشيل المبيعة من حساب المتجر بيعملهم تطبيق المدير لحاله
+// أوّل ما يشوف cancelSettle (نفس updateEmpOrderStatus) — عشان هيك العلامة.
+async function repCancel(id,reason){
+  const next=reason==='رفض الاستلام'?'refused':'cancelled';
+  const ref=db.collection('employee_orders').doc(id);
+  try{
+    await db.runTransaction(async tx=>{
+      const d=await tx.get(ref);if(!d.exists)throw new Error('gone');
+      const o={id,...d.data()};
+      if(!mine(o))throw new Error('notmine');
+      if(!ACTIVE.includes(o.status))throw new Error('state:'+o.status);
+      tx.update(ref,{status:next,cancelReason:reason,cancelSettle:true,
+        repCancel:{reason,by:me.name,byPhone:me.phone||'',at:dispDate()},
+        deliveredDate:FV.delete(),repIssue:FV.delete(),needsReview:FV.delete(),repTransferReq:FV.delete(),
+        editHistory:[...(o.editHistory||[]),histEntry(o.status,next,reason+' · ')],updatedAt:FV.serverTimestamp()});
+    });
+  }catch(e){
+    const m=String(e&&e.message||'');
+    toast(m==='notmine'?'هاد الطلب ما عاد معك':m.startsWith('state:')?'الطلب صار «'+(LBL[m.slice(6)]||m.slice(6))+'» — ما بينفع':navigator.onLine===false?'📵 بدّك نت للإلغاء':'ما زبط — جرّب كمان مرّة');
+    buzz([60,40,60]);return;
+  }
+  closeSh();buzz(30);slam(LBL[next],'طلع من حسابك',true);
 }
 async function reportIssue(id,reason){
   const ref=db.collection('employee_orders').doc(id);
@@ -1034,7 +1059,9 @@ document.addEventListener('click',e=>{
   if((el=T('[data-mv]'))){const [id,d]=el.dataset.mv.split(':');moveStop(id,Number(d));return;}
   if((el=T('[data-act]'))){const [s,id]=el.dataset.act.split(':');setStatus(id,s);return;}
   if((el=T('[data-claim]'))){claim(el.dataset.claim);return;}
-  if((el=T('[data-issue]'))){const id=el.dataset.issue;openSh('بلّغ المدير','شو صار؟',`<div class="why">${['رفض الاستلام','الزبون لغى','العنوان غلط وما ردّ','بدّه يرجّع الغرض','الغرض فيه مشكلة'].map(w=>`<button class="stp" data-rep="${esc(id)}|${esc(w)}">${esc(w)}</button>`).join('')}</div><div class="note">بيوصل للمدير فوراً. الطلب بيطلع من مشوارك لحد ما يقرّر.</div>`);return;}
+  if((el=T('[data-cxl]'))){const id=el.dataset.cxl;openSh('🚫 ليش انلغى؟','الطلب بيصير «ملغي» وبيطلع من حسابك',`<div class="why">${['الزبون لغى','رفض الاستلام','ما ردّ نهائياً','العنوان غلط'].map(w=>`<button class="stp" data-cxw="${esc(id)}|${esc(w)}">${esc(w)}</button>`).join('')}</div><div class="note">البضاعة بترجع للمخزون لحالها — بس سلّمها للمحل.</div>`);return;}
+  if((el=T('[data-cxw]'))){const [id,w]=el.dataset.cxw.split('|');repCancel(id,w);return;}
+  if((el=T('[data-issue]'))){const id=el.dataset.issue;openSh('بلّغ المدير','شو صار؟',`<div class="why">${['العنوان غلط وما ردّ','بدّه يرجّع الغرض','الغرض فيه مشكلة','إشي ثاني'].map(w=>`<button class="stp" data-rep="${esc(id)}|${esc(w)}">${esc(w)}</button>`).join('')}</div><div class="note">بيوصل للمدير فوراً. الطلب بيطلع من مشوارك لحد ما يقرّر.</div>`);return;}
   if((el=T('[data-rep]'))){const [id,w]=el.dataset.rep.split('|');reportIssue(id,w);return;}
   if((el=T('[data-xfer]'))){const id=el.dataset.xfer;openSh('حوّل لمندوب ثاني','بيروح للمشرف يوافق',`<div class="why">${supReps().filter(r=>r.name!==me.name).map(r=>`<button class="stp" data-xto="${esc(id)}|${esc(r.name)}">${esc(r.name)}</button>`).join('')}</div>`);return;}
   if((el=T('[data-xto]'))){const [id,n]=el.dataset.xto.split('|');requestTransfer(id,n);return;}

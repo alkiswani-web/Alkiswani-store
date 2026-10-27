@@ -9037,6 +9037,7 @@ function closeOpOrderDetail(){
   const el=document.getElementById('opOrderDetailSheet');
   if(el)el.style.display='none';
   document.body.style.overflow='';
+  _rlKick();
 }
 
 async function _cancelOpOrderFromDetail(id){
@@ -9923,6 +9924,7 @@ function loadOperatorOrders(){
         }
       }
       newData.forEach(o=>_seenOpOrderIds.add(o.id));
+      if(newData.some(o=>o.cancelSettle===true))_settleRepCancels();
       _opOrdersAllData=newData;
       _updateFrameGalleryCount();
       _renderOpOrdersView();
@@ -21758,115 +21760,365 @@ function _updateRepMapMarkers(reps){
 // ===== REP ACCOUNTING =====
 let _repAcctRep=null;
 
+// ═════════ قراءة خفيفة: الحقول اللي بدنا إياها بس ═════════
+// مستند الطلب فيه صوره (≈ 70KB)، وحساب المناديب كان يجيب كل الطلبات المسلّمة
+// من أوّل يوم بصورها (آلاف الطلبات ⇒ مئات الميغات). الـ REST بيسمح نختار
+// الحقول (select)، فبتنزل الطلبات بدون صور بجزء صغير من الحجم. لو فشل
+// (نت/صلاحية) منرجع لاستعلام الـ SDK العادي — أثقل بس بيشتغل.
+function _fsVal(v){
+  if(!v||typeof v!=='object')return undefined;
+  if('stringValue' in v)return v.stringValue;
+  if('integerValue' in v)return Number(v.integerValue);
+  if('doubleValue' in v)return Number(v.doubleValue);
+  if('booleanValue' in v)return v.booleanValue;
+  if('nullValue' in v)return null;
+  if('timestampValue' in v){const ms=Date.parse(v.timestampValue);return {seconds:Math.floor(ms/1000),nanoseconds:0,toDate:()=>new Date(ms),toMillis:()=>ms};}
+  if('mapValue' in v){const o={};Object.entries(v.mapValue.fields||{}).forEach(([k,x])=>{o[k]=_fsVal(x);});return o;}
+  if('arrayValue' in v)return (v.arrayValue.values||[]).map(_fsVal);
+  if('referenceValue' in v)return v.referenceValue;
+  if('geoPointValue' in v)return v.geoPointValue;
+  return undefined;
+}
+function _fsEnc(v){
+  if(v instanceof Date)return {timestampValue:v.toISOString()};
+  if(Array.isArray(v))return {arrayValue:{values:v.map(_fsEnc)}};
+  if(typeof v==='boolean')return {booleanValue:v};
+  if(typeof v==='number')return Number.isInteger(v)?{integerValue:String(v)}:{doubleValue:v};
+  return {stringValue:String(v)};
+}
+async function _fsLite(col,filters,fields){
+  const OPS={'==':'EQUAL','in':'IN','>=':'GREATER_THAN_OR_EQUAL','>':'GREATER_THAN'};
+  try{
+    const opt=(firebase.app&&firebase.app().options)||{};
+    if(!opt.apiKey||!opt.projectId)throw new Error('no-opts');
+    const ff=filters.map(([f,op,v])=>({fieldFilter:{field:{fieldPath:f},op:OPS[op],value:_fsEnc(v)}}));
+    const sq={from:[{collectionId:col}],select:{fields:fields.map(f=>({fieldPath:f}))}};
+    if(ff.length===1)sq.where=ff[0];else if(ff.length)sq.where={compositeFilter:{op:'AND',filters:ff}};
+    const headers={'Content-Type':'application/json'};
+    try{const u=firebase.auth&&firebase.auth().currentUser;if(u&&u.getIdToken)headers.Authorization='Bearer '+await u.getIdToken();}catch(e){}
+    const url=`https://firestore.googleapis.com/v1/projects/${opt.projectId}/databases/(default)/documents:runQuery?key=${opt.apiKey}`;
+    let r=await fetch(url,{method:'POST',headers,body:JSON.stringify({structuredQuery:sq})});
+    if((r.status===401||r.status===403)&&headers.Authorization){delete headers.Authorization;r=await fetch(url,{method:'POST',headers,body:JSON.stringify({structuredQuery:sq})});}
+    if(!r.ok)throw new Error('rest '+r.status);
+    const j=await r.json();
+    if(!Array.isArray(j))throw new Error('rest-shape');
+    return j.filter(x=>x&&x.document).map(x=>({id:x.document.name.split('/').pop(),..._fsVal({mapValue:{fields:x.document.fields||{}}})}));
+  }catch(e){
+    let q=db.collection(col);
+    filters.forEach(([f,op,v])=>{q=q.where(f,op,v);});
+    const s=await q.get();
+    return s.docs.map(d=>({id:d.id,...d.data()}));
+  }
+}
+
+// ═════════ إلغاء المندوب: تسوية تلقائية ═════════
+// المندوب بيحطّ الطلب «ملغي/رفض» من تطبيقه فبيطلع من حسابه فوراً، ومعه
+// cancelSettle. هون (عند المدير) منعمل اللي بيعمله updateEmpOrderStatus
+// للإلغاء: الألوان ترجع للمخزون والمبيعة تنشال من حساب المتجر. منشيل العلامة
+// بمعاملة أوّلاً — فلو جهازين فاتحين ما بترجع البضاعة مرّتين.
+const _RL_DEAD=['cancelled','returned','refused'];
+let _rcsBusy=false;
+async function _settleRepCancels(){
+  if(_rcsBusy||!_currentAdminUser)return;
+  _rcsBusy=true;
+  try{
+    const s=await db.collection('employee_orders').where('cancelSettle','==',true).get();
+    for(const d of s.docs){
+      let data=null;
+      try{
+        await db.runTransaction(async tx=>{
+          const x=await tx.get(d.ref);const v=x.data()||{};
+          if(v.cancelSettle!==true){data=null;return;}
+          data=v;tx.update(d.ref,{cancelSettle:firebase.firestore.FieldValue.delete()});
+        });
+      }catch(e){continue;}
+      if(!data||!_RL_DEAD.includes(data.status))continue;
+      await _orderStockSync(d.id,data,data,data.colorStockApplied===true,false);
+      await unsyncOrderFromAccounting(d.id);
+    }
+  }catch(e){console.error('_settleRepCancels:',e);}
+  finally{_rcsBusy=false;}
+}
+window._settleRepCancels=_settleRepCancels;
+
+// ═════════ 🚚 المناديب — شاشة مباشرة ═════════
+// الطلبات اللي مع المناديب هلأ + حركات اليوم، بتتحدّث كل ١٥ ثانية وهي مفتوحة:
+// منجيب بس اللي تغيّر من آخر مرّة (updatedAt) بدون صور، وكل ٣ دقايق تحميل كامل.
+// الرصيد كمان بيتحدّث مع كل حركة بدون ما نرجع نجيب كل الطلبات.
+const _RL_ACTIVE=['delivering','queued','waiting_rep','onhold','postponed'];
+const _RL_OWED=['delivered','delivering','queued','waiting_rep','onhold','postponed'];
+const _RL_F=['status','netPrice','totalPrice','deliveryFee','deliveryRepPhone','deliveryRepName','deliveredDate','date',
+  'customerName','customerPhone','area','address','products','orderNum','pageName','notes','assignedAt','editHistory',
+  'repIssue','repTransferReq','repCancel','cancelReason','cancelSettle','holdReason','workerName','updatedAt','createdAt'];
+const _RL_BALF=['status','netPrice','totalPrice','deliveryFee','deliveryRepPhone','deliveryRepName','deliveredDate','date'];
+let _rl={act:{},today:{},last:0,full:0,at:0,timer:null,busy:false,loaded:false,err:'',reps:[],locs:{},
+  ow:null,paid:{},pts:{},balAt:0,f:'',q:'',open:{},co:false,feedAll:false};
+function _rlMs(t){if(!t)return 0;if(typeof t.toMillis==='function')return t.toMillis();if(t.seconds)return t.seconds*1000;const n=Date.parse(t);return isNaN(n)?0:n;}
+function _rlDayStart(){return new Date(jordanDateStr()+'T00:00:00+03:00');}
+function _rlCol(o){const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return Math.max(0,(Number(t)||0)-(Number(o.deliveryFee)||0));}
+function _rlRepOf(o){
+  if(!o.deliveryRepName&&!o.deliveryRepPhone)return null;
+  const ph=String(o.deliveryRepPhone||'').trim();
+  return _rl.reps.find(r=>ph&&String(r.phone||'').trim()===ph)||_rl.reps.find(r=>_repNorm(r.name)===_repNorm(o.deliveryRepName))||null;
+}
+function _rlKeyOf(o){
+  let ph=String(o.deliveryRepPhone||'').trim();
+  if(!ph&&o.deliveryRepName){const mr=_rl.reps.find(r=>_repNorm(r.name)===_repNorm(o.deliveryRepName));if(mr&&mr.phone)ph=mr.phone;}
+  if(!ph&&!o.deliveryRepName)return '';
+  return _repKey(ph,o.deliveryRepName);
+}
+function _rlTime(ms){return ms?new Date(ms).toLocaleTimeString('ar-JO-u-nu-latn',{hour:'numeric',minute:'2-digit',timeZone:'Asia/Amman'}):'';}
+function _rlAgo(ms){
+  if(!ms)return '';
+  const m=Math.max(0,Math.round((Date.now()-ms)/60000));
+  if(m<1)return 'هلأ';if(m<60)return 'من '+m+'د';
+  const h=Math.round(m/60);if(h<24)return 'من '+h+'س';
+  const d=Math.round(h/24);return 'من '+d+(d===1?' يوم':d<11?' أيام':' يوم');
+}
+function _rlVisible(){const v=document.getElementById('optab-reps');return !!v&&v.style.display!=='none'&&document.getElementById('repAcctListView')?.style.display!=='none';}
+function _rlPut(o){
+  if(_RL_ACTIVE.includes(o.status))_rl.act[o.id]=o;else delete _rl.act[o.id];
+  const ms=_rlMs(o.updatedAt);
+  if(ms>=_rlDayStart().getTime())_rl.today[o.id]=o;
+  if(ms>_rl.last)_rl.last=ms;
+  if(_rl.ow){
+    const k=_RL_OWED.includes(o.status)?_rlKeyOf(o):'';
+    if(k)_rl.ow[o.id]=[k,_crOrderDate(o),_rlCol(o),o.status];else delete _rl.ow[o.id];
+  }
+}
+async function _rlFull(){
+  const [repSnap,act,today,locSnap]=await Promise.all([
+    db.collection('operator_config').doc('delivery_reps').get().catch(()=>null),
+    _fsLite('employee_orders',[['status','in',_RL_ACTIVE]],_RL_F),
+    _fsLite('employee_orders',[['updatedAt','>=',_rlDayStart()]],_RL_F).catch(()=>[]),
+    db.collection('rep_locations').where('isActive','==',true).get().catch(()=>null)]);
+  _rl.reps=((repSnap&&repSnap.exists&&repSnap.data().reps)||[]).filter(r=>r&&r.name);
+  _rl.locs={};if(locSnap)locSnap.docs.forEach(d=>{_rl.locs[d.id]={id:d.id,...d.data()};});
+  _rl.act={};_rl.today={};
+  [...act,...today].forEach(_rlPut);
+  _rl.full=Date.now();_rl.at=Date.now();_rl.loaded=true;_rl.err='';
+  if([...act,...today].some(o=>o.cancelSettle===true))_settleRepCancels();
+}
+async function _rlBalances(){
+  await _loadRepReset();
+  const [ord,pays,pts]=await Promise.all([
+    _fsLite('employee_orders',[['status','in',_RL_OWED]],_RL_BALF),
+    db.collection('rep_payments').get(),
+    db.collection('rep_points_payments').get()]);
+  const ow={};
+  ord.forEach(o=>{const k=_rlKeyOf(o);if(k)ow[o.id]=[k,_crOrderDate(o),_rlCol(o),o.status];});
+  // الحالات اللي وصلت مع التحديث المباشر أحدث من هالتحميل
+  Object.values(_rl.today).forEach(o=>{const k=_RL_OWED.includes(o.status)?_rlKeyOf(o):'';if(k)ow[o.id]=[k,_crOrderDate(o),_rlCol(o),o.status];else delete ow[o.id];});
+  _rl.ow=ow;
+  _rl.paid={};pays.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);if(!_rrIn(k,_srDate(p)))return;_rl.paid[k]=(_rl.paid[k]||0)+(Number(p.amount)||0);});
+  _rl.pts={};pts.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);_rl.pts[k]=(_rl.pts[k]||0)+(Number(p.points)||0);});
+  _rl.balAt=Date.now();
+}
+function _rlBal(k){
+  if(!_rl.ow)return null;
+  let owed=_rrOn(k)?_rrOpening(k):0,n=0,dl=0;
+  Object.values(_rl.ow).forEach(([kk,d,v,st])=>{if(kk!==k||!_rrIn(k,d))return;owed+=v;n++;if(st==='delivered')dl++;});
+  const paid=_rl.paid[k]||0;
+  return {owed,paid,bal:owed-paid,n,dl,pts:Math.max(0,dl-(_rl.pts[k]||0))};
+}
+async function _rlTick(){
+  if(!_rlVisible()){_rlStop();return;}
+  if(document.visibilityState==='hidden'||_rl.busy)return;
+  _rl.busy=true;
+  try{
+    if(Date.now()-_rl.full>180000){await _rlFull();}
+    else{
+      const since=new Date(_rl.last||_rlDayStart().getTime());
+      const ch=await _fsLite('employee_orders',[['updatedAt','>',since]],_RL_F);
+      ch.forEach(_rlPut);
+      if(ch.some(o=>o.cancelSettle===true))_settleRepCancels();
+      _rl.at=Date.now();_rl.err='';
+    }
+    if(Date.now()-_rl.balAt>300000)await _rlBalances();
+  }catch(e){_rl.err=navigator.onLine===false?'📵 ما في نت':'ما زبط التحديث';}
+  finally{_rl.busy=false;}
+  _rlPaint();
+}
+function _rlStart(){_rlStop();_rl.timer=setInterval(_rlTick,15000);}
+function _rlStop(){if(_rl.timer){clearInterval(_rl.timer);_rl.timer=null;}}
+function _rlKick(){if(_rl.loaded&&_rlVisible())setTimeout(_rlTick,1200);}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&_rl.timer)_rlTick();});
+
 async function loadRepAccounting(){
   const listEl=document.getElementById('repAcctList');
   if(!listEl)return;
-  listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
-  if(!_pointValue)await loadPointValueSetting();
+  if(!_rl.loaded)listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';
+  if(!_pointValue)loadPointValueSetting();
   try{
-    const _OWED_STATUSES=['delivered','delivering','queued','waiting_rep','onhold','postponed'];
-    await _loadRepReset();
-    const [repSnap,paymentsSnap,ordersSnap,pointsSnap]=await Promise.all([
-      db.collection('operator_config').doc('delivery_reps').get(),
-      db.collection('rep_payments').get(),
-      db.collection('employee_orders').where('status','in',_OWED_STATUSES).get(),
-      db.collection('rep_points_payments').get()
-    ]);
-    const reps=((repSnap.exists?repSnap.data()?.reps:[])||[]);
-    if(!reps.length){listEl.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">لا يوجد مناديب مسجلين — أضفهم من قائمة المناديب في تاب الطلبات</div>';return;}
-    const _ca=o=>{const t=o.netPrice!=null?o.netPrice:(o.totalPrice||0);return Math.max(0,t-(o.deliveryFee||0));};
-    // مطلوب منه = كل الطلبات اللي أخذها (معه + مُسلَّمة)، المرتجع/الملغي مستثنى
-    // المفتاح = الهاتف إن وُجد وإلا الاسم؛ الهاتف وحده كان يدمج كل من بلا هاتف
-    const paidByPhone={};
-    paymentsSnap.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);
-      if(!_rrIn(k,_srDate(p)))return;                 // قبل بداية الحساب الجديد — مطويّ
-      paidByPhone[k]=(paidByPhone[k]||0)+(p.amount||0);});
-    const owedByPhone={};
-    const countByPhone={};
-    const deliveredCountByPhone={};
-    // «كم بدّي منه» يوم البداية يحلّ محلّ كل ما قبله
-    Object.keys(_repReset).forEach(k=>{if(_rrOn(k))owedByPhone[k]=_rrOpening(k);});
-    ordersSnap.docs.forEach(d=>{
-      const o=d.data();
-      let ph=String(o.deliveryRepPhone||'').trim();
-      if(!ph&&o.deliveryRepName){const mr=reps.find(r=>_repNorm(r.name)===_repNorm(o.deliveryRepName));if(mr?.phone)ph=mr.phone;}
-      if(!ph&&!o.deliveryRepName)return;              // طلب بلا مندوب أصلاً
-      const k=_repKey(ph,o.deliveryRepName);
-      if(!_rrIn(k,_crOrderDate(o)))return;
-      owedByPhone[k]=(owedByPhone[k]||0)+_ca(o);
-      countByPhone[k]=(countByPhone[k]||0)+1;
-      if(o.status==='delivered')deliveredCountByPhone[k]=(deliveredCountByPhone[k]||0)+1;
-    });
-    const paidPointsByPhone={};
-    pointsSnap.docs.forEach(d=>{const p=d.data();const k=_repKey(p.repPhone,p.repName);paidPointsByPhone[k]=(paidPointsByPhone[k]||0)+(p.points||0);});
-
-    // Summary bar totals
-    let grandOwed=0,grandPaid=0,repsWithBalance=0;
-    reps.forEach(r=>{const k=_repKey(r.phone,r.name);const b=(owedByPhone[k]||0)-(paidByPhone[k]||0);if(b>0){grandOwed+=b;repsWithBalance++;}grandPaid+=paidByPhone[k]||0;});
-
-    const summaryBar=grandOwed>0?`
-      <div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:12px;padding:13px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div>
-          <div style="font-size:0.72rem;color:rgba(255,255,255,0.7);margin-bottom:2px;">إجمالي المطلوب من المناديب</div>
-          <div style="font-size:1.2rem;font-weight:900;color:#fff;">${grandOwed.toFixed(2)} <span style="font-size:0.75rem;font-weight:600;">د.أ</span></div>
-        </div>
-        <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:6px 14px;text-align:center;">
-          <div style="font-size:0.68rem;color:rgba(255,255,255,0.7);">مناديب عليهم رصيد</div>
-          <div style="font-size:1rem;font-weight:800;color:#fbbf24;">${repsWithBalance} مندوب</div>
-        </div>
-      </div>`:
-      `<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:12px;padding:12px 16px;margin-bottom:14px;text-align:center;">
-        <div style="font-size:0.85rem;font-weight:700;color:#166534;">✅ جميع المناديب حساباتهم مسوّاة</div>
-      </div>`;
-
-    listEl.innerHTML=summaryBar+reps.map(r=>{
-      const _k=_repKey(r.phone,r.name);
-      const owed=owedByPhone[_k]||0;
-      const paid=paidByPhone[_k]||0;
-      const balance=owed-paid;
-      const count=countByPhone[_k]||0;
-      const deliveredCount=deliveredCountByPhone[_k]||0;
-      const paidPts=paidPointsByPhone[_k]||0;
-      const pendingPts=Math.max(0,deliveredCount-paidPts);
-      const safePhone=(r.phone||'').replace(/'/g,"&#39;");
-      const safeName=(r.name||'').replace(/'/g,"&#39;");
-      const settled=balance<=0;
-      return `<div onclick="showRepStatement('${safePhone}','${safeName}')" style="background:#fff;border:2px solid ${settled?'#86efac':'#fca5a5'};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.06);transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;">
-          <div>
-            <span style="font-weight:800;font-size:0.95rem;color:#1a3a2a;">🚚 ${r.name||'مندوب'}</span>
-            ${r.phone?`<div style="font-size:0.72rem;color:#9ca3af;margin-top:1px;">${r.phone}</div>`:''}
-          </div>
-          <span style="padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:800;background:${settled?'#dcfce7':'#fee2e2'};color:${settled?'#166534':'#dc2626'};">${settled?'✓ مسوّى':'● عليه رصيد'}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr${_pointValue&&pendingPts>0?' 1fr':''};gap:8px;">
-          <div style="background:#fee2e2;border-radius:10px;padding:9px;text-align:center;">
-            <div style="font-size:0.62rem;color:#dc2626;margin-bottom:3px;">مطلوب منه</div>
-            <div style="font-weight:900;font-size:0.95rem;color:#dc2626;">${owed.toFixed(2)}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;">د.أ</div>
-          </div>
-          <div style="background:#dcfce7;border-radius:10px;padding:9px;text-align:center;">
-            <div style="font-size:0.62rem;color:#166534;margin-bottom:3px;">دفع</div>
-            <div style="font-weight:900;font-size:0.95rem;color:#166534;">${paid.toFixed(2)}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;">د.أ</div>
-          </div>
-          <div style="background:${settled?'#dcfce7':'#fee2e2'};border-radius:10px;padding:9px;text-align:center;">
-            <div style="font-size:0.62rem;color:${settled?'#166534':'#dc2626'};margin-bottom:3px;">${settled?'مسوّى':'الرصيد'}</div>
-            <div style="font-weight:900;font-size:0.95rem;color:${settled?'#166534':'#dc2626'};">${Math.abs(balance).toFixed(2)}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;">د.أ</div>
-          </div>
-          ${_pointValue&&pendingPts>0?`<div style="background:#fef9c3;border-radius:10px;padding:9px;text-align:center;">
-            <div style="font-size:0.62rem;color:#92400e;margin-bottom:3px;">⭐ نقاط</div>
-            <div style="font-weight:900;font-size:0.95rem;color:#b45309;">${pendingPts}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;">${(pendingPts*_pointValue).toFixed(2)} د.أ</div>
-          </div>`:''}
-        </div>
-        <div style="margin-top:8px;font-size:0.72rem;color:#6b7280;text-align:left;">${count} طلب أخذها (${deliveredCount} مُسلَّم · ${count-deliveredCount} معه) ←</div>
-        ${_rrOn(_k)?`<div style="margin-top:7px;padding:5px 9px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:0.66rem;color:#166534;">♻️ حساب جديد من <b>${_rrFrom(_k)}</b>${_rrOpening(_k)?` · بدايته <b>${_rrOpening(_k)<0?'إله عندك '+Math.abs(_rrOpening(_k)).toFixed(2):'بدّك منه '+_rrOpening(_k).toFixed(2)}</b>`:''}</div>`:''}
-      </div>`;
-    }).join('');
-  }catch(e){listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+e.message+'</div>';}
+    _rl.busy=true;
+    await _rlFull();
+    _rl.busy=false;
+    _rlPaint();
+    await _rlBalances();
+    _rlPaint();
+  }catch(e){_rl.busy=false;listEl.innerHTML='<div style="color:#dc2626;padding:10px;font-size:0.82rem;">❌ '+_esc0(e.message)+'</div>';return;}
+  _rlStart();
 }
+function rlFilter(f){_rl.f=_rl.f===f?'':f;_rlPaint();}
+function rlToggle(k){_rl.open[k]=!_rl.open[k];_rlPaint();}
+function rlSearch(v){_rl.q=String(v||'').trim();_rlPaint(true);}
+function rlCo(){_rl.co=!_rl.co;_rlPaint();}
+function rlFeedAll(){_rl.feedAll=!_rl.feedAll;_rlPaint();}
+
+const _RL_ST={delivering:['قيد التوصيل','#6d28d9','#f5f3ff'],queued:['قائمة توصيل','#0369a1','#f0f9ff'],waiting_rep:['انتظار مندوب','#b45309','#fef3c7'],
+  onhold:['عالق','#b91c1c','#fef2f2'],postponed:['مؤجل','#a16207','#fefce8'],delivered:['تم التوصيل','#166534','#f0fdf4'],
+  cancelled:['ملغي','#dc2626','#fee2e2'],returned:['مرتجع','#4b5563','#f3f4f6'],refused:['رفض الاستلام','#dc2626','#fee2e2'],
+  prepared:['تم التجهيز','#1d4ed8','#eff6ff'],preparing:['قيد التجهيز','#1d4ed8','#eff6ff'],pending:['جديد','#374151','#f3f4f6']};
+function _rlChip(st){const c=_RL_ST[st]||[st,'#374151','#f3f4f6'];return `<span style="display:inline-block;padding:1px 8px;border-radius:20px;background:${c[2]};color:${c[1]};font-size:0.66rem;font-weight:800;white-space:nowrap;">${c[0]}</span>`;}
+function _rlLabel(o){return o.orderNum?('#'+String(o.orderNum).replace(/^#/,'')):('#'+String(o.id||'').slice(-5).toUpperCase());}
+function _rlProds(o){
+  const P=(o.products&&o.products.length)?o.products:[];
+  return P.map(p=>{
+    const cn=Array.isArray(p.colorNumbers)?p.colorNumbers.map(c=>c&&typeof c==='object'?(c.num+(c.qty>1?'×'+c.qty:'')):c).join('، '):'';
+    return `${(Number(p.qty)||1)>1?(Number(p.qty)||1)+'× ':''}<bdi>${_esc0(p.name||'منتج')}</bdi>${p.color?' · '+_esc0(p.color):''}${cn?` <span style="color:#1e40af;">(${_esc0(cn)})</span>`:''}${p.writing?` <span style="color:#6b7280;">✎ ${_esc0(p.writing)}</span>`:''}`;
+  }).join('<br>');
+}
+function _rlWa(ph){const d=String(ph||'').replace(/[٠-٩]/g,x=>'٠١٢٣٤٥٦٧٨٩'.indexOf(x)).replace(/\D/g,'');if(!d)return '';return d.startsWith('962')?d:d.startsWith('0')?'962'+d.slice(1):d.length===9?'962'+d:d;}
+function _rlOrderRow(o,showRep){
+  const ph=o.customerPhone||'';
+  const since=_rlMs(o.assignedAt)||_rlMs(o.updatedAt);
+  const old=o.status==='delivering'&&since&&Date.now()-since>3*86400000;
+  const flag=o.repCancel?`🚫 ${_esc0(o.repCancel.by||'')}: ${_esc0(o.repCancel.reason||'')}`:o.repIssue?`🔔 ${_esc0(o.repIssue.by||'')}: ${_esc0(o.repIssue.reason||'')}`:o.repTransferReq?`↔ بدّه يحوّله لـ${_esc0(o.repTransferReq.toName||'')}`:'';
+  return `<div style="padding:10px 12px;border-top:1px solid #f3f4f6;">
+    <div onclick="openOpOrderDetail('${o.id}')" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="min-width:0;">
+          <div style="font-weight:800;font-size:0.86rem;color:#111827;">${_esc0(o.customerName||'زبون')} <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;">${_rlLabel(o)}</span></div>
+          <div style="font-size:0.7rem;color:#6b7280;margin-top:2px;">${[o.area?`<b style="color:#374151;">${_esc0(o.area)}</b>`:'',_esc0(o.address||'')].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div style="text-align:left;flex-shrink:0;">
+          <div style="font-weight:900;font-size:0.92rem;color:#1a3a2a;font-variant-numeric:tabular-nums;">${(_rlCol(o)+(Number(o.deliveryFee)||0)).toFixed(2)}</div>
+          <div style="font-size:0.6rem;color:#9ca3af;">مع التوصيل</div>
+        </div>
+      </div>
+      ${(o.products&&o.products.length)?`<div style="font-size:0.72rem;color:#374151;margin-top:5px;line-height:1.6;background:#f9fafb;border-radius:8px;padding:5px 8px;">${_rlProds(o)}</div>`:''}
+      ${o.notes?`<div style="font-size:0.7rem;color:#92400e;margin-top:4px;">📝 ${_esc0(o.notes)}</div>`:''}
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:0.68rem;color:#6b7280;">
+        ${_rlChip(o.status)}
+        ${showRep&&o.deliveryRepName?`<span>🚚 <b style="color:#374151;">${_esc0(o.deliveryRepName)}</b></span>`:''}
+        ${since?`<span style="${old?'color:#dc2626;font-weight:800;':''}">${old?'⚠️ ':''}${_rlAgo(since)}</span>`:''}
+        ${o.pageName?`<span>· ${_esc0(o.pageName)}</span>`:''}
+      </div>
+      ${flag?`<div style="font-size:0.7rem;color:#c2410c;font-weight:700;margin-top:4px;">${flag}</div>`:''}
+    </div>
+    ${ph?`<div style="display:flex;gap:6px;margin-top:7px;">
+      <a href="tel:${_esc0(ph)}" style="flex:1;text-align:center;padding:6px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;font-size:0.74rem;font-weight:800;text-decoration:none;">📞 <bdi dir="ltr">${_esc0(ph)}</bdi></a>
+      ${_rlWa(ph)?`<a href="https://wa.me/${_rlWa(ph)}" target="_blank" rel="noopener" style="padding:6px 12px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;font-size:0.74rem;font-weight:800;text-decoration:none;">💬</a>`:''}
+    </div>`:''}
+  </div>`;
+}
+function _rlPaint(searchOnly){
+  const listEl=document.getElementById('repAcctList');
+  if(!listEl||!_rl.loaded)return;
+  const act=Object.values(_rl.act),today=Object.values(_rl.today);
+  const tDate=jordanDateStr();
+  const isCo=r=>!!(r&&r.excludeFromBalance);
+  const withRep=act.filter(o=>o.deliveryRepName||o.deliveryRepPhone);
+  // شركات التوصيل (محاسبة) بيكون معها عشرات الطلبات — بتغطّي على مناديبك بالعدّادات
+  const ownRep=withRep.filter(o=>!isCo(_rlRepOf(o)));
+  const onway=ownRep.filter(o=>o.status==='delivering'||o.status==='queued');
+  const hold=ownRep.filter(o=>o.status==='onhold'||o.status==='postponed');
+  const norep=act.filter(o=>!o.deliveryRepName&&!o.deliveryRepPhone);
+  const done=today.filter(o=>o.status==='delivered'&&(o.deliveredDate||'')===tDate);
+  const dead=today.filter(o=>_RL_DEAD.includes(o.status));
+  const flagged=act.filter(o=>o.repIssue||o.repTransferReq);
+  const byTime=(a,b)=>_rlMs(b.updatedAt)-_rlMs(a.updatedAt);
+  const C=(k,ic,t,n,col)=>`<button onclick="rlFilter('${k}')" style="flex:1;min-width:64px;padding:8px 4px;border-radius:12px;border:1.5px solid ${_rl.f===k?col:'#e5e7eb'};background:${_rl.f===k?col:'#fff'};color:${_rl.f===k?'#fff':col};font-family:'Tajawal',sans-serif;cursor:pointer;">
+    <div style="font-size:1.05rem;font-weight:900;font-variant-numeric:tabular-nums;">${n}</div><div style="font-size:0.62rem;font-weight:800;">${ic} ${t}</div></button>`;
+  const head=`<div style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-radius:14px;padding:12px 14px;margin-bottom:10px;color:#fff;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-weight:900;font-size:0.95rem;">🚚 المناديب <span style="font-size:0.68rem;font-weight:700;background:rgba(110,231,168,.18);color:#6ee7a8;border-radius:20px;padding:2px 9px;margin-right:4px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${_rl.err?'#f59e0b':'#6ee7a8'};margin-left:4px;${_rl.err?'':'animation:rlPulse 1.6s infinite;'}"></span>${_rl.err?_esc0(_rl.err):'مباشر'}</span></div>
+        <div style="font-size:0.64rem;color:rgba(255,255,255,.65);">آخر تحديث ${_rlTime(_rl.at)}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+      ${C('onway','🛵','بالطريق',onway.length,'#6d28d9')}${C('hold','⏸','عالق/مؤجّل',hold.length,'#b91c1c')}${C('norep','⏳','بلا مندوب',norep.length,'#b45309')}${C('done','✅','انسلّم اليوم',done.length,'#166534')}${C('dead','🚫','ألغي اليوم',dead.length,'#dc2626')}
+    </div>
+    <input id="rlQ" value="${_esc0(_rl.q)}" oninput="rlSearch(this.value)" placeholder="🔎 دوّر برقم الطلب أو الزبون أو تلفونه" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.84rem;outline:none;margin-bottom:10px;background:#fff;">`;
+  const box=(title,inner,extra)=>`<div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:10px;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f9fafb;"><div style="font-weight:900;font-size:0.84rem;color:#1a3a2a;">${title}</div>${extra||''}</div>${inner}</div>`;
+  let body='';
+  const q=_rl.q.replace(/[٠-٩]/g,x=>'٠١٢٣٤٥٦٧٨٩'.indexOf(x)).replace(/^#/,'').toLowerCase();
+  if(q){
+    const seen={};const all=[...act,...today].filter(o=>{if(seen[o.id])return false;seen[o.id]=1;return true;});
+    const L=all.filter(o=>[o.orderNum,o.customerName,o.customerPhone,o.id,o.area].some(v=>String(v||'').toLowerCase().replace(/^#/,'').includes(q)));
+    body=box(`🔎 ${L.length} نتيجة`,L.sort(byTime).slice(0,40).map(o=>_rlOrderRow(o,true)).join('')||'<div style="padding:16px;text-align:center;color:#9ca3af;font-size:0.8rem;">ما لقينا — جرّب رقم ثاني (الطلبات اللي مع المناديب أو تحرّكت اليوم)</div>');
+  }else if(_rl.f){
+    const M={onway:['🛵 بالطريق',onway],hold:['⏸ عالق / مؤجّل',hold],norep:['⏳ بلا مندوب',norep],done:['✅ انسلّم اليوم',done],dead:['🚫 ألغي اليوم',dead]}[_rl.f];
+    body=box(`${M[0]} (${M[1].length})`,M[1].slice().sort(byTime).map(o=>_rlOrderRow(o,true)).join('')||'<div style="padding:16px;text-align:center;color:#9ca3af;font-size:0.8rem;">ما في</div>',`<button onclick="rlFilter('')" style="background:none;border:none;color:#6b7280;font-family:'Tajawal',sans-serif;font-size:0.74rem;cursor:pointer;">✕ رجوع</button>`);
+  }else{
+    // ⚡ آخر الحركات
+    const feed=today.slice().sort(byTime);
+    const F=(_rl.feedAll?feed:feed.slice(0,8)).map(o=>{
+      const h=(o.editHistory||[]).slice(-1)[0];
+      const st=_RL_ST[o.status]||[o.status,'#374151'];
+      return `<div onclick="openOpOrderDetail('${o.id}')" style="display:flex;gap:9px;align-items:flex-start;padding:8px 12px;border-top:1px solid #f3f4f6;cursor:pointer;">
+        <span style="font-size:0.66rem;color:#9ca3af;min-width:46px;font-variant-numeric:tabular-nums;padding-top:2px;">${_rlTime(_rlMs(o.updatedAt))}</span>
+        <div style="flex:1;min-width:0;font-size:0.76rem;color:#374151;line-height:1.5;">
+          <b style="color:${st[1]};">${_esc0(st[0])}</b> · ${_esc0(o.customerName||'زبون')} <span style="color:#9ca3af;">${_rlLabel(o)}</span>${o.deliveryRepName?` · 🚚 ${_esc0(o.deliveryRepName)}`:''}
+          ${h?`<div style="font-size:0.66rem;color:#9ca3af;">${_esc0(h.note||'')} (${_esc0(h.by||'')})</div>`:''}
+        </div></div>`;}).join('');
+    body+=box(`⚡ آخر الحركات اليوم <span style="font-size:0.68rem;color:#9ca3af;font-weight:700;">(${feed.length})</span>`,F||'<div style="padding:14px;text-align:center;color:#9ca3af;font-size:0.78rem;">لسا ما في حركات اليوم</div>',
+      feed.length>8?`<button onclick="rlFeedAll()" style="background:none;border:none;color:#166534;font-family:'Tajawal',sans-serif;font-size:0.74rem;font-weight:800;cursor:pointer;">${_rl.feedAll?'أقل':'الكل'}</button>`:'');
+    if(flagged.length)body+=box(`🔔 بدها قرارك (${flagged.length})`,flagged.sort(byTime).map(o=>_rlOrderRow(o,true)).join(''));
+    // المناديب
+    const card=r=>{
+      const k=_repKey(r.phone,r.name);
+      const mine=act.filter(o=>_rlRepOf(o)===r).sort((a,b)=>(_rlMs(b.assignedAt)||_rlMs(b.updatedAt))-(_rlMs(a.assignedAt)||_rlMs(a.updatedAt)));
+      const coll=mine.reduce((s,o)=>s+_rlCol(o)+(Number(o.deliveryFee)||0),0);
+      const dn=done.filter(o=>_rlRepOf(o)===r).length;
+      const b=_rlBal(k);
+      const loc=_rl.locs[String(r.phone||'').trim()]||Object.values(_rl.locs).find(l=>_repNorm(l.repName)===_repNorm(r.name));
+      const lm=loc?_rlMs(loc.updatedAt):0,fresh=lm&&Date.now()-lm<15*60000;
+      const sp=String(r.phone||'').replace(/'/g,'&#39;'),sn=String(r.name||'').replace(/'/g,'&#39;');
+      const op=!!_rl.open[k];
+      return `<div style="background:#fff;border:1.5px solid ${mine.length?'#c4b5fd':'#e5e7eb'};border-radius:14px;margin-bottom:10px;overflow:hidden;">
+        <div style="padding:11px 12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:36px;height:36px;border-radius:50%;background:#1a3a2a;color:#e7c66b;display:grid;place-items:center;font-weight:900;flex-shrink:0;">${_esc0((r.name||'?').trim()[0])}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:900;font-size:0.92rem;color:#111827;">${_esc0(r.name)}${isCo(r)?' <span style="font-size:0.62rem;color:#6b7280;font-weight:700;">🏢 شركة</span>':''}</div>
+              <div style="font-size:0.66rem;color:#6b7280;">${loc?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${fresh?'#16a34a':'#f59e0b'};margin-left:3px;"></span>آخر موقع ${_rlAgo(lm)}`:''}${r.phone?`${loc?' · ':''}<a href="tel:${_esc0(r.phone)}" style="color:#6b7280;"><bdi dir="ltr">${_esc0(r.phone)}</bdi></a>`:''}</div>
+            </div>
+            <div style="text-align:center;flex-shrink:0;"><div style="font-weight:900;font-size:1.15rem;color:#6d28d9;line-height:1;">${mine.length}</div><div style="font-size:0.58rem;color:#6b7280;">معه</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:9px;">
+            <div style="background:#f5f3ff;border-radius:9px;padding:6px;text-align:center;"><div style="font-size:0.58rem;color:#6d28d9;">بيحصّل هلأ</div><div style="font-weight:900;font-size:0.84rem;color:#6d28d9;">${coll.toFixed(2)}</div></div>
+            <div style="background:#f0fdf4;border-radius:9px;padding:6px;text-align:center;"><div style="font-size:0.58rem;color:#166534;">سلّم اليوم</div><div style="font-weight:900;font-size:0.84rem;color:#166534;">${dn}</div></div>
+            <div style="background:${b&&b.bal>0.009?'#fee2e2':'#f0fdf4'};border-radius:9px;padding:6px;text-align:center;"><div style="font-size:0.58rem;color:${b&&b.bal>0.009?'#dc2626':'#166534'};">${b?(b.bal>0.009?'عليه للمحل':b.bal<-0.009?'إله عندك':'مسوّى'):'الرصيد'}</div><div style="font-weight:900;font-size:0.84rem;color:${b&&b.bal>0.009?'#dc2626':'#166534'};">${b?Math.abs(b.bal).toFixed(2):'…'}</div></div>
+          </div>
+          ${b&&_pointValue&&b.pts>0?`<div style="font-size:0.66rem;color:#b45309;margin-top:5px;">⭐ ${b.pts} نقطة = ${(b.pts*_pointValue).toFixed(2)} د.أ</div>`:''}
+          <div style="display:flex;gap:6px;margin-top:9px;">
+            <button onclick="rlToggle('${k.replace(/'/g,"\\'")}')" ${mine.length?'':'disabled'} style="flex:1;padding:8px;background:${op?'#6d28d9':'#f5f3ff'};color:${op?'#fff':'#6d28d9'};border:1.5px solid #c4b5fd;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;${mine.length?'':'opacity:.45;'}">📋 طلباته${mine.length?' ('+mine.length+')':''} ${op?'▲':'▼'}</button>
+            <button onclick="showRepStatement('${sp}','${sn}')" style="flex:1;padding:8px;background:#f9fafb;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer;">🧾 الحساب والدفعات</button>
+          </div>
+          ${_rrOn(k)?`<div style="margin-top:6px;font-size:0.62rem;color:#166534;">♻️ حساب جديد من ${_esc0(_rrFrom(k))}</div>`:''}
+        </div>
+        ${op?mine.map(o=>_rlOrderRow(o,false)).join(''):''}
+      </div>`;
+    };
+    const orphan=withRep.filter(o=>!_rlRepOf(o));
+    if(orphan.length)body+=box(`❓ مع مندوب مش بالقائمة (${orphan.length})`,orphan.sort(byTime).map(o=>_rlOrderRow(o,true)).join(''));
+    const own=_rl.reps.filter(r=>!isCo(r)),cos=_rl.reps.filter(isCo);
+    const cnt=r=>act.filter(o=>_rlRepOf(o)===r).length;
+    own.sort((a,b)=>cnt(b)-cnt(a));cos.sort((a,b)=>cnt(b)-cnt(a));
+    body+=own.map(card).join('')||'<div style="text-align:center;color:#9ca3af;padding:20px;font-size:0.82rem;">لا يوجد مناديب مسجلين — أضفهم من قائمة المناديب في تاب الطلبات</div>';
+    if(cos.length){
+      const n=cos.reduce((s,r)=>s+cnt(r),0);
+      body+=`<button onclick="rlCo()" style="width:100%;padding:11px;margin-bottom:10px;background:#fff;border:1.5px dashed #d1d5db;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;color:#374151;cursor:pointer;">🏢 شركات التوصيل (${cos.length}) · ${n} طلب معهم ${_rl.co?'▲':'▼'}</button>`;
+      if(_rl.co)body+=cos.map(card).join('');
+    }
+  }
+  const _hadFocus=document.activeElement&&document.activeElement.id==='rlQ';
+  listEl.innerHTML=head+body;
+  if(searchOnly||_hadFocus){const i=document.getElementById('rlQ');if(i){i.focus();const L=i.value.length;try{i.setSelectionRange(L,L);}catch(e){}}}
+}
+window.rlFilter=rlFilter;window.rlToggle=rlToggle;window.rlSearch=rlSearch;window.rlCo=rlCo;window.rlFeedAll=rlFeedAll;
 
 // هوية المندوب: الهاتف إن وُجد وإلا الاسم.
 // كان الهاتف وحده هو المفتاح، والطلب يُحفظ بـ deliveryRepPhone:repPhone||''
@@ -21903,10 +22155,11 @@ async function _rrLoadRaw(reps){
   const _OWED=['delivered','delivering','queued','waiting_rep','onhold','postponed'];
   const push=(k,d,t,v)=>{if(!k||!v)return;(_rrRaw[k]=_rrRaw[k]||[]).push([d||'',t,v]);};
   try{
-    const [paySnap,ordSnap]=await Promise.all([
+    const [paySnap,ordL]=await Promise.all([
       db.collection('rep_payments').get(),
-      db.collection('employee_orders').where('status','in',_OWED).get()
+      _fsLite('employee_orders',[['status','in',_OWED]],_RL_BALF)
     ]);
+    const ordSnap={docs:ordL.map(o=>({id:o.id,data:()=>o}))};
     paySnap.docs.forEach(d=>{const p=d.data();
       push(_repKey(p.repPhone,p.repName),_srDate(p),'p',p.amount||0);});
     ordSnap.docs.forEach(d=>{const o=d.data();
@@ -22016,10 +22269,14 @@ async function showRepStatement(phone,name){
     const nameNorm=_normName(name);
     const hasPhone=!!String(phone||'').trim();
     // بلا هاتف: لا نستعلم بـ '' إطلاقاً — يطابق طلبات كل مندوب بلا هاتف
+    // بدون صور: كشف المندوب كان يجيب كل طلباته من أوّل يوم بصورها
+    const _SF=['status','netPrice','totalPrice','deliveryFee','deliveryRepPhone','deliveryRepName','deliveredDate','date',
+      'orderNum','customerName','customerPhone','address','area','pageName','assignedAt','createdAt','updatedAt'];
+    const _lite=(f,v)=>_fsLite('employee_orders',[[f,'==',v]],_SF).then(L=>({docs:L.map(o=>({id:o.id,data:()=>o}))}));
     const nameQueries=[
-      ...(hasPhone?[db.collection('employee_orders').where('deliveryRepPhone','==',phone).get()]:[]),
-      db.collection('employee_orders').where('deliveryRepName','==',name).get(),
-      ...(nameNorm!==name?[db.collection('employee_orders').where('deliveryRepName','==',nameNorm).get()]:[]),
+      ...(hasPhone?[_lite('deliveryRepPhone',phone)]:[]),
+      _lite('deliveryRepName',name),
+      ...(nameNorm!==name?[_lite('deliveryRepName',nameNorm)]:[]),
     ];
     // الدفعات والمرتجعات تحفظ repName أيضاً، فنطابق بالاسم عند غياب الهاتف
     const [paymentsSnap,refundsSnap,...orderSnaps]=await Promise.all([
@@ -22260,6 +22517,8 @@ function repAcctBackToList(){
   document.getElementById('repAcctListView').style.display='block';
   document.getElementById('repAcctDetailView').style.display='none';
   _repAcctRep=null;
+  // رجعنا للشاشة المباشرة: الدفعة اللي انسجّلت بتبيّن بالرصيد فوراً
+  if(_rl.loaded){_rl.balAt=0;_rlStart();_rlTick();}
 }
 
 // ====== POINTS SYSTEM ======
