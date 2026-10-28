@@ -186,6 +186,45 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .skel{aspect-ratio:1;border-radius:16px;background:linear-gradient(90deg,#ece5d6,#f5efe3,#ece5d6);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{to{background-position:-200% 0}}
+/* 📷 لاقي لونك من صورة */
+.findb{width:100%;display:flex;align-items:center;gap:10px;border:1.5px dashed var(--gold);background:#fffbeb;border-radius:16px;padding:11px 14px;margin-bottom:12px;text-align:start}
+.findb .ic{width:40px;height:40px;border-radius:12px;background:var(--g);color:#fff;display:grid;place-items:center;font-size:1.2rem;flex:0 0 auto}
+.findb b{display:block;font-size:.92rem;font-weight:900}
+.findb small{display:block;font-size:.74rem;font-weight:700;color:var(--mu)}
+.fd{position:fixed;inset:0;z-index:35;background:var(--cream);display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .18s}
+.fd.on{opacity:1;pointer-events:auto}
+.fd .hd{display:flex;align-items:center;gap:10px;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 10px;background:var(--g);color:#fff}
+.fd .hd b{flex:1;font-size:1rem;font-weight:900}
+.fd .hd button{width:40px;height:40px;border-radius:12px;border:0;background:rgba(255,255,255,.14);color:#fff;font-size:1rem}
+.fd .bd{flex:1;overflow-y:auto;padding:14px 14px calc(20px + env(safe-area-inset-bottom,0px));max-width:720px;width:100%;margin:0 auto}
+.fd .fdp{position:relative;border-radius:18px;overflow:hidden;background:#1f2a24;touch-action:manipulation}
+.fd .fdp canvas{display:block;width:100%;height:auto}
+.fd .ring{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.4);pointer-events:none;transition:left .15s,top .15s}
+.fd .hint{font-size:.8rem;font-weight:800;color:var(--mu);text-align:center;margin:8px 0 12px}
+.fd .start{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:26px 10px}
+.fd .start .big{width:84px;height:84px;border-radius:24px;background:var(--g);color:#fff;display:grid;place-items:center;font-size:2.2rem}
+.fd .start p{margin:0;color:var(--mu);font-weight:700;font-size:.86rem;line-height:1.8}
+.fd .btn{height:52px;border-radius:15px;border:0;background:var(--g);color:#fff;font-weight:900;font-size:.95rem;padding:0 22px}
+.fd .btn.lt{background:#fff;color:var(--ink);border:1.5px solid var(--ln)}
+.fd .mine{display:flex;align-items:center;gap:10px;background:var(--paper);border-radius:14px;padding:10px 12px;margin-bottom:10px;font-weight:900;font-size:.88rem}
+.fd .sw{width:38px;height:38px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--ln);flex:0 0 auto}
+.fd .res{display:flex;flex-direction:column;gap:10px}
+.fd .mt{display:flex;gap:12px;align-items:center;background:var(--paper);border-radius:16px;padding:10px;box-shadow:0 2px 0 rgba(0,0,0,.04),0 8px 18px -12px rgba(26,58,42,.45)}
+.fd .mt.top{box-shadow:0 0 0 2.5px var(--gold),0 8px 18px -12px rgba(26,58,42,.45)}
+.fd .mt .im{width:84px;height:84px;border-radius:13px;background:#ece5d6 center/cover no-repeat;position:relative;flex:0 0 auto}
+.fd .mt .im .num{top:5px;right:5px;min-width:26px;height:26px;font-size:.8rem}
+.fd .mt .m{flex:1;min-width:0}
+.fd .mt .m b{display:block;font-size:.95rem;font-weight:900}
+.fd .mt .m small{display:block;font-size:.74rem;font-weight:800;color:var(--mu);margin-top:2px}
+.fd .bar2{height:7px;border-radius:999px;background:var(--ln);margin-top:7px;overflow:hidden}
+.fd .bar2 i{display:block;height:100%;border-radius:999px;background:var(--g2)}
+.fd .mt .a{display:flex;flex-direction:column;gap:6px;flex:0 0 auto}
+.fd .mt .a button{height:38px;border-radius:11px;border:1.5px solid var(--ln);background:#fff;font-weight:900;font-size:.8rem;padding:0 10px;white-space:nowrap}
+.fd .mt .a .ad{background:var(--gold);border-color:var(--gold);color:#1a1405}
+.fd .mt .a .ad.on{background:#25d366;border-color:#25d366;color:#05351a}
+.fd .note{font-size:.76rem;font-weight:700;color:var(--mu);line-height:1.8;margin-top:12px;text-align:center}
+.fd .oos{font-size:.8rem;font-weight:800;color:var(--rd);background:#fef2f2;border-radius:12px;padding:8px 12px;margin-top:10px}
+
 @media (prefers-reduced-motion:reduce){.skel{animation:none}*{transition:none!important}}
 </style>
 </head>
@@ -203,6 +242,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
     <button class="tog" id="onlyAv" aria-pressed="false">المتوفّر بس</button>
   </div>
   <div id="mine" hidden></div>
+  <button class="findb" id="findB" hidden><span class="ic">📷</span><span><b>عندك لون؟ صوّره ونلاقيلك رقمه</b><small>صوّر الصوف أو القطعة اللي معك — وبنطلعلك أقرب ألوان عنّا</small></span></button>
   <div class="grid" id="grid"></div>
   <div class="foot" id="foot"></div>
 </div>
@@ -241,6 +281,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   </div>
   <div id="vDone" hidden><div class="done"><div class="ok">✓</div><h4 class="kufi">وصل طلبك</h4><p id="doneP"></p><div class="ref n" id="doneRef"></div></div></div>
   <button class="go" id="sheetWa">✓ كمّل الطلب</button></div>
+<div class="fd" id="fd" role="dialog" aria-modal="true" aria-label="لاقي لونك">
+  <div class="hd"><b class="kufi" id="fdT">📷 لاقي لونك</b><button id="fdX" aria-label="سكّر">✕</button></div>
+  <div class="bd" id="fdB"></div>
+</div>
+<input type="file" id="fdFile" accept="image/*" hidden>
 <div class="toast" id="toast" role="status"></div>
 <script>
 (function(){
@@ -414,6 +459,7 @@ function skeleton(){$('#grid').className='grid';$('#grid').innerHTML=Array.from(
 // ── العرض ──
 function render(){
   $('#back').hidden=view!=='prod';
+  $('#findB').hidden=true;
   paintMine();
   if(view==='home')return renderHome();
   renderProd();
@@ -474,6 +520,7 @@ function renderProd(){
         ${o.out?'':`<div class="q"><button data-cq="${o.num}:-1" aria-label="أقل">−</button><b class="n">${q}</b><button data-cq="${o.num}:1" aria-label="أكثر">＋</button></div>`}</div>`;}).join('')||'<div class="empty">ما في إشي هلّأ</div>';
     return;}
   g.className='grid';
+  $('#findB').hidden=!(fdOn()&&k!=='size'&&os.filter(o=>!o.out&&(o.img||o.hex)).length>=2);
   const L=visible();
   if(!L.length){g.innerHTML=`<div class="empty" style="grid-column:1/-1">${os.length?'ما في لون بهالرقم':'لسا ما في ألوان بهاد المنتج'}</div>`;return;}
   const a=L.filter(x=>!x.out),o=L.filter(x=>x.out);
@@ -1021,8 +1068,149 @@ function bump(id,num,d){
   setQ(id,num,nv);return true;
 }
 
+// ── 📷 لاقي لونك من صورة ──
+// الزبون بيصوّر لون عنده، وبيضغط عليه بالصورة، ومنطلعله أقرب ٣ ألوان متوفّرة.
+// المقارنة بين «بصمتين» محسوبتين بنفس الطريقة: من صورة الزبون (حول المكان اللي
+// ضغطه) ومن صورة كل لون عنّا (نصّها). البصمة = اللون الغالب (مش المتوسّط) بفضاء
+// Lab — قريب من عين الإنسان — فالخيط الأبيض بظلّه ما بيطلع رمادي. ووزن الإضاءة
+// (L) أقل من وزن اللون نفسه، لأنّه الصور بتختلف بالضو أكثر ما بتختلف باللون.
+const FIND=QS.get('find')==='1';
+const SIG={};
+const fdOn=()=>FIND||CFG.colorFinder===true;
+function lab(r,g,b){
+  const f=c=>{c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);};
+  const R=f(r),G=f(g),B=f(b);
+  let X=(R*0.4124+G*0.3576+B*0.1805)/0.95047,Y=R*0.2126+G*0.7152+B*0.0722,Z=(R*0.0193+G*0.1192+B*0.9505)/1.08883;
+  const h=t=>t>0.008856?Math.cbrt(t):7.787*t+16/116;
+  X=h(X);Y=h(Y);Z=h(Z);
+  return [116*Y-16,500*(X-Y),200*(Y-Z)];
+}
+// اللون الغالب: k-means صغير ومناخد أكبر مجموعة. bg = لون الخلفية (من أطراف
+// الصورة): صور ألواننا كبّة على خلفية بيضا وبنصّها ورقة الماركة، فمنستثني
+// المجموعات القريبة من الخلفية — إلا إذا كلّها قريبة (صوف أبيض على أبيض).
+function domin(data,K,bg){
+  K=K||3;const P=[];
+  for(let i=0;i<data.length;i+=4){if(data[i+3]<128)continue;P.push([...lab(data[i],data[i+1],data[i+2]),data[i],data[i+1],data[i+2]]);}
+  if(!P.length)return null;
+  const byL=P.slice().sort((a,b)=>a[0]-b[0]);
+  let C=Array.from({length:K},(_,k)=>byL[Math.floor(byL.length*(k+.5)/K)].slice(0,3));
+  let as=new Array(P.length).fill(0);
+  for(let it=0;it<10;it++){
+    P.forEach((p,i)=>{let bi=0,bd=1e9;C.forEach((c,j)=>{const d=(p[0]-c[0])**2+(p[1]-c[1])**2+(p[2]-c[2])**2;if(d<bd){bd=d;bi=j;}});as[i]=bi;});
+    C=C.map((c,j)=>{const m=P.filter((_,i)=>as[i]===j);if(!m.length)return c;return [0,1,2].map(k=>m.reduce((t,p)=>t+p[k],0)/m.length);});
+  }
+  const n=C.map((_,j)=>as.filter(a=>a===j).length);
+  const cand=bg?C.map((c,j)=>j).filter(j=>n[j]&&Math.sqrt((C[j][0]-bg[0])**2+(C[j][1]-bg[1])**2+(C[j][2]-bg[2])**2)>12):[];
+  const pool=cand.length?cand:C.map((c,j)=>j);
+  const j=pool.reduce((b,x)=>n[x]>n[b]?x:b,pool[0]);
+  const m=P.filter((_,i)=>as[i]===j);
+  const rgb=[3,4,5].map(k=>Math.round(m.reduce((t,p)=>t+p[k],0)/m.length));
+  return {lab:C[j],hex:'#'+rgb.map(v=>v.toString(16).padStart(2,'0')).join('')};
+}
+function loadImg(src){return new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=src;});}
+function sigRegion(im,sx,sy,sw,sh){
+  const c=document.createElement('canvas'),N=40;c.width=N;c.height=N;
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,sx,sy,sw,sh,0,0,N,N);
+  return domin(x.getImageData(0,0,N,N).data);
+}
+// صورة لون من عنّا: الصورة كلّها، بعد ما نعرف لون الخلفية من أطرافها
+function sigCatalog(im){
+  const c=document.createElement('canvas'),N=48;c.width=N;c.height=N;
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,N,N);
+  const d=x.getImageData(0,0,N,N).data,E=[];
+  for(let y=0;y<N;y++)for(let xx=0;xx<N;xx++){if(y>1&&y<N-2&&xx>1&&xx<N-2)continue;const i=(y*N+xx)*4;E.push(lab(d[i],d[i+1],d[i+2]));}
+  const med=k=>{const v=E.map(e=>e[k]).sort((a,b)=>a-b);return v[v.length>>1];};
+  return domin(d,4,[med(0),med(1),med(2)]);
+}
+async function sigOf(it){
+  if(SIG[it.key]!==undefined)return SIG[it.key];
+  SIG[it.key]=null;
+  try{
+    if(it.img){SIG[it.key]=sigCatalog(await loadImg(it.img));}
+    else if(it.hex){const m=/^#?([0-9a-f]{6})$/i.exec(it.hex);if(m){const v=parseInt(m[1],16);SIG[it.key]={lab:lab(v>>16,(v>>8)&255,v&255),hex:'#'+m[1]};}}
+  }catch(e){}
+  return SIG[it.key];
+}
+const dist=(a,b)=>Math.sqrt(((a[0]-b[0])*.45)**2+(a[1]-b[1])**2+(a[2]-b[2])**2);
+const pct=d=>Math.max(1,Math.min(99,Math.round(100-d*2.1)));
+let FD={im:null,x:.5,y:.5,me:null,res:[],busy:false};
+function fdOpen(){
+  FD={im:null,x:.5,y:.5,me:null,res:[],busy:false};
+  $('#fdT').textContent='📷 لاقي لونك'+(PR[CUR]&&PR[CUR].name?' · '+PR[CUR].name:'');
+  fdStart();$('#fd').classList.add('on');
+  try{history.pushState({fd:1},'');}catch(e){}
+  (ITEMS||[]).forEach(sigOf);   // جهّز بصمات ألواننا من هلّأ
+}
+function fdClose(fromPop){$('#fd').classList.remove('on');if(!fromPop){try{if(history.state&&history.state.fd)popSelf();}catch(e){}}}
+function fdStart(){
+  $('#fdB').innerHTML=`<div class="start"><div class="big">📷</div>
+    <b style="font-size:1.05rem">صوّر اللون اللي عندك</b>
+    <p>صوّر الصوف أو القطعة قريب، بضوّ النهار إذا بتقدر، وبدون فلاتر.<br>بعدها اضغط على اللون بالصورة — ومنطلعلك أقرب ألوان عنّا.</p>
+    <button class="btn" data-fdpick="1">📷 صوّر أو اختار صورة</button></div>`;
+}
+async function fdFile(f){
+  if(!f)return;
+  $('#fdB').innerHTML='<div class="start"><div class="big">⏳</div><p>عم نجهّز الصورة…</p></div>';
+  try{
+    const url=URL.createObjectURL(f);const im=await loadImg(url);
+    const M=900,k=Math.min(1,M/Math.max(im.naturalWidth,im.naturalHeight));
+    const c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
+    FD.im=c;FD.x=.5;FD.y=.5;
+    $('#fdB').innerHTML=`<div class="fdp" id="fdPick"></div>
+      <div class="hint">👆 اضغط على اللون بالصورة إذا فيها أكثر من لون</div>
+      <div id="fdRes"></div>`;
+    const v=document.createElement('canvas');v.width=c.width;v.height=c.height;v.getContext('2d').drawImage(c,0,0);
+    $('#fdPick').appendChild(v);$('#fdPick').insertAdjacentHTML('beforeend','<i class="ring" id="fdRing"></i>');
+    v.addEventListener('click',e=>{const r=v.getBoundingClientRect();FD.x=(e.clientX-r.left)/r.width;FD.y=(e.clientY-r.top)/r.height;fdMatch();});
+    fdMatch();
+  }catch(e){$('#fdB').innerHTML=`<div class="start"><div class="big">😕</div><p>ما قدرنا نفتح الصورة — جرّب صورة ثانية</p><button class="btn" data-fdpick="1">📷 صورة ثانية</button></div>`;}
+}
+async function fdMatch(){
+  const c=FD.im;if(!c)return;
+  const ring=$('#fdRing');if(ring){ring.style.left=(FD.x*100)+'%';ring.style.top=(FD.y*100)+'%';}
+  const s=Math.max(8,Math.min(c.width,c.height)*.08);
+  const x=Math.max(0,Math.min(c.width-s,FD.x*c.width-s/2)),y=Math.max(0,Math.min(c.height-s,FD.y*c.height-s/2));
+  FD.me=sigRegion(c,x,y,s,s);FD.seq=(FD.seq||0)+1;const seq=FD.seq;
+  if(!FD.me){$('#fdRes').innerHTML='';return;}
+  const all=[];
+  for(const it of ITEMS){const sg=await sigOf(it);if(sg)all.push({it,d:dist(FD.me.lab,sg.lab)});}
+  if(seq!==FD.seq)return;   // ضغط مكان ثاني وإحنا بنحسب
+  all.sort((a,b)=>a.d-b.d);
+  FD.res=all.filter(r=>!r.it.out).slice(0,6);FD.more=false;
+  const best=all[0],oos=best&&best.it.out&&(!FD.res[0]||best.d<FD.res[0].d-2)?best:null;
+  FD.oos=oos;fdPaint();
+}
+function fdPaint(){
+  const R=$('#fdRes');if(!R)return;const oos=FD.oos;
+  if(!FD.res.length){R.innerHTML='<div class="oos">ما لقينا ألوان متوفّرة بهاد المنتج حالياً</div>';return;}
+  const show=FD.res.slice(0,FD.more?6:3);
+  R.innerHTML=`<div class="mine"><span class="sw" style="background:${FD.me.hex}"></span>لونك بالصورة <span style="flex:1"></span><small style="color:var(--mu);font-weight:800">أقرب ${show.length} عنّا ⬇</small></div>
+    <div class="res">${show.map((r,k)=>{const i=ITEMS.findIndex(y=>y.key===r.it.key),x=ITEMS[i]||r.it,q=cQ(CUR,x.num),p=pct(r.d);   // ITEMS بتنبني من جديد مع كل تحديث
+      return `<div class="mt${k===0?' top':''}">
+        <div class="im" style="${x.img?`background-image:url('${x.img}')`:`background:${esc(x.hex||'#ddd')}`}"><span class="num n">${esc(x.tag)}</span></div>
+        <div class="m"><b>${k===0?'⭐ ':''}${esc(x.name)}</b><small>تطابق تقريبي <span class="n">${p}%</span>${x.stock!=null?` · متوفّر <span class="n">${x.stock}</span>`:''}</small>
+          <div class="bar2"><i style="width:${p}%"></i></div></div>
+        <div class="a"><button class="ad${q?' on':''}" data-fdadd="${i}">${q?'✓ بطلبي':'＋ لطلبي'}</button><button data-fdsee="${i}">🔍 كبّر</button></div></div>`;}).join('')}</div>
+    ${!FD.more&&FD.res.length>3?`<button class="btn lt" style="width:100%;margin-top:10px;height:44px" data-fdmore="1">مش هيك؟ شوف ${FD.res.length-3} كمان ⬇</button>`:''}
+    ${oos?`<div class="oos">🟡 في لون أقرب كمان — رقم <b class="n">${esc(oos.it.tag)}</b> — بس خلص حالياً</div>`:''}
+    <div class="note">التطابق تقريبي — الضو والكاميرا بيغيّروا درجة اللون.<br>كبّر الصورة وقارن قبل ما تطلب، أو ابعتلنا الصورة ومنتأكّدلك.</div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn lt" style="flex:1" data-fdpick="1">📷 صورة ثانية</button><button class="btn" style="flex:1" data-fdx="1">✓ خلصت</button></div>`;
+}
+function fdAdd(i){
+  const x=ITEMS[i];if(!x||x.out)return;
+  if(cQ(CUR,x.num)){setQ(CUR,x.num,0);toast('انشال من طلبك');}
+  else{setQ(CUR,x.num,1);toast('✓ انضاف '+x.name);}
+  render();fdPaint();
+}
+
 // ── الأحداث ──
 document.addEventListener('click',e=>{
+  if(e.target.closest('[data-fdpick]')){$('#fdFile').value='';$('#fdFile').click();return;}
+  if(e.target.closest('[data-fdx]')){fdClose();return;}
+  if(e.target.closest('[data-fdmore]')){FD.more=true;fdPaint();return;}
+  const fa=e.target.closest('[data-fdadd]');if(fa){fdAdd(Number(fa.dataset.fdadd));return;}
+  const fs=e.target.closest('[data-fdsee]');if(fs){openLb(Number(fs.dataset.fdsee));return;}
   const op=e.target.closest('[data-open]');if(op){openProd(op.dataset.open,true);return;}
   if(e.target.closest('[data-home]')){showHome();return;}
   const ct=e.target.closest('[data-cat]');if(ct){document.querySelectorAll('.catbar button').forEach(b=>b.classList.toggle('on',b===ct));
@@ -1047,6 +1235,8 @@ document.addEventListener('click',e=>{
     if(cartEmpty())closeSheet();return;}
 });
 $('#back').onclick=()=>showHome();
+$('#findB').onclick=fdOpen;$('#fdX').onclick=()=>fdClose();
+$('#fdFile').onchange=()=>fdFile($('#fdFile').files&&$('#fdFile').files[0]);
 $('#lbX').onclick=()=>closeLb();
 $('#lb').addEventListener('click',e=>{if(e.target.id==='lb')closeLb();});
 $('#lbPrev').onclick=()=>step(-1);$('#lbNext').onclick=()=>step(1);
@@ -1068,6 +1258,7 @@ if(CH==='m')$('#barWa').classList.add('ms');
 window.addEventListener('popstate',()=>{
   if(selfBack>0){selfBack--;return;}
   if($('#lb').classList.contains('on'))closeLb(true);
+  else if($('#fd').classList.contains('on'))fdClose(true);
   else if($('#sheet').classList.contains('on'))closeSheet(true);
   else if(view==='prod'&&fromHome)showHome(true);
 });
