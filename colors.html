@@ -574,7 +574,7 @@ function cardHTML(p){
     const ctl=k==='opt'?`<span class="go2">${t?'✓ عدّل اختيارك':cols.length?'اختار اللون'+(p.requiresWriting?' والكتابة':'')+' ←':'اكتب الكتابة ←'}</span>`:k==='plain'?(t?`<div class="pq"><button data-pq="${esc(p.id)}:-1" aria-label="أقل">−</button><b class="n">${t}</b><button data-pq="${esc(p.id)}:1" aria-label="أكثر">＋</button></div>`
         :`<div class="pq"><button class="add1" data-pq="${esc(p.id)}:1">＋ أضف لطلبي</button></div>`)
       :`<span class="go2">${t?'✓ عدّل اختيارك':k==='size'?'اختار القياس ←':'اختار الألوان ←'}</span>`;
-    return `<${k==='plain'?'div':'button'} class="pc${t?' sel':''}${k!=='plain'&&av===0?' out':''}"${k==='plain'?'':` data-open="${esc(p.id)}"`}>
+    return `<${k==='plain'?'div':'button'} class="pc${t?' sel':''}${k!=='plain'&&k!=='opt'&&av===0?' out':''}"${k==='plain'?'':` data-open="${esc(p.id)}"`}>
       <div class="im" style="${img?`background-image:url('${img}')`:''}">${img?'':'🧶'}</div>${t?`<span class="in n">×${t} بطلبك</span>`:''}
       <div class="bd"><b>${esc(p.name||'')}</b>${pr>0?`<small><span class="n">${f2(pr)}</span> د.أ للقطعة</small>`:''}${sub?`<small class="mu">${sub}</small>`:''}${ctl}</div></${k==='plain'?'div':'button'}>`;
 }
