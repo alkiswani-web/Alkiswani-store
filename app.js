@@ -3943,6 +3943,7 @@ function _renderColorHQ(){
     {k:'l',v:sum('low'),t:'قرب يخلص',c:'#b45309',bg:'#fffbeb',bd:'#fde68a'},
     {k:'o',v:sum('out'),t:'خلص',c:'#dc2626',bg:'#fef2f2',bd:'#fecaca'},
     {k:'p',v:ld?null:sum('noPic'),t:'بدون صورة',c:'#1e40af',bg:'#eff6ff',bd:'#bfdbfe'},
+    {k:'w',v:_rw.loaded?_rwSplit().back.length:null,t:'زبون لونه رجع'+(_rw.loaded&&_rwSplit().out.length?` · ${_rwSplit().out.length} بستنوا`:''),c:'#166534',bg:'#f0fdf4',bd:'#86efac',act:'openRestockWaits()'},
     {k:'c',v:_hq.reqs?reqs.length:null,t:'طلب كتالوج جديد',c:'#166534',bg:'#f0fdf4',bd:'#bbf7d0',act:"document.getElementById('hqCat')?.scrollIntoView({behavior:'smooth',block:'start'})"},
     {k:'b',v:cbN,t:'تغيير ما وصل الموظفين',c:'#7c3aed',bg:'#f5f3ff',bd:'#ddd6fe',act:'openColorBroadcast()'},
     {k:'g',v:sum('noBc'),t:'لون بدون باركود',c:'#374151',bg:'#f9fafb',bd:'#e5e7eb',act:'openBarcodes()'},
@@ -12690,8 +12691,132 @@ async function catAdmRegGo(rid){
 }
 window.openCatAdmin=openCatAdmin;window.catAdmTab=catAdmTab;window.catAdmAssign=catAdmAssign;window.catAdmDismiss=catAdmDismiss;window.catAdmReg=catAdmReg;window.catAdmRegGo=catAdmRegGo;
 
+// ═════════ 🔔 زباين بستنوا لون يرجع — للإدارة بس ═════════
+// الزبون بالكتالوج بيضغط «بلّغني لما يرجع» على لون خالص (restock_waits).
+// هون الإدارة بتشوف مين لونه رجع، وبتبعتله واتساب برسالة جاهزة بضغطة —
+// والموظفين ما بيشوفوا هالقائمة. المخزون بنتابعه مباشر: ألوان المنتجات
+// بالترقيم الخاص من مستند المنتج نفسه، والمكتبة المشتركة من _colorLib.
+let _rw={unsub:null,list:[],pr:{},prSub:{},loaded:false};
+function _rwWatch(){
+  if(_rw.unsub||typeof db==='undefined'||!_currentAdminUser)return;
+  _rw.unsub=db.collection('restock_waits').where('status','==','waiting').onSnapshot(s=>{
+    _rw.list=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+    _rw.loaded=true;
+    [...new Set(_rw.list.filter(w=>!w.lib).map(w=>w.pid))].forEach(_rwSubP);
+    if(_rw.list.some(w=>w.lib))loadColorLibrary().then(()=>_rwPaint()).catch(()=>{});
+    _rwPaint();
+  },()=>{});
+}
+function _rwSubP(pid){
+  if(!pid||_rw.prSub[pid])return;
+  _rw.prSub[pid]=db.collection('operator_products').doc(pid).onSnapshot(d=>{
+    _rw.pr[pid]=d.exists?{id:pid,...d.data()}:null;_rwPaint();},()=>{});
+}
+// back = رجع متوفّر · out = لسّا خالص · gone = اللون انشال من المنتج
+function _rwState(w){
+  if(w.lib){
+    const c=_clr(w.num);if(!c)return _colorLibLoaded?'gone':'out';
+    if(c.status==='retired')return 'gone';
+    const q=c.counted===true?(Number(c.qty)||0):null;
+    return (c.status==='out'||(q!=null&&q<=0))?'out':'back';
+  }
+  const p=_rw.pr[w.pid];if(p===undefined)return 'out';if(!p)return 'gone';
+  const m=_ownQtyMap(p);if(!(String(w.num) in m))return 'gone';
+  const q=_ownQty(p,w.num);return q==null||q>0?'back':'out';
+}
+function _rwSplit(){const o={back:[],out:[],gone:[]};_rw.list.forEach(w=>o[_rwState(w)].push(w));return o;}
+function _rwImg(w){
+  if(w.lib){const c=_clr(w.num);return (c&&c.img)||'';}
+  const m=(_ownImgs[w.pid]||{})[String(w.num)];return (m&&m.img)||'';
+}
+function _rwMsg(w){
+  const word=w.lib?'لون':((_rw.pr[w.pid]&&_cnIsSize(_rw.pr[w.pid]))?'قياس':'لون');
+  const link=`https://alkiswanirosemary.com/colors.html?p=${encodeURIComponent(w.pid)}${w.emp?'&e='+encodeURIComponent(w.emp):''}`;
+  return `مرحبا ${w.name||''} 🌸\nمعك الكسواني روزميري — ${w.pname||''} ${word} ${w.tag||w.num} اللي طلبت نبلّغك فيه رجع متوفّر ✨\nللطلب أو الحجز من هون 👇\n${link}`;
+}
+function _rwWa(w){
+  const d=String(w.phone||'').replace(/\D/g,''),intl=d.startsWith('962')?d:d.startsWith('0')?'962'+d.slice(1):d;
+  return intl?`https://wa.me/${intl}?text=${encodeURIComponent(_rwMsg(w))}`:'';
+}
+function _rwPaint(){
+  const S=_rwSplit(),n=S.back.length;
+  const b=document.getElementById('opRwBanner');
+  if(b){
+    if(!n){b.style.display='none';b.innerHTML='';}
+    else{b.style.display='block';
+      b.innerHTML=`<button onclick="openRestockWaits()" style="width:100%;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:11px 14px;background:#f0fdf4;border:2px solid #22c55e;border-radius:14px;font-family:'Tajawal',sans-serif;cursor:pointer;text-align:right;">
+        <span style="font-size:1.3rem;">🔔</span><span style="flex:1;"><b style="color:#166534;font-size:.92rem;">${n} ${n===1?'زبون':'زباين'} بستنوا ألوان رجعت</b>
+        <br><span style="font-size:.74rem;color:#15803d;font-weight:700;">بلّغهم واتساب بضغطة</span></span>
+        <span style="color:#166534;font-weight:900;font-size:.85rem;">افتح ←</span></button>`;}
+  }
+  if(document.getElementById('rwModal'))_rwSheet();
+}
+async function openRestockWaits(){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  _rwWatch();
+  document.getElementById('rwModal')?.remove();
+  const ov=document.createElement('div');ov.id='rwModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div><div style="font-weight:900;font-size:1rem;color:#166534;">🔔 زباين بستنوا ألوان</div>
+        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;">من «بلّغني لما يرجع» بالكتالوج — للإدارة بس</div></div>
+      <button onclick="document.getElementById('rwModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:.95rem;cursor:pointer;">✕</button></div>
+    <div id="rwBody" style="flex:1;overflow-y:auto;padding:10px 12px 20px;"></div></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  _rwSheet();
+  // صور الألوان (الترقيم الخاص) — للتعرّف عاللون بسرعة
+  [...new Set(_rw.list.filter(w=>!w.lib).map(w=>w.pid))].forEach(pid=>{_loadOwnImgs(pid).then(()=>_rwSheet()).catch(()=>{});});
+}
+function _rwSheet(){
+  const body=document.getElementById('rwBody');if(!body)return;
+  if(!_rw.loaded){body.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;">⏳ تحميل...</div>';return;}
+  const S=_rwSplit(),F="font-family:'Tajawal',sans-serif;";
+  const th=w=>{const im=_rwImg(w);return `<div style="width:44px;height:44px;border-radius:10px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);${im?`background:url('${im}') center/cover;`:'background:#f3f4f6;'}position:relative;"><span style="position:absolute;bottom:-4px;left:-4px;background:#1a3a2a;color:#fff;border-radius:999px;padding:0 6px;font-size:.66rem;font-weight:900;">${_clrEsc(w.tag||w.num)}</span></div>`;};
+  const H=(t,c)=>`<div style="font-size:.78rem;font-weight:900;color:${c};margin:12px 2px 8px;">${t}</div>`;
+  let h='';
+  h+=H(`✅ رجع متوفّر — بلّغهم (${S.back.length})`,'#166534');
+  h+=S.back.map(w=>`<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1.5px solid #bbf7d0;background:#f0fdf4;border-radius:14px;margin-bottom:8px;">
+      ${th(w)}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:900;font-size:.9rem;color:#111827;">${_clrEsc(w.name||'زبون')} <span style="font-size:.72rem;color:#6b7280;font-weight:700;"><bdi dir="ltr">${_clrEsc(w.phone||'')}</bdi></span></div>
+        <div style="font-size:.74rem;color:#374151;font-weight:700;"><bdi>${_clrEsc(w.pname||'')}</bdi> · ${_clrEsc(w.tag||w.num)} · <span style="color:#9ca3af;">سجّل ${_hqAgo(w.createdAt)}</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;">
+        <a href="${_rwWa(w)}" target="_blank" rel="noopener" onclick="rwNotified('${w.id}')" style="padding:8px 12px;background:#25d366;color:#05351a;border-radius:10px;${F}font-size:.8rem;font-weight:900;text-decoration:none;text-align:center;">💬 بلّغها</a>
+        <button onclick="rwDismiss('${w.id}')" style="padding:4px;background:none;border:none;color:#9ca3af;${F}font-size:.7rem;cursor:pointer;">✕ شيل</button>
+      </div></div>`).join('')||'<div style="padding:12px;text-align:center;color:#9ca3af;font-size:.8rem;">ولا لون رجع لحد هلّأ</div>';
+  // لسّا خالص — مجمّع لكل لون: هاد طلب حقيقي عالألوان، بيفيد بطلبية الشركة
+  const G={};S.out.forEach(w=>{const k=w.pid+'|'+w.num;(G[k]=G[k]||[]).push(w);});
+  const gs=Object.values(G).sort((a,b)=>b.length-a.length);
+  h+=H(`⏳ لسّا خالص — زباين بستنوا (${S.out.length})`,'#b45309');
+  h+=gs.map(L=>{const w=L[0];return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:8px;background:#fff;">
+      ${th(w)}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:900;font-size:.88rem;color:#111827;"><bdi>${_clrEsc(w.pname||'')}</bdi> · ${_clrEsc(w.tag||w.num)} <span style="color:#b45309;">— ${L.length} ${L.length===1?'زبون':'زباين'}</span></div>
+        <div style="font-size:.72rem;color:#6b7280;">${L.map(x=>_clrEsc(x.name||'')).join('، ')}</div>
+      </div>
+      ${w.lib?'':`<button onclick="document.getElementById('rwModal').remove();openReorder('${w.pid}')" style="padding:6px 9px;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:9px;${F}font-size:.72rem;font-weight:800;cursor:pointer;white-space:nowrap;">🧾 طلبية</button>`}
+    </div>`;}).join('')||'<div style="padding:12px;text-align:center;color:#9ca3af;font-size:.8rem;">ما في حدا بستنى</div>';
+  if(S.gone.length)h+=H(`🗑 ألوان انشالت من المنتج (${S.gone.length})`,'#6b7280')+S.gone.map(w=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed #e5e7eb;border-radius:12px;margin-bottom:6px;font-size:.78rem;color:#6b7280;">
+      <span style="flex:1;">${_clrEsc(w.name||'')} — <bdi>${_clrEsc(w.pname||'')}</bdi> ${_clrEsc(w.tag||w.num)}</span><button onclick="rwDismiss('${w.id}')" style="background:none;border:none;color:#dc2626;${F}font-size:.74rem;font-weight:800;cursor:pointer;">✕ شيل</button></div>`).join('');
+  h+=`<div style="font-size:.7rem;color:#9ca3af;text-align:center;margin-top:12px;line-height:1.7;">«💬 بلّغها» بيفتح واتساب برسالة جاهزة فيها رابط اللون — وبعدها الزبون بيطلع من القائمة.</div>`;
+  body.innerHTML=h;
+}
+async function rwNotified(id){
+  try{await db.collection('restock_waits').doc(id).update({status:'notified',notifiedAt:firebase.firestore.FieldValue.serverTimestamp(),notifiedBy:_currentAdminUser||'الإدارة'});}
+  catch(e){toast('❌ '+e.message);}
+}
+async function rwDismiss(id){
+  if(!confirm('تشيل هالزبون من قائمة الانتظار؟'))return;
+  try{await db.collection('restock_waits').doc(id).update({status:'dismissed',doneAt:firebase.firestore.FieldValue.serverTimestamp(),doneBy:_currentAdminUser||'الإدارة'});toast('🗑 انشال');}
+  catch(e){toast('❌ '+e.message);}
+}
+window.openRestockWaits=openRestockWaits;window.rwNotified=rwNotified;window.rwDismiss=rwDismiss;
+
 function switchOpTab(tab){
-  _catAdmWatch();
+  _catAdmWatch();_rwWatch();
   _renderOpTabs(tab);
   const allTabs=['oporders','products','stores','sales','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
   allTabs.forEach(t=>{

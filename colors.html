@@ -186,6 +186,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .skel{aspect-ratio:1;border-radius:16px;background:linear-gradient(90deg,#ece5d6,#f5efe3,#ece5d6);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{to{background-position:-200% 0}}
+/* 🔔 بلّغني لما يرجع */
+.add.rw{background:#fff;color:var(--g)}
+.add.rw.on{background:#dcfce7;color:#166534}
+.rwm{position:fixed;inset:0;z-index:42;background:rgba(10,18,13,.6);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s}
+.rwm.on{opacity:1;pointer-events:auto}
+.rwm .in{width:100%;max-width:520px;background:var(--paper);border-radius:22px 22px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.rwm h4{margin:0 0 4px;font-size:1.05rem}
+.rwm p{margin:0 0 10px;color:var(--mu);font-weight:700;font-size:.82rem;line-height:1.7}
+.rwm label{display:block;font-size:.8rem;font-weight:900;color:var(--mu);margin:10px 2px 5px}
+.rwm input{width:100%;border:1.5px solid var(--ln);border-radius:12px;background:#fff;font:inherit;font-size:1rem;font-weight:700;padding:11px 12px;outline:none}
+.rwm input:focus{border-color:var(--g)}
+.rwm .err{color:var(--rd);font-size:.8rem;font-weight:800;min-height:1.2em;margin:6px 2px 0}
+.rwm .row2{display:flex;gap:8px;margin-top:8px}
+.rwm .row2 button{flex:1;height:50px;border-radius:14px;border:0;font-weight:900;font-size:.95rem}
 /* 🧮 حاسبة المشروع */
 .findb.pjb{background:#f0fdf4;border-color:#86efac}
 .pjs{font-size:.86rem;font-weight:900;margin:16px 2px 8px;display:flex;align-items:center;gap:8px}
@@ -317,6 +331,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   <div class="bd" id="fdB"></div>
 </div>
 <input type="file" id="fdFile" accept="image/*" hidden>
+<div class="rwm" id="rwm" role="dialog" aria-modal="true" aria-label="بلّغني لما يرجع"><div class="in">
+  <h4 class="kufi" id="rwH">🔔 بلّغني لما يرجع</h4>
+  <p id="rwP">أول ما يرجع اللون بنبعتلك رسالة واتساب.</p>
+  <label for="rwName">الاسم</label><input id="rwName" autocomplete="name" placeholder="اسمك">
+  <label for="rwPhone">رقم الواتساب</label><input id="rwPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="07XXXXXXXX" style="direction:ltr;text-align:right">
+  <div class="err" id="rwErr"></div>
+  <div class="row2"><button id="rwNo" style="background:#fff;border:1.5px solid var(--ln)">إلغاء</button><button id="rwOk" style="background:var(--g);color:#fff">🔔 بلّغوني</button></div>
+</div></div>
 <div class="fd" id="pj" role="dialog" aria-modal="true" aria-label="حاسبة المشروع">
   <div class="hd"><b class="kufi">🧮 كم كبّة بدي؟</b><button id="pjX" aria-label="سكّر">✕</button></div>
   <div class="bd" id="pjBd"></div>
@@ -359,6 +381,7 @@ let view=PID0?'prod':'home',CUR=PID0,fromHome=false;
 let ITEMS=[],cur=-1,onlyAv=false;
 // السلّة لكل الكتالوج: CART[id]={n:{رقم:كمية}} للألوان والقياسات، أو {q:كمية} للمنتج العادي
 let CART=LS.get('_clrCart2',{});if(!CART||typeof CART!=='object')CART={};
+let RW=LS.get('_clrWaits',[]);if(!Array.isArray(RW))RW=[];   // 🔔 ألوان سجّل يستناها: «منتج|رقم»
 let PROJ=LS.get('_clrProj',null);   // 🧮 مشروع شغّال: {pid,label,n,per,tot}
 // وقت تعديل طلب، السلّة فيها الطلب نفسه — ما منحفظها كسلّة عادية
 const saveCart=()=>{if(typeof EDIT!=='undefined'&&EDIT)return;LS.set('_clrCart2',CART);};
@@ -641,15 +664,17 @@ async function fetchFull(i){
 }
 // ── العرض الكبير ──
 let qv=1;
-function stText(x){return x.out?'<span style="color:#f3c4c4">خلص حالياً — اسألنا إمتى بيرجع</span>':(x.stock!=null?`<span style="color:#bfe8cb">متوفّر <b class="n">${x.stock}</b> قطعة</span>`:'');}
+function stText(x){return x.out?(rwHas(CUR,x.num)?'<span style="color:#bfe8cb">خلص حالياً — رح نبلّغك أول ما يرجع ✓</span>':'<span style="color:#f3c4c4">خلص حالياً — اضغط «بلّغني» ومنبعتلك أول ما يرجع</span>'):(x.stock!=null?`<span style="color:#bfe8cb">متوفّر <b class="n">${x.stock}</b> قطعة</span>`:'');}
 function lbPaint(){
   const x=ITEMS[cur];if(!x)return;
   const src=FULL[x.key]||x.img;
   $('#lbImg').style.cssText=src?`background-image:url('${src}')`:(x.hex?`background:${x.hex}`:'');
   $('#lbNum').textContent=x.tag;$('#lbNm').textContent=x.name;$('#lbSt').innerHTML=stText(x);
   if(x.stock!=null&&qv>x.stock)qv=Math.max(1,x.stock);$('#qV').textContent=qv;
-  const inC=!!cQ(CUR,x.num);$('#lbAdd').textContent=inC?'✓ بطلبي':'＋ لطلبي';$('#lbAdd').classList.toggle('on',inC);
-  $('#lbAdd').disabled=!!x.out;$('#lbAdd').style.opacity=x.out?.4:1;
+  const inC=!!cQ(CUR,x.num),w=x.out&&rwHas(CUR,x.num);
+  $('#lbAdd').textContent=x.out?(w?'✓ رح نبلّغك':'🔔 بلّغني لما يرجع'):inC?'✓ بطلبي':'＋ لطلبي';
+  $('#lbAdd').classList.toggle('on',x.out?w:inC);$('#lbAdd').classList.toggle('rw',!!x.out);
+  $('#lbAdd').disabled=false;$('#lbAdd').style.opacity=1;
 }
 function openLb(i){
   cur=i;const x=ITEMS[i];if(!x)return;qv=cQ(CUR,x.num)||(PROJ&&PROJ.pid===CUR?(x.stock!=null?Math.max(1,Math.min(PROJ.per,x.stock)):PROJ.per):1);lbPaint();
@@ -1110,6 +1135,40 @@ function bump(id,num,d){
   setQ(id,num,nv);return true;
 }
 
+// ── 🔔 بلّغني لما يرجع ──
+// لون خالص: الزبون بيترك اسمه ورقمه (restock_waits)، والإدارة بس بتشوف مين
+// بيستنى وبتبعتله واتساب أول ما يرجع المخزون. المعرّف = المنتج+اللون+الرقم،
+// فلو سجّل مرّتين ما بيتكرّر.
+const rwHas=(pid,num)=>RW.includes(pid+'|'+num);
+let RWX=null;
+function rwOpen(x){
+  const p=PR[CUR];if(!p)return;
+  RWX={pid:p.id,pname:p.name||'',num:x.num,tag:String(x.tag),lib:kind(p)==='lib'};
+  $('#rwH').textContent=`🔔 بلّغني لما يرجع ${word(p)} ${x.tag}`;
+  $('#rwP').textContent=`${p.name||''} — ${word(p)} ${x.tag} خلص حالياً. اترك اسمك ورقمك وأول ما يرجع منبعتلك رسالة واتساب.`;
+  $('#rwName').value=ME.name||'';$('#rwPhone').value=ME.phone||'';$('#rwErr').textContent='';
+  $('#rwm').classList.add('on');
+  setTimeout(()=>{const f=[$('#rwName'),$('#rwPhone')].find(i=>!i.value);if(f)f.focus();},200);
+}
+function rwClose(){$('#rwm').classList.remove('on');RWX=null;}
+async function rwSave(){
+  if(!RWX)return;
+  const name=$('#rwName').value.trim(),phone=normPhone($('#rwPhone').value);
+  if(!name){$('#rwErr').textContent='اكتب اسمك';$('#rwName').focus();return;}
+  if(!/^07[789]\d{7}$/.test(phone)){$('#rwErr').textContent='رقم الواتساب لازم يكون 10 أرقام ويبلّش بـ 07';$('#rwPhone').focus();return;}
+  const b=$('#rwOk');b.disabled=true;b.textContent='⏳';
+  try{
+    await db.collection('restock_waits').doc(RWX.pid+'__'+RWX.num+'__'+phone).set({
+      pid:RWX.pid,pname:RWX.pname,num:RWX.num,tag:RWX.tag,lib:RWX.lib,name,phone,
+      ch:CH,emp:EMP||'',page:(STORE&&STORE.id)||PGID||ME.store||'',status:'waiting',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    ME={...ME,name,phone};LS.set('_clrMe',ME);
+    const k=RWX.pid+'|'+RWX.num;if(!RW.includes(k)){RW.push(k);RW=RW.slice(-40);LS.set('_clrWaits',RW);}
+    rwClose();lbPaint();toast('✓ تمام — أول ما يرجع منبعتلك');
+  }catch(e){$('#rwErr').textContent='ما زبط — تأكّد من النت وجرّب كمان مرّة';}
+  finally{b.disabled=false;b.textContent='🔔 بلّغوني';}
+}
+
 // ── 🧮 حاسبة المشروع ──
 // الزبون بيختار شو بدّه يعمل (بطانية بيبي، شال…) والمقاس، ومنقلّه كم كبّة بدّه
 // من كل صوف عنّا وبكم، وبيختار كم لون — وبعدين منفتحله الألوان وكل لون بينضاف
@@ -1371,6 +1430,7 @@ document.addEventListener('click',e=>{
 });
 $('#back').onclick=()=>showHome();
 $('#findB').onclick=fdOpen;
+$('#rwOk').onclick=rwSave;$('#rwNo').onclick=rwClose;$('#rwm').addEventListener('click',e=>{if(e.target.id==='rwm')rwClose();});
 $('#pjB').onclick=()=>pjOpen(view==='prod'?CUR:'');$('#pjX').onclick=()=>pjClose();$('#fdX').onclick=()=>fdClose();
 $('#fdFile').onchange=()=>fdFile($('#fdFile').files&&$('#fdFile').files[0]);
 $('#lbX').onclick=()=>closeLb();
@@ -1380,7 +1440,7 @@ $('#qMinus').onclick=()=>{const x=ITEMS[cur];if(!x)return;qv=Math.max(1,qv-1);$(
 $('#qPlus').onclick=()=>{const x=ITEMS[cur];if(!x)return;const mx=x.stock!=null?x.stock:999;
   if(qv>=mx){toast('الموجود من '+x.name+' '+mx+' بس');return;}
   qv=qv+1;$('#qV').textContent=qv;if(cQ(CUR,x.num)){setQ(CUR,x.num,qv);render();}};
-$('#lbAdd').onclick=()=>{const x=ITEMS[cur];if(!x||x.out)return;
+$('#lbAdd').onclick=()=>{const x=ITEMS[cur];if(!x)return;if(x.out){rwOpen(x);return;}
   if(cQ(CUR,x.num)){setQ(CUR,x.num,0);toast('انشال من طلبك');}
   else{setQ(CUR,x.num,qv);toast('✓ انضاف '+x.name+(PROJ&&PROJ.pid===CUR?' × '+qv:''));
     if(PROJ&&PROJ.pid===CUR&&pjPicked()>=PROJ.n){setTimeout(()=>{closeLb();toast('✓ مشروعك جاهز — اضغط «اطلب»');},350);}}
