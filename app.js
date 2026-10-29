@@ -1180,17 +1180,19 @@ function applyAdminPerms(){
   const isMain=_currentAdminUser==='MAIN';
   const perms=_currentAdminPerms;
   const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers','dxf','emporders'];
+  // تبويبات المتجر القديم: الواجهة صارت من حساب المشغل، فمخفيّة (بتنحذف بالتنظيف)
+  const OLD_STORE=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit'];
   allTabs.forEach(tab=>{
     const btn=document.getElementById('admin-tab-btn-'+tab);
     if(!btn)return;
-    if(tab==='emporders'){btn.style.display='none';return;} // merged into حساب المشغل
+    if(tab==='emporders'||OLD_STORE.includes(tab)){btn.style.display='none';return;} // merged into حساب المشغل
     if(isMain){btn.style.display='';}
     else if(tab==='adminusers'||tab==='dxf'){btn.style.display='none';}
     else if(perms&&perms.includes(tab)){btn.style.display='';}
     else{btn.style.display='none';}
   });
   const firstTab=allTabs.find(tab=>{
-    if(tab==='emporders')return false;
+    if(tab==='emporders'||OLD_STORE.includes(tab))return false;
     if(tab==='adminusers'||tab==='dxf')return isMain;
     return isMain||(perms&&perms.includes(tab));
   });
