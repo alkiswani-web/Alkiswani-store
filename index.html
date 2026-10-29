@@ -27,7 +27,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v388"></script>
+<script defer src="app.js?v389"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -600,6 +600,23 @@ footer{background:#0f1f15;padding:36px 24px 20px;color:rgba(255,255,255,0.5);tex
 .btn-admin-cancel:hover{color:rgba(255,255,255,0.6);}
 
 /* ===== ADMIN PANEL ===== */
+/* 💼 صفحة دخول الشغل (/admin) — للإدارة والموظفين */
+#staffLanding{position:fixed;inset:0;z-index:790;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));background:radial-gradient(circle at 80% 0%,rgba(201,168,76,.22),transparent 45%),linear-gradient(160deg,#1a3a2a,#0f241a);color:#f5efe0;font-family:'Tajawal',sans-serif;text-align:center;overflow-y:auto}
+body.staff-mode #staffLanding{display:flex}
+body.staff-mode{overflow:hidden}
+#staffLanding .sl-logo{width:84px;height:84px;border-radius:24px;box-shadow:0 12px 30px rgba(0,0,0,.35);border:2px solid rgba(201,168,76,.5)}
+#staffLanding h1{margin:4px 0 0;font-size:1.6rem;font-weight:900;color:#fff}
+#staffLanding .sl-sub{font-size:.88rem;color:#c9a84c;font-weight:800;margin-top:-6px}
+#staffLanding .sl-btns{width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px;margin-top:14px}
+#staffLanding .sl-btn{display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;border-radius:18px;border:1.5px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:#fff;font-family:'Tajawal',sans-serif;text-align:right;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#staffLanding .sl-btn.main{background:linear-gradient(145deg,#f3e0a6,#c9a84c);color:#1a1405;border:0;box-shadow:0 12px 26px -8px rgba(201,168,76,.55)}
+#staffLanding .sl-btn .ic{font-size:1.6rem;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:rgba(0,0,0,.12);flex-shrink:0}
+#staffLanding .sl-btn b{display:block;font-size:1.02rem;font-weight:900}
+#staffLanding .sl-btn small{display:block;font-size:.76rem;font-weight:700;opacity:.75;margin-top:2px}
+#staffLanding .sl-btn .ok{margin-right:auto;font-size:.7rem;font-weight:900;background:rgba(22,101,52,.9);color:#dcfce7;border-radius:999px;padding:3px 9px;white-space:nowrap}
+#staffLanding .sl-btn.main .ok{background:#1a3a2a}
+#staffLanding .sl-links{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+#staffLanding .sl-links a{color:#d7e3d9;font-size:.82rem;font-weight:800;text-decoration:none;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.18)}
 #adminPanel{position:fixed;inset:0;background:#f0f2f0;z-index:900;overflow-y:auto;display:none;}
 /* لوحة التحكم/الموظف مفتوحة ⇒ نُخفي واجهة المتجر بدل الاكتفاء بتغطيتها.
    z-index لوحة التحكم 900 وهو أوطى من شريط المتجر وقوائمه، فكانت تظهر
@@ -1879,6 +1896,21 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
 </div>
 
 <!-- ===== ADMIN LOGIN ===== -->
+<!-- ===== 💼 صفحة دخول الشغل (/admin) ===== -->
+<div id="staffLanding" aria-label="دخول الشغل">
+  <img class="sl-logo" src="/icon-192.png" alt="">
+  <h1 class="kufi">الكسواني روزميري</h1>
+  <div class="sl-sub">لوحة الشغل</div>
+  <div class="sl-btns">
+    <button class="sl-btn main" onclick="openAdminLogin()"><span class="ic">🔑</span><span><b>دخول الإدارة</b><small>حساب المشغل كامل</small></span><span class="ok" id="slAdminOk" hidden></span></button>
+    <button class="sl-btn" onclick="openEmpLogin()"><span class="ic">👤</span><span><b>دخول الموظفين</b><small>الطلبات والكتالوج</small></span><span class="ok" id="slEmpOk" hidden></span></button>
+  </div>
+  <div class="sl-links">
+    <a href="/rep.html">🚚 تطبيق المناديب</a>
+    <a href="/colors.html?shop=1" id="slShop">🛍️ شوف الواجهة</a>
+  </div>
+</div>
+
 <div class="admin-modal-overlay" id="adminLoginOverlay">
   <div class="admin-login-card">
     <div class="logo">الكسواني روزميري</div>
