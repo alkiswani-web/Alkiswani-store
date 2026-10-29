@@ -5461,6 +5461,8 @@ function posRenderPicker(){if(_posSheet==='prods')posRenderSheet();}
 
 // ═══ الأفعال ═══
 async function _posLinkSave(pid,n,code){
+  code=_bcNorm(code);
+  if(!_bcValid(code)){toast('⚠️ الرقم '+code+' مش باركود صحيح — امسحه كمان مرّة');return;}
   const own=_bcFind(code);
   if(own){toast('⚠️ هالكود صار مربوط بـ«'+_bcLabel(own)+'»');return;}
   try{
@@ -6058,18 +6060,34 @@ window.posLogRender=posLogRender; window.posLogReturn=posLogReturn; window.posLo
 // كودان لا واحد: باركود المنتج (اللي جاي عليه من الشركة أو اللي بنولّده
 // إحنا)، وباركود لكل رقم لون — لأنّ كبّة الصوف كل لونٍ فيها كودها الخاص،
 // فالمسحة الواحدة بتعرف المنتج واللون مع بعض.
-const BC_FORMATS=['qr_code','ean_13','ean_8','upc_a','upc_e','code_128','code_39','codabar','itf','data_matrix'];
+// ITF و Codabar و Code-39 انشالوا: ما فيهم رقم تدقيق، والكاميرا كانت أحياناً تقرا
+// باركود EAN تبع الصوف كأنه واحد منهم برقم ثاني ⇒ «هاد الباركود غلط» مرّة بمرّة.
+const BC_FORMATS=['qr_code','ean_13','ean_8','upc_a','upc_e','code_128','data_matrix'];
 function _bcCamOk(){try{return 'BarcodeDetector' in window;}catch(e){return false;}}
-function _bcNorm(s){return String(s==null?'':s).trim().replace(/\s+/g,'').toUpperCase();}
+function _bcNorm(s){return String(s==null?'':s).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).trim().replace(/\s+/g,'').toUpperCase();}
+// مفتاح المقارنة: نفس باركود UPC-A (١٢ رقم) الكاميرا مرّة بتقراه ١٢ ومرّة EAN-13
+// بصفر قدّامه (١٣). كانت المقارنة حرف بحرف ⇒ مرّة بيلاقيه ومرّة لأ. الأرقام
+// بنقارنها بدون الأصفار اللي قدّامها.
+function _bcKey(s){const c=_bcNorm(s);return /^\d+$/.test(c)?(c.replace(/^0+/,'')||'0'):c;}
+// باركود رقمي بطول EAN/UPC لازم رقم التدقيق تبعه يزبط — غير هيك قراءة غلط
+function _bcValid(s){
+  const c=_bcNorm(s);if(!/^\d+$/.test(c))return true;
+  const d=c.split('').map(Number),L=d.length;
+  if(L!==8&&L!==12&&L!==13)return true;
+  const body=d.slice(0,L-1),chk=d[L-1];
+  // من اليمين: الخانة جنب رقم التدقيق ×3 والي بعدها ×1 (نفس قاعدة EAN-8/UPC-A/EAN-13)
+  const sum=body.reverse().reduce((t,x,i)=>t+x*(i%2===0?3:1),0);
+  return (10-sum%10)%10===chk;
+}
 function _bcOf(p){return _bcNorm(p&&p.barcode);}
 function _bcColors(p){const m=p&&p.colorBarcodes;return (m&&typeof m==='object')?m:{};}
 // وين هالكود مربوط؟ بنرجّع المنتج ورقم اللون — و0 يعني المنتج نفسه
 function _bcFind(code){
-  const c=_bcNorm(code); if(!c) return null;
+  const c=_bcKey(code); if(!c) return null;
   for(const p of (_opProductsList||[])){
-    if(_bcOf(p)===c) return {prod:p,num:0};
+    if(_bcOf(p)&&_bcKey(_bcOf(p))===c) return {prod:p,num:0};
     const m=_bcColors(p);
-    for(const k of Object.keys(m)) if(_bcNorm(m[k])===c) return {prod:p,num:Number(k)||0};
+    for(const k of Object.keys(m)) if(m[k]&&_bcKey(m[k])===c) return {prod:p,num:Number(k)||0};
   }
   return null;
 }
@@ -6116,7 +6134,8 @@ async function openBarcodes(prodId,pending){
   const row=(num,title,sub,code)=>`<div ${(_bcHi&&_bcHi.pid===_bcProdId&&_bcHi.num===Number(num))?'id="bcHiRow" ':''}style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #f3f4f6;${(_bcHi&&_bcHi.pid===_bcProdId&&_bcHi.num===Number(num))?'background:#dcfce7;border-radius:10px;box-shadow:0 0 0 2px #22c55e inset;':''}">
       <div style="flex:1;min-width:0;">
         <div style="font-size:0.84rem;font-weight:800;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(title)}</div>
-        <div style="font-size:0.68rem;margin-top:2px;color:${code?'#166534':'#9ca3af'};font-family:monospace;direction:ltr;text-align:right;">${code?_clrEsc(code):'— ما إله باركود —'}</div>
+        <div style="font-size:0.68rem;margin-top:2px;color:${code?(_bcValid(code)?'#166534':'#dc2626'):'#9ca3af'};font-family:monospace;direction:ltr;text-align:right;">${code?_clrEsc(code):'— ما إله باركود —'}</div>
+        ${code&&!_bcValid(code)?'<div style="font-size:0.66rem;color:#dc2626;font-weight:800;margin-top:1px;">⚠️ هالرقم مش باركود صحيح — انمسح غلط. امسحه من جديد 📷</div>':''}
         ${sub?`<div style="font-size:0.63rem;color:#9ca3af;margin-top:1px;">${_clrEsc(sub)}</div>`:''}
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0;">
@@ -6183,6 +6202,7 @@ async function bcSet(num,code){
   const c=_bcNorm(code);
   const p=_prodById(_bcProdId);
   if(!p){toast('⚠️ اختار منتج');return;}
+  if(c&&!_bcValid(c)){toast('⚠️ الرقم '+c+' مش باركود صحيح (رقم التدقيق غلط) — امسحه كمان مرّة أو تأكّد من الأرقام');return;}
   if(c){
     // كودٌ واحد لصنفين = المسحة ما بتعرف مين منهم. منمنعها ومنقوله وين هو.
     const own=_bcFind(c);
@@ -25451,7 +25471,7 @@ init();
 // ===== QR SCANNER =====
 let _qrScanActive=false, _qrScanStream=null, _qrScanRaf=null;
 let _qrAssignOrderId=null, _qrAssignOrder=null;
-let _qrBarcodeDetector=null, _qrLoopRunning=false;
+let _qrBarcodeDetector=null, _qrLoopRunning=false, _qrStable=false, _qrSeen=null;
 
 // opts.formats: أنواع الأكواد المطلوبة (الافتراضي QR وبس — زي ما كان).
 // opts.status : السطر اللي بيطلع تحت الكاميرا.
@@ -25462,6 +25482,8 @@ async function openQRScanner(opts){
   _qrAssignOrderId=null; _qrAssignOrder=null;
   overlay.style.display='block';
   const _fmts=(opts&&opts.formats&&opts.formats.length)?opts.formats:['qr_code'];
+  // مسح باركود منتجات (مش QR طلب): بدّه قراءتين متطابقتين قبل ما ينقبل
+  _qrStable=_fmts.some(f=>f!=='qr_code');_qrSeen=null;
   document.getElementById('qrScanStatus').textContent=
     (opts&&opts.status)||'وجّه الكاميرا نحو QR Code على الفاتورة';
   const _ttl=document.getElementById('qrScanTitle');
@@ -25512,7 +25534,16 @@ async function _qrRunLoop(){
         if(_qrBarcodeDetector){
           // Native hardware API — much faster & more reliable than jsQR
           const codes=await _qrBarcodeDetector.detect(video);
-          if(codes.length)raw=codes[0].rawValue;
+          if(_qrStable){
+            // باركود: قراءة وحدة من إطار واحد ممكن تكون غلط (مهزوز/مايل). منقبل
+            // الكود لما يطلع نفسه بإطارين ورا بعض، وإذا بالصورة أكثر من كود
+            // منفضّل اللي مربوط عنّا. رقم تدقيق غلط = قراءة غلط، منطنّشها.
+            const ok=codes.map(c=>String(c.rawValue||'').trim()).filter(v=>v&&_bcValid(v));
+            const pick=ok.find(v=>{try{return _bcFind(v);}catch(e){return false;}})||ok[0]||null;
+            if(pick){const k=_bcKey(pick);_qrSeen=(_qrSeen&&_qrSeen.k===k)?{k,n:_qrSeen.n+1}:{k,n:1};
+              if(_qrSeen.n>=2)raw=pick;}
+            else _qrSeen=null;
+          }else if(codes.length)raw=codes[0].rawValue;
         }else if(typeof jsQR!=='undefined'){
           // مسار jsQR (سفاري/iPad — لا يدعم BarcodeDetector).
           // كان يفكّ الإطار كاملاً بـ960px مع attemptBoth = بطء شديد.
