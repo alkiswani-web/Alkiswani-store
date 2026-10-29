@@ -1150,7 +1150,11 @@ function _setPanelOpen(on){
   document.body.style.overflow=on?'hidden':'';
 }
 
+// جوال شغل = جوال انفتحت عليه اللوحة فعلاً (دخول ناجح). الواجهة بتورجيه «💼 لوحتي».
+// مش مجرّد فتح صفحة الدخول — زبون بيمسح QR الطلب عن الكرتونة بيوصلها.
+function _markStaffDevice(){try{localStorage.setItem('ak_staff_device','1');}catch(e){}}
 function openAdmin(){
+  _markStaffDevice();
   document.getElementById('adminPanel').classList.add('open');
   _setPanelOpen(true);
   const lbl=document.getElementById('adminLoggedUser');
@@ -2674,6 +2678,7 @@ const EMP_STATUS_NEXT={pending:'preparing',preparing:'prepared',prepared:'delive
 function _empSt(s){return EMP_STATUSES[s]||{label:s,color:'#6b7280',bg:'#f9fafb',border:'#e5e7eb'};}
 
 async function openEmpPanel(){
+  _markStaffDevice();
   document.getElementById('empPanel').style.display='block';
   _empWatchSelf();
   _setPanelOpen(true);
@@ -19462,7 +19467,6 @@ function _staffPaint(){
 }
 function _staffLanding(){
   document.body.classList.add('staff-mode');
-  try{localStorage.setItem('ak_staff_device','1');}catch(e){}   // الواجهة بتعرف إنه جوال شغل
   document.title='لوحة الشغل · الكسواني روزميري';
   const back=document.querySelector('.btn-back-store');if(back)back.textContent='← رجوع';
   const {a,e}=_staffPaint();
