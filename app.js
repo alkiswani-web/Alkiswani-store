@@ -3312,7 +3312,16 @@ function _prodOwnColors(p){return !!(p&&p.ownColorNumbers);}
 function _prodById(id){
   if(!id)return null;
   return (_opProductsList||[]).find(x=>x.id===id)
-      ||(_empSharedProducts||[]).find(x=>x.id===id)||null;
+      ||(_empSharedProducts||[]).find(x=>x.id===id)||_prodXtra[id]||null;
+}
+// المخزون بيعتمد على نوع المنتج (ترقيم خاص ولا مكتبة). لو المنتج مش محمّل
+// بالذاكرة (شاشة لسّا ما فتحت المنتجات)، كان ينحسب «مكتبة» — فلون الصوف 13
+// يرجع/ينخصم من لون الشنيل 13. قبل أي حركة مخزون منجيب الناقص من القاعدة.
+const _prodXtra={};
+async function _ensureProds(ids){
+  const miss=[...new Set((ids||[]).filter(id=>id&&!_prodById(id)))];
+  if(!miss.length)return;
+  await Promise.all(miss.map(id=>db.collection('operator_products').doc(id).get().then(d=>{if(d.exists)_prodXtra[id]={id,...d.data()};}).catch(()=>{})));
 }
 // المنتج بترقيمه الخاص بيخزّن أرقامه ومخزونها بخريطة {رقم: كمية} —
 // خريطة لا مصفوفة، عشان increment تشتغل على رقمٍ واحد بلا ما نقرا ونكتب.
@@ -3522,9 +3531,12 @@ function _ownCnMapOf(products){
 function _ownCnFootprint(o){
   const m=_ownCnMapOf((o&&o.products)||[]);
   const back=(o&&o.colorStockReturned)||{};
-  // المرتجع مسجّل بالرقم وحده، فمنرجّعه لكل منتجٍ يحمل نفس الرقم
-  Object.keys(back).forEach(num=>{
-    let left=Number(back[num])||0;
+  // المرتجع الجديد مسجّل «منتج|رقم» بالضبط؛ القديم بالرقم وحده — منرجّعه لأوّل منتجٍ بنفس الرقم
+  Object.keys(back).forEach(bk=>{
+    let left=Number(back[bk])||0;
+    if(bk.startsWith('lib|'))return;   // مرتجع من المكتبة — مش إلنا
+    if(bk.includes('|')){if(m[bk]){const t=Math.min(m[bk],left);m[bk]-=t;if(m[bk]<=0)delete m[bk];}return;}
+    const num=bk;
     Object.keys(m).forEach(k=>{
       if(left<=0||k.split('|')[1]!==String(num))return;
       const take=Math.min(m[k],left);m[k]-=take;left-=take;
@@ -3570,8 +3582,11 @@ async function _applyOwnColorStock(delta){
 function _orderCnFootprint(o){
   const m=_cnMapOf((o&&o.products)||[]);
   const back=(o&&o.colorStockReturned)||{};
-  Object.keys(back).forEach(k=>{
-    const v=(m[k]||0)-(Number(back[k])||0);
+  Object.keys(back).forEach(bk=>{
+    // «lib|رقم» = مرتجع مكتبة؛ «منتج|رقم» = ترقيم خاص (مش إلنا)؛ رقم لحاله = سجلّ قديم
+    const k=bk.startsWith('lib|')?bk.slice(4):bk.includes('|')?null:bk;
+    if(k==null)return;
+    const v=(m[k]||0)-(Number(back[bk])||0);
     if(v>0) m[k]=v; else delete m[k];
   });
   return m;
@@ -3580,6 +3595,7 @@ function _orderCnFootprint(o){
 async function _orderStockSync(orderId,prevOrder,nextOrder,wasApplied,shouldApply){
   try{
     await loadColorLibrary();
+    await _ensureProds([...((prevOrder&&prevOrder.products)||[]),...((nextOrder&&nextOrder.products)||[])].map(p=>p&&p.id));
     // المنتجات ذات الترقيم الخاص مخزونها عليها هي، فبتشتغل حتى لو المكتبة فاضية
     const _diff=(oldM,newM)=>{
       const d={};
@@ -3613,12 +3629,18 @@ function _cnShouldHold(status){return !_CN_DEAD.includes(status);}
 // أي لونٍ رجع بالإرجاع الجزئي؟ لو رجع البند كلّه فكل ألوانه، ولو رجع بعضُه
 // وهو لون واحد فلا لبس. أمّا بندٌ فيه ألوان عدّة ورجع بعضه فلا أحد يعرف أيّ
 // لونٍ في الكيس — فلا نخمّن، ونقول له يصحّحها من الجرد.
+// اللي رجع من بند: مفتاحه «منتج|رقم» للترقيم الخاص (مخزونه على المنتج)، و«lib|رقم»
+// لألوان المكتبة — كل مخزن بيقرا مفاتيحه بس. كان دايماً بالرقم ومن المكتبة بس — فالصوف ما يرجع،
+// وأحياناً كان يرجع لشنيل بنفس الرقم.
 function _cnReturnDelta(p,qty,remAfter){
-  const cns=Array.isArray(p&&p.colorNumbers)?p.colorNumbers:[];
+  const cns=(Array.isArray(p&&p.colorNumbers)?p.colorNumbers:[]).filter(c=>(Number(c.num)||0)>0&&(Number(c.qty)||0)>0);
   if(!cns.length) return {map:{},note:''};
-  if(remAfter<=0) return {map:_cnMapOf([p]),note:''};
-  if(cns.length===1) return {map:{[cns[0].num]:Math.min(qty,cns[0].qty||qty)},note:''};
-  return {map:{},note:'⚠️ البند فيه أكثر من لون — صحّح مخزون الألوان من «🔢 جرد»'};
+  const own=_prodOwnColors(_prodById(p.id));
+  const key=n=>own?(p.id+'|'+n):('lib|'+n);
+  const m={};
+  if(remAfter<=0){cns.forEach(c=>{const k=key(c.num);m[k]=(m[k]||0)+Number(c.qty);});return {map:m,note:''};}
+  if(cns.length===1) return {map:{[key(cns[0].num)]:Math.min(qty,Number(cns[0].qty)||qty)},note:''};
+  return {map:{},note:'⚠️ البند فيه أكثر من لون — صحّح مخزون الألوان من «📦 وارد وصرف»'};
 }
 
 // ─────────── شاشة إدارة المكتبة ───────────
@@ -3876,6 +3898,78 @@ async function clrOwnRephoto(pid){
 }
 window.clrSetScope=clrSetScope;window.clrOwnShoot=clrOwnShoot;window.clrOwnRephoto=clrOwnRephoto;
 
+
+// ═══ طلبات ملغية ألوانها ما رجعت (من قبل التصليح) ═══
+// إلغاء الموظفة و«🚫 إلغاء الطلب» من القائمة كانوا يغيّروا الحالة بس — فالطلب
+// ملغي وعليه colorStockApplied:true وألوانه لسّا مخصومة. ما منرجّعها لحالنا:
+// إذا انعمل جرد بعدها، المخزون مزبوط وإرجاعها بيزيده. الإدارة بتقرّر.
+let _stk={list:null,loaded:false,busy:false,sel:{}};
+async function _stkLoad(){
+  _stk.busy=true;
+  try{
+    const L=await _fsLite('employee_orders',[['colorStockApplied','==',true],['status','in',_CN_DEAD]],
+      ['status','products','orderNum','date','customerName','editHistory','colorStockReturned']);
+    _stk.list=L.filter(o=>(o.products||[]).some(p=>(p.colorNumbers||[]).some(c=>(Number(c.qty)||0)>0)))
+      .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  }catch(e){_stk.list=[];}
+  _stk.loaded=true;_stk.busy=false;return _stk.list;
+}
+async function openStuckFix(){
+  if(!_stk.loaded)await _stkLoad();
+  _stk.sel={};(_stk.list||[]).forEach(o=>{_stk.sel[o.id]=true;});
+  document.getElementById('stkModal')?.remove();
+  const ov=document.createElement('div');ov.id='stkModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div><div style="font-weight:900;font-size:1rem;color:#b91c1c;">⚠️ طلبات ملغية ألوانها ما رجعت</div>
+        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;">من قبل التصليح — بعض أزرار الإلغاء ما كانت ترجّع الألوان</div></div>
+      <button onclick="document.getElementById('stkModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:.95rem;cursor:pointer;">✕</button></div>
+    <div style="padding:10px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;font-size:.74rem;color:#92400e;line-height:1.8;font-weight:700;">
+      • إذا <b>ما عملت جرد</b> بعد ما انلغوا ⇒ «↩️ رجّع ألوانهم» (المخزون عندك ناقص هالقطع).<br>
+      • إذا <b>عملت جرد</b> بعدها ⇒ «✓ المخزون مزبوط» (بنشيلهم من القائمة بدون ما نغيّر الأرقام).</div>
+    <div id="stkBody" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
+    <div style="padding:10px 14px;border-top:1px solid #e5e7eb;display:flex;gap:8px;">
+      <button onclick="stkApply(true)" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:.86rem;font-weight:900;cursor:pointer;">↩️ رجّع ألوان المختار</button>
+      <button onclick="stkApply(false)" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:.86rem;font-weight:900;cursor:pointer;">✓ المخزون مزبوط</button>
+    </div></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);_stkPaint();
+}
+function _stkPaint(){
+  const b=document.getElementById('stkBody');if(!b)return;
+  const L=_stk.list||[],n=L.filter(o=>_stk.sel[o.id]).length;
+  const lbl={cancelled:'ملغي',returned:'مرتجع',refused:'رفض'};
+  b.innerHTML=`<label style="display:flex;align-items:center;gap:8px;padding:6px 4px 10px;font-size:.8rem;font-weight:800;color:#374151;"><input type="checkbox" ${n===L.length?'checked':''} onchange="stkAll(this.checked)" style="width:18px;height:18px;accent-color:#166534;"> الكل (${n} من ${L.length})</label>`
+    +L.map(o=>{const cn=(o.products||[]).filter(p=>(p.colorNumbers||[]).length).map(p=>`<bdi>${_clrEsc(p.name||'')}</bdi>: ${(p.colorNumbers||[]).map(c=>_clrEsc(c.num)+'×'+c.qty).join('، ')}`).join(' · ');
+      const h=(o.editHistory||[]).slice(-1)[0];
+      return `<label style="display:flex;align-items:flex-start;gap:9px;padding:9px 6px;border-top:1px solid #f3f4f6;cursor:pointer;">
+        <input type="checkbox" ${_stk.sel[o.id]?'checked':''} onchange="stkSel('${o.id}',this.checked)" style="width:18px;height:18px;margin-top:2px;accent-color:#166534;flex-shrink:0;">
+        <span style="flex:1;min-width:0;"><b style="font-size:.84rem;color:#111827;">${o.orderNum?'#'+_clrEsc(o.orderNum):'#'+o.id.slice(-5).toUpperCase()}</b> <span style="font-size:.7rem;color:#9ca3af;">${_clrEsc(o.date||'')} · ${lbl[o.status]||o.status}${h&&h.by?' · '+_clrEsc(h.by):''}</span>
+          <div style="font-size:.74rem;color:#374151;margin-top:2px;line-height:1.6;">${cn}</div></span></label>`;}).join('')
+    ||'<div style="padding:20px;text-align:center;color:#16a34a;font-weight:800;">✓ ولا طلب — كل الملغي ألوانه راجعة</div>';
+}
+function stkSel(id,v){_stk.sel[id]=!!v;_stkPaint();}
+function stkAll(v){(_stk.list||[]).forEach(o=>{_stk.sel[o.id]=!!v;});_stkPaint();}
+async function stkApply(restore){
+  const L=(_stk.list||[]).filter(o=>_stk.sel[o.id]);
+  if(!L.length){toast('اختار طلب واحد على الأقل');return;}
+  if(!confirm(restore?`نرجّع ألوان ${L.length} طلب للمخزون؟`:`نعلّم ${L.length} طلب إنه مخزونه مزبوط (بدون ما نغيّر الأرقام)؟`))return;
+  let k=0;
+  for(const o of L){
+    try{
+      if(restore)await _orderStockSync(o.id,o,o,true,false);   // بيرجّع وبيشيل العلامة
+      else await db.collection('employee_orders').doc(o.id).update({colorStockApplied:false});
+      k++;
+    }catch(e){}
+  }
+  _stk.list=(_stk.list||[]).filter(o=>!L.some(x=>x.id===o.id));
+  _stkPaint();
+  toast(restore?`↩️ رجعت ألوان ${k} طلب للمخزون`:`✓ تعلّموا ${k} طلب`);
+  try{if(_clrHQ)renderColorLib();}catch(e){}
+}
+window.openStuckFix=openStuckFix;window.stkSel=stkSel;window.stkAll=stkAll;window.stkApply=stkApply;
+
 // ═════════ 🎛️ مركز قيادة الألوان — أوّل تبويب بالمكتبة ═════════
 // كل منتجات الألوان بمكان واحد: شو قرب يخلص وشو خلص وشو ناقصه صورة، طلبات
 // الكتالوج، وشو تغيّر وما وصل للموظفين — ومن كل سطر زرّ للشاشة اللي بتعالجه.
@@ -3932,7 +4026,7 @@ function hqFind(v){
 }
 function _renderColorHQ(){
   const list=document.getElementById('clrList');if(!list)return;
-  _hqLoad();
+  _hqLoad();if(!_stk.loaded&&!_stk.busy)_stkLoad().then(()=>{if(_stk.list.length&&_clrHQ)renderColorLib();});
   const P=_hqProds(),F="font-family:'Tajawal',sans-serif;";
   const sum=k=>P.reduce((t,x)=>t+x.st[k].length,0);
   const st=document.getElementById('clrHeadStats');
@@ -3947,6 +4041,7 @@ function _renderColorHQ(){
     {k:'l',v:sum('low'),t:'قرب يخلص',c:'#b45309',bg:'#fffbeb',bd:'#fde68a'},
     {k:'o',v:sum('out'),t:'خلص',c:'#dc2626',bg:'#fef2f2',bd:'#fecaca'},
     {k:'p',v:ld?null:sum('noPic'),t:'بدون صورة',c:'#1e40af',bg:'#eff6ff',bd:'#bfdbfe'},
+    ...(_stk.list&&_stk.list.length?[{k:'s',v:_stk.list.length,t:'طلب ملغي ألوانه ما رجعت',c:'#b91c1c',bg:'#fef2f2',bd:'#fecaca',act:'openStuckFix()'}]:[]),
     {k:'w',v:_rw.loaded?_rwSplit().back.length:null,t:'زبون لونه رجع'+(_rw.loaded&&_rwSplit().out.length?` · ${_rwSplit().out.length} بستنوا`:''),c:'#166534',bg:'#f0fdf4',bd:'#86efac',act:'openRestockWaits()'},
     {k:'c',v:_hq.reqs?reqs.length:null,t:'طلب كتالوج جديد',c:'#166534',bg:'#f0fdf4',bd:'#bbf7d0',act:"document.getElementById('hqCat')?.scrollIntoView({behavior:'smooth',block:'start'})"},
     {k:'b',v:cbN,t:'تغيير ما وصل الموظفين',c:'#7c3aed',bg:'#f5f3ff',bd:'#ddd6fe',act:'openColorBroadcast()'},
@@ -8537,20 +8632,37 @@ function _renderEmpMyOrders(){
     :'');
 }
 
+// ═══ إلغاء طلب — نقطة وحدة لكل أزرار الإلغاء ═══
+// كان في ٣ أزرار إلغاء (الموظفة، قائمة ⋯، شاشة الطلب) كل واحد بيعمل جزء:
+// اثنين ما بيرجّعوا الألوان للمخزون، وواحد ما بيعكس مبيعة الطلب المسلَّم.
+// هون نفس اللي بيعمله تغيير الحالة لـ«ملغي» بالضبط.
+async function _cancelOrderCore(id,reason,by){
+  const ref=db.collection('employee_orders').doc(id);
+  const snap=await ref.get();
+  if(!snap.exists)throw new Error('الطلب غير موجود — حدِّث الصفحة');
+  const data=snap.data()||{},prev=data.status;
+  if(_CN_DEAD.includes(prev)){toast('الطلب أصلاً «'+_empSt(prev).label+'»');return false;}
+  const FV=firebase.firestore.FieldValue;
+  const upd={status:'cancelled',...(reason?{cancelReason:reason}:{}),
+    editHistory:[...(data.editHistory||[]),{by:by||'admin',at:jordanDisplayDate(),note:`${_empSt(prev).label} ← ${_empSt('cancelled').label}`}],
+    needsReview:FV.delete(),repIssue:FV.delete(),repTransferReq:FV.delete(),updatedAt:FV.serverTimestamp()};
+  if(prev==='delivering'||prev==='delivered')upd.deliveredDate=FV.delete();
+  await ref.update(upd);
+  await _orderStockSync(id,data,data,data.colorStockApplied===true,false);
+  if(prev==='delivering')await unsyncOrderFromAccounting(id);
+  if(prev==='delivered')await _handleDeliveredCancel(id,data,'cancelled');
+  const _patch=arr=>{if(!arr)return;const i=arr.findIndex(o=>o.id===id);if(i>=0)arr[i]={...arr[i],status:'cancelled',...(reason?{cancelReason:reason}:{})};};
+  _patch(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
+  _patch(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
+  _refreshKashfIfOpen();
+  return data;
+}
 async function cancelEmpOrder(id){
   if(!confirm('إلغاء هذا الطلب؟'))return;
   try{
-    const docRef=db.collection('employee_orders').doc(id);
-    const snap=await docRef.get();
-    const prev=snap.data();
     const by=_empCurrentUser?.displayName||_empCurrentUser?.username||'موظف';
-    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(prev.status).label} ← ${_empSt('cancelled').label}`};
-    await docRef.update({
-      status:'cancelled',
-      editHistory:[...(prev.editHistory||[]),editEntry],
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    toast('🚫 تم إلغاء الطلب');
+    if(await _cancelOrderCore(id,'',by))toast('🚫 تم إلغاء الطلب — والألوان رجعت للمخزون');
+    if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 
@@ -9202,20 +9314,8 @@ async function _cancelOpOrderFromDetail(id){
   if(reason===null)return;
   closeOpOrderDetail();
   try{
-    const docRef=db.collection('employee_orders').doc(id);
-    const snap=await docRef.get();
-    const data=snap.data();
-    const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
-    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('cancelled').label}`};
-    const upd={status:'cancelled',cancelReason:reason||'',editHistory:[...(data.editHistory||[]),editEntry],updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
-    // إذا كان الطلب دخل الكشف (قيد التوصيل) — نشيل تاريخه ونزيل المبيعة من حساب المتجر
-    if(data.status==='delivering') upd.deliveredDate=firebase.firestore.FieldValue.delete();
-    await docRef.update(upd);
-    _orderStockSync(id,data,data,data.colorStockApplied===true,false);
-    if(data.status==='delivering') await unsyncOrderFromAccounting(id);
-    toast('🚫 تم إلغاء الطلب');
+    if(await _cancelOrderCore(id,reason||'',_currentAdminUser||_empCurrentUser?.displayName||'admin'))toast('🚫 تم إلغاء الطلب');
     if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
-    _refreshKashfIfOpen();
   }catch(e){toast("❌ "+e.message);}
 }
 
@@ -10443,6 +10543,8 @@ async function deleteEmpOrder(id){
     // الحذف يزيلها في الحالة الثانية فقط — فيبقى صفّ مبيعة بلا طلب يقابله،
     // تُحتسب تكلفته للأبد ولا يمكن مطابقته لاحقاً لأن الطلب اختفى.
     // الاستدعاء بلا شرط آمن: لا يفعل شيئاً إن لم تكن هناك صفوف.
+    // ألوانه بترجع للمخزون قبل ما ينحذف (كانت تضل مخصومة للأبد)
+    if(data&&data.colorStockApplied===true)await _orderStockSync(null,data,data,true,false);
     await db.collection('employee_orders').doc(id).delete();
     await unsyncOrderFromAccounting(id);
     if(data?.status==='delivered') addPageRefundEntry(id,data,'deleted');
@@ -10793,6 +10895,7 @@ async function savePartialReturn(){
     const newTotal=prodsTotal+dlv;
     const remAfter=_remQty(nextOrder,idx);
     const allBack=_allReturned(nextOrder);
+    await _ensureProds((d.products||[]).map(x=>x&&x.id));
 
     const upd={
       returns:nextOrder.returns,
@@ -10811,9 +10914,9 @@ async function savePartialReturn(){
       nextOrder.colorStockReturned=acc;
     }
     await ref.update(upd);
+    // نفس محرّك الطلبات: الفرق بين قبل وبعد الإرجاع بيرجع لمخزونه الصح (صوف أو مكتبة)
     if(d.colorStockApplied===true&&Object.keys(_cnBack.map).length){
-      await _applyColorStock(_cnBack.map);
-      await _autoColorStatus();
+      await _orderStockSync(orderId,d,{...nextOrder,status:upd.status||d.status},true,_cnShouldHold(upd.status||d.status));
     }
     if(_cnBack.note) toast(_cnBack.note);
 
@@ -14738,6 +14841,8 @@ async function saveSaleEntry(){
   const prOpt=prSel.options[prSel.selectedIndex];
   const today=jordanDateStr();
   const prodObj=_opProductsList.find(p=>p.id===prSel.value);
+  // هالفورم ما فيها اختيار ألوان، فمبيعة منتج بألوان منها ما كانت تنقّص المخزون
+  if(prodObj&&prodObj.hasColorNumbers){toast('🎨 «'+(prodObj.name||'')+'» إله ألوان — سجّل بيعته للمتجر من «🛒 بيع مباشر» واختار المتجر، عشان ينخصم المخزون صح');return;}
   // هون في سعرٌ واحد وعنوانه «سعر البيع لهذا المتجر» — فاللي بتكتبه هو
   // مستحقُّ المتجر نفسه. كان يُكتب السعر المخزَّن في sellPrice (وهو اللي
   // بيتحسّب عليه المتجر) واللي بتكتبه يروح لـsoldPrice وحده، فتعديلُك ما
@@ -21307,19 +21412,11 @@ async function confirmEmpCancel(){
   const id=_empCancelTargetId;
   closeEmpCancelModal();
   try{
-    const docRef=db.collection('employee_orders').doc(id);
-    const snap=await docRef.get();
-    const data=snap.data();
-    const editEntry={by:_currentAdminUser||'admin',at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('cancelled').label}`};
-    await docRef.update({
-      status:'cancelled',cancelReason:reason,
-      editHistory:[...(data.editHistory||[]),editEntry],
-      needsReview:firebase.firestore.FieldValue.delete(),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    toast('✅ تم إلغاء الطلب');
-    // simple cancel: no accounting effect — use 'إلغاء مع إرجاع' for refund flow
-    if(!['cancelled','returned','refused','delivered'].includes(data.status)){removePageRefundEntry(id);}
+    const data=await _cancelOrderCore(id,reason,_currentAdminUser||_empCurrentUser?.displayName||'admin');
+    if(data){toast('✅ تم إلغاء الطلب — والألوان رجعت للمخزون');
+      if(!['cancelled','returned','refused','delivered'].includes(data.status)){removePageRefundEntry(id);}}
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+    if(typeof _renderEmpOrdersView==='function')_renderEmpOrdersView();
   }catch(e){toast('❌ '+e.message);}
 }
 function renderCancelReport(){
