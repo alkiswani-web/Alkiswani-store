@@ -19,12 +19,8 @@
   var q=new URLSearchParams(location.search);
   if(q.has('rep')){q.delete('rep');location.replace('/rep.html'+(q.toString()?'?'+q.toString():'')+location.hash);return;}
   if(['track','order','g','deliverBatch','admin'].some(function(k){return q.has(k);})){location.replace('/admin.html'+location.search+location.hash);return;}
-  // جوال شغل فاتح التطبيق المثبّت (كان يفتح لوحة الشغل) ⇒ على اللوحة
-  try{
-    var standalone=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
-    var staff=localStorage.getItem('ak_staff_device')||localStorage.getItem('ak_admin_session')||localStorage.getItem('ak_emp_session');
-    if(standalone&&staff&&!q.has('e')&&!q.has('shop')){location.replace('/admin.html');}
-  }catch(e){}
+  // ما في تحويل تلقائي للوحة: التطبيق المثبّت بيفتح أي رابط للموقع جوّاه، فكان
+  // جوال الشغل ما يقدر يشوف الواجهة أبداً. زرّ «💼 لوحتي» فوق بيوصّل بضغطة.
 })();
 </script>
 <meta name="theme-color" content="#1a3a2a">
@@ -373,7 +369,7 @@ body.shop{--g:#24302a;--g2:#5b7f67;--cream:#fbfaf7;--paper:#fff;--ink:#24302a;--
 </head>
 <body>
 <div class="wrap">
-  <div class="shtop" id="shTop" hidden><button class="lg" data-home="1" aria-label="الرئيسية"><b>الكسواني روزميري</b><small>🌿 أهلاً فيك</small></button><a class="cb" id="shStaff" href="/admin.html" aria-label="لوحة الشغل" hidden style="text-decoration:none;font-size:1rem">💼</a><button class="cb" id="shCart" aria-label="طلبي">🛍️<i id="shCartN" hidden>0</i></button></div>
+  <div class="shtop" id="shTop" hidden><button class="lg" data-home="1" aria-label="الرئيسية"><b>الكسواني روزميري</b><small>🌿 أهلاً فيك</small></button><a id="shStaff" href="/admin.html" aria-label="لوحة الشغل" hidden style="display:inline-flex;align-items:center;gap:4px;height:40px;padding:0 12px;border-radius:999px;background:#24302a;color:#fff;font-weight:900;font-size:.8rem;text-decoration:none;white-space:nowrap">💼 لوحتي</a><button class="cb" id="shCart" aria-label="طلبي">🛍️<i id="shCartN" hidden>0</i></button></div>
   <header class="hero">
     <button class="back" id="back" hidden>→ كل المنتجات</button>
     <div class="brand" id="brand">الكسواني روزميري</div>
