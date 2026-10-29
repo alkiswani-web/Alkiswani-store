@@ -186,6 +186,26 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .skel{aspect-ratio:1;border-radius:16px;background:linear-gradient(90deg,#ece5d6,#f5efe3,#ece5d6);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{to{background-position:-200% 0}}
+/* ✍️ معاينة الكتابة */
+.wpv{display:flex;flex-direction:column;gap:8px}
+.wpf{display:flex;gap:8px}
+.wpf button{flex:1;border:1.5px solid var(--ln);background:#fff;border-radius:12px;padding:8px 6px;font-weight:800;font-size:.8rem;display:flex;flex-direction:column;align-items:center;gap:2px}
+.wpf button b{font-size:1.55rem;font-weight:400;line-height:1.3}
+.wpf button[aria-pressed="true"]{border-color:var(--g);box-shadow:0 0 0 2px var(--g)}
+.wpst{position:relative;border-radius:16px;overflow:hidden;background:#1f2a24;aspect-ratio:16/10;display:grid;grid-template-columns:minmax(0,1fr);place-items:center}
+.wpst .bg{position:absolute;inset:-20px;background:center/cover no-repeat;filter:blur(14px) brightness(.55);transform:scale(1.1)}
+.plate{position:relative;width:84%;min-width:0;min-height:42%;border-radius:12px;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;text-align:center;padding:14px 16px;box-shadow:0 14px 30px -10px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.35)}
+.plate::before{content:'';position:absolute;inset:7px;border:1.5px solid rgba(0,0,0,.28);border-radius:8px;pointer-events:none}
+.plate span{display:block;white-space:nowrap;overflow-wrap:anywhere;color:#141414;text-shadow:0 1px 0 rgba(255,255,255,.4),0 -1px 0 rgba(0,0,0,.35);line-height:1.5;direction:rtl;max-width:100%}
+.plate.gold{background:linear-gradient(125deg,#7a5a16 0%,#f6dc83 22%,#b88d2c 45%,#fff0b3 63%,#a67c22 82%,#e9c869 100%)}
+.plate.silver{background:linear-gradient(125deg,#6f7378 0%,#eef0f2 22%,#a3a7ab 45%,#ffffff 63%,#8e9297 82%,#d9dcdf 100%)}
+.plate.bronze{background:linear-gradient(125deg,#5b3517 0%,#d9a066 25%,#8a5528 50%,#f0c08f 68%,#6e4020 100%)}
+.plate.solid{background:var(--pc)}
+.plate.solid span{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.plate.dark{background:linear-gradient(125deg,#0d0d0d,#2b2b2b 45%,#111)}
+.plate.dark span{color:#e9c869;text-shadow:0 1px 0 rgba(0,0,0,.6)}
+.plate .ph{color:rgba(0,0,0,.35);font-family:'Tajawal',sans-serif;font-size:.9rem;font-weight:800;text-shadow:none}
+.wpn{font-size:.72rem;font-weight:700;color:var(--mu);text-align:center}
 /* 🔔 بلّغني لما يرجع */
 .add.rw{background:#fff;color:var(--g)}
 .add.rw.on{background:#dcfce7;color:#166534}
@@ -434,9 +454,9 @@ function opts(p){
 const cQ=(id,num)=>{const c=CART[id];if(!c)return 0;return num==null?(c.q||0):((c.n||{})[num]||0);};
 const cTot=id=>{const c=CART[id];if(!c)return 0;if(c.L)return c.L.reduce((t,l)=>t+(l.q||0),0);return c.n?Object.values(c.n).reduce((t,q)=>t+q,0):(c.q||0);};
 // سطور المنتج اللي إله لون/كتابة: CART[id]={L:[{c:لون,w:كتابة,q:كمية}]}
-function addLine(id,c,w,q){
+function addLine(id,c,w,q,f){
   const cur=CART[id]&&CART[id].L?CART[id]:{L:[]};
-  const ex=cur.L.find(l=>l.c===c&&l.w===w);if(ex)ex.q+=q;else cur.L.push({c,w,q});
+  const ex=cur.L.find(l=>l.c===c&&l.w===w&&(l.f||'')===(f||''));if(ex)ex.q+=q;else cur.L.push(f?{c,w,q,f}:{c,w,q});
   CART[id]=cur;saveCart();paint();
 }
 function setLine(id,i,q){
@@ -475,7 +495,7 @@ function fixCart(){
 }
 function lines(){
   return Object.keys(CART).flatMap(id=>{const p=PR[id];if(!p||!cTot(id))return [];const c=CART[id],pr=Number(p.sellPrice)||0;
-    if(c.L)return c.L.filter(l=>l.q>0).map((l,i)=>({pid:id,name:p.name||'',price:pr,qty:l.q,...(l.c?{color:l.c}:{}),...(l.w?{writing:l.w}:{}),li:c.L.indexOf(l)}));
+    if(c.L)return c.L.filter(l=>l.q>0).map((l,i)=>({pid:id,name:p.name||'',price:pr,qty:l.q,...(l.c?{color:l.c}:{}),...(l.w?{writing:l.w+(l.f?' — خط '+l.f:'')}:{}),li:c.L.indexOf(l)}));
     if(c.n){const os=opts(p)||[];
       const cns=Object.keys(c.n).map(k=>{const o=os.find(x=>String(x.num)===k);return {num:Number(k),tag:o?o.tag:k,qty:c.n[k]};}).sort((a,b)=>a.num-b.num);
       return {pid:id,name:p.name||'',price:pr,qty:cns.reduce((t,i)=>t+i.qty,0),colorNumbers:cns,word:word(p)};}
@@ -594,7 +614,7 @@ function renderProd(){
 // منتج بلون/كتابة: بيختار اللون ويكتب، وبيضيف — وكل إضافة سطر لحاله (مبخرة ذهبي «محمد» ومبخرة فضي «سارة»)
 let OSEL={pid:'',c:'',w:'',q:1};
 function renderOpt(p){
-  if(OSEL.pid!==p.id)OSEL={pid:p.id,c:'',w:'',q:1};
+  if(OSEL.pid!==p.id)OSEL={pid:p.id,c:'',w:'',q:1,f:''};
   const wi=$('#oW');if(wi)OSEL.w=wi.value;   // ما يضيع اللي انكتب لو الصفحة اتحدّثت
   const cols=pCols(p),req=!!p.requiresWriting,img=pImg(p),L=(CART[p.id]&&CART[p.id].L)||[];
   if(OSEL.c&&!cols.includes(OSEL.c))OSEL.c='';
@@ -607,22 +627,24 @@ function renderOpt(p){
     <div class="box">
       ${cols.length?`<div class="ol">اللون <i>*</i></div><div class="ar">${cols.map(c=>`<button type="button" data-oc="${esc(c)}" aria-pressed="${OSEL.c===c}">${esc(c)}</button>`).join('')}</div>`:''}
       ${req?`<div class="ol">الكتابة <i>* لازم</i></div><input id="oW" maxlength="80" placeholder="مثلاً: اسم، آية، تاريخ…" value="${esc(OSEL.w)}">`:''}
-      <div class="qr"><button type="button" data-oq="-1" aria-label="أقل">−</button><b class="n" id="oQ">${OSEL.q}</b><button type="button" data-oq="1" aria-label="أكثر">＋</button>
+      ${req&&wpOn()?wpHTML(p):''}
+      <div class="qr" style="margin-top:2px"><button type="button" data-oq="-1" aria-label="أقل">−</button><b class="n" id="oQ">${OSEL.q}</b><button type="button" data-oq="1" aria-label="أكثر">＋</button>
         <button type="button" class="oadd" data-oadd="1">＋ أضف لطلبي</button></div>
       <div class="err" id="oErr"></div>
     </div>
-    ${L.length?`<div class="box done"><div class="ol">بطلبك من ${esc(p.name)}</div>${L.map((l,i)=>`<div class="rw sel" style="box-shadow:none;padding:6px 0;background:none"><div class="m">${esc(optTxt({color:l.c,writing:l.w})||p.name)}</div>
+    ${L.length?`<div class="box done"><div class="ol">بطلبك من ${esc(p.name)}</div>${L.map((l,i)=>`<div class="rw sel" style="box-shadow:none;padding:6px 0;background:none"><div class="m">${esc(optTxt({color:l.c,writing:l.w+(l.f?' — خط '+l.f:'')})||p.name)}</div>
       <div class="q"><button data-ol="${i}:-1" aria-label="أقل">−</button><b class="n">${l.q}</b><button data-ol="${i}:1" aria-label="أكثر">＋</button></div></div>`).join('')}</div>`:''}
   </div>`;
+  if($('#wpTxt'))requestAnimationFrame(wpUpd);
 }
 function optAdd(){
   const p=PR[CUR];if(!p)return;
   const cols=pCols(p),w=String(($('#oW')&&$('#oW').value)||'').trim().slice(0,80);
   if(cols.length&&!OSEL.c){$('#oErr').textContent='اختار اللون أوّل';return;}
   if(p.requiresWriting&&!w){$('#oErr').textContent='اكتب الكتابة اللي بدك ياها';$('#oW')&&$('#oW').focus();return;}
-  addLine(p.id,OSEL.c,w,Math.max(1,OSEL.q|0));
+  addLine(p.id,OSEL.c,w,Math.max(1,OSEL.q|0),wpOn()&&p.requiresWriting&&WPF.ready&&OSEL.f?OSEL.f:'');
   toast('✓ انضاف '+p.name+(OSEL.c?' · '+OSEL.c:''));
-  OSEL={pid:p.id,c:'',w:'',q:1};if($('#oW'))$('#oW').value='';render();
+  OSEL={pid:p.id,c:'',w:'',q:1,f:OSEL.f};if($('#oW'))$('#oW').value='';render();
 }
 function visible(){
   const q=digits($('#q').value).trim();
@@ -929,7 +951,8 @@ function linesToCart(src){
   (src||[]).forEach(x=>{const id=x.pid||x.id;if(!id)return;watchP(id);
     const cns=Array.isArray(x.colorNumbers)?x.colorNumbers.filter(c=>(c.qty||0)>0):[];
     if(cns.length){const c=C[id]&&C[id].n?C[id]:{n:{}};cns.forEach(k=>{c.n[k.num]=(c.n[k.num]||0)+(Number(k.qty)||0);});C[id]=c;return;}
-    if(x.color||x.writing){const c=C[id]&&C[id].L?C[id]:{L:[]};c.L.push({c:x.color||'',w:x.writing||'',q:Number(x.qty)||1});C[id]=c;return;}
+    if(x.color||x.writing){const c=C[id]&&C[id].L?C[id]:{L:[]};const m=/^([\s\S]*?) — خط (.+)$/.exec(x.writing||'');
+      c.L.push(m?{c:x.color||'',w:m[1],q:Number(x.qty)||1,f:m[2]}:{c:x.color||'',w:x.writing||'',q:Number(x.qty)||1});C[id]=c;return;}
     const p=PR[id];if(p&&kind(p)==='opt'){const c=C[id]&&C[id].L?C[id]:{L:[]};c.L.push({c:'',w:'',q:Number(x.qty)||1});C[id]=c;return;}
     C[id]={q:((C[id]&&C[id].q)||0)+(Number(x.qty)||1)};});
   return C;
@@ -1133,6 +1156,62 @@ function bump(id,num,d){
   const o=(opts(p)||[]).find(x=>x.num===num);const nv=cQ(id,num)+d;
   if(d>0&&o&&(o.out||(o.stock!=null&&nv>o.stock))){toast(o.out?o.name+' خلص':'الموجود من '+o.name+' '+o.stock+' بس');return false;}
   setQ(id,num,nv);return true;
+}
+
+// ── ✍️ معاينة الكتابة ──
+// الزبون بيكتب الاسم وبيشوفه فوراً على لوح بلون القطعة (ذهبي/فضي…) وبنفس الخط
+// اللي بتنحفر فيه بالليزر: الخطوط من «مولّد DXF» (dxf_fonts) — نفس الملفات.
+// الخط اللي اختاره بينكتب مع الكتابة بالطلب («محمد — خط ديواني»).
+const wpOn=()=>QS.get('wp')==='1'||CFG.writePreview===true;
+const WPF={list:[],ready:false,loading:false};
+const wpLabel=n=>/diwani|ديواني/i.test(n)?'ديواني':/simplified|naskh|نسخ|arial|tahoma/i.test(n)?'عادي':/thuluth|ثلث/i.test(n)?'ثلث':/ruq|رقعة/i.test(n)?'رقعة':/kufi|كوفي/i.test(n)?'كوفي':n;
+async function wpLoad(){
+  if(WPF.ready||WPF.loading)return;WPF.loading=true;
+  try{
+    const s=await db.collection('dxf_fonts').get();
+    for(const d of s.docs){
+      const v=d.data()||{};if(!v.hasBytes)continue;
+      try{
+        const b=await db.collection('dxf_fonts').doc(d.id).collection('data').doc('bytes').get();
+        const fb=b.exists&&b.data().fontBytes;if(!fb)continue;
+        const fam='wp_'+d.id.replace(/\W/g,'');
+        const ff=new FontFace(fam,fb.toUint8Array?fb.toUint8Array():fb);await ff.load();document.fonts.add(ff);
+        const label=wpLabel(String(v.name||''));
+        if(!WPF.list.some(x=>x.label===label))WPF.list.push({id:d.id,label,fam});
+      }catch(e){}
+    }
+  }catch(e){}
+  // الديواني أوّل (هو خط المباخر)
+  WPF.list.sort((a,b)=>(a.label==='ديواني'?0:1)-(b.label==='ديواني'?0:1));
+  WPF.ready=true;WPF.loading=false;
+  if(view==='prod'&&PR[CUR]&&PR[CUR].requiresWriting)render();
+}
+const WP_SOLID={احمر:'#b91c1c',أحمر:'#b91c1c',ازرق:'#1d4ed8',أزرق:'#1d4ed8',بنفسجي:'#6d28d9',زهري:'#db2777',اخضر:'#15803d',أخضر:'#15803d'};
+function wpMetal(c){c=String(c||'');if(/ذهب/.test(c))return['gold',''];if(/فض/.test(c))return['silver',''];if(/برونز|نحاس/.test(c))return['bronze',''];
+  if(/اسود|أسود/.test(c))return['dark',''];if(WP_SOLID[c])return['solid',WP_SOLID[c]];return['gold',''];}
+function wpHTML(p){
+  if(!WPF.ready){wpLoad();return `<div class="wpv"><div class="wpst"><div class="plate gold"><span class="ph">⏳ عم نجهّز المعاينة…</span></div></div></div>`;}
+  if(WPF.list.length&&!WPF.list.some(x=>x.label===OSEL.f))OSEL.f=WPF.list[0].label;
+  const fo=WPF.list.find(x=>x.label===OSEL.f),[m,col]=wpMetal(OSEL.c),img=pImg(p);
+  return `<div class="wpv">
+    ${WPF.list.length>1?`<div class="ol">شكل الخط</div><div class="wpf">${WPF.list.map(x=>`<button type="button" data-wpf="${esc(x.label)}" aria-pressed="${OSEL.f===x.label}"><b style="font-family:'${x.fam}'">محمد</b>${esc(x.label)}</button>`).join('')}</div>`:''}
+    <div class="wpst">${img?`<div class="bg" style="background-image:url('${img}')"></div>`:''}
+      <div class="plate ${m}" ${col?`style="--pc:${col}"`:''}><span id="wpTxt" style="font-family:${fo?`'${fo.fam}',`:''}'Reem Kufi',serif"></span></div></div>
+    <div class="wpn">👆 هيك تقريباً بتطلع الكتابة${OSEL.c?' — '+esc(OSEL.c):''}${fo?' بخط '+esc(fo.label):''}. الحجم والمكان على القطعة بيختلفوا شوي.</div>
+  </div>`;
+}
+// الحجم بيصغر لحاله لحد ما الكتابة توسع باللوح
+function wpUpd(){
+  const t=$('#wpTxt');if(!t)return;
+  const v=String(($('#oW')&&$('#oW').value)||'').trim();
+  if(!v){t.className='ph';t.style.fontSize='';t.textContent='اكتب فوق — وبتطلع هون';return;}
+  t.className='';t.textContent=v;t.style.whiteSpace='nowrap';
+  const box=t.parentElement,W=box.clientWidth-36;
+  let fs=Math.min(64,Math.max(22,box.clientHeight*.55));t.style.fontSize=fs+'px';
+  while(t.scrollWidth>W&&fs>22){fs-=2;t.style.fontSize=fs+'px';}
+  // لسّا طويل ⇒ سطرين بدل ما يصغر لحد ما ما ينقرا
+  if(t.scrollWidth>W){t.style.whiteSpace='normal';t.style.textAlign='center';
+    while(t.scrollWidth>W&&fs>12){fs-=2;t.style.fontSize=fs+'px';}}
 }
 
 // ── 🔔 بلّغني لما يرجع ──
@@ -1419,6 +1498,7 @@ document.addEventListener('click',e=>{
   const pq=e.target.closest('[data-pq]');if(pq){const [id,d]=pq.dataset.pq.split(':');const was=cTot(id);bump(id,null,Number(d));
     if(!was&&cTot(id))toast('✓ انضاف '+((PR[id]&&PR[id].name)||''));render();return;}
   const cq=e.target.closest('[data-cq]');if(cq){const [n,d]=cq.dataset.cq.split(':');bump(CUR,Number(n),Number(d));render();return;}
+  const wf=e.target.closest('[data-wpf]');if(wf){OSEL.f=wf.dataset.wpf;render();return;}
   const oc=e.target.closest('[data-oc]');if(oc){OSEL.c=oc.dataset.oc;$('#oErr')&&($('#oErr').textContent='');render();return;}
   const oq=e.target.closest('[data-oq]');if(oq){OSEL.q=Math.max(1,Math.min(99,OSEL.q+Number(oq.dataset.oq)));const b=$('#oQ');if(b)b.textContent=OSEL.q;return;}
   if(e.target.closest('[data-oadd]')){optAdd();return;}
@@ -1448,6 +1528,7 @@ $('#lbAdd').onclick=()=>{const x=ITEMS[cur];if(!x)return;if(x.out){rwOpen(x);ret
 (function(){let x0=null;const el=$('#lbImg');el.addEventListener('touchstart',e=>{x0=e.touches[0].clientX;},{passive:true});
   el.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>50)step(dx>0?1:-1);},{passive:true});})();
 $('#q').addEventListener('input',()=>render());
+document.addEventListener('input',e=>{if(e.target&&e.target.id==='oW')wpUpd();});
 $('#onlyAv').onclick=()=>{onlyAv=!onlyAv;$('#onlyAv').setAttribute('aria-pressed',onlyAv);render();};
 $('#barWa').onclick=go;$('#sheetWa').onclick=go;$('#barEdit').onclick=openSheet;$('#scrim').onclick=()=>closeSheet();
 if(CH==='m')$('#barWa').classList.add('ms');
