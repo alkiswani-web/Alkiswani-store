@@ -186,6 +186,35 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .skel{aspect-ratio:1;border-radius:16px;background:linear-gradient(90deg,#ece5d6,#f5efe3,#ece5d6);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{to{background-position:-200% 0}}
+/* 🧮 حاسبة المشروع */
+.findb.pjb{background:#f0fdf4;border-color:#86efac}
+.pjs{font-size:.86rem;font-weight:900;margin:16px 2px 8px;display:flex;align-items:center;gap:8px}
+.pjs i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--g);color:#fff;display:grid;place-items:center;font-size:.76rem}
+.pjg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pjc{border:1.5px solid var(--ln);background:#fff;border-radius:14px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:900;font-size:.8rem}
+.pjc span{font-size:1.6rem;line-height:1.1}
+.pjc small{font-size:.66rem;color:var(--mu);font-weight:700}
+.pjc[aria-pressed="true"]{background:var(--g);color:#fff;border-color:var(--g)}
+.pjc[aria-pressed="true"] small{color:#cfe0d5}
+.pjr{display:flex;flex-wrap:wrap;gap:8px}
+.pjr button{border:1.5px solid var(--ln);background:#fff;border-radius:999px;padding:9px 14px;font-weight:800;font-size:.86rem}
+.pjr button[aria-pressed="true"]{background:var(--g);color:#fff;border-color:var(--g)}
+.pjy{display:flex;align-items:center;gap:12px;width:100%;border:1.5px solid var(--ln);background:var(--paper);border-radius:16px;padding:9px;text-align:start;margin-bottom:8px}
+.pjy[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+.pjy .im{width:62px;height:62px;border-radius:12px;background:#ece5d6 center/cover no-repeat;flex:0 0 auto}
+.pjy .m{flex:1;min-width:0}
+.pjy .m>b{display:block;font-size:.95rem;font-weight:900}
+.pjy .m small{display:block;font-size:.72rem;color:var(--mu);font-weight:700}
+.pjy .k{text-align:center;flex:0 0 auto}
+.pjy .k b{display:block;font-size:1.35rem;font-weight:900;color:var(--g)}
+.pjy .k small{font-size:.66rem;color:var(--mu);font-weight:800}
+.pjsum{background:var(--g);color:#fff;border-radius:16px;padding:12px 14px;margin-top:14px;font-weight:800;font-size:.86rem;line-height:1.8}
+.pjsum b{color:var(--gold)}
+.pjbar{display:flex;align-items:center;gap:10px;background:#fffbeb;border:2px solid var(--gold);border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:.84rem;font-weight:900;line-height:1.6}
+.pjbar.ok{background:#f0fdf4;border-color:#22c55e}
+.pjbar span{flex:1}
+.pjbar small{display:block;font-size:.72rem;color:var(--mu);font-weight:700}
+.pjbar button{border:0;background:none;color:var(--rd);font-weight:900;font-size:.8rem}
 /* 📷 لاقي لونك من صورة */
 .findb{width:100%;display:flex;align-items:center;gap:10px;border:1.5px dashed var(--gold);background:#fffbeb;border-radius:16px;padding:11px 14px;margin-bottom:12px;text-align:start}
 .findb .ic{width:40px;height:40px;border-radius:12px;background:var(--g);color:#fff;display:grid;place-items:center;font-size:1.2rem;flex:0 0 auto}
@@ -242,6 +271,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
     <button class="tog" id="onlyAv" aria-pressed="false">المتوفّر بس</button>
   </div>
   <div id="mine" hidden></div>
+  <div class="pjbar" id="pjBar" hidden></div>
+  <button class="findb pjb" id="pjB" hidden><span class="ic" style="background:#166534">🧮</span><span><b id="pjBT">شو بدك تعمل؟ منحسبلك كم كبّة بدك</b><small id="pjBS">بطانية، شال، طاقية… اختار المشروع والصوف ومنقلّك العدد والسعر</small></span></button>
   <button class="findb" id="findB" hidden><span class="ic">📷</span><span><b>عندك لون؟ صوّره ونلاقيلك رقمه</b><small>صوّر الصوف أو القطعة اللي معك — وبنطلعلك أقرب ألوان عنّا</small></span></button>
   <div class="grid" id="grid"></div>
   <div class="foot" id="foot"></div>
@@ -286,6 +317,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   <div class="bd" id="fdB"></div>
 </div>
 <input type="file" id="fdFile" accept="image/*" hidden>
+<div class="fd" id="pj" role="dialog" aria-modal="true" aria-label="حاسبة المشروع">
+  <div class="hd"><b class="kufi">🧮 كم كبّة بدي؟</b><button id="pjX" aria-label="سكّر">✕</button></div>
+  <div class="bd" id="pjBd"></div>
+</div>
 <div class="toast" id="toast" role="status"></div>
 <script>
 (function(){
@@ -324,6 +359,7 @@ let view=PID0?'prod':'home',CUR=PID0,fromHome=false;
 let ITEMS=[],cur=-1,onlyAv=false;
 // السلّة لكل الكتالوج: CART[id]={n:{رقم:كمية}} للألوان والقياسات، أو {q:كمية} للمنتج العادي
 let CART=LS.get('_clrCart2',{});if(!CART||typeof CART!=='object')CART={};
+let PROJ=LS.get('_clrProj',null);   // 🧮 مشروع شغّال: {pid,label,n,per,tot}
 // وقت تعديل طلب، السلّة فيها الطلب نفسه — ما منحفظها كسلّة عادية
 const saveCart=()=>{if(typeof EDIT!=='undefined'&&EDIT)return;LS.set('_clrCart2',CART);};
 let ME=LS.get('_clrMe',{})||{};
@@ -460,6 +496,11 @@ function skeleton(){$('#grid').className='grid';$('#grid').innerHTML=Array.from(
 function render(){
   $('#back').hidden=view!=='prod';
   $('#findB').hidden=true;
+  const _pjp=view==='prod'?PR[CUR]:null;
+  $('#pjB').hidden=!(pjOn()&&(view==='home'?HOME.some(id=>pjOf(PR[id])):!!pjOf(_pjp))&&!(PROJ&&view==='prod'&&CUR===PROJ.pid));
+  if(view==='prod'&&_pjp){$('#pjBT').textContent='🧶 كم كبّة '+(_pjp.name||'')+' بدي لمشروعي؟';$('#pjBS').textContent='اختار المشروع (بطانية، شال، طاقية…) ومنقلّك العدد والسعر';}
+  else{$('#pjBT').textContent='شو بدك تعمل؟ منحسبلك كم كبّة بدك';$('#pjBS').textContent='بطانية، شال، طاقية… اختار المشروع والصوف ومنقلّك العدد والسعر';}
+  pjBarPaint();
   paintMine();
   if(view==='home')return renderHome();
   renderProd();
@@ -611,7 +652,8 @@ function lbPaint(){
   $('#lbAdd').disabled=!!x.out;$('#lbAdd').style.opacity=x.out?.4:1;
 }
 function openLb(i){
-  cur=i;const x=ITEMS[i];if(!x)return;qv=cQ(CUR,x.num)||1;lbPaint();
+  cur=i;const x=ITEMS[i];if(!x)return;qv=cQ(CUR,x.num)||(PROJ&&PROJ.pid===CUR?(x.stock!=null?Math.max(1,Math.min(PROJ.per,x.stock)):PROJ.per):1);lbPaint();
+  if(PROJ&&PROJ.pid===CUR&&!cQ(CUR,x.num)&&x.stock!=null&&x.stock<PROJ.per&&!x.out)toast('من هاللون في '+x.stock+' بس — مشروعك بدّه '+PROJ.per);
   $('#lb').classList.add('on');fetchFull(i);
   try{if(!history.state||!history.state.lb)history.pushState({lb:1},'');}catch(e){}
 }
@@ -680,7 +722,7 @@ function showFormSum(){
 function showForm(){
   sview='form';showFormSum();
   const C=EDIT?EDIT.cust:ME;
-  $('#ckName').value=C.name||'';$('#ckPhone').value=C.phone||'';$('#ckAddr').value=C.address||'';$('#ckNotes').value=EDIT?(C.notes||''):'';$('#ckMore').value='';
+  $('#ckName').value=C.name||'';$('#ckPhone').value=C.phone||'';$('#ckAddr').value=C.address||'';$('#ckNotes').value=EDIT?(C.notes||''):pjNote();$('#ckMore').value='';
   paintAreas(C.area||'');$('#ckErr').textContent='';
   STORE=(EDIT&&stores().find(x=>x.id===EDIT.pageId))||stores().find(x=>x.id===PGID)||stores().find(x=>x.id===ME.store)||null;paintStores();
   paintSheet();sheetOn();
@@ -788,7 +830,7 @@ async function submitReq(){
   }
   r.text=reqText(r);lastReq=r;
   if(!saved){paintSheet();toast('النت ضعيف — ابعتلنا الطلب على '+chName());openChat(r.text);return;}
-  CART={};saveCart();render();paint();
+  CART={};saveCart();PROJ=null;LS.set('_clrProj',null);render();paint();
   rememberMine({id:r.id,ref:r.ref,t:Date.now()});
   sview='done';
   // ما في رسالة تأكيد يبعتها الزبون: الطلب وصل للموظفة، وهي بتتواصل معه من نفس محادثة المتجر
@@ -1030,7 +1072,7 @@ async function submitAdd(){
     toast('⚠️ '+short.map(x=>x.have?`الموجود من ${x.name} صار ${x.have} بس`:`${x.name} خلص هلّأ`).join('، ')+' — عدّلناها');paintSheet();cartRows();return;}
   if(msg==='stopped'){ADD=null;paintMine();paint();closeSheet();toast('طلبك صار قيد التجهيز — ما بتقدر تزيد عليه هلّأ');return;}
   if(msg==='err'){paintSheet();toast('النت ضعيف — جرّب كمان مرّة');return;}
-  const ref=ADD.ref;ADD=null;CART={};saveCart();render();paint();paintMine();
+  const ref=ADD.ref;ADD=null;CART={};saveCart();PROJ=null;LS.set('_clrProj',null);render();paint();paintMine();
   sview='done';$('#doneP').innerHTML=`➕ ${msg} 💚`;$('#doneRef').textContent='رقم الطلب '+ref;paintSheet();
 }
 // فتح المحادثة على نفس القناة اللي إجا منها الزبون
@@ -1067,6 +1109,93 @@ function bump(id,num,d){
   if(d>0&&o&&(o.out||(o.stock!=null&&nv>o.stock))){toast(o.out?o.name+' خلص':'الموجود من '+o.name+' '+o.stock+' بس');return false;}
   setQ(id,num,nv);return true;
 }
+
+// ── 🧮 حاسبة المشروع ──
+// الزبون بيختار شو بدّه يعمل (بطانية بيبي، شال…) والمقاس، ومنقلّه كم كبّة بدّه
+// من كل صوف عنّا وبكم، وبيختار كم لون — وبعدين منفتحله الألوان وكل لون بينضاف
+// بكميّته لحاله. الأعداد من product.projBalls (بيعدّلها الأدمن)، وإذا مش موجودة
+// منستعمل تقدير حسب سماكة الصوف (PJ_DEF) لأشهر أنواعنا.
+const PJ=[
+  {id:'bbS',ic:'👶',t:'بطانية بيبي',sz:'صغيرة',d:'70×90 سم'},{id:'bbM',ic:'👶',t:'بطانية بيبي',sz:'وسط',d:'80×100 سم'},
+  {id:'blM',ic:'🛏️',t:'بطانية',sz:'وسط',d:'110×140 سم'},{id:'blL',ic:'🛏️',t:'بطانية',sz:'كبيرة',d:'140×180 سم'},
+  {id:'scarf',ic:'🧣',t:'شال / سكارف',d:'للكبار'},{id:'hat',ic:'🧢',t:'طاقية',d:'للكبار أو للأطفال'},
+  {id:'cardi',ic:'🧥',t:'جاكيت بيبي',d:'لعمر سنة'},{id:'toy',ic:'🧸',t:'لعبة / ميدالية',d:'حجم صغير–وسط'},{id:'pillow',ic:'🛋️',t:'مخدّة',d:'40×40 سم'}];
+const PJ_DEF=[
+  [/puffy/i,{bbS:5,bbM:6,blM:10,blL:16,scarf:2,hat:1,pillow:3}],
+  [/velluto/i,{bbS:5,bbM:6,blM:10,blL:15,scarf:2,hat:1,cardi:3,toy:1,pillow:2}],
+  [/superlana.*maxi/i,{bbS:4,bbM:5,blM:8,blL:12,scarf:2,hat:1,cardi:3,pillow:2}],
+  [/baby.?best/i,{bbS:3,bbM:4,blM:7,scarf:2,hat:1,cardi:2,toy:1}],
+  [/cotton.?gold/i,{bbS:3,bbM:4,blM:6,scarf:2,hat:1,cardi:2,toy:1}]];
+const pjOn=()=>QS.get('proj')==='1'||CFG.projectCalc===true;
+function pjOf(p){
+  if(!p||!p.hasColorNumbers||kind(p)==='size')return null;
+  if(p.projBalls&&typeof p.projBalls==='object'&&Object.keys(p.projBalls).length)return p.projBalls;
+  const d=PJ_DEF.find(([re])=>re.test(String(p.name||'')));return d?d[1]:null;
+}
+let PJS={proj:'',pid:'',n:1,spare:false,fixed:''};
+function pjYarns(){
+  const ids=view==='prod'&&PJS.fixed?[PJS.fixed]:HOME.length?HOME:Object.keys(PR);
+  return ids.map(id=>PR[id]).filter(p=>p&&pjOf(p));
+}
+function pjOpen(fixed){
+  PJS={proj:PJS.proj||'',pid:fixed||'',n:PJS.n||1,spare:false,fixed:fixed||''};
+  pjPaint();$('#pj').classList.add('on');
+  try{history.pushState({pj:1},'');}catch(e){}
+}
+function pjClose(fromPop){$('#pj').classList.remove('on');if(!fromPop){try{if(history.state&&history.state.pj)popSelf();}catch(e){}}}
+function pjCount(p){const t=pjOf(p);const b=t&&t[PJS.proj];if(!b)return 0;return b+(PJS.spare?1:0);}
+function pjPaint(){
+  const Y=pjYarns();
+  const avail=PJ.filter(x=>Y.some(p=>pjOf(p)[x.id]));
+  if(PJS.proj&&!avail.some(x=>x.id===PJS.proj))PJS.proj='';
+  const pr=PJ.find(x=>x.id===PJS.proj);
+  const yarns=pr?Y.filter(p=>pjCount(p)>0):[];
+  if(PJS.pid&&!yarns.some(p=>p.id===PJS.pid))PJS.pid=PJS.fixed&&yarns.some(p=>p.id===PJS.fixed)?PJS.fixed:'';
+  if(!PJS.pid&&yarns.length===1)PJS.pid=yarns[0].id;
+  const yp=PR[PJS.pid];
+  const tot=yp?pjCount(yp):0,per=tot?Math.ceil(tot/PJS.n):0,price=Number(yp&&yp.sellPrice)||0;
+  const avC=yp?(opts(yp)||[]).filter(o=>!o.out&&(o.stock==null||o.stock>=per)).length:0;
+  $('#pjBd').innerHTML=`
+    <div class="pjs"><i>1</i> شو بدك تعمل؟</div>
+    <div class="pjg">${avail.map(x=>`<button class="pjc" data-pjp="${x.id}" aria-pressed="${PJS.proj===x.id}"><span>${x.ic}</span>${esc(x.t)}${x.sz?` <small>${esc(x.sz)} · ${esc(x.d)}</small>`:`<small>${esc(x.d)}</small>`}</button>`).join('')}</div>
+    ${pr?`<div class="pjs"><i>2</i> بأي صوف؟</div>
+      ${yarns.map(p=>{const c=pjCount(p),pp=Number(p.sellPrice)||0,img=pImg(p);
+        return `<button class="pjy" data-pjy="${esc(p.id)}" aria-pressed="${PJS.pid===p.id}"><span class="im" style="${img?`background-image:url('${img}')`:''}"></span>
+          <span class="m"><b><bdi>${esc(p.name)}</bdi></b><small>${pp>0?`<span class="n">${f2(pp)}</span> د.أ للكبّة`:''}${pp>0?` · المجموع <b class="n" style="color:var(--ink)">${f2(pp*c)}</b> د.أ`:''}</small></span>
+          <span class="k"><b class="n">${c}</b><small>كبّة</small></span></button>`;}).join('')}`:''}
+    ${yp?`<div class="pjs"><i>3</i> كم لون؟</div>
+      <div class="pjr">${[1,2,3,4].filter(n=>n<=tot).map(n=>`<button data-pjn="${n}" aria-pressed="${PJS.n===n}">${n===1?'لون واحد':n+' ألوان'}</button>`).join('')}</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-weight:800;font-size:.82rem"><input type="checkbox" id="pjSp" ${PJS.spare?'checked':''} style="width:18px;height:18px;accent-color:var(--g)"> زيدلي كبّة احتياط <span style="color:var(--mu);font-weight:700">(عشان ما يخلص اللون بالنص)</span></label>
+      <div class="pjsum">${pr.ic} ${esc(pr.t)}${pr.sz?' '+esc(pr.sz):''} من <bdi>${esc(yp.name)}</bdi><br>
+        بدك <b class="n">${per*PJS.n}</b> كبّة${PJS.n>1?` — <b class="n">${per}</b> من كل لون`:''}${price>0?` · تقريباً <b class="n">${f2(price*per*PJS.n)}</b> د.أ`:''}
+        ${avC<PJS.n?`<br><span style="color:#fecaca">⚠️ متوفّر ${avC} لون بس فيه ${per} كبب أو أكثر</span>`:''}</div>
+      <button class="btn" style="width:100%;margin-top:12px" data-pjgo="1">اختار ${PJS.n===1?'اللون':'الألوان'} ←</button>
+      <div class="note">العدد تقريبي — بيعتمد على الغرزة وشدّ الإيد. إذا مش متأكّد زيد كبّة احتياط.</div>`:''}
+  `;
+}
+function pjGo(){
+  const yp=PR[PJS.pid],pr=PJ.find(x=>x.id===PJS.proj);if(!yp||!pr)return;
+  const tot=pjCount(yp),per=Math.ceil(tot/PJS.n);
+  PROJ={pid:yp.id,proj:pr.id,label:pr.t+(pr.sz?' '+pr.sz:''),ic:pr.ic,n:PJS.n,per,tot:per*PJS.n};
+  LS.set('_clrProj',PROJ);
+  pjClose();
+  setTimeout(()=>{if(view!=='prod'||CUR!==yp.id)openProd(yp.id,true);else{render();window.scrollTo(0,0);}},60);
+}
+function pjPicked(){if(!PROJ)return 0;const c=CART[PROJ.pid];return c&&c.n?Object.keys(c.n).length:0;}
+function pjBarPaint(){
+  const b=$('#pjBar');
+  if(!PROJ||view!=='prod'||CUR!==PROJ.pid){b.hidden=true;return;}
+  const k=pjPicked(),done=k>=PROJ.n;
+  b.hidden=false;b.classList.toggle('ok',done);
+  b.innerHTML=`<span>${PROJ.ic} ${esc(PROJ.label)} · <span class="n">${PROJ.tot}</span> كبّة
+    <small>${done?'✓ اخترت '+(PROJ.n===1?'اللون':'الألوان')+' — اضغط «اطلب» تحت':PROJ.n===1?`اضغط على اللون اللي بدك ياه — بينضاف <span class="n">${PROJ.per}</span> كبب`:`اختار <span class="n">${PROJ.n}</span> ألوان — <span class="n">${PROJ.per}</span> كبب من كل لون (اخترت <span class="n">${k}</span>)`}</small></span>
+    <button data-pjend="1">✕ إلغاء</button>`;
+}
+function pjNote(){
+  if(!PROJ||!CART[PROJ.pid])return '';
+  const p=PR[PROJ.pid];return `🧶 مشروع: ${PROJ.label} من ${p?p.name:''} (${PROJ.tot} كبّة${PROJ.n>1?'، '+PROJ.n+' ألوان':''})`;
+}
+function pjEnd(){PROJ=null;LS.set('_clrProj',null);render();}
 
 // ── 📷 لاقي لونك من صورة ──
 // الزبون بيصوّر لون عنده، وبيضغط عليه بالصورة، ومنطلعله أقرب ٣ ألوان متوفّرة.
@@ -1206,6 +1335,12 @@ function fdAdd(i){
 
 // ── الأحداث ──
 document.addEventListener('click',e=>{
+  const pjp=e.target.closest('[data-pjp]');if(pjp){PJS.proj=pjp.dataset.pjp;if(!PJS.fixed)PJS.pid='';pjPaint();return;}
+  const pjy=e.target.closest('[data-pjy]');if(pjy){PJS.pid=pjy.dataset.pjy;PJS.n=1;pjPaint();setTimeout(()=>$('#pjBd').scrollTo({top:$('#pjBd').scrollHeight,behavior:'smooth'}),30);return;}
+  const pjn=e.target.closest('[data-pjn]');if(pjn){PJS.n=Number(pjn.dataset.pjn);pjPaint();return;}
+  if(e.target.id==='pjSp'){PJS.spare=e.target.checked;pjPaint();return;}
+  if(e.target.closest('[data-pjgo]')){pjGo();return;}
+  if(e.target.closest('[data-pjend]')){pjEnd();return;}
   if(e.target.closest('[data-fdpick]')){$('#fdFile').value='';$('#fdFile').click();return;}
   if(e.target.closest('[data-fdx]')){fdClose();return;}
   if(e.target.closest('[data-fdmore]')){FD.more=true;fdPaint();return;}
@@ -1235,7 +1370,8 @@ document.addEventListener('click',e=>{
     if(cartEmpty())closeSheet();return;}
 });
 $('#back').onclick=()=>showHome();
-$('#findB').onclick=fdOpen;$('#fdX').onclick=()=>fdClose();
+$('#findB').onclick=fdOpen;
+$('#pjB').onclick=()=>pjOpen(view==='prod'?CUR:'');$('#pjX').onclick=()=>pjClose();$('#fdX').onclick=()=>fdClose();
 $('#fdFile').onchange=()=>fdFile($('#fdFile').files&&$('#fdFile').files[0]);
 $('#lbX').onclick=()=>closeLb();
 $('#lb').addEventListener('click',e=>{if(e.target.id==='lb')closeLb();});
@@ -1246,7 +1382,8 @@ $('#qPlus').onclick=()=>{const x=ITEMS[cur];if(!x)return;const mx=x.stock!=null?
   qv=qv+1;$('#qV').textContent=qv;if(cQ(CUR,x.num)){setQ(CUR,x.num,qv);render();}};
 $('#lbAdd').onclick=()=>{const x=ITEMS[cur];if(!x||x.out)return;
   if(cQ(CUR,x.num)){setQ(CUR,x.num,0);toast('انشال من طلبك');}
-  else{setQ(CUR,x.num,qv);toast('✓ انضاف '+x.name);}
+  else{setQ(CUR,x.num,qv);toast('✓ انضاف '+x.name+(PROJ&&PROJ.pid===CUR?' × '+qv:''));
+    if(PROJ&&PROJ.pid===CUR&&pjPicked()>=PROJ.n){setTimeout(()=>{closeLb();toast('✓ مشروعك جاهز — اضغط «اطلب»');},350);}}
   lbPaint();render();};
 (function(){let x0=null;const el=$('#lbImg');el.addEventListener('touchstart',e=>{x0=e.touches[0].clientX;},{passive:true});
   el.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>50)step(dx>0?1:-1);},{passive:true});})();
@@ -1259,6 +1396,7 @@ window.addEventListener('popstate',()=>{
   if(selfBack>0){selfBack--;return;}
   if($('#lb').classList.contains('on'))closeLb(true);
   else if($('#fd').classList.contains('on'))fdClose(true);
+  else if($('#pj').classList.contains('on'))pjClose(true);
   else if($('#sheet').classList.contains('on'))closeSheet(true);
   else if(view==='prod'&&fromHome)showHome(true);
 });
