@@ -1181,7 +1181,7 @@ function applyAdminPerms(){
   const perms=_currentAdminPerms;
   const allTabs=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','operator','adminusers','dxf','emporders'];
   // تبويبات المتجر القديم: الواجهة صارت من حساب المشغل، فمخفيّة (بتنحذف بالتنظيف)
-  const OLD_STORE=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit'];
+  const OLD_STORE=['products','orders','customers','points','discounts','photos','stats','badges','eid','categories','aboutedit','adminusers'];   // + المستخدمون: ما في مستخدمين إضافيين
   allTabs.forEach(tab=>{
     const btn=document.getElementById('admin-tab-btn-'+tab);
     if(!btn)return;
