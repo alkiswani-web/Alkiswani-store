@@ -1162,9 +1162,8 @@ function bump(id,num,d){
 // الزبون بيكتب الاسم وبيشوفه فوراً على لوح بلون القطعة (ذهبي/فضي…) وبنفس الخط
 // اللي بتنحفر فيه بالليزر: الخطوط من «مولّد DXF» (dxf_fonts) — نفس الملفات.
 // الخط اللي اختاره بينكتب مع الكتابة بالطلب («محمد — خط ديواني»).
-// wp=1 مرّة وحدة بتضل شغّالة على نفس الجوال (للتجربة من أي رابط)، و wp=0 بتطفيها
-if(QS.get('wp')==='1')LS.set('_clrWp',1);else if(QS.get('wp')==='0')LS.set('_clrWp',0);
-const wpOn=()=>LS.get('_clrWp',0)===1||CFG.writePreview===true;
+// شغّالة للكل؛ ولو بدنا نطفيها: catalog_cfg.writePreview=false
+const wpOn=()=>CFG.writePreview!==false;
 const WPF={list:[],ready:false,loading:false};
 const wpLabel=n=>/diwani|ديواني/i.test(n)?'ديواني':/simplified|naskh|نسخ|arial|tahoma/i.test(n)?'عادي':/thuluth|ثلث/i.test(n)?'ثلث':/ruq|رقعة/i.test(n)?'رقعة':/kufi|كوفي/i.test(n)?'كوفي':n;
 async function wpLoad(){
