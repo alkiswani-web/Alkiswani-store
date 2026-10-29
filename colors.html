@@ -295,7 +295,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 <div class="wrap">
   <header class="hero">
     <button class="back" id="back" hidden>→ كل المنتجات</button>
-    <div class="brand">الكسواني روزميري</div>
+    <div class="brand" id="brand">الكسواني روزميري</div>
     <h1 class="kufi" id="pName">كتالوج المنتجات</h1>
     <p id="pSub">عم نجهّز الكتالوج…</p>
     <div class="price" id="pPrice" hidden>سعر القطعة <b class="n" id="pPriceV"></b> د.أ</div>
@@ -386,6 +386,10 @@ const CH=QS.get('c')==='m'?'m':QS.get('c')==='w'?'w':(IAB_FB?'m':'w');
 // ما في رجوع لرقم المحل العام أبداً: موظفة ماسكة كذا متجر، والرقم العام بيضيّع الطلب على صفحة ثانية
 let AUTO=true;
 const EMP=String(QS.get('e')||'').slice(0,60);
+// 🏪 واجهة الموقع: كل منتجات حساب المشغل (مش بس منتجات الكتالوج)، بدون موظفة —
+// الطلب بيروح للإدارة (toAdmin) وهي بتوزّعه. ?shop=1 للتجربة.
+const SHOP=QS.get('shop')==='1'||document.documentElement.dataset.shop==='1';
+const SHOP_WA='962775665598';
 // الصفحة/المتجر اللي إجا منه الزبون — رسالة التأكيد بترجع على واتسابها/ماسنجرها
 const PGID=String(QS.get('g')||'').slice(0,60);let PGD={};
 const chName=()=>CH==='m'?'الماسنجر':'الواتساب';
@@ -520,6 +524,18 @@ function load(){
 }
 // منتجات الرئيسية: اللي الأدمن حدّدها — وإذا لسّا ما حدّد، كل منتجات الألوان
 function syncHome(){
+  if(SHOP){
+    if(allSub)return;
+    // سحبة وحدة لكل المنتجات (مباشرة) بدل مستمع لكل منتج
+    allSub=db.collection('operator_products').onSnapshot(s=>{
+      s.docs.forEach(d=>{const v=d.data();PR[d.id]=(v&&!v.isRawMaterial)?{id:d.id,...v}:null;prSub[d.id]=prSub[d.id]||(()=>{});if(PR[d.id])need(PR[d.id]);});
+      const ok=d=>{const v=d.data();return v&&!v.isRawMaterial&&v.hideInStore!==true&&String(v.name||'').trim();};
+      const cat=v=>String(v.category||'').trim();
+      HOME=s.docs.filter(ok).map(d=>d.id).sort((a,b)=>{const A=PR[a],B=PR[b];
+        return (cat(A)?0:1)-(cat(B)?0:1)||cat(A).localeCompare(cat(B),'ar')||String(A.name).localeCompare(String(B.name),'ar');});
+      changed();},()=>{HOME=[];changed();});
+    return;
+  }
   if(Array.isArray(CFG.products)){
     if(allSub){allSub();allSub=null;}
     HOME=CFG.products.map(String).filter(Boolean).slice(0,40);HOME.forEach(watchP);changed();
@@ -549,12 +565,15 @@ function render(){
   renderProd();
 }
 function renderHome(){
-  $('#tools').hidden=true;$('#pPrice').hidden=true;
-  const title=String(CFG.title||'').trim()||'كتالوج المنتجات';
+  $('#tools').hidden=!SHOP;$('#pPrice').hidden=true;$('#onlyAv').hidden=SHOP;
+  if(SHOP){$('#q').placeholder='دوّر على منتج… مثلاً مبخرة';$('#q').inputMode='text';}
+  const title=SHOP?(String(CFG.shopTitle||'').trim()||'الكسواني روزميري'):(String(CFG.title||'').trim()||'كتالوج المنتجات');
   $('#pName').textContent=title;document.title=title;
-  const L=HOME.map(id=>PR[id]).filter(Boolean);
+  const qq=SHOP?String($('#q').value||'').trim():'';
+  const L=HOME.map(id=>PR[id]).filter(Boolean).filter(p=>!qq||String(p.name||'').includes(qq)||String(p.category||'').includes(qq));
   const loading=!cfgReady||HOME.some(id=>!(id in PR));
-  $('#pSub').textContent=L.length?'اختار النوع اللي بدك ياه — وبعدين ألوانك':loading?'عم نجهّز الكتالوج…':'';
+  $('#pSub').textContent=SHOP?(loading&&!L.length?'عم نجهّز المنتجات…':'خشبيات فاخرة، أشجار زينة، صوف وألوان — اختار واطلب من هون'):L.length?'اختار النوع اللي بدك ياه — وبعدين ألوانك':loading?'عم نجهّز الكتالوج…':'';
+  if(SHOP&&qq&&!L.length){$('#grid').className='grid';$('#grid').innerHTML=`<div class="empty" style="grid-column:1/-1">ما لقينا «${esc(qq)}» — جرّب كلمة ثانية</div>`;return;}
   $('#foot').innerHTML='بتقدر تختار من أكثر من نوع — وكلهم بطلب واحد.<br>الصور حقيقية بس الشاشة ممكن تغيّر درجة اللون شوي.';
   const g=$('#grid');g.className='hp';
   if(!L.length){if(loading){skeleton();return;}g.className='grid';g.innerHTML='<div class="empty" style="grid-column:1/-1">لسّا ما في منتجات بالكتالوج</div>';return;}
@@ -566,6 +585,8 @@ function renderHome(){
   g.innerHTML=`<div class="catbar">${groups.map((x,i)=>`<button data-cat="${i}">${esc(x.c)}</button>`).join('')}</div>`+
     groups.map((x,i)=>`<div class="cath" id="cat${i}">${esc(x.c)} <small class="n">${x.ps.length}</small></div><div class="hp">${x.ps.map(cardHTML).join('')}</div>`).join('');
 }
+// منتج لسّا بلا صورة: أيقونة حسب قسمه
+const catIc=p=>{const c=String(p&&p.category||'');return /شجر|اشجار|أشجار/.test(c)?'🌳':/مبخر|مباخر/.test(c)?'🪔':/ورد|ورود/.test(c)?'🌹':/برواز|براويز|جدار/.test(c)?'🖼️':/صوف|شانيل/.test(c)?'🧶':/هدي/.test(c)?'🎁':/كوفي|قهو/.test(c)?'☕':/ضياف/.test(c)?'🍬':/معلم/.test(c)?'📚':/طباع/.test(c)?'🖨️':'🛍️';};
 function cardHTML(p){
     const k=kind(p),os=opts(p),img=pImg(p),t=cTot(p.id),pr=Number(p.sellPrice)||0;
     const av=os?os.filter(o=>!o.out).length:null;
@@ -575,7 +596,7 @@ function cardHTML(p){
         :`<div class="pq"><button class="add1" data-pq="${esc(p.id)}:1">＋ أضف لطلبي</button></div>`)
       :`<span class="go2">${t?'✓ عدّل اختيارك':k==='size'?'اختار القياس ←':'اختار الألوان ←'}</span>`;
     return `<${k==='plain'?'div':'button'} class="pc${t?' sel':''}${k!=='plain'&&k!=='opt'&&av===0?' out':''}"${k==='plain'?'':` data-open="${esc(p.id)}"`}>
-      <div class="im" style="${img?`background-image:url('${img}')`:''}">${img?'':'🧶'}</div>${t?`<span class="in n">×${t} بطلبك</span>`:''}
+      <div class="im" style="${img?`background-image:url('${img}')`:''}">${img?'':catIc(p)}</div>${t?`<span class="in n">×${t} بطلبك</span>`:''}
       <div class="bd"><b>${esc(p.name||'')}</b>${pr>0?`<small><span class="n">${f2(pr)}</span> د.أ للقطعة</small>`:''}${sub?`<small class="mu">${sub}</small>`:''}${ctl}</div></${k==='plain'?'div':'button'}>`;
 }
 function renderProd(){
@@ -662,7 +683,7 @@ function tileHTML(x){
 let homeY=0;
 function openProd(id,push){
   if(view==='home')homeY=window.scrollY;
-  view='prod';CUR=id;cur=-1;$('#q').value='';onlyAv=false;$('#onlyAv').setAttribute('aria-pressed','false');
+  view='prod';CUR=id;cur=-1;$('#q').value='';$('#q').placeholder='دوّر برقم اللون';$('#q').inputMode='numeric';$('#onlyAv').hidden=false;onlyAv=false;$('#onlyAv').setAttribute('aria-pressed','false');
   watchP(id);if(PR[id])need(PR[id]);
   if(push){fromHome=true;try{history.pushState({pv:1},'');}catch(e){}}
   render();paint();window.scrollTo(0,0);
@@ -780,7 +801,7 @@ let AREA='',STORE=null;
 // (حتى الرابط القديم اللي فيه متجر g= — هداك بس بيكون مختار مسبقاً)
 const stores=()=>(Array.isArray(CFG.stores)?CFG.stores:[]).filter(x=>x&&x.id);
 function paintStores(){
-  const L=stores(),w=$('#ckStoreW');
+  const L=SHOP?[]:stores(),w=$('#ckStoreW');
   if(L.length<2){w.hidden=true;STORE=L[0]||null;return;}
   w.hidden=false;
   if(STORE&&!L.some(x=>x.id===STORE.id))STORE=null;
@@ -859,7 +880,8 @@ async function submitReq(){
   const ref=String(Date.now()).slice(-6);   // مؤقّت — بيتبدّل برقم تسلسلي لما ينحفظ
   const r={ref,pid:'',productName:extras.map(x=>x.name).join('، '),items:[],extras,...(extraText?{extraText}:{}),
     pieces:extras.reduce((t,x)=>t+x.qty,0),customer:{name,phone,area:AREA,address,notes},
-    channel:CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',source:'catalog',
+    channel:SHOP&&!EMP?'site':CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',source:SHOP?'site':'catalog',
+    ...(SHOP&&!EMP?{toAdmin:true}:{}),
     ...(STORE?{pageId:STORE.id,pageName:STORE.label||''}:PGID?{pageId:PGID,...(PGD.name?{pageName:PGD.name}:{})}:{}),
     createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   sending=true;const b=$('#sheetWa');b.disabled=true;b.textContent='⏳ عم نسجّل طلبك…';
@@ -881,7 +903,7 @@ async function submitReq(){
   rememberMine({id:r.id,ref:r.ref,t:Date.now()});
   sview='done';
   // ما في رسالة تأكيد يبعتها الزبون: الطلب وصل للموظفة، وهي بتتواصل معه من نفس محادثة المتجر
-  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>رح نتواصل معك بنفس المحادثة لنأكّد التوصيل 💚`;
+  $('#doneP').innerHTML=`سجّلنا طلبك${r.reserved?' و<b>ألوانك محجوزة إلك 24 ساعة</b> 🔒':''}<br>${SHOP&&!EMP?'رح نتواصل معك على الواتساب عرقمك لنأكّد التوصيل 💚':'رح نتواصل معك بنفس المحادثة لنأكّد التوصيل 💚'}`;
   $('#doneRef').textContent='رقم الطلب '+r.ref;
   paintSheet();
 }
@@ -1127,7 +1149,7 @@ async function submitAdd(){
 function chatUrl(text){
   // واتساب بلا رقم ⇒ الواتساب بيفتح قائمة المحادثات والزبون بيختار محادثتنا (أوّل وحدة لأنه لسّا كان فيها)
   if(CH==='m'){const u=String(PGD.messengerUser||'').replace(/^@/,'').trim();return u?`https://m.me/${encodeURIComponent(u)}?text=${encodeURIComponent(text)}`:'';}
-  const n=String(PGD.waNumber||'').replace(/\D/g,'');
+  const n=String(PGD.waNumber||(SHOP&&!EMP?SHOP_WA:'')).replace(/\D/g,'');
   return n?`https://wa.me/${n}?text=${encodeURIComponent(text)}`:`https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 async function openChat(text){
@@ -1543,6 +1565,8 @@ window.addEventListener('popstate',()=>{
   else if(view==='prod'&&fromHome)showHome(true);
 });
 document.addEventListener('keydown',e=>{if(!$('#lb').classList.contains('on'))return;if(e.key==='Escape')closeLb();if(e.key==='ArrowLeft')step(1);if(e.key==='ArrowRight')step(-1);});
+if(SHOP){$('#brand').textContent='🇯🇴 الأردن · توصيل لكل المناطق';
+  $('#foot').insertAdjacentHTML('afterend',`<div class="foot" style="margin-top:10px"><a href="https://wa.me/${SHOP_WA}" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:999px;background:#25d366;color:#05351a;font-weight:900;text-decoration:none">💬 تواصل معنا واتساب</a></div>`);}
 window.addEventListener('DOMContentLoaded',()=>{if(!window.firebase){$('#grid').innerHTML='<div class="empty" style="grid-column:1/-1">ما قدرنا نحمّل الصفحة — تأكّد من النت</div>';return;}load();render();});
 })();
 </script>
