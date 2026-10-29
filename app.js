@@ -1164,6 +1164,7 @@ function closeAdmin(){
   document.getElementById('adminPanel').classList.remove('open');
   _setPanelOpen(false);
   stopOrderListener();renderStore();
+  if(STAFF_MODE)_staffPaint();
   // session intentionally kept — only logoutAdmin() clears it
 }
 function logoutAdmin(){
@@ -1172,6 +1173,7 @@ function logoutAdmin(){
   document.getElementById('adminPanel').classList.remove('open');
   _setPanelOpen(false);
   stopOrderListener();renderStore();
+  if(STAFF_MODE)_staffPaint();
 }
 
 function applyAdminPerms(){
@@ -7786,6 +7788,7 @@ function logoutEmp(){
   _clearEmpSession();
   _empCurrentUser=null;
   closeEmpPanel();
+  if(STAFF_MODE)_staffPaint();
 }
 
 async function doEmpLogin(){
@@ -18893,6 +18896,7 @@ function showWelcome(){
   const time=getTimeOfDay();
   const key='ak_greeting_'+today+'_'+time;
   if(localStorage.getItem(key)) return;
+  if(typeof STAFF_MODE!=='undefined'&&STAFF_MODE) return;   // صفحة دخول الشغل: بلا ترحيب المتجر
   const card=document.getElementById('greetingCard');
   const label=document.getElementById('greetingLabel');
   const title=document.getElementById('greetingTitle');
@@ -18913,6 +18917,7 @@ function showWelcome(){
   subtitle.textContent=greetings[time].sub;
   // إظهار
   setTimeout(function(){
+    if(document.body.classList.contains('staff-mode'))return;
     document.getElementById('greetingOverlay').classList.add('show');
   },3200);
 }
@@ -19186,6 +19191,29 @@ function initLazyImages(){
 }
 let _lazyObs=null;
 
+// ═════════ 💼 /admin — صفحة دخول الشغل ═════════
+// الزباين ما بيشوفوا أزرار دخول؛ الإدارة والموظفين بيدخلوا من /admin (أو ?admin).
+// لو الجوال داخل من قبل بحساب واحد، بنفتحه فوراً بلا باسورد زي قبل.
+// والطلوع من اللوحة بيرجّع لهون مش للمتجر.
+const STAFF_MODE=/(^|[?&])admin(=|&|$)/.test(location.search.slice(1))||/\/admin(\.html)?\/?$/.test(location.pathname);
+function _staffPaint(){
+  const a=_loadAdminSession(),e=_loadEmpSession();
+  const A=document.getElementById('slAdminOk'),E=document.getElementById('slEmpOk');
+  if(A){A.hidden=!a;if(a)A.textContent='✓ داخل'+(a.user&&a.user!=='MAIN'?' · '+a.user:'');}
+  if(E){E.hidden=!e;if(e)E.textContent='✓ '+(e.displayName||e.username||'داخل');}
+  return {a,e};
+}
+function _staffLanding(){
+  document.body.classList.add('staff-mode');
+  document.title='لوحة الشغل · الكسواني روزميري';
+  const back=document.querySelector('.btn-back-store');if(back)back.textContent='← رجوع';
+  const {a,e}=_staffPaint();
+  // جوال إله حساب واحد محفوظ ⇒ على طول على لوحته
+  if(a&&!e)setTimeout(()=>openAdminLogin(),0);
+  else if(e&&!a)setTimeout(()=>openEmpLogin(),0);
+}
+window.addEventListener('focus',()=>{if(STAFF_MODE)_staffPaint();});
+
 async function init(){
   if(new URLSearchParams(window.location.search).has('rep')){
     // تطبيق المناديب صار rep.html لحاله — نسخة وحدة بدل نسختين بيختلفوا
@@ -19193,6 +19221,7 @@ async function init(){
     window.location.replace('/rep.html'+(_q.toString()?'?'+_q.toString():''));return;}
   const _gToken=new URLSearchParams(window.location.search).get('g');
   if(_gToken){_initPublicSlideshow(_gToken);return;}
+  if(STAFF_MODE)_staffLanding();
   // الشبكة مفعّلة افتراضياً ولا شيء في التطبيق يعطّلها؛ كان await هنا يجبر
   // تهيئة IndexedDB (مع synchronizeTabs وانتخاب primary lease) بالكامل قبل
   // إصدار أول طلب شبكة. لا ننتظرها.
