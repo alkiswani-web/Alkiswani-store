@@ -7967,7 +7967,7 @@ function _empCatWatch(){
   _empCatSeen=null;
   _empCatUnsub=db.collection('catalog_requests').where('status','==','new').onSnapshot(s=>{
     const me=_empCurrentUser&&_empCurrentUser.id;
-    _empCatReqs=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>!r.workerId||r.workerId===me)
+    _empCatReqs=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>(!r.workerId&&!r.toAdmin)||r.workerId===me)   // طلب من واجهة الموقع بيستنى الإدارة توزّعه
       .sort((a,b)=>(a.createdAt?.seconds||9e9)-(b.createdAt?.seconds||9e9));
     const ids=_empCatReqs.map(r=>r.id);
     if(_empCatSeen){const fresh=ids.filter(i=>!_empCatSeen.has(i));
@@ -7997,6 +7997,9 @@ function _catMsg(r){
   const sub=L.reduce((t,x)=>t+(Number(x.price)||0)*(Number(x.qty)||0),0);
   return `مرحبا ${c.name||''} 👋\nوصلنا طلبك من كتالوج الكسواني روزميري${r.ref?' (رقم '+r.ref+')':''}:\n${it}\n\nالمجموع ${sub.toFixed(2)} د.أ + التوصيل\nالتوصيل لـ ${c.area||''} — ${c.address||''}${r.extraText?'\nوطلبت كمان: '+r.extraText:''}\n\nمنأكّد الطلب؟ 🌿`;
 }
+// مصدر طلب الكتالوج: واتساب / ماسنجر / واجهة الموقع
+function _catChName(r){return r.channel==='site'?'واجهة الموقع':r.channel==='messenger'?'ماسنجر':'واتساب';}
+function _catChIc(r){return r.channel==='site'?'🌐':r.channel==='messenger'?'🔵':'🟢';}
 function _catWaUrl(r){
   const ph=String((r.customer||{}).phone||'').replace(/\D/g,''),intl=ph.startsWith('0')?'962'+ph.slice(1):ph;
   return intl?`https://wa.me/${intl}?text=${encodeURIComponent(_catMsg(r))}`:'';
@@ -8031,7 +8034,7 @@ function _empCatPaint(){
           :r.editOf?`<div style="font-size:.78rem;font-weight:900;color:#b45309;margin-bottom:4px;">✏️ تعديل على طلب <bdi>#${_clrEsc(r.editOf.ref||'')}</bdi> — هاد طلبه الجديد كامل، طبّقيه على البوليصة</div>`
           :(r.adds||r.edits)?`<div style="font-size:.76rem;font-weight:900;color:#7c3aed;margin-bottom:4px;">${r.adds?'➕ الزبون زاد على طلبه':''}${r.adds&&r.edits?' · ':''}${r.edits?'✏️ الزبون عدّل طلبه':''}</div>`:''}
         <div style="display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:900;color:#1f2937;">
-          <span title="${r.channel==='messenger'?'ماسنجر':'واتساب'}">${r.channel==='messenger'?'🔵':'🟢'}</span>
+          <span title="${_catChName(r)}">${_catChIc(r)}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <span style="direction:ltr;unicode-bidi:isolate;">${_clrEsc(c.phone||'')}</span></span>
           ${r.reserved?`<span title="ألوانه محجوزة من المخزون — بترجع لحالها بعد ${CAT_HOLD_H} ساعة إذا ما انأكّد" style="font-size:.68rem;font-weight:800;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px;white-space:nowrap;">🔒 محجوز${(()=>{const a=_catAgeH(r);return a==null?'':' · باقي '+Math.max(1,Math.ceil(CAT_HOLD_H-a))+' س';})()}</span>`
             :r.holdExpired?'<span title="مرق 24 ساعة بلا تأكيد — الألوان رجعت للمخزون. لو أكّدته، البوليصة بتخصم من الموجود" style="font-size:.68rem;font-weight:800;color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 7px;white-space:nowrap;">⏰ انتهى الحجز</span>':''}
@@ -8077,7 +8080,7 @@ async function empCatFill(id){
   }
   const set=(i,v)=>{const el=document.getElementById(i);if(el)el.value=v||'';};
   set('emp_phone',c.phone);set('emp_customer_name',c.name);set('emp_address',c.address);
-  set('emp_notes',[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'','🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — '));
+  set('emp_notes',[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'',(r.channel==='site'?'🌐 من واجهة الموقع':'🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)'))+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — '));
   if(c.area&&_EMP_AREAS.includes(c.area))_empPickArea(c.area);
   const cns=(r.items||[]).map(i=>({num:Number(i.num),qty:Math.max(1,Number(i.qty)||1)})).filter(i=>i.num>0).sort((a,b)=>a.num-b.num);
   _empOrderCart=cns.length?[{id:r.pid,name:(prod&&prod.name)||r.productName||'',price:parseFloat((prod&&prod.sellPrice)||r.price||0),
@@ -12588,7 +12591,7 @@ function _catAdmPaint(){
     const open=_catAdm.open===r.id;
     return `<div style="border:1.5px solid ${late?'#f59e0b':'#e5e7eb'};border-radius:14px;padding:11px 12px;margin-bottom:9px;background:${late?'#fffbeb':'#fff'};">
       <div style="display:flex;align-items:center;gap:6px;font-size:.88rem;font-weight:900;color:#111827;">
-        <span>${r.channel==='messenger'?'🔵':'🟢'}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <bdi>${_clrEsc(c.phone||'')}</bdi></span>
+        <span title="${_catChName(r)}">${_catChIc(r)}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(c.name||'زبون')} · <bdi>${_clrEsc(c.phone||'')}</bdi></span>
         <span style="font-size:.7rem;color:${late?'#b45309':'#9ca3af'};font-weight:800;white-space:nowrap;">${_hqAgo(r.createdAt)}</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:4px;font-size:.72rem;font-weight:800;">
         ${r.editOf?`<span style="color:#b45309;">✏️ تعديل على #${_clrEsc(r.editOf.ref||'')}</span>`:r.addTo?`<span style="color:#7c3aed;">➕ إضافة على #${_clrEsc(r.addTo.ref||'')}</span>`:(r.adds||r.edits)?'<span style="color:#7c3aed;">'+(r.adds?'➕ زاد':'')+(r.adds&&r.edits?' · ':'')+(r.edits?'✏️ عدّل':'')+'</span>':''}<span style="color:#7c3aed;">👤 ${_clrEsc(_catAdmWName(r.workerId))}</span>${r.pageName?`<span style="color:#0f766e;">📄 ${_clrEsc(r.pageName)}</span>`:''}${st}${r.ref?`<span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
@@ -12669,7 +12672,7 @@ async function catAdmRegGo(rid){
         ...(cns.length?{colorNumbers:cns}:{}),...(x.color?{color:x.color}:{}),...(x.writing?{writing:x.writing}:{})};});
     const sub=products.reduce((t,i)=>t+i.price*i.qty,0);
     const W=_catAdm.workers||{};
-    const note=[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'','🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)')+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — ');
+    const note=[c.notes,r.extraText?'✍️ بدّه كمان: '+r.extraText:'',(r.channel==='site'?'🌐 من واجهة الموقع':'🛒 من الكتالوج'+(r.channel==='messenger'?' (ماسنجر)':' (واتساب)'))+(r.ref?' #'+r.ref:'')].filter(Boolean).join(' — ');
     // الحجز بيتحوّل للبوليصة: منفكّه أوّل، وبعدين البوليصة بتخصم اللي فيها
     await _catRelease(rid);
     const orderNum=await _orderNumFor('',r);
@@ -13682,6 +13685,8 @@ function editOpProduct(id){
   if(rw) rw.checked=!!p.requiresWriting;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=!!p.isRawMaterial;
+  const hs=document.getElementById('opp_hide_store');
+  if(hs) hs.checked=p.hideInStore===true;
   const tr=document.getElementById('opp_is_tree');
   if(tr) tr.checked=!!p.isTree;
   const hcn=document.getElementById('opp_has_color_numbers');
@@ -13719,6 +13724,8 @@ function cancelEditProduct(){
   if(rw) rw.checked=false;
   const rm=document.getElementById('opp_is_raw_material');
   if(rm) rm.checked=false;
+  const hs=document.getElementById('opp_hide_store');
+  if(hs) hs.checked=false;
   const tr=document.getElementById('opp_is_tree');
   if(tr) tr.checked=false;
   const hcn=document.getElementById('opp_has_color_numbers');
@@ -13755,6 +13762,7 @@ async function saveOpProduct(){
   try{
     const requiresWriting=document.getElementById('opp_requires_writing')?.checked||false;
     const isRawMaterial=document.getElementById('opp_is_raw_material')?.checked||false;
+    const hideInStore=document.getElementById('opp_hide_store')?.checked||false;
     const isTree=document.getElementById('opp_is_tree')?.checked||false;
     const hasColorNumbers=document.getElementById('opp_has_color_numbers')?.checked||false;
     const ownColorNumbers=hasColorNumbers&&(document.getElementById('opp_own_colors')?.checked||false);
@@ -13778,7 +13786,7 @@ async function saveOpProduct(){
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,storePrices,
         colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount:(_ownCount?_ownCount:colorNumbersCount),ownColorNumbers,ownColorQty,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
-        cnKind,sizeLabels
+        cnKind,sizeLabels,hideInStore
       });
       toast('✅ تم حفظ التعديلات');
     } else {
@@ -13786,7 +13794,7 @@ async function saveOpProduct(){
         name,rawMaterialCost:raw,treeCost:tree,machineWorkerWage:machine,
         assemblyWorkerWage:assembly,sellPrice:sell,
         storePrices,colors:_oppColors,requiresWriting,isRawMaterial,isTree,hasColorNumbers,colorNumbersCount:(_ownCount?_ownCount:colorNumbersCount),ownColorNumbers,ownColorQty,colorCodes:(hasColorNumbers&&!ownColorNumbers)?_oppColorCodes:[],category,imageDataUrl:_oppCurrentImageUrl||'',priceOptions:_oppPriceOptions,
-        cnKind,sizeLabels,
+        cnKind,sizeLabels,hideInStore,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
       toast('✅ تم حفظ المنتج');
