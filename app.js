@@ -6605,77 +6605,103 @@ window.spSearch=spSearch; window.spFill=spFill; window.spSave=spSave; window._sp
 // نفس نظام الشانيل بالضبط، بس المخزون على المنتج نفسه لا بمكتبة الألوان.
 let _pnMode='in', _pnProdId='';
 function pnMode(m){_pnMode=m;openProdStock(_pnProdId,true);}
-function pnPickProd(id){_pnProdId=id;openProdStock(id,true);}
+function pnPickProd(id){
+  if(id===_pnProdId)return;
+  if(_pnTyped()&&!confirm('في كميات مكتوبة لهالمنتج وما انحفظت — تبدّل وتضيّعها؟'))return;
+  _pnProdId=id;openProdStock(id,true);
+}
 async function openProdStock(prodId,keep){
   if(!keep)_pnMode='in';
   if(!_opProductsList.length) await loadOpProducts(true);
   await loadColorLibrary();
   // كل منتج إله أرقام ألوان — ترقيمه الخاص أو من المكتبة — بمحلّ واحد
-  const prods=(_opProductsList||[]).filter(p=>p&&p.hasColorNumbers);
+  const prods=(_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);
   if(!prods.length){toast('⚠️ ما في منتجات بأرقام ألوان');return;}
   _pnProdId=(prodId&&prods.some(p=>p.id===prodId))?prodId:(_pnProdId&&prods.some(p=>p.id===_pnProdId)?_pnProdId:prods[0].id);
   const prod=_prodById(_pnProdId);
   const own=_prodOwnColors(prod);
+  if(own)await _loadOwnImgs(prod.id);
   const nums=own?_ownNums(prod):_prodColorCodes(prod).filter(n=>_clrSt(n)!=='retired');
-  // مخزون المنتج الخاص عليه هو، ومخزون منتج المكتبة بالمكتبة
-  const curOf=n=>own?(_ownQty(prod,n)||0)
-    :(()=>{const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):0;})();
-  const nameOf=n=>own?(_cnWord(prod)+' '+_cnTag(prod,n)):(_clrName(n)+' ('+n+')');
-  const OUT=_pnMode==='out';
+  const OUT=_pnMode==='out',AC=OUT?'#b45309':'#1d4ed8',ACL=OUT?'#fff7ed':'#eff6ff',F="font-family:'Tajawal',sans-serif;";
+  // تبديل وارد/صرف لنفس المنتج: الأرقام المكتوبة بتضل (منتج ثاني = من الصفر)
+  const keepVals={},old=document.getElementById('pnStockModal');
+  if(keep&&old&&old.dataset.pid===_pnProdId)old.querySelectorAll('input[id^="pni_"]').forEach(e=>{if(e.value)keepVals[e.id]=e.value;});
   document.getElementById('pnStockModal')?.remove();
   const ov=document.createElement('div');
-  ov.id='pnStockModal';
+  ov.id='pnStockModal';ov.dataset.pid=_pnProdId;
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
-  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
-    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <div>
-        <div style="font-weight:900;font-size:1rem;color:${OUT?'#b45309':'#1e40af'};">${OUT?'📤 صرف من المخزون':'📥 وارد جديد'}</div>
-        <div style="font-size:0.68rem;color:#6b7280;margin-top:2px;">اكتب <b>${OUT?'اللي طلع بس':'اللي إجاك بس'}</b> — البرنامج ${OUT?'بينقّصه من':'بيجمعه على'} الموجود</div>
+  const pimg=p=>p.imageDataUrl||(Array.isArray(p.images)&&p.images[0])||'';
+  ov.innerHTML=`<div style="background:#f8fafc;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;${F}">
+    <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border-radius:20px 20px 0 0;">
+      <div style="font-weight:900;font-size:1.05rem;color:#111827;">📦 وارد وصرف</div>
+      <button onclick="pnClose()" style="background:#f3f4f6;border:none;border-radius:10px;width:34px;height:34px;font-size:1rem;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:0 14px 10px;background:#fff;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;background:#f1f5f9;border-radius:14px;padding:4px;gap:4px;">
+        <button onclick="pnMode('in')" style="flex:1;padding:11px;border:none;border-radius:11px;${F}font-size:.92rem;font-weight:900;cursor:pointer;${OUT?'background:none;color:#64748b;':'background:#1d4ed8;color:#fff;box-shadow:0 6px 14px -8px #1d4ed8;'}">📥 وارد +</button>
+        <button onclick="pnMode('out')" style="flex:1;padding:11px;border:none;border-radius:11px;${F}font-size:.92rem;font-weight:900;cursor:pointer;${OUT?'background:#b45309;color:#fff;box-shadow:0 6px 14px -8px #b45309;':'background:none;color:#64748b;'}">📤 صرف −</button>
       </div>
-      <button onclick="document.getElementById('pnStockModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
-    </div>
-    <div style="padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#f0fdf4;">
-      <select onchange="pnPickProd(this.value)" style="width:100%;padding:9px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;font-weight:700;background:#fff;color:#166534;outline:none;cursor:pointer;">
-        ${prods.map(x=>`<option value="${x.id}" ${x.id===_pnProdId?'selected':''}>${_clrEsc(x.name)}</option>`).join('')}
-      </select>
-      <div style="display:flex;gap:6px;margin-top:6px;">
-        <input id="pnQ" type="text" placeholder="🏷️ امسح الباركود أو اكتبه" onkeydown="if(event.key==='Enter'){event.preventDefault();pnScanInput();}"
-          style="flex:1;min-width:0;box-sizing:border-box;padding:8px 10px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.8rem;background:#fff;outline:none;">
-        <button onclick="pnScanBtn()" title="امسح باركود" style="flex-shrink:0;width:42px;background:#111827;color:#fff;border:none;border-radius:9px;font-size:0.95rem;cursor:pointer;">📷</button>
+      <div style="display:flex;gap:8px;overflow-x:auto;padding:12px 0 2px;scrollbar-width:none;">
+        ${prods.map(x=>{const on=x.id===_pnProdId,im=pimg(x);return `<button onclick="pnPickProd('${x.id}')" style="flex:0 0 auto;width:74px;border:none;background:none;padding:0;cursor:pointer;${F}">
+          <div style="width:64px;height:64px;margin:0 auto 4px;border-radius:16px;${im?`background:url('${im}') center/cover;`:'background:#eef2f7;display:grid;place-items:center;font-size:1.5rem;'}box-shadow:${on?`0 0 0 3px ${AC}`:'0 0 0 1px #e5e7eb'};">${im?'':'🧶'}</div>
+          <div style="font-size:.7rem;font-weight:${on?900:700};color:${on?AC:'#475569'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_clrEsc(x.name)}</div></button>`;}).join('')}
       </div>
     </div>
-    <div style="display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid #e5e7eb;background:#fafafa;">
-      <button onclick="pnMode('in')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#e5e7eb':'#2563eb'};background:${OUT?'#fff':'#2563eb'};color:${OUT?'#6b7280':'#fff'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📥 وارد (+)</button>
-      <button onclick="pnMode('out')" style="flex:1;padding:9px;border:1.5px solid ${OUT?'#b45309':'#e5e7eb'};background:${OUT?'#b45309':'#fff'};color:${OUT?'#fff':'#6b7280'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📤 صرف (−)</button>
+    <div style="padding:10px 14px 4px;display:flex;gap:8px;">
+      <button onclick="pnScanBtn()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;background:#111827;color:#fff;border:none;border-radius:14px;${F}font-size:.95rem;font-weight:900;cursor:pointer;">📷 امسح باركود</button>
+      <input id="pnQ" type="text" inputmode="numeric" placeholder="🏷️ أو اكتبه" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();pnScanInput();}"
+        style="width:38%;min-width:0;box-sizing:border-box;padding:10px;border:1.5px solid #e2e8f0;border-radius:14px;${F}font-size:.85rem;background:#fff;outline:none;">
     </div>
-    <div style="flex:1;overflow-y:auto;padding:10px 12px;">
-      ${nums.length?nums.map(n=>{const cur=curOf(n);const c=own?null:_clr(n);
-        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid #f3f4f6;">
-        <div style="position:relative;width:34px;height:34px;border-radius:8px;${own?'background:#f3f4f6;border:1.5px solid #e5e7eb;':_clrFace(c)+'border:1.5px solid rgba(0,0,0,.14);'}display:grid;place-items:center;flex-shrink:0;overflow:hidden;font-weight:900;font-size:0.72rem;color:#374151;">${own?n:_clrNumChip(c,n,'0.7rem')}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:0.84rem;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_clrEsc(nameOf(n))}</div>
-          <div style="font-size:0.67rem;color:${cur>0?'#9ca3af':'#dc2626'};">${cur>0?'عندك '+cur:'خلص'}</div>
-        </div>
-        <span style="color:${OUT?'#b45309':'#16a34a'};font-weight:900;font-size:0.9rem;">${OUT?'−':'+'}</span>
-        <input id="pni_${n}" data-cur="${cur}" type="number" min="0" placeholder="0" oninput="_pnPrev(${n})"
-          style="width:66px;padding:8px;border:1.5px solid ${OUT?'#fde68a':'#bfdbfe'};border-radius:9px;font-family:'Tajawal',sans-serif;font-size:0.86rem;text-align:center;outline:none;">
-        <span id="pnt_${n}" style="font-size:0.78rem;font-weight:800;color:#d1d5db;min-width:38px;text-align:center;">—</span>
-      </div>`;}).join('')
-      :`<div style="text-align:center;color:#9ca3af;font-size:0.82rem;padding:24px;">${own?'ما في أرقام لهذا المنتج — ضيفهم من شاشة المنتج':'ما في ألوان بالمكتبة لهذا المنتج'}</div>`}
+    <div style="padding:6px 14px 8px;">
+      <input id="pnFind" type="text" inputmode="numeric" placeholder="🔎 دوّر برقم اللون" autocomplete="off" oninput="pnFilter(this.value)"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:12px;${F}font-size:.85rem;background:#fff;outline:none;">
     </div>
-    <div style="padding:12px 16px;border-top:1px solid #e5e7eb;">
-      <div id="pnSum" style="font-size:0.74rem;color:#6b7280;text-align:center;margin-bottom:8px;">ما دخّلت ولا رقم بعد</div>
-      ${OUT?'<div style="font-size:0.66rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 9px;margin-bottom:8px;line-height:1.7;">⚠️ الصرف بينقّص المخزون بس — ما بيسجّل طلب ولا مبيعة ولا مصاري. لو البيعة لازم تنحسب عليك، سجّلها طلب عادي.</div>':''}
-      <button onclick="pnStockSave()" style="width:100%;padding:13px;background:${OUT?'#b45309':'#2563eb'};color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.92rem;font-weight:800;cursor:pointer;">${OUT?'📤 انقص من المخزون':'📥 ضيف الوارد'}</button>
+    <div id="pnGrid" style="flex:1;overflow-y:auto;padding:4px 14px 14px;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:max-content;gap:10px;align-content:start;">
+      ${nums.length?nums.map(n=>{const cur=_pnCur(prod,n),im=_pnImg(prod,n),c=own?null:_clr(n);
+        return `<button data-pnn="${n}" onclick="pnAsk(${n},'edit')" style="position:relative;border:none;background:#fff;border-radius:16px;padding:0;overflow:hidden;cursor:pointer;text-align:center;box-shadow:0 1px 0 rgba(0,0,0,.04),0 6px 14px -12px rgba(0,0,0,.5);${F}">
+          <div style="aspect-ratio:1;${im?`background:url('${im}') center/cover;`:own?'background:#eef2f7;':_clrFace(c)}position:relative;${cur>0?'':'filter:grayscale(.7);opacity:.75;'}">
+            <span style="position:absolute;top:6px;right:6px;background:rgba(17,24,39,.88);color:#fff;border-radius:999px;min-width:26px;height:26px;padding:0 6px;display:grid;place-items:center;font-size:.78rem;font-weight:900;">${_clrEsc(own?_cnTag(prod,n):n)}</span>
+          </div>
+          <div style="padding:5px 4px 7px;font-size:.7rem;font-weight:800;color:${cur>0?'#64748b':'#dc2626'};">${cur>0?'عندك '+cur:'خلص'}</div>
+          <span id="pnt_${n}" style="display:none;position:absolute;bottom:30px;left:6px;right:6px;background:${AC};color:#fff;border-radius:10px;padding:3px 0;font-size:.74rem;font-weight:900;"></span>
+          <input type="hidden" id="pni_${n}" data-cur="${cur}" value="${_clrEsc(keepVals['pni_'+n]||'')}">
+        </button>`;}).join('')
+      :`<div style="grid-column:1/-1;text-align:center;color:#9ca3af;font-size:.85rem;padding:28px;">${own?'ما في أرقام لهذا المنتج — ضيفهم من شاشة المنتج':'ما في ألوان بالمكتبة لهذا المنتج'}</div>`}
+    </div>
+    <div style="padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e5e7eb;">
+      <div id="pnSum" style="font-size:.78rem;color:#64748b;text-align:center;margin-bottom:8px;font-weight:700;">امسح أو اضغط على لون واكتب ${OUT?'اللي طلع':'اللي إجاك'}</div>
+      ${OUT?'<div style="font-size:.66rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 9px;margin-bottom:8px;line-height:1.7;">⚠️ الصرف بينقّص المخزون بس — ما بيسجّل طلب ولا مبيعة ولا مصاري.</div>':''}
+      <button onclick="pnStockSave()" style="width:100%;padding:14px;background:${AC};color:#fff;border:none;border-radius:14px;${F}font-size:.95rem;font-weight:900;cursor:pointer;">${OUT?'📤 انقص من المخزون':'📥 ضيف الوارد'}</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
-  // مسحةٌ بدّلت المنتج: منزيد رقمها بعد ما تنرسم شاشته
-  if(_pnScanQueue){const n=_pnScanQueue;_pnScanQueue=0;pnBump(n);}
+  nums.forEach(n=>_pnPrev(n));
+  _pnWedgeOn();
+  // مسحةٌ بدّلت المنتج: منسأل عن الكمية بعد ما تنرسم شاشته
+  if(_pnScanQueue){const n=_pnScanQueue;_pnScanQueue=0;pnAsk(n,'scan');}
+}
+function pnClose(){
+  if(_pnTyped()&&!confirm('في كميات مكتوبة وما انحفظت — تطلع وتضيّعها؟'))return;
+  document.getElementById('pnAsk')?.remove();document.getElementById('pnStockModal')?.remove();
+}
+function _pnCur(prod,n){
+  if(_prodOwnColors(prod))return _ownQty(prod,n)||0;
+  const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):0;
+}
+function _pnImg(prod,n){
+  if(_prodOwnColors(prod)){const m=(_ownImgs[prod.id]||{})[String(n)];return (m&&m.img)||'';}
+  const c=_clr(n);return (c&&c.img)||'';
+}
+function pnFilter(v){
+  const q=String(v||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim();
+  const prod=_prodById(_pnProdId);
+  document.querySelectorAll('#pnGrid [data-pnn]').forEach(b=>{const n=b.dataset.pnn;const tag=String(prod&&_prodOwnColors(prod)?_cnTag(prod,Number(n)):n);
+    b.style.display=!q||tag.includes(q)||String(n).includes(q)?'':'none';});
 }
 
 // ─── المسح بشاشة الوارد والصرف ───
-// الكبّة اللي وصلتك بتمسحها بدل ما تدوّر على رقمها بالقائمة.
+// كل مسحة بتفتح شاشة فيها صورة اللون ورقمه وخانة كمية بتكتبها إنت — ما في
+// إشي بينضاف لحاله. هيك مسحة غلط (كبّة جنبها) ما بتغيّر الأرقام.
 let _pnScanQueue=0;
 function _pnTyped(){
   const prod=_prodById(_pnProdId); if(!prod) return 0;
@@ -6685,27 +6711,94 @@ function _pnTyped(){
     const v=e?parseInt(e.value):NaN; if(!isNaN(v)&&v>0)c++;});
   return c;
 }
-function pnBump(n){
+// رقم واحد زيادة (القديم — بيضل للي بيستعمله): صار يفتح شاشة الكمية
+function pnBump(n){return pnAsk(n,'scan');}
+let _pnAskN=0,_pnAskMode='scan';
+function pnAsk(n,mode){
+  const prod=_prodById(_pnProdId);if(!prod)return false;
   const el=document.getElementById('pni_'+n);
   if(!el){toast('⚠️ رقم '+n+' مش ظاهر بهالشاشة');return false;}
-  el.value=String((parseInt(el.value)||0)+1);
-  _pnPrev(n);
-  try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}
-  el.style.background='#dcfce7';
-  setTimeout(()=>{el.style.transition='background .7s';el.style.background='';},80);
+  _pnAskN=n;_pnAskMode=mode||'scan';
+  const OUT=_pnMode==='out',AC=OUT?'#b45309':'#1d4ed8',F="font-family:'Tajawal',sans-serif;";
+  const own=_prodOwnColors(prod),cur=_pnCur(prod,n),had=parseInt(el.value)||0,im=_pnImg(prod,n),c=own?null:_clr(n);
+  const tag=own?_cnTag(prod,n):String(n),word=own?_cnWord(prod):'لون';
+  document.getElementById('pnAsk')?.remove();
+  const ov=document.createElement('div');ov.id='pnAsk';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:100004;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:22px;width:100%;max-width:380px;overflow:hidden;${F}box-shadow:0 30px 60px -20px rgba(0,0,0,.6);">
+    <div id="pnAskImg" style="height:210px;${im?`background:url('${im}') center/cover;`:own?'background:#eef2f7;':_clrFace(c)}position:relative;">
+      <div style="position:absolute;inset:auto 0 0 0;padding:28px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;">
+        <div style="font-size:.8rem;font-weight:800;opacity:.9;">${_clrEsc(prod.name||'')}</div>
+        <div style="font-size:1.6rem;font-weight:900;line-height:1.2;">${_clrEsc(word)} <bdi>${_clrEsc(tag)}</bdi>${!own&&c&&c.name?` <span style="font-size:.85rem;font-weight:700;opacity:.85;">${_clrEsc(c.name)}</span>`:''}</div>
+      </div>
+      <span style="position:absolute;top:10px;left:10px;background:#fff;color:${cur>0?'#166534':'#dc2626'};border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:900;">${cur>0?'عندك '+cur:'خلص'}</span>
+    </div>
+    <div style="padding:14px 16px 16px;">
+      <div style="font-size:.9rem;font-weight:900;color:${AC};margin-bottom:8px;">${OUT?'📤 كم طلع منه؟':'📥 كم إجاك منه؟'}${had&&_pnAskMode==='scan'?` <span style="color:#64748b;font-weight:700;font-size:.78rem;">(مكتوب قبل ${OUT?'−':'+'}${had} — بينجمعوا)</span>`:''}</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="pnAskStep(-1)" style="width:52px;height:56px;border:1.5px solid #e2e8f0;background:#fff;border-radius:14px;font-size:1.4rem;font-weight:900;cursor:pointer;">−</button>
+        <input id="pnAskQ" type="text" inputmode="numeric" autocomplete="off" value="${_pnAskMode==='edit'&&had?had:''}" placeholder="0" oninput="_pnAskPrev()" onkeydown="if(event.key==='Enter'){event.preventDefault();pnAskOk(false);}"
+          style="flex:1;min-width:0;height:56px;box-sizing:border-box;border:2px solid ${AC};border-radius:14px;text-align:center;font-size:1.6rem;font-weight:900;${F}outline:none;">
+        <button onclick="pnAskStep(1)" style="width:52px;height:56px;border:1.5px solid #e2e8f0;background:#fff;border-radius:14px;font-size:1.4rem;font-weight:900;cursor:pointer;">＋</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">${[1,5,10,20].map(v=>`<button onclick="pnAskSet(${v})" style="flex:1;padding:8px 0;border:none;background:#f1f5f9;border-radius:10px;${F}font-weight:900;font-size:.85rem;cursor:pointer;">${v}</button>`).join('')}</div>
+      <div id="pnAskPv" style="font-size:.8rem;font-weight:800;color:#64748b;text-align:center;margin:10px 0 2px;min-height:1.3em;"></div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:10px;">
+        ${_pnAskMode==='scan'&&_bcCamOk()?`<button onclick="pnAskOk(true)" style="padding:13px;border:none;background:${AC};color:#fff;border-radius:14px;${F}font-size:.95rem;font-weight:900;cursor:pointer;">✓ تمام — وامسح اللي بعده 📷</button>`:''}
+        <button onclick="pnAskOk(false)" style="padding:12px;border:${_pnAskMode==='scan'&&_bcCamOk()?`1.5px solid ${AC}`:'none'};background:${_pnAskMode==='scan'&&_bcCamOk()?'#fff':AC};color:${_pnAskMode==='scan'&&_bcCamOk()?AC:'#fff'};border-radius:14px;${F}font-size:.92rem;font-weight:900;cursor:pointer;">✓ تمام</button>
+        <div style="display:flex;gap:7px;">
+          <button onclick="document.getElementById('pnAsk').remove()" style="flex:1;padding:10px;border:none;background:#f1f5f9;color:#475569;border-radius:12px;${F}font-weight:800;cursor:pointer;">إلغاء</button>
+          ${_pnAskMode==='edit'&&had?`<button onclick="pnAskSet(0);pnAskOk(false)" style="flex:1;padding:10px;border:none;background:#fee2e2;color:#dc2626;border-radius:12px;${F}font-weight:800;cursor:pointer;">🗑 شيل</button>`:''}
+        </div>
+      </div>
+    </div></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  _pnAskPrev();
+  setTimeout(()=>{const q=document.getElementById('pnAskQ');if(q){q.focus();q.select();}},120);
+  // الصورة الكبيرة (أوضح من المصغّرة) لما تيجي
+  const key=own?_ownKey(prod.id,n):(c&&c.id);
+  if(key)db.collection('color_imgs').doc(key).get().then(d=>{const v=d.exists&&d.data();const b=document.getElementById('pnAskImg');
+    if(v&&v.img&&b&&_pnAskN===n)b.style.backgroundImage=`url('${v.img}')`;}).catch(()=>{});
   try{navigator.vibrate&&navigator.vibrate(35);}catch(e){}
-  {const _pp=_prodById(_pnProdId);toast((_pnMode==='out'?'📤 ':'📥 ')+_cnWord(_pp)+' '+_cnTag(_pp,n)+' ⇒ '+el.value);}
   return true;
+}
+function _pnAskVal(){const q=document.getElementById('pnAskQ');return parseInt(String(q&&q.value||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)))||0;}
+function pnAskSet(v){const q=document.getElementById('pnAskQ');if(q){q.value=v?String(v):'';_pnAskPrev();}}
+function pnAskStep(d){pnAskSet(Math.max(0,_pnAskVal()+d));}
+function _pnAskPrev(){
+  const pv=document.getElementById('pnAskPv');if(!pv)return;
+  const el=document.getElementById('pni_'+_pnAskN),prod=_prodById(_pnProdId);
+  const cur=_pnCur(prod,_pnAskN),had=parseInt(el&&el.value)||0,v=_pnAskVal();
+  const tot=_pnAskMode==='scan'?had+v:v,OUT=_pnMode==='out';
+  if(!tot){pv.textContent='';return;}
+  const nv=OUT?Math.max(0,cur-tot):cur+tot;
+  pv.innerHTML=`عندك <b>${cur}</b> ${OUT?'−':'+'} <b>${tot}</b> ⇒ بيصير <b style="color:${OUT?'#b45309':'#16a34a'}">${nv}</b>${OUT&&tot>cur?' <span style="color:#dc2626">(أكثر من الموجود)</span>':''}`;
+}
+function pnAskOk(again){
+  const v=_pnAskVal(),el=document.getElementById('pni_'+_pnAskN);if(!el)return;
+  if(_pnAskMode==='scan'&&!v){toast('اكتب الكمية');document.getElementById('pnAskQ')?.focus();return;}
+  if(v>9999){toast('⚠️ الرقم كبير كثير — تأكّد');return;}
+  const had=parseInt(el.value)||0,tot=_pnAskMode==='scan'?had+v:v;
+  el.value=tot?String(tot):'';
+  _pnPrev(_pnAskN);
+  document.getElementById('pnAsk')?.remove();
+  const b=document.querySelector(`#pnGrid [data-pnn="${_pnAskN}"]`);
+  if(b){try{b.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}}
+  const prod=_prodById(_pnProdId);
+  if(tot)toast((_pnMode==='out'?'📤 ':'📥 ')+(_prodOwnColors(prod)?_cnWord(prod)+' '+_cnTag(prod,_pnAskN):'لون '+_pnAskN)+' ⇒ '+(_pnMode==='out'?'−':'+')+tot);
+  if(again)setTimeout(()=>pnScanBtn(),150);
 }
 function pnScan(code){
   const c=_bcNorm(code); if(!c) return false;
+  document.getElementById('pnAsk')?.remove();
   const hit=_bcFind(c);
   if(!hit){
     if(confirm(`❓ الكود ${c}\n\nمش مربوط بولا منتج.\nبدّك تربطه هلأ؟`)) openBarcodes('',c);
     return false;
   }
   if(!hit.prod.hasColorNumbers){
-    toast('⚠️ «'+(hit.prod.name||'')+'» ما إله أرقام ألوان — هالشاشة للترقيم بس');return false;
+    toast('⚠️ «'+(hit.prod.name||'')+'» ما إله أرقام ألوان — هالشاشة للألوان بس');return false;
   }
   if(hit.prod.id!==_pnProdId){
     const typed=_pnTyped();
@@ -6716,10 +6809,11 @@ function pnScan(code){
     _pnProdId=hit.prod.id;
     _pnScanQueue=Number(hit.num)||0;
     openProdStock(_pnProdId,true);
+    if(!hit.num)toast('🏷️ كود «'+(hit.prod.name||'')+'» نفسه لكل الألوان — اضغط على اللون');
     return true;
   }
-  if(!hit.num){toast('🏷️ كود «'+(hit.prod.name||'')+'» نفسه لكل الألوان — اكتب الكمية بخانة اللون');return false;}
-  return pnBump(Number(hit.num));
+  if(!hit.num){toast('🏷️ كود «'+(hit.prod.name||'')+'» نفسه لكل الألوان — اضغط على اللون');return false;}
+  return pnAsk(Number(hit.num),'scan');
 }
 async function pnScanBtn(){
   if(!_bcCamOk()){
@@ -6734,9 +6828,41 @@ function pnScanInput(){
   const el=document.getElementById('pnQ');
   const v=el?el.value.trim():'';
   if(!v)return;
-  if(pnScan(v)){const e2=document.getElementById('pnQ');if(e2)e2.value='';}
+  if(el)el.value='';
+  pnScan(v);
+}
+// ─── ماسح الباركود (المسدّس/البلوتوث) بيكتب زي الكيبورد بسرعة ───
+// لو كان المؤشر بخانة كمية، كان الباركود كلّه ينكتب كمية. منعرفه من السرعة
+// (حروف ورا بعض بأقل من ٤٠ms) ومنحوّله لمسحة بدل ما ينكتب.
+let _pnWG={buf:'',t:0,burst:false,el:null,before:'',timer:null};
+function _pnWedgeFire(){
+  const code=_pnWG.buf;const was=_pnWG.burst;
+  if(_pnWG.el&&was){_pnWG.el.value=_pnWG.before;try{_pnWG.el.dispatchEvent(new Event('input'));}catch(e){}}
+  _pnWG.buf='';_pnWG.burst=false;_pnWG.el=null;
+  if(was&&code.length>=6)pnScan(code);
+}
+function _pnWedgeOn(){
+  if(_pnWedgeOn.on)return;_pnWedgeOn.on=true;
+  document.addEventListener('keydown',e=>{
+    if(!document.getElementById('pnStockModal'))return;
+    const now=performance.now(),dt=now-_pnWG.t;_pnWG.t=now;
+    clearTimeout(_pnWG.timer);
+    if(e.key==='Enter'){if(_pnWG.burst){e.preventDefault();e.stopPropagation();_pnWedgeFire();}else _pnWG.buf='';return;}
+    if(!e.key||e.key.length!==1){return;}
+    if(_pnWG.buf&&dt<40){
+      if(!_pnWG.burst){_pnWG.burst=true;}
+      e.preventDefault();e.stopPropagation();_pnWG.buf+=e.key;
+    }else{
+      const t=e.target;_pnWG.el=(t&&t.tagName==='INPUT')?t:null;_pnWG.before=_pnWG.el?_pnWG.el.value:'';
+      _pnWG.buf=e.key;_pnWG.burst=false;
+    }
+    // بعض الماسحات ما بتبعت Enter بالآخر
+    _pnWG.timer=setTimeout(()=>{if(_pnWG.burst)_pnWedgeFire();else _pnWG.buf='';},120);
+  },true);
 }
 window.pnScan=pnScan; window.pnScanBtn=pnScanBtn; window.pnScanInput=pnScanInput; window.pnBump=pnBump;
+window.pnAsk=pnAsk; window.pnAskOk=pnAskOk; window.pnAskSet=pnAskSet; window.pnAskStep=pnAskStep; window._pnAskPrev=_pnAskPrev;
+window.pnClose=pnClose; window.pnFilter=pnFilter;
 
 // ═══════════ لوحة الألوان وتحديث الموظفين ═══════════
 // الموظفة عالخطّ مع الزبونة لازم تعرف بثانية: الرقم هاد موجود ولا خلص.
@@ -7084,11 +7210,13 @@ function _pnPrev(n){
   const el=document.getElementById('pni_'+n),out=document.getElementById('pnt_'+n);
   if(!el||!out)return;
   const cur=Number(el.getAttribute('data-cur'))||0;
-  const v=parseInt(el.value);
-  if(isNaN(v)||v<=0){out.textContent='—';out.style.color='#d1d5db';}
+  const v=parseInt(el.value),OUT=_pnMode==='out';
+  const card=out.closest('[data-pnn]');
+  if(isNaN(v)||v<=0){out.style.display='none';out.textContent='';if(card)card.style.boxShadow='';}
   else{
-    const nv=_pnMode==='out'?Math.max(0,cur-v):cur+v;
-    out.textContent='⇒ '+nv;out.style.color=_pnMode==='out'?'#b45309':'#16a34a';
+    const nv=OUT?Math.max(0,cur-v):cur+v;
+    out.style.display='block';out.textContent=(OUT?'−':'+')+v+' ⇒ '+nv;
+    if(card)card.style.boxShadow='0 0 0 3px '+(OUT?'#b45309':'#1d4ed8');
   }
   const prod=_prodById(_pnProdId);
   const nums=_prodOwnColors(prod)?_ownNums(prod):_prodColorCodes(prod);
@@ -7096,7 +7224,7 @@ function _pnPrev(n){
   nums.forEach(k=>{const e=document.getElementById('pni_'+k);
     const x=e?parseInt(e.value):NaN;if(!isNaN(x)&&x>0){cnt++;tot+=x;}});
   const sum=document.getElementById('pnSum');
-  if(sum) sum.textContent=cnt?`${cnt} رقم · ${tot} حبّة ${_pnMode==='out'?'بتنقص':'بتزيد'}`:'ما دخّلت ولا رقم بعد';
+  if(sum){sum.innerHTML=cnt?`<b style="color:${OUT?'#b45309':'#1d4ed8'}">${cnt} لون · ${tot} قطعة</b> ${OUT?'بتنقص':'بتزيد'} — راجعهم واضغط تحت`:`امسح أو اضغط على لون واكتب ${OUT?'اللي طلع':'اللي إجاك'}`;}
 }
 async function pnStockSave(){
   const OUT=_pnMode==='out';
