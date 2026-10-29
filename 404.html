@@ -6,7 +6,7 @@
 <script>
 // رابط كتالوج لمنتج جديد لسّا ما انعملتله صفحة (c/<المنتج>) ⇒ منكمّل عالكتالوج نفسه
 (function(){var m=location.pathname.match(/^\/c\/([A-Za-z0-9_-]+?)(?:\.html)?\/?$/);
-  if(m)location.replace('/colors.html?p='+encodeURIComponent(m[1])+(location.search?'&'+location.search.slice(1):'')+location.hash);})();
+  if(m)location.replace('/?p='+encodeURIComponent(m[1])+(location.search?'&'+location.search.slice(1):'')+location.hash);})();
 </script>
 </head><body style="font-family:Tahoma,sans-serif;text-align:center;padding:60px 16px;color:#1f2a24;background:#faf6ee;">
 <p style="font-weight:700;">الصفحة مش موجودة</p><p><a href="/" style="color:#1a3a2a;font-weight:700;">ارجع للصفحة الرئيسية</a></p>

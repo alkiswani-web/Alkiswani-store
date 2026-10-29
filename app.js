@@ -2057,7 +2057,7 @@ async function createGalleryCustomer(phone){
 function _renderGalleryCustomer(){
   const d=_galCurrentData;
   if(!d)return;
-  const galleryUrl=location.origin+'/?g='+d.token;
+  const galleryUrl=location.origin+'/admin.html?g='+d.token;
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(galleryUrl)+'&size=220x220&bgcolor=0a0a0a&color=ffffff&margin=10';
   const photos=d.photos||[];
   const area=document.getElementById('galCustomerArea');
@@ -3808,9 +3808,9 @@ function _catLinkUrl(pid,ch,wid,pg){
   // الكتالوج كلّه: /c/ (معاينته باسم الكتالوج) — وإذا الصفحات لسّا ما انعملت، colors.html
   // &v=: نسخة صورة المعاينة — تتغيّر الصورة ⇒ يتغيّر الرابط ⇒ الواتساب بيجيب المعاينة الجديدة
   const qs=(a,b)=>{const x=[a,b].filter(Boolean).join('&');return x?'?'+x:'';};
-  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/'+qs(q,_catVer?'v='+_catVer:''):location.origin+'/colors.html'+qs(q,'');
+  if(!pid)return (_catPages&&_catPages.size)?location.origin+'/c/'+qs(q,_catVer?'v='+_catVer:''):location.origin+'/'+qs(q,'');
   return (_catPages&&_catPages.has(pid))?location.origin+'/c/'+encodeURIComponent(pid)+qs(q,'')
-    :location.origin+'/colors.html'+qs('p='+encodeURIComponent(pid),q);
+    :location.origin+'/'+qs('p='+encodeURIComponent(pid),q);
 }
 async function _catLinkShare(){
   const L=_catLink;
@@ -12990,7 +12990,7 @@ function _rwImg(w){
 }
 function _rwMsg(w){
   const word=w.lib?'لون':((_rw.pr[w.pid]&&_cnIsSize(_rw.pr[w.pid]))?'قياس':'لون');
-  const link=`https://alkiswanirosemary.com/colors.html?p=${encodeURIComponent(w.pid)}${w.emp?'&e='+encodeURIComponent(w.emp):''}`;
+  const link=`https://alkiswanirosemary.com/?p=${encodeURIComponent(w.pid)}${w.emp?'&e='+encodeURIComponent(w.emp):''}`;
   return `مرحبا ${w.name||''} 🌸\nمعك الكسواني روزميري — ${w.pname||''} ${word} ${w.tag||w.num} اللي طلبت نبلّغك فيه رجع متوفّر ✨\nللطلب أو الحجز من هون 👇\n${link}`;
 }
 function _rwWa(w){
@@ -19450,7 +19450,9 @@ let _lazyObs=null;
 // الزباين ما بيشوفوا أزرار دخول؛ الإدارة والموظفين بيدخلوا من /admin (أو ?admin).
 // لو الجوال داخل من قبل بحساب واحد، بنفتحه فوراً بلا باسورد زي قبل.
 // والطلوع من اللوحة بيرجّع لهون مش للمتجر.
-const STAFF_MODE=/(^|[?&])admin(=|&|$)/.test(location.search.slice(1))||/\/admin(\.html)?\/?$/.test(location.pathname);
+// صفحات للزبون أو للمندوب جوّا التطبيق (تتبّع طلب، معرض صور، تأكيد دفعة) ما إلها صفحة دخول
+const _SL_Q=new URLSearchParams(location.search);
+const STAFF_MODE=(_SL_Q.has('admin')||/\/admin(\.html)?\/?$/.test(location.pathname))&&!['track','g','deliverBatch'].some(k=>_SL_Q.has(k));
 function _staffPaint(){
   const a=_loadAdminSession(),e=_loadEmpSession();
   const A=document.getElementById('slAdminOk'),E=document.getElementById('slEmpOk');
@@ -19460,6 +19462,7 @@ function _staffPaint(){
 }
 function _staffLanding(){
   document.body.classList.add('staff-mode');
+  try{localStorage.setItem('ak_staff_device','1');}catch(e){}   // الواجهة بتعرف إنه جوال شغل
   document.title='لوحة الشغل · الكسواني روزميري';
   const back=document.querySelector('.btn-back-store');if(back)back.textContent='← رجوع';
   const {a,e}=_staffPaint();

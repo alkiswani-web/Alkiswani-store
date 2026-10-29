@@ -1,6 +1,6 @@
 // صفحة صغيرة لكل منتج ألوان: c/<المنتج>.html — فيها اسم المنتج وصورته
 // عشان معاينة الرابط بالواتساب/الماسنجر تطلع «ألوان baby-best» بصورته،
-// وبتحوّل الزبون فوراً على colors.html?p=<المنتج> (مع c و e زي ما هم).
+// وبتحوّل الزبون فوراً على /?p=<المنتج> (الكتالوج صار الصفحة الرئيسية — مع c و e زي ما هم).
 // تشغيل: node tools/catalog-pages.js   (بيقرا من فايرستور بالمفتاح العام نفسه اللي بالموقع)
 const fs = require('fs'), path = require('path');
 const KEY = 'AIzaSyAD1KJbggqncxkiqMWna8HaZdtjWHIvzpU';
@@ -85,7 +85,7 @@ async function main() {
     if (o) { og = o.url; size = o.size; }
     const title = 'ألوان ' + p.name;
     const desc = 'اختار ألوانك من الصور واطلب من هون' + (p.price > 0 ? ` — سعر القطعة ${p.price.toFixed(2)} د.أ` : '');
-    const to = '/colors.html?p=' + encodeURIComponent(p.id);
+    const to = '/?p=' + encodeURIComponent(p.id);
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -126,9 +126,9 @@ ${size ? `<meta property="og:image:width" content="${size.w}">\n<meta property="
 <meta property="og:url" content="${SITE}/c/">
 <meta property="og:image" content="${esc(cover.url)}">
 ${cover.size ? `<meta property="og:image:width" content="${cover.size.w}">\n<meta property="og:image:height" content="${cover.size.h}">\n` : ''}<meta name="twitter:card" content="summary">
-<script>location.replace('/colors.html'+location.search+location.hash);</script>
-<noscript><meta http-equiv="refresh" content="0;url=/colors.html"></noscript>
-</head><body style="font-family:Tahoma,sans-serif;text-align:center;padding:40px 16px;"><a href="/colors.html">${esc(hTitle)}</a></body></html>
+<script>location.replace('/'+location.search+location.hash);</script>
+<noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
+</head><body style="font-family:Tahoma,sans-serif;text-align:center;padding:40px 16px;"><a href="/">${esc(hTitle)}</a></body></html>
 `);
   keep.add('index.html');
   // نسخة المعاينة: بتتغيّر لما تتغيّر صورة الكتالوج أو اسمه أو منتجاته — التطبيق بيحطّها
