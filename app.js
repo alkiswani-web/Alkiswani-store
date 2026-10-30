@@ -8754,7 +8754,9 @@ function _renderEmpMyOrders(){
 // كان في ٣ أزرار إلغاء (الموظفة، قائمة ⋯، شاشة الطلب) كل واحد بيعمل جزء:
 // اثنين ما بيرجّعوا الألوان للمخزون، وواحد ما بيعكس مبيعة الطلب المسلَّم.
 // هون نفس اللي بيعمله تغيير الحالة لـ«ملغي» بالضبط.
-async function _cancelOrderCore(id,reason,by){
+// opts.keepSale: «🚫 إلغاء بدون إرجاع» لطلب مُسلَّم — البضاعة ما رجعت، فالمبيعة
+// بتضل على المتجر (هو بيتحمّل تكلفتها). «↩️ إلغاء مع إرجاع» هو اللي بيعكسها.
+async function _cancelOrderCore(id,reason,by,opts){
   const ref=db.collection('employee_orders').doc(id);
   const snap=await ref.get();
   if(!snap.exists)throw new Error('الطلب غير موجود — حدِّث الصفحة');
@@ -8767,8 +8769,8 @@ async function _cancelOrderCore(id,reason,by){
   if(prev==='delivering'||prev==='delivered')upd.deliveredDate=FV.delete();
   await ref.update(upd);
   await _orderStockSync(id,data,data,data.colorStockApplied===true,false);
-  if(prev==='delivering')await unsyncOrderFromAccounting(id);
-  if(prev==='delivered')await _handleDeliveredCancel(id,data,'cancelled');
+  if(prev==='delivered'){if(!(opts&&opts.keepSale))await _handleDeliveredCancel(id,data,'cancelled');}
+  else await unsyncOrderFromAccounting(id);   // قيد التوصيل/عالق/مؤجل — بتنشال إذا موجودة
   const _patch=arr=>{if(!arr)return;const i=arr.findIndex(o=>o.id===id);if(i>=0)arr[i]={...arr[i],status:'cancelled',...(reason?{cancelReason:reason}:{})};};
   _patch(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
   _patch(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
@@ -9423,7 +9425,7 @@ function _showOpOrderDetail(o){
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${_dBtn(o.deliveryRepName?'🔄 تغيير مندوب':'تعيين مندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'primary')}
         ${_dBtn('↩️ إرجاع الطلب',`_returnOpOrderFromDetail('${o.id}')`,'plain')}
-        ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
+        ${_dBtn('🚫 إلغاء بدون إرجاع',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         <div style="font-size:0.72rem;color:#999;font-weight:700;width:100%;padding-bottom:4px;">إعادة تفعيل:</div>
@@ -9449,7 +9451,7 @@ async function _cancelOpOrderFromDetail(id){
   if(reason===null)return;
   closeOpOrderDetail();
   try{
-    if(await _cancelOrderCore(id,reason||'',_currentAdminUser||_empCurrentUser?.displayName||'admin'))toast('🚫 تم إلغاء الطلب');
+    if(await _cancelOrderCore(id,reason||'',_currentAdminUser||_empCurrentUser?.displayName||'admin',{keepSale:true}))toast('🚫 تم إلغاء الطلب');
     if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
   }catch(e){toast("❌ "+e.message);}
 }
@@ -10681,8 +10683,10 @@ async function deleteEmpOrder(id){
     // ألوانه بترجع للمخزون قبل ما ينحذف (كانت تضل مخصومة للأبد)
     if(data&&data.colorStockApplied===true)await _orderStockSync(null,data,data,true,false);
     await db.collection('employee_orders').doc(id).delete();
-    await unsyncOrderFromAccounting(id);
-    if(data?.status==='delivered') addPageRefundEntry(id,data,'deleted');
+    // مُسلَّم: نفس الإلغاء (بالكشف المفتوح بتنشال المبيعة، بكشف مسكّر قيد مرتجع) —
+    // كان يشيل المبيعة ويضيف قيد مرتجع كمان ⇒ المتجر ينخصم عنه مرّتين
+    if(data?.status==='delivered')await _handleDeliveredCancel(id,data,'deleted');
+    else await unsyncOrderFromAccounting(id);
     toast('🗑 تم حذف الطلب');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -10749,7 +10753,10 @@ async function updateEmpOrderStatus(id,newStatus){
     // المحاسبة تدخل من "قيد التوصيل" (وكذلك المُسلَّم) — syncOrderToAccounting يتخطى المكرر تلقائياً
     if(newStatus==='delivering'||newStatus==='delivered') syncOrderToAccounting(id,data,null,false,_opCurrentSession?.id||null);
     // إلغاء/إرجاع طلب "قيد التوصيل" → إزالة المبيعة من حساب المتجر (ما يتسجّل عليه تكلفة)
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivering'){
+    // مبيعة الطلب بتنسجّل لما يصير «قيد التوصيل» وبتضل لو صار «عالق/مؤجل».
+    // كانت تنشال بس لو انلغى وهو «قيد التوصيل» بالضبط — فطلب صار عالق وبعدين
+    // انلغى كان يضل محسوب عالمتجر. هلأ: أي إلغاء لطلب مش مُسلَّم بيشيلها (إذا موجودة).
+    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus!=='delivered'&&!['cancelled','returned','refused'].includes(prevStatus)){
       unsyncOrderFromAccounting(id);
     }
     // طلب مُسلَّم يُلغى أو يُرجَع ⇒ عكس المبيعة. «ملغي» كان مستثنى، فكانت
@@ -10757,7 +10764,9 @@ async function updateEmpOrderStatus(id,newStatus){
     if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
       _handleDeliveredCancel(id,data,newStatus);
     }
-    if(!['cancelled','returned','refused','delivered'].includes(newStatus)){
+    // رجع الطلب «شغّال» (حتى «تم التوصيل») ⇒ قيد المرتجع القديم بينشال —
+    // وإلا المبيعة بترجع تنسجّل وقيد المرتجع بيضل يمحيها عن المتجر
+    if(!['cancelled','returned','refused'].includes(newStatus)&&['cancelled','returned','refused'].includes(prevStatus)){
       removePageRefundEntry(id);
     }
     // Re-render orders list so UI reflects the change immediately
@@ -13209,8 +13218,89 @@ async function rwDismiss(id){
 }
 window.openRestockWaits=openRestockWaits;window.rwNotified=rwNotified;window.rwDismiss=rwDismiss;
 
+
+// ═══ ⚠️ طلبات ملغية لسّا محسوبة على متاجر ═══
+// قبل التصليح: طلب صار «عالق/مؤجل» وبعدين انلغى كانت مبيعته تضل على المتجر.
+// ومُسلَّم انلغى ممكن يكون عمداً «بدون إرجاع» (المتجر بيتحمّل). الإدارة بتقرّر.
+let _sf={list:null,busy:false,sel:{}};
+async function _sfLoad(){
+  if(_sf.busy||!_currentAdminUser)return;_sf.busy=true;
+  try{
+    const [dead,sales,refs]=await Promise.all([
+      _fsLite('employee_orders',[['status','in',_CN_DEAD]],['status','orderNum','customerName','pageName','editHistory','saleKept','date']),
+      _fsLite('operator_sales',[],['fromOrderId','storeName','sellPrice','qty','date']),
+      _fsLite('page_refunds',[],['orderId'])]);
+    const D=new Map(dead.filter(o=>o.saleKept!==true).map(o=>[o.id,o])),R=new Set(refs.map(r=>r.orderId));
+    const by={};
+    sales.forEach(x=>{const id=x.fromOrderId;if(!id||!D.has(id)||R.has(id))return;
+      const o=D.get(id);const b=by[id]=by[id]||{id,o,store:x.storeName||'',v:0,date:x.date||''};b.v+=(Number(x.sellPrice)||0)*(Number(x.qty)||1);});
+    _sf.list=Object.values(by).map(b=>{const h=(b.o.editHistory||[]).map(e=>String(e&&e.note||''));
+      const last=h.slice().reverse().find(n=>/←\s*(ملغي|مرتجع|رفض)/.test(n))||'';
+      return {...b,delivered:/تم التوصيل\s*←/.test(last),last};}).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  }catch(e){_sf.list=[];}
+  _sf.busy=false;_sfBanner();
+}
+function _sfBanner(){
+  const b=document.getElementById('opSfBanner');if(!b)return;
+  const L=_sf.list||[];
+  if(!L.length){b.style.display='none';b.innerHTML='';return;}
+  const v=L.reduce((t,x)=>t+x.v,0);
+  b.style.display='block';
+  b.innerHTML=`<button onclick="openSaleFix()" style="width:100%;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:11px 14px;background:#fef2f2;border:2px solid #fca5a5;border-radius:14px;font-family:'Tajawal',sans-serif;cursor:pointer;text-align:right;">
+    <span style="font-size:1.3rem;">⚠️</span><span style="flex:1;"><b style="color:#b91c1c;font-size:.9rem;">${L.length} طلب ملغي لسّا محسوب على متاجر (${v.toFixed(2)} د.أ)</b>
+    <br><span style="font-size:.74rem;color:#b91c1c;font-weight:700;">من قبل التصليح — راجعهم وقرّر</span></span><span style="color:#b91c1c;font-weight:900;font-size:.85rem;">افتح ←</span></button>`;
+}
+function openSaleFix(){
+  _sf.sel={};(_sf.list||[]).forEach(x=>{_sf.sel[x.id]=!x.delivered;});   // قبل التسليم: غلط أكيد ⇒ معلّم؛ بعده: إنت بتقرّر
+  document.getElementById('sfModal')?.remove();
+  const ov=document.createElement('div');ov.id='sfModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div><div style="font-weight:900;font-size:1rem;color:#b91c1c;">⚠️ طلبات ملغية لسّا على المتاجر</div>
+        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;">مبيعتها لسّا محسوبة على المتجر وما في قيد مرتجع</div></div>
+      <button onclick="document.getElementById('sfModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:.95rem;cursor:pointer;">✕</button></div>
+    <div style="padding:9px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;font-size:.72rem;color:#92400e;line-height:1.8;font-weight:700;">
+      • <b>انلغى قبل التسليم</b> (كان عالق/مؤجل) ⇒ غلط أكيد، معلّمين لحالهم.<br>
+      • <b>انلغى بعد التسليم</b> ⇒ إذا كان «بدون إرجاع» (المتجر بيتحمّل) خلّيه؛ إذا البضاعة رجعت علّمه.</div>
+    <div id="sfBody" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
+    <div style="padding:10px 14px;border-top:1px solid #e5e7eb;display:flex;gap:8px;">
+      <button onclick="sfApply(true)" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:.84rem;font-weight:900;cursor:pointer;">↩️ شيل المختار عن المتاجر</button>
+      <button onclick="sfApply(false)" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:.84rem;font-weight:900;cursor:pointer;">✓ المختار بيضل على المتجر</button>
+    </div></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);_sfPaint();
+}
+function _sfPaint(){
+  const b=document.getElementById('sfBody');if(!b)return;
+  const L=_sf.list||[];
+  const sec=(t,arr)=>arr.length?`<div style="font-size:.76rem;font-weight:900;color:#374151;margin:10px 2px 4px;">${t} (${arr.length} · ${arr.reduce((s,x)=>s+x.v,0).toFixed(2)} د.أ)</div>`+arr.map(x=>`<label style="display:flex;align-items:flex-start;gap:9px;padding:9px 6px;border-top:1px solid #f3f4f6;cursor:pointer;">
+      <input type="checkbox" ${_sf.sel[x.id]?'checked':''} onchange="_sf.sel['${x.id}']=this.checked" style="width:18px;height:18px;margin-top:2px;accent-color:#166534;flex-shrink:0;">
+      <span style="flex:1;min-width:0;"><b style="font-size:.84rem;color:#111827;">${x.o.orderNum?'#'+_clrEsc(x.o.orderNum):'#'+x.id.slice(-5).toUpperCase()}</b> <span style="font-size:.72rem;color:#6b7280;">· ${_clrEsc(x.store||x.o.pageName||'')} · ${_clrEsc(x.date)}</span>
+        <div style="font-size:.72rem;color:#9ca3af;margin-top:2px;">${_clrEsc(x.last)}</div></span>
+      <b style="font-size:.84rem;color:#b91c1c;white-space:nowrap;">${x.v.toFixed(2)}</b></label>`).join(''):'';
+  b.innerHTML=sec('🚫 انلغى قبل التسليم',L.filter(x=>!x.delivered))+sec('📦 انلغى بعد التسليم',L.filter(x=>x.delivered))
+    ||'<div style="padding:20px;text-align:center;color:#16a34a;font-weight:800;">✓ ولا طلب</div>';
+}
+async function sfApply(remove){
+  const L=(_sf.list||[]).filter(x=>_sf.sel[x.id]);
+  if(!L.length){toast('اختار طلب واحد على الأقل');return;}
+  if(!confirm(remove?`نشيل مبيعات ${L.length} طلب عن المتاجر؟`:`${L.length} طلب بيضلوا على المتاجر (ما رح نسألك عنهم كمان)؟`))return;
+  let k=0;
+  for(const x of L){
+    try{
+      if(remove){const d=await db.collection('employee_orders').doc(x.id).get();await _handleDeliveredCancel(x.id,{id:x.id,...(d.exists?d.data():x.o)},'تصحيح — ملغي');}
+      else await db.collection('employee_orders').doc(x.id).update({saleKept:true});
+      k++;
+    }catch(e){}
+  }
+  _sf.list=(_sf.list||[]).filter(o=>!L.some(x=>x.id===o.id));
+  _sfPaint();_sfBanner();
+  toast(remove?`↩️ انشالت مبيعات ${k} طلب عن المتاجر`:`✓ ${k} طلب بيضلوا على المتاجر`);
+}
+window.openSaleFix=openSaleFix;window.sfApply=sfApply;
 function switchOpTab(tab){
-  _catAdmWatch();_rwWatch();
+  _catAdmWatch();_rwWatch();if(_sf.list===null)_sfLoad();
   _renderOpTabs(tab);
   const allTabs=['oporders','products','stores','sales','balance','reps','daysheet','workers','empwages','expenses','emppoints','settings'];
   allTabs.forEach(t=>{
