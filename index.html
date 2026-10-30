@@ -474,6 +474,7 @@ const EMP=String(QS.get('e')||'').slice(0,60);
 // الطلب بيروح للإدارة (toAdmin) وهي بتوزّعه. ?shop=1 للتجربة.
 // الصفحة الرئيسية = الواجهة؛ رابط موظفة (e=…) = كتالوجها (منتجاتها المختارة وسؤال الصفحة)
 const SHOP=!EMP&&QS.get('shop')!=='0';
+let EMPOK=true;   // الموظفة صاحبة الرابط لسّا شغّالة
 const SHOP_WA='962775665598';
 // الصفحة/المتجر اللي إجا منه الزبون — رسالة التأكيد بترجع على واتسابها/ماسنجرها
 const PGID=String(QS.get('g')||'').slice(0,60);let PGD={};
@@ -602,6 +603,8 @@ function load(){
   skeleton();
   db.collection('operator_config').doc('catalog_cfg').onSnapshot(d=>{CFG=(d.exists&&d.data())||{};cfgReady=true;syncHome();},()=>{cfgReady=true;syncHome();});
   if(PGID)db.collection('employee_pages').doc(PGID).get().then(d=>{PGD=(d.exists&&d.data())||{};AUTO=!(CH==='m'?PGD.messengerUser:PGD.waNumber);}).catch(()=>{});
+  // رابط موظفة: لو انحذفت أو انشال رقمها، الطلب بيروح للإدارة بدل ما يضيع عندها
+  if(EMP)db.collection('employee_workers').doc(EMP).get().then(d=>{EMPOK=!!(d.exists&&d.data().catalogOff!==true);}).catch(()=>{});
   if(PID0)watchP(PID0);
   Object.keys(CART).forEach(watchP);
   watchMine();
@@ -967,8 +970,8 @@ async function submitReq(){
   const ref=String(Date.now()).slice(-6);   // مؤقّت — بيتبدّل برقم تسلسلي لما ينحفظ
   const r={ref,pid:'',productName:extras.map(x=>x.name).join('، '),items:[],extras,...(extraText?{extraText}:{}),
     pieces:extras.reduce((t,x)=>t+x.qty,0),customer:{name,phone,area:AREA,address,notes},
-    channel:SHOP&&!EMP?'site':CH==='m'?'messenger':'whatsapp',workerId:EMP,status:'new',source:SHOP?'site':'catalog',
-    ...(SHOP&&!EMP?{toAdmin:true}:{}),
+    channel:SHOP&&!EMP?'site':CH==='m'?'messenger':'whatsapp',workerId:EMPOK?EMP:'',status:'new',source:SHOP?'site':'catalog',
+    ...((SHOP&&!EMP)||(EMP&&!EMPOK)?{toAdmin:true}:{}),...(EMP&&!EMPOK?{fromWorker:EMP}:{}),
     ...(STORE?{pageId:STORE.id,pageName:STORE.label||''}:PGID?{pageId:PGID,...(PGD.name?{pageName:PGD.name}:{})}:{}),
     createdAt:firebase.firestore.FieldValue.serverTimestamp()};
   sending=true;const b=$('#sheetWa');b.disabled=true;b.textContent='⏳ عم نسجّل طلبك…';

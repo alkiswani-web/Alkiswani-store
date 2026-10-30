@@ -2462,7 +2462,7 @@ function _loadEmpSession(){
   try{
     const s=JSON.parse(localStorage.getItem(_EMP_SESSION_KEY)||'null');
     if(!s)return null;
-    if(Date.now()-s.ts>_EMP_SESSION_DAYS*86400000){_clearEmpSession();return null;}
+    if(Date.now()-s.ts>(s.phone?30:_EMP_SESSION_DAYS)*86400000){_clearEmpSession();return null;}
     return s;
   }catch(e){return null;}
 }
@@ -2499,8 +2499,9 @@ function _empStopSelf(){if(_empSelfUnsub){try{_empSelfUnsub();}catch(e){}}_empSe
 function openEmpLogin(){
   const saved=_loadEmpSession();
   if(saved){_empCurrentUser=saved;openEmpPanel();return;}
+  _empLgReset();
   document.getElementById('empLoginOverlay').classList.add('open');
-  setTimeout(()=>document.getElementById('empUser').focus(),300);
+  setTimeout(()=>document.getElementById('empPhone').focus(),300);
 }
 function closeEmpLogin(){
   document.getElementById('empLoginOverlay').classList.remove('open');
@@ -2687,6 +2688,7 @@ async function openEmpPanel(){
   _initFCM().then(()=>{if(Notification.permission==='granted')_registerFCMToken(_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username),'emp');});
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
+  _empLinkPaint();
   const isDelivery=_empCurrentUser.permissions?.isDelivery||false;
   const isQRViewer=_empCurrentUser.permissions?.isQRViewer||false;
   // كان بيدوّر على العنوان بلونه (c9a84c) — والعنوان الجديد إله معرّف
@@ -8046,6 +8048,7 @@ function closeEmpPanel(){
   _empStopSelf();
 }
 function logoutEmp(){
+  try{firebase.auth().signOut();}catch(e){}
   _clearEmpSession();
   _empCurrentUser=null;
   closeEmpPanel();
@@ -8060,6 +8063,8 @@ async function doEmpLogin(){
   errEl.textContent='⏳ جاري التحقق...';
   try{
     const snap=await db.collection('employee_workers').where('username','==',username).limit(1).get();
+    // إلها رقم عند المحل ⇒ الدخول صار بالرقم والرمز بس
+    if(!snap.empty&&snap.docs[0].data().phone){errEl.textContent='📱 حسابك صار بالرقم — ادخلي برقم جوالك والرمز';return;}
     if(snap.empty){errEl.textContent='❌ اسم المستخدم غير موجود';return;}
     const doc=snap.docs[0];
     const data=doc.data();
@@ -8070,6 +8075,103 @@ async function doEmpLogin(){
     openEmpPanel();
   }catch(e){errEl.textContent='❌ خطأ: '+e.message;}
 }
+
+
+// ═══ 🔗 رابط الكتالوج تبع الموظفة ═══
+// كل موظفة بتاخد رابطها من شاشتها (مش من الإدارة) — ما في خربطة مين رابطه لمين.
+// الرابط بيحمل معرّفها بس (e=…)، لا اسمها ولا رقمها: الزبون ما بيشوف إشي،
+// والنظام بيعرف إنه الطلب إلها. بيطلع بس لما يكون إلها رقم عند المحل.
+async function _empLinkPaint(){
+  const box=document.getElementById('empMyLink');if(!box||!_empCurrentUser)return;
+  const isOps=_empCurrentUser.permissions&&(_empCurrentUser.permissions.isDelivery||_empCurrentUser.permissions.isQRViewer);
+  if(isOps){box.style.display='none';return;}
+  let phone=_empCurrentUser.phone||'';
+  if(!phone){try{const d=await db.collection('employee_workers').doc(_empCurrentUser.id).get();phone=(d.exists&&d.data().phone)||'';}catch(e){}}
+  const F="font-family:'Tajawal',sans-serif;";
+  box.style.display='block';
+  if(!phone){box.innerHTML=`<div style="margin:0 0 12px;padding:11px 13px;border-radius:14px;background:#fffbeb;border:1.5px dashed #f59e0b;font-size:.8rem;color:#92400e;font-weight:700;line-height:1.7;${F}">🔗 رابط الكتالوج تبعك بيطلع هون أوّل ما المحل يربط رقم جوالك بحسابك.</div>`;return;}
+  await _catPagesLoad();
+  const url=_catLinkUrl('','',_empCurrentUser.id,'');
+  box.innerHTML=`<div style="margin:0 0 12px;padding:12px 13px;border-radius:14px;background:#f0fdf4;border:1.5px solid #86efac;${F}">
+    <div style="display:flex;align-items:center;gap:8px;"><b style="font-size:.9rem;color:#166534;flex:1;">🔗 رابط الكتالوج تبعك</b>
+      <button onclick="empLinkCopy()" style="padding:7px 11px;border:none;border-radius:9px;background:#166534;color:#fff;${F}font-size:.78rem;font-weight:900;cursor:pointer;">📋 انسخ</button>
+      ${navigator.share?`<button onclick="empLinkShare()" style="padding:7px 11px;border:1.5px solid #86efac;border-radius:9px;background:#fff;color:#166534;${F}font-size:.78rem;font-weight:900;cursor:pointer;">📤 ابعت</button>`:''}</div>
+    <div id="empMyLinkUrl" style="margin-top:7px;font-size:.72rem;color:#166534;direction:ltr;text-align:left;word-break:break-all;opacity:.85;">${_clrEsc(url)}</div>
+    <div style="font-size:.7rem;color:#15803d;margin-top:5px;line-height:1.6;">ابعتيه للزباين — كل طلب بيجي منه بيوصلك إنتِ. الزبون ما بيشوف اسمك ولا رقمك.</div></div>`;
+}
+function _empLinkUrl(){const e=document.getElementById('empMyLinkUrl');return e?e.textContent:'';}
+async function empLinkCopy(){const u=_empLinkUrl();if(!u)return;try{await navigator.clipboard.writeText(u);toast('📋 انتسخ رابطك');}catch(e){prompt('انسخي الرابط:',u);}}
+async function empLinkShare(){const u=_empLinkUrl();if(!u)return;try{await navigator.share({title:'الكسواني روزميري',url:u});}catch(e){}}
+window.empLinkCopy=empLinkCopy;window.empLinkShare=empLinkShare;
+
+// ═══ 📱 دخول الموظفين برقم الجوال ورمز SMS — نفس تطبيق المناديب ═══
+// المحل بيحطّ رقم كل موظفة بقائمة الفريق؛ هي بتكتب رقمها، بيوصلها رمز،
+// وبتدخل. الرقم هو هويّتها — ومنه رابط الكتالوج تبعها (بدون ما يبيّن للزبون).
+let _empConfirm=null,_empVerifier=null;
+const _last9=s=>normalizePhone(s).replace(/\D/g,'').slice(-9);
+const _empIntl=s=>{const d=normalizePhone(s).replace(/\D/g,'');return d.startsWith('0')?'962'+d.slice(1):d.length===9?'962'+d:d;};
+async function _empByPhone(ph){
+  const k=_last9(ph);if(k.length<9)return null;
+  const snap=await db.collection('employee_workers').get();
+  const d=snap.docs.find(x=>{const v=x.data();return v.phone&&_last9(v.phone)===k;});
+  return d?{id:d.id,...d.data()}:null;
+}
+function _empStartWith(w){
+  _empCurrentUser={id:w.id,username:w.username||w.phone,displayName:w.name||w.username||w.phone,defaultPage:w.defaultPage||'',permissions:w.permissions||{},phone:w.phone||''};
+  _saveEmpSession(_empCurrentUser);
+  closeEmpLogin();openEmpPanel();
+}
+function _empLgReset(){
+  const g=id=>document.getElementById(id);
+  if(g('empLgStep1'))g('empLgStep1').style.display='';if(g('empLgStep2'))g('empLgStep2').style.display='none';
+  if(g('empLgOld'))g('empLgOld').style.display='none';if(g('empOldLink'))g('empOldLink').style.display='';
+  if(g('empCode'))g('empCode').value='';if(g('empLoginErr'))g('empLoginErr').textContent='';
+}
+function empLgBack(){_empLgReset();setTimeout(()=>document.getElementById('empPhone')?.focus(),100);}
+function empLgOld(){
+  document.getElementById('empLgStep1').style.display='none';document.getElementById('empLgStep2').style.display='none';
+  document.getElementById('empLgOld').style.display='';document.getElementById('empOldLink').style.display='none';
+  setTimeout(()=>document.getElementById('empUser')?.focus(),100);
+}
+const _EMP_CFG_ERR=['auth/operation-not-allowed','auth/unauthorized-domain','auth/invalid-app-credential','auth/app-not-authorized'];
+async function empSendCode(){
+  const raw=document.getElementById('empPhone').value,err=document.getElementById('empLoginErr');err.textContent='';
+  if(_last9(raw).length<9){err.textContent='اكتبي رقم الجوال كامل (07XXXXXXXX)';return;}
+  const b=document.getElementById('empSendBtn');b.disabled=true;b.textContent='⏳';
+  let w=null;
+  try{
+    w=await _empByPhone(raw);
+    if(!w){err.textContent='هاد الرقم مش مسجّل لموظفة — اطلبي من المحل يضيفه';return;}
+    if(!_empVerifier)_empVerifier=new firebase.auth.RecaptchaVerifier('empRecaptcha',{size:'invisible'});
+    _empConfirm=await firebase.auth().signInWithPhoneNumber('+'+_empIntl(raw),_empVerifier);
+    document.getElementById('empLgStep1').style.display='none';document.getElementById('empLgStep2').style.display='';
+    document.getElementById('empOldLink').style.display='none';
+    document.getElementById('empLgHint').textContent='بعتنالك رسالة فيها رمز من 6 أرقام على '+raw.trim()+' — اكتبيه هون.';
+    setTimeout(()=>document.getElementById('empCode')?.focus(),200);
+  }catch(e){
+    const c=e&&e.code||'';
+    // إعدادات الرسائل مش جاهزة عند Firebase: زي المناديب — بتدخل برقمها بدل ما توقف
+    if(w&&_EMP_CFG_ERR.includes(c)){toast('⚠️ الرمز مش شغّال حالياً — دخلتِ برقمك. بلّغي المحل');_empStartWith(w);return;}
+    err.textContent=c==='auth/too-many-requests'?'طلبتِ رمز كثير — استني شوي وجرّبي':c==='auth/invalid-phone-number'?'الرقم مش صحيح':'ما قدرنا نبعت الرمز — تأكّدي من النت وجرّبي كمان مرّة';
+    try{_empVerifier&&_empVerifier.clear();}catch(x){}_empVerifier=null;const rc=document.getElementById('empRecaptcha');if(rc)rc.innerHTML='';
+  }finally{b.disabled=false;b.textContent='ابعتلي الرمز';}
+}
+async function empVerifyCode(){
+  const code=String(document.getElementById('empCode').value||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g,'');
+  const err=document.getElementById('empLoginErr');err.textContent='';
+  if(code.length!==6){err.textContent='الرمز 6 أرقام';return;}
+  if(!_empConfirm){empLgBack();return;}
+  const b=document.getElementById('empVerifyBtn');if(b.disabled)return;b.disabled=true;b.textContent='⏳';
+  try{
+    const res=await _empConfirm.confirm(code);
+    const ph=(res&&res.user&&res.user.phoneNumber)||document.getElementById('empPhone').value;
+    const w=await _empByPhone(ph);
+    if(!w){err.textContent='رقمك ما عاد مسجّل — راجعي المحل';try{await firebase.auth().signOut();}catch(e){}return;}
+    _empStartWith(w);
+  }catch(e){err.textContent=(e&&e.code)==='auth/invalid-verification-code'?'الرمز غلط — تأكّدي منه':(e&&e.code)==='auth/code-expired'?'الرمز انتهى — ابعتي رمز جديد':'ما زبط — جرّبي كمان مرّة';}
+  finally{b.disabled=false;b.textContent='ادخلي';}
+}
+window.empSendCode=empSendCode;window.empVerifyCode=empVerifyCode;window.empLgBack=empLgBack;window.empLgOld=empLgOld;
 
 async function onEmpImageChange(input){
   const files=[...input.files];
@@ -8913,7 +9015,7 @@ async function loadEmpWorkers(){
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
           <div>
             <div style="font-weight:700;color:#1a3a2a;font-size:0.9rem;">👤 ${w.name||w.username}</div>
-            <div style="font-size:0.75rem;color:#6b7280;">@${w.username} &nbsp;·&nbsp; 🔑 ${w.password} ${w.defaultPage?'&nbsp;·&nbsp; 📄 '+w.defaultPage:''}</div>
+            <div style="font-size:0.75rem;color:#6b7280;">${w.phone?`<b style="color:#166534;">📱 <bdi dir="ltr">${w.phone}</bdi> ✓</b>`:'<b style="color:#b45309;">⚠️ بلا رقم — بتدخل بالطريقة القديمة</b>'}${!w.phone&&w.username?` &nbsp;·&nbsp; @${w.username} · 🔑 ${w.password||''}`:''} ${w.defaultPage?'&nbsp;·&nbsp; 📄 '+w.defaultPage:''}</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
             <button onclick="editEmpWorker('${w.id}')" style="background:#fefce8;color:#854d0e;border:1.5px solid #fde68a;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.8rem;">✏️</button>
@@ -8928,11 +9030,16 @@ async function loadEmpWorkers(){
 
 async function addEmpWorker(){
   const name=document.getElementById('newWorkerName').value.trim();
-  const username=document.getElementById('newWorkerUsername').value.trim();
+  const phone=normalizePhone(document.getElementById('newWorkerPhone')?.value||'');
+  let username=document.getElementById('newWorkerUsername').value.trim();
   const password=document.getElementById('newWorkerPassword').value.trim();
   const pageSel=document.getElementById('newWorkerPage');
   const defaultPage=pageSel?.value||'';
-  if(!name||!username||!password){toast('⚠️ أدخل الاسم الكامل واسم المستخدم وكلمة المرور');return;}
+  // الدخول صار برقم الجوال ورمز (زي المناديب) — اسم المستخدم والباسورد للقديم بس
+  if(!name){toast('⚠️ اكتب اسم الموظفة');return;}
+  if(phone&&!/^07[789]\d{7}$/.test(phone)){toast('⚠️ رقم الجوال لازم يكون 10 أرقام ويبلّش بـ 07');return;}
+  if(!phone&&(!username||!password)){toast('⚠️ اكتب رقم جوالها (للدخول برمز) — أو اسم مستخدم وكلمة مرور');return;}
+  if(!username)username=phone;
   const permissions={
     canAddOrders:document.getElementById('perm_addOrders')?.checked!==false,
     canEditOrders:document.getElementById('perm_editOrders')?.checked!==false,
@@ -8944,10 +9051,12 @@ async function addEmpWorker(){
   };
   if(permissions.isQRViewer&&permissions.isDelivery){toast('⚠️ اختر «تسليم» أو «QR فقط» — مش الاثنين');return;}
   try{
+    if(phone){const o=await _empByPhone(phone);if(o){toast('⚠️ هاد الرقم مسجّل لـ«'+(o.name||o.username)+'»');return;}}
     const exists=await db.collection('employee_workers').where('username','==',username).limit(1).get();
     if(!exists.empty){toast('⚠️ اسم المستخدم موجود مسبقاً');return;}
-    await db.collection('employee_workers').add({name,username,password,defaultPage,permissions,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await db.collection('employee_workers').add({name,username,password,...(phone?{phone}:{}),defaultPage,permissions,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     document.getElementById('newWorkerName').value='';
+    if(document.getElementById('newWorkerPhone'))document.getElementById('newWorkerPhone').value='';
     document.getElementById('newWorkerUsername').value='';
     document.getElementById('newWorkerPassword').value='';
     if(pageSel)pageSel.value='';
@@ -9093,7 +9202,10 @@ async function editEmpWorker(id){
     <div style="flex:1;overflow-y:auto;padding:13px 15px;">
       <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الاسم الكامل</label>
       <input id="ew_name" value="${_clrEsc(w.name||'')}" style="${F}margin-bottom:11px;">
-      <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">كلمة المرور</label>
+      <label style="font-size:0.78rem;font-weight:700;color:#166534;display:block;margin-bottom:4px;">📱 رقم جوالها — بتدخل فيه برمز SMS (زي المناديب)</label>
+      <input id="ew_phone" type="tel" inputmode="numeric" placeholder="07XXXXXXXX" value="${_clrEsc(w.phone||'')}" style="${F}margin-bottom:4px;direction:ltr;text-align:right;">
+      <div style="font-size:.68rem;color:#6b7280;margin-bottom:11px;line-height:1.6;">شيله وبيوقف دخولها بالرقم (ورابط الكتالوج تبعها بيروح للإدارة).</div>
+      <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">كلمة المرور <span style="color:#9ca3af;font-weight:400;">(للدخول القديم — بس إذا ما إلها رقم)</span></label>
       <input id="ew_pass" value="${_clrEsc(w.password||'')}" style="${F}margin-bottom:11px;">
       <label style="font-size:0.78rem;font-weight:700;color:#374151;display:block;margin-bottom:4px;">الصفحة الافتراضية <span style="color:#9ca3af;font-weight:400;">(اختياري)</span></label>
       <input id="ew_page" value="${_clrEsc(w.defaultPage||'')}" style="${F}margin-bottom:15px;">
@@ -9128,15 +9240,22 @@ function _ewPermPaint(cb){
 async function saveEmpWorkerEdit(id){
   const name=(document.getElementById('ew_name')?.value||'').trim();
   const password=(document.getElementById('ew_pass')?.value||'').trim();
+  const phone=normalizePhone(document.getElementById('ew_phone')?.value||'');
   const defaultPage=(document.getElementById('ew_page')?.value||'').trim();
-  if(!name||!password){toast('⚠️ الاسم وكلمة المرور مطلوبان');return;}
+  if(!name){toast('⚠️ الاسم مطلوب');return;}
+  if(phone&&!/^07[789]\d{7}$/.test(phone)){toast('⚠️ رقم الجوال لازم يكون 10 أرقام ويبلّش بـ 07');return;}
+  if(!phone&&!password){toast('⚠️ حطّ رقم جوالها (أو كلمة مرور للدخول القديم)');return;}
+  if(phone){const o=await _empByPhone(phone);if(o&&o.id!==id){toast('⚠️ هاد الرقم مسجّل لـ«'+(o.name||o.username)+'»');return;}}
+  // شلت رقمها ⇒ رابط الكتالوج تبعها بيوقف (طلباته بتروح للإدارة)؛ رجّعت رقم ⇒ برجع
+  let _hadPhone=false;try{const d=await db.collection('employee_workers').doc(id).get();_hadPhone=!!(d.exists&&d.data().phone);}catch(e){}
   const permissions={};
   EMP_PERMS.forEach(pm=>{permissions[pm.k]=document.getElementById('ewp_'+pm.k)?.checked||false;});
   // الشاشتان بديلتان لشاشة تسجيل الطلبات، فلا تجتمعان
   if(permissions.isQRViewer&&permissions.isDelivery){toast('⚠️ اختر «تسليم» أو «QR فقط» — مش الاثنين');return;}
   if(permissions.isQRViewer&&permissions.canScanQR){toast('⚠️ اختر «QR فقط» أو «مسح QR + تسجيل طلبات» — مش الاثنين');return;}
   try{
-    await db.collection('employee_workers').doc(id).update({name,password,defaultPage,permissions});
+    await db.collection('employee_workers').doc(id).update({name,password,defaultPage,permissions,phone:phone||firebase.firestore.FieldValue.delete(),
+      ...(phone?{catalogOff:firebase.firestore.FieldValue.delete()}:_hadPhone?{catalogOff:true}:{})});
     document.getElementById('empWorkerModal')?.remove();
     toast('✅ انحفظت الصلاحيات — بتشتغل لمّا يسجّل دخول من جديد');
     loadEmpWorkers();
