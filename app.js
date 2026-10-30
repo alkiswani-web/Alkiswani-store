@@ -6731,7 +6731,7 @@ async function openProdStock(prodId,keep){
   ov.id='pnStockModal';ov.dataset.pid=_pnProdId;
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:100002;display:flex;align-items:flex-end;justify-content:center;';
   const pimg=p=>p.imageDataUrl||(Array.isArray(p.images)&&p.images[0])||'';
-  ov.innerHTML=`<div style="background:#f8fafc;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;${F}">
+  ov.innerHTML=`<div id="pnSheet" style="background:#f8fafc;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:94vh;display:flex;flex-direction:column;${F}">
     <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border-radius:20px 20px 0 0;">
       <div style="font-weight:900;font-size:1.05rem;color:#111827;">📦 وارد وصرف</div>
       <button onclick="pnClose()" style="background:#f3f4f6;border:none;border-radius:10px;width:34px;height:34px;font-size:1rem;cursor:pointer;">✕</button>
@@ -6741,8 +6741,15 @@ async function openProdStock(prodId,keep){
         <button onclick="pnMode('in')" style="flex:1;padding:11px;border:none;border-radius:11px;${F}font-size:.92rem;font-weight:900;cursor:pointer;${OUT?'background:none;color:#64748b;':'background:#1d4ed8;color:#fff;box-shadow:0 6px 14px -8px #1d4ed8;'}">📥 وارد +</button>
         <button onclick="pnMode('out')" style="flex:1;padding:11px;border:none;border-radius:11px;${F}font-size:.92rem;font-weight:900;cursor:pointer;${OUT?'background:#b45309;color:#fff;box-shadow:0 6px 14px -8px #b45309;':'background:none;color:#64748b;'}">📤 صرف −</button>
       </div>
-      <div style="display:flex;gap:8px;overflow-x:auto;padding:12px 0 2px;scrollbar-width:none;">
-        ${prods.map(x=>{const on=x.id===_pnProdId,im=pimg(x);return `<button onclick="pnPickProd('${x.id}')" style="flex:0 0 auto;width:74px;border:none;background:none;padding:0;cursor:pointer;${F}">
+      <style>
+        /* المنتجات: عالجوال صفّ بينسحب، عالكمبيوتر (ما في سحب بالماوس) بتنزل أكثر من صفّ */
+        #pnProds{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:thin}
+        @media (min-width:600px),(pointer:fine){#pnProds{flex-wrap:wrap;overflow:visible;max-height:none}}
+        @media (min-width:900px){#pnSheet{max-width:880px!important;border-radius:20px!important;margin-bottom:3vh}}
+        #pnGrid{grid-template-columns:repeat(auto-fill,minmax(108px,1fr))!important}
+      </style>
+      <div id="pnProds">
+        ${prods.map(x=>{const on=x.id===_pnProdId,im=pimg(x);return `<button ${on?'data-on="1" ':''}onclick="pnPickProd('${x.id}')" style="flex:0 0 auto;width:74px;border:none;background:none;padding:0;cursor:pointer;${F}">
           <div style="width:64px;height:64px;margin:0 auto 4px;border-radius:16px;${im?`background:url('${im}') center/cover;`:'background:#eef2f7;display:grid;place-items:center;font-size:1.5rem;'}box-shadow:${on?`0 0 0 3px ${AC}`:'0 0 0 1px #e5e7eb'};">${im?'':'🧶'}</div>
           <div style="font-size:.7rem;font-weight:${on?900:700};color:${on?AC:'#475569'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_clrEsc(x.name)}</div></button>`;}).join('')}
       </div>
@@ -6775,6 +6782,10 @@ async function openProdStock(prodId,keep){
     </div>
   </div>`;
   document.body.appendChild(ov);
+  // عجلة الماوس على صفّ المنتجات (لما يكون صفّ واحد) بتحرّكه يمين ويسار
+  const pr=document.getElementById('pnProds');
+  if(pr)pr.addEventListener('wheel',e=>{if(pr.scrollWidth>pr.clientWidth&&Math.abs(e.deltaY)>Math.abs(e.deltaX)){pr.scrollLeft-=e.deltaY;e.preventDefault();}},{passive:false});
+  const on=pr&&pr.querySelector('[data-on="1"]');if(on)try{on.scrollIntoView({block:'nearest',inline:'center'});}catch(e){}
   nums.forEach(n=>_pnPrev(n));
   _pnWedgeOn();
   // مسحةٌ بدّلت المنتج: منسأل عن الكمية بعد ما تنرسم شاشته
