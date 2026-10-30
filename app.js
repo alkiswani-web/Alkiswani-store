@@ -8754,9 +8754,7 @@ function _renderEmpMyOrders(){
 // كان في ٣ أزرار إلغاء (الموظفة، قائمة ⋯، شاشة الطلب) كل واحد بيعمل جزء:
 // اثنين ما بيرجّعوا الألوان للمخزون، وواحد ما بيعكس مبيعة الطلب المسلَّم.
 // هون نفس اللي بيعمله تغيير الحالة لـ«ملغي» بالضبط.
-// opts.keepSale: «🚫 إلغاء بدون إرجاع» لطلب مُسلَّم — البضاعة ما رجعت، فالمبيعة
-// بتضل على المتجر (هو بيتحمّل تكلفتها). «↩️ إلغاء مع إرجاع» هو اللي بيعكسها.
-async function _cancelOrderCore(id,reason,by,opts){
+async function _cancelOrderCore(id,reason,by){
   const ref=db.collection('employee_orders').doc(id);
   const snap=await ref.get();
   if(!snap.exists)throw new Error('الطلب غير موجود — حدِّث الصفحة');
@@ -8769,8 +8767,8 @@ async function _cancelOrderCore(id,reason,by,opts){
   if(prev==='delivering'||prev==='delivered')upd.deliveredDate=FV.delete();
   await ref.update(upd);
   await _orderStockSync(id,data,data,data.colorStockApplied===true,false);
-  if(prev==='delivered'){if(!(opts&&opts.keepSale))await _handleDeliveredCancel(id,data,'cancelled');}
-  else await unsyncOrderFromAccounting(id);   // قيد التوصيل/عالق/مؤجل — بتنشال إذا موجودة
+  // قيد التوصيل أو مُسلَّم أو عالق: الطلب بيروح عن المتجر كامل (تكلفة وربح)
+  await _removeOrderFromStore(id);
   const _patch=arr=>{if(!arr)return;const i=arr.findIndex(o=>o.id===id);if(i>=0)arr[i]={...arr[i],status:'cancelled',...(reason?{cancelReason:reason}:{})};};
   _patch(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
   _patch(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
@@ -9419,13 +9417,11 @@ function _showOpOrderDetail(o){
       </div>
       ${!isClosed?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${o.status!=='waiting_rep'&&o.status!=='delivering'&&o.status!=='queued'?_dBtn('إرسال لمندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
-        ${o.status==='delivering'?_dBtn('↩️ إرجاع الطلب',`_returnOpOrderFromDetail('${o.id}')`,'plain'):''}
-        ${_dBtn('🚫 إلغاء',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
+        ${_dBtn('🚫 إلغاء الطلب',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${_dBtn(o.deliveryRepName?'🔄 تغيير مندوب':'تعيين مندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'primary')}
-        ${_dBtn('↩️ إرجاع الطلب',`_returnOpOrderFromDetail('${o.id}')`,'plain')}
-        ${_dBtn('🚫 إلغاء بدون إرجاع',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
+        ${_dBtn('🚫 إلغاء الطلب',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         <div style="font-size:0.72rem;color:#999;font-weight:700;width:100%;padding-bottom:4px;">إعادة تفعيل:</div>
@@ -9451,47 +9447,13 @@ async function _cancelOpOrderFromDetail(id){
   if(reason===null)return;
   closeOpOrderDetail();
   try{
-    if(await _cancelOrderCore(id,reason||'',_currentAdminUser||_empCurrentUser?.displayName||'admin',{keepSale:true}))toast('🚫 تم إلغاء الطلب');
+    if(await _cancelOrderCore(id,reason||'',_currentAdminUser||_empCurrentUser?.displayName||'admin'))toast('🚫 تم إلغاء الطلب — رجع للمخزون وانشال عن المتجر');
     if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
   }catch(e){toast("❌ "+e.message);}
 }
 
-async function _returnOpOrderFromDetail(id){
-  closeOpOrderDetail();
-  closeOpCardMenu();
-  try{
-    const docRef=db.collection('employee_orders').doc(id);
-    const snap=await docRef.get();
-    if(!snap.exists){toast('❌ الطلب غير موجود');return;}
-    const data=snap.data();
-    const isDelivering=data.status==='delivering';
-    if(data.status!=='delivered'&&!isDelivering){toast('⚠️ الطلب غير مُسلَّم أو قيد التوصيل');return;}
-    const reason=prompt('سبب الإرجاع:');
-    if(reason===null)return;
-    const by=_currentAdminUser||_empCurrentUser?.displayName||'admin';
-    const editEntry={by,at:jordanDisplayDate(),note:`${_empSt(data.status).label} ← ${_empSt('returned').label} (إرجاع)`};
-    const upd={
-      status:'returned',returnReason:reason||'',
-      editHistory:[...(data.editHistory||[]),editEntry],
-      needsReview:firebase.firestore.FieldValue.delete(),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    };
-    if(isDelivering) upd.deliveredDate=firebase.firestore.FieldValue.delete();
-    await docRef.update(upd);
-    _orderStockSync(id,data,data,data.colorStockApplied===true,false);
-    if(isDelivering){
-      // قيد التوصيل: نشيل المبيعة نهائياً (ما دخلت البضاعة أصلاً) — ما يتسجّل تكلفة على المتجر
-      await unsyncOrderFromAccounting(id);
-      toast('↩️ تم الإرجاع — تمت إزالة الطلب من حساب المتجر');
-    }else{
-      // مُسلَّم: قيد إرجاع للتكلفة كما قبل
-      toast('↩️ تم الإرجاع — سيُضاف قيد للمتجر في الكشف الحالي');
-      await _handleDeliveredCancel(id,data,'returned');
-    }
-    if(typeof _renderOpOrdersView==="function")_renderOpOrdersView();
-    _refreshKashfIfOpen();
-  }catch(e){toast("❌ "+e.message);}
-}
+// «↩️ إرجاع الطلب» انلغى: في «🚫 إلغاء الطلب» وبس (بيرجّع الكمية وبيشيله عن المتجر)
+async function _returnOpOrderFromDetail(id){return _cancelOpOrderFromDetail(id);}
 
 async function _openRepPickerFromDetail(orderId){
   _qrAssignOrderId=orderId;
@@ -10018,9 +9980,8 @@ function openOpCardMenu(id,isOperator){
     isOperator?`<button class="lux-menu-item" onclick="closeOpCardMenu();copyOrderTrackingLink('${o.id}')">🔗 رابط التتبع</button>`:'',
     isOperator?`<button class="lux-menu-item" onclick="closeOpCardMenu();openInternalNote('${o.id}','${noteEsc}')">🔒 ${o.internalNote?'تعديل الملاحظة الداخلية':'ملاحظة داخلية'}</button>`:'',
     (!isClosed&&!isHold&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpHoldModal('${o.id}')">⏸ تعليق الطلب</button>`:'',
-    (!isClosed&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();openEmpCancelModal('${o.id}')">🚫 إلغاء الطلب</button>`:'',
-    (o.status==='delivered'&&isOperator)?`<button class="lux-menu-item" onclick="closeOpCardMenu();_returnOpOrderFromDetail('${o.id}')">↩️ إلغاء مع إرجاع الطلب</button>`:'',
-    (o.status==='delivered'&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();_cancelOpOrderFromDetail('${o.id}')">🚫 إلغاء بدون إرجاع</button>`:'',
+    // زرّ إلغاء وحيد (حتى للمُسلَّم): بيرجّع الكمية وبيشيل الطلب عن المتجر كامل
+    (!_CN_DEAD.includes(o.status)&&isOperator)?`<button class="lux-menu-item danger" onclick="closeOpCardMenu();openEmpCancelModal('${o.id}')">🚫 إلغاء الطلب</button>`:'',
     `<button class="lux-menu-item danger" onclick="closeOpCardMenu();deleteEmpOrder('${o.id}')">🗑 حذف نهائي</button>`
   ].filter(Boolean).join('');
   let modal=document.getElementById('opCardMenuModal');
@@ -10685,8 +10646,7 @@ async function deleteEmpOrder(id){
     await db.collection('employee_orders').doc(id).delete();
     // مُسلَّم: نفس الإلغاء (بالكشف المفتوح بتنشال المبيعة، بكشف مسكّر قيد مرتجع) —
     // كان يشيل المبيعة ويضيف قيد مرتجع كمان ⇒ المتجر ينخصم عنه مرّتين
-    if(data?.status==='delivered')await _handleDeliveredCancel(id,data,'deleted');
-    else await unsyncOrderFromAccounting(id);
+    await _removeOrderFromStore(id);
     toast('🗑 تم حذف الطلب');
   }catch(e){toast('❌ '+e.message);}
 }
@@ -10756,14 +10716,13 @@ async function updateEmpOrderStatus(id,newStatus){
     // مبيعة الطلب بتنسجّل لما يصير «قيد التوصيل» وبتضل لو صار «عالق/مؤجل».
     // كانت تنشال بس لو انلغى وهو «قيد التوصيل» بالضبط — فطلب صار عالق وبعدين
     // انلغى كان يضل محسوب عالمتجر. هلأ: أي إلغاء لطلب مش مُسلَّم بيشيلها (إذا موجودة).
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus!=='delivered'&&!['cancelled','returned','refused'].includes(prevStatus)){
-      unsyncOrderFromAccounting(id);
+    // أي إلغاء (حتى لو مُسلَّم): الطلب بيروح عن المتجر كامل
+    if(['cancelled','returned','refused'].includes(newStatus)&&!['cancelled','returned','refused'].includes(prevStatus)){
+      _removeOrderFromStore(id);
     }
     // طلب مُسلَّم يُلغى أو يُرجَع ⇒ عكس المبيعة. «ملغي» كان مستثنى، فكانت
     // تكلفته (شجر/مواد خام) تبقى محسوبة كأنها مباعة رغم رجوع البضاعة.
-    if(['cancelled','returned','refused'].includes(newStatus)&&prevStatus==='delivered'){
-      _handleDeliveredCancel(id,data,newStatus);
-    }
+
     // رجع الطلب «شغّال» (حتى «تم التوصيل») ⇒ قيد المرتجع القديم بينشال —
     // وإلا المبيعة بترجع تنسجّل وقيد المرتجع بيضل يمحيها عن المتجر
     if(!['cancelled','returned','refused'].includes(newStatus)&&['cancelled','returned','refused'].includes(prevStatus)){
@@ -10918,25 +10877,14 @@ function _refreshKashfIfOpen(){
 
 // Smart cancel handler: if delivery was in current session → remove from sales (reversal).
 // If delivery was in a different/closed session → keep old record, add refund to current period.
+// إلغاء طلب = كأنه ما إجا للمتجر: صفوف مبيعته (التكلفة والربح) بتنشال، ومعها أي
+// قيد مرتجع قديم إله — الكشف واحد ومفتوح دايماً، فما في «كشف مسكّر» نحافظ عليه.
 async function _handleDeliveredCancel(orderId, orderData, reason){
-  try{
-    const snap=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
-    if(snap.empty){
-      // No sale record found — just add refund entry to track the loss
-      await addPageRefundEntry(orderId,orderData,reason);
-      return;
-    }
-    if(_saleInOpenKashf(snap.docs[0].data()||{})){
-      // Same session: reverse the delivery — delete the sales records, no refund entry needed
-      const batch=db.batch();
-      snap.docs.forEach(d=>batch.delete(d.ref));
-      await batch.commit();
-      toast('↩️ تم إلغاء التسجيل من الكشف الحالي');
-    }else{
-      // Different/old session: keep old record intact, add refund entry for today (current period)
-      await addPageRefundEntry(orderId,orderData,reason);
-    }
-  }catch(e){console.error('_handleDeliveredCancel error:',e);}
+  await _removeOrderFromStore(orderId);
+}
+async function _removeOrderFromStore(orderId){
+  try{await unsyncOrderFromAccounting(orderId);}catch(e){}
+  try{await removePageRefundEntry(orderId);}catch(e){}
 }
 
 // ===== الإرجاع الجزئي — بند واحد أو بعض كميّته =====
@@ -11125,28 +11073,14 @@ async function _applyReturnToAccounting(order,idx,qty,remAfter,reason){
     const orderId=order.id;
     const p0=(order.products||[])[idx]||{};
     const found=await _findSaleRowForItem(orderId,idx,p0);
-    if(!found){
-      // ما في صفّ نشيله — نسجّل قيد مرتجع كي تخرج تكلفته (شجرُه وخامُه) من
-      // المستهلك بدل ما تظلّ محسوبةً عليّ إلى الأبد.
-      await addPageRefundEntry(orderId,order,reason||'إرجاع جزئي',[{...p0,qty}]);
-      toast('↩️ ما لقيت صفّ المبيعة — سجّلت قيد مرتجع بدلاً منه');
-      return;
-    }
+    // ما في صفّ ⇒ الطلب لسّا ما انحسب على المتجر (ما صار قيد التوصيل) — ما في إشي نشيله
+    if(!found)return;
     const ref=found.ref;
-    const sale=found.data;
-    const sameSession=_saleInOpenKashf(sale);
-    if(sameSession){
-      if(remAfter>0) await ref.update({qty:remAfter});
-      else await ref.delete();
-      toast(remAfter>0?'↩️ عُدِّلت كمية المبيعة في الكشف':'↩️ أُزيلت المبيعة من حساب المتجر');
-      // لا نُصلح مبالغ مشغل الشجر إلا هنا: في الفرع الآخر الصفوف تخصّ كشفاً
-      // مغلقاً، وتعديلها يُعيد كتابة كشف انتهى.
-      await _fixTreeCollected(orderId,order);
-    }else{
-      const p=(order.products||[])[idx]||{};
-      await addPageRefundEntry(orderId,order,reason||'إرجاع جزئي',[{...p,qty}]);
-      toast('↩️ سُجّل قيد مرتجع للبند في الكشف الحالي');
-    }
+    // الكشف واحد ومفتوح: البند الراجع بينقص من صفّ المبيعة نفسه (تكلفته وربحه)
+    if(remAfter>0) await ref.update({qty:remAfter});
+    else await ref.delete();
+    toast(remAfter>0?'↩️ نقصت كمية البند عن المتجر':'↩️ البند انشال عن المتجر');
+    await _fixTreeCollected(orderId,order);
   }catch(e){console.error('_applyReturnToAccounting error:',e);}
 }
 
@@ -13220,8 +13154,8 @@ window.openRestockWaits=openRestockWaits;window.rwNotified=rwNotified;window.rwD
 
 
 // ═══ ⚠️ طلبات ملغية لسّا محسوبة على متاجر ═══
-// قبل التصليح: طلب صار «عالق/مؤجل» وبعدين انلغى كانت مبيعته تضل على المتجر.
-// ومُسلَّم انلغى ممكن يكون عمداً «بدون إرجاع» (المتجر بيتحمّل). الإدارة بتقرّر.
+// القاعدة: الطلب الملغي بيروح عن المتجر كامل (تكلفة وربح). قبل التصليح في طلبات
+// ملغية ضلّت مبيعتها على المتجر — بعضها مع «قيد مرتجع» بيشيل التكلفة بس والربح ضلّ.
 let _sf={list:null,busy:false,sel:{}};
 async function _sfLoad(){
   if(_sf.busy||!_currentAdminUser)return;_sf.busy=true;
@@ -13232,8 +13166,8 @@ async function _sfLoad(){
       _fsLite('page_refunds',[],['orderId'])]);
     const D=new Map(dead.filter(o=>o.saleKept!==true).map(o=>[o.id,o])),R=new Set(refs.map(r=>r.orderId));
     const by={};
-    sales.forEach(x=>{const id=x.fromOrderId;if(!id||!D.has(id)||R.has(id))return;
-      const o=D.get(id);const b=by[id]=by[id]||{id,o,store:x.storeName||'',v:0,date:x.date||''};b.v+=(Number(x.sellPrice)||0)*(Number(x.qty)||1);});
+    sales.forEach(x=>{const id=x.fromOrderId;if(!id||!D.has(id))return;
+      const o=D.get(id);const b=by[id]=by[id]||{id,o,store:x.storeName||'',v:0,date:x.date||'',ref:R.has(id)};b.v+=(Number(x.sellPrice)||0)*(Number(x.qty)||1);});
     _sf.list=Object.values(by).map(b=>{const h=(b.o.editHistory||[]).map(e=>String(e&&e.note||''));
       const last=h.slice().reverse().find(n=>/←\s*(ملغي|مرتجع|رفض)/.test(n))||'';
       return {...b,delivered:/تم التوصيل\s*←/.test(last),last};}).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
@@ -13251,18 +13185,18 @@ function _sfBanner(){
     <br><span style="font-size:.74rem;color:#b91c1c;font-weight:700;">من قبل التصليح — راجعهم وقرّر</span></span><span style="color:#b91c1c;font-weight:900;font-size:.85rem;">افتح ←</span></button>`;
 }
 function openSaleFix(){
-  _sf.sel={};(_sf.list||[]).forEach(x=>{_sf.sel[x.id]=!x.delivered;});   // قبل التسليم: غلط أكيد ⇒ معلّم؛ بعده: إنت بتقرّر
+  _sf.sel={};(_sf.list||[]).forEach(x=>{_sf.sel[x.id]=true;});   // القاعدة: الملغي بيروح عن المتجر — كلّهم معلّمين
   document.getElementById('sfModal')?.remove();
   const ov=document.createElement('div');ov.id='sfModal';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100003;display:flex;align-items:flex-end;justify-content:center;';
   ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
     <div style="padding:14px 16px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <div><div style="font-weight:900;font-size:1rem;color:#b91c1c;">⚠️ طلبات ملغية لسّا على المتاجر</div>
-        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;">مبيعتها لسّا محسوبة على المتجر وما في قيد مرتجع</div></div>
+        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;">ملغية بس مبيعتها لسّا محسوبة على المتجر</div></div>
       <button onclick="document.getElementById('sfModal').remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:.95rem;cursor:pointer;">✕</button></div>
     <div style="padding:9px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;font-size:.72rem;color:#92400e;line-height:1.8;font-weight:700;">
-      • <b>انلغى قبل التسليم</b> (كان عالق/مؤجل) ⇒ غلط أكيد، معلّمين لحالهم.<br>
-      • <b>انلغى بعد التسليم</b> ⇒ إذا كان «بدون إرجاع» (المتجر بيتحمّل) خلّيه؛ إذا البضاعة رجعت علّمه.</div>
+      «↩️ شيل» = الطلب بيروح عن المتجر كامل (التكلفة والربح) كأنه ما إجاله — نفس اللي بيصير هلأ لما تلغي طلب.<br>
+      اللي عليها «قيد مرتجع قديم» كان شايل التكلفة بس، والربح لسّا على المتجر.</div>
     <div id="sfBody" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
     <div style="padding:10px 14px;border-top:1px solid #e5e7eb;display:flex;gap:8px;">
       <button onclick="sfApply(true)" style="flex:1;padding:12px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:.84rem;font-weight:900;cursor:pointer;">↩️ شيل المختار عن المتاجر</button>
@@ -13277,7 +13211,7 @@ function _sfPaint(){
   const sec=(t,arr)=>arr.length?`<div style="font-size:.76rem;font-weight:900;color:#374151;margin:10px 2px 4px;">${t} (${arr.length} · ${arr.reduce((s,x)=>s+x.v,0).toFixed(2)} د.أ)</div>`+arr.map(x=>`<label style="display:flex;align-items:flex-start;gap:9px;padding:9px 6px;border-top:1px solid #f3f4f6;cursor:pointer;">
       <input type="checkbox" ${_sf.sel[x.id]?'checked':''} onchange="_sf.sel['${x.id}']=this.checked" style="width:18px;height:18px;margin-top:2px;accent-color:#166534;flex-shrink:0;">
       <span style="flex:1;min-width:0;"><b style="font-size:.84rem;color:#111827;">${x.o.orderNum?'#'+_clrEsc(x.o.orderNum):'#'+x.id.slice(-5).toUpperCase()}</b> <span style="font-size:.72rem;color:#6b7280;">· ${_clrEsc(x.store||x.o.pageName||'')} · ${_clrEsc(x.date)}</span>
-        <div style="font-size:.72rem;color:#9ca3af;margin-top:2px;">${_clrEsc(x.last)}</div></span>
+        <div style="font-size:.72rem;color:#9ca3af;margin-top:2px;">${_clrEsc(x.last)}${x.ref?' · <span style="color:#b45309;">إله قيد مرتجع قديم (التكلفة بس)</span>':''}</div></span>
       <b style="font-size:.84rem;color:#b91c1c;white-space:nowrap;">${x.v.toFixed(2)}</b></label>`).join(''):'';
   b.innerHTML=sec('🚫 انلغى قبل التسليم',L.filter(x=>!x.delivered))+sec('📦 انلغى بعد التسليم',L.filter(x=>x.delivered))
     ||'<div style="padding:20px;text-align:center;color:#16a34a;font-weight:800;">✓ ولا طلب</div>';
@@ -13289,7 +13223,7 @@ async function sfApply(remove){
   let k=0;
   for(const x of L){
     try{
-      if(remove){const d=await db.collection('employee_orders').doc(x.id).get();await _handleDeliveredCancel(x.id,{id:x.id,...(d.exists?d.data():x.o)},'تصحيح — ملغي');}
+      if(remove)await _removeOrderFromStore(x.id);
       else await db.collection('employee_orders').doc(x.id).update({saleKept:true});
       k++;
     }catch(e){}
