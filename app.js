@@ -13162,11 +13162,14 @@ async function _sfLoad(){
   try{
     const [dead,sales,refs]=await Promise.all([
       _fsLite('employee_orders',[['status','in',_CN_DEAD]],['status','orderNum','customerName','pageName','editHistory','saleKept','date']),
-      _fsLite('operator_sales',[],['fromOrderId','storeName','sellPrice','qty','date']),
+      _fsLite('operator_sales',[],['fromOrderId','storeId','storeName','sellPrice','qty','date']),
       _fsLite('page_refunds',[],['orderId'])]);
+    await loadOpStores(true);
     const D=new Map(dead.filter(o=>o.saleKept!==true).map(o=>[o.id,o])),R=new Set(refs.map(r=>r.orderId));
+    // متجر انمسح ⇒ حسابه ما إله وجود، فطلباته القديمة ما إلها داعي بالمراجعة
+    const S=new Set((_opAllStoresList||[]).map(s=>s.id));
     const by={};
-    sales.forEach(x=>{const id=x.fromOrderId;if(!id||!D.has(id))return;
+    sales.forEach(x=>{const id=x.fromOrderId;if(!id||!D.has(id)||!S.has(x.storeId))return;
       const o=D.get(id);const b=by[id]=by[id]||{id,o,store:x.storeName||'',v:0,date:x.date||'',ref:R.has(id)};b.v+=(Number(x.sellPrice)||0)*(Number(x.qty)||1);});
     _sf.list=Object.values(by).map(b=>{const h=(b.o.editHistory||[]).map(e=>String(e&&e.note||''));
       const last=h.slice().reverse().find(n=>/←\s*(ملغي|مرتجع|رفض)/.test(n))||'';
