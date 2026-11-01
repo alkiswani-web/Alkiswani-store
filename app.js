@@ -12801,7 +12801,7 @@ async function sendDailyReport(){
 // فوراً — فالشي اليومي لسا بضغطة وحدة — ومعها صفُّ وجهاتها.
 const OP_FAM=[
   {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['@catreq','🛍️ الكتالوج','openCatAdmin()'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
-  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي']]},
+  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['@debts','📒 ديون المتاجر','openDebtBook()']]},
   // «@» = وجهةٌ بتفتح نافذة لا لوحة. الألوان والمخزون كانوا مدفونين جوّا
   // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
   {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
@@ -14291,6 +14291,7 @@ function renderOpStoresList(allStores){
                 </div>`
               :`<button onclick="promptLinkStore('${s.id}')" style="background:#f1f5f9;border:1px dashed #94a3b8;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#64748b;cursor:pointer;">+ ربط بصفحة</button>`
             }
+            <button onclick="openDebtBook('${s.id}')" style="background:#f6edd6;border:1px solid #c9a24a;border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:#5c4510;font-weight:700;cursor:pointer;">📒 دفتر الديون</button>
             <button onclick="toggleSalesMerchant('${s.id}',${!!s.salesMerchant})" style="background:${s.salesMerchant?'#eff6ff':'#f8fafc'};border:1px ${s.salesMerchant?'solid #93c5fd':'dashed #cbd5e1'};border-radius:20px;padding:2px 10px;font-family:'Tajawal',sans-serif;font-size:0.72rem;color:${s.salesMerchant?'#1e40af':'#64748b'};cursor:pointer;">${s.salesMerchant?'🧾 مواد خام ✓':'🧾 متجر مواد خام'}</button>
           </div>`:''}
         </div>
@@ -16520,7 +16521,8 @@ function renderOperatorDailyView(){
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر — دفعتلهم أو قبضتُ منهم</button>
           </div>`:''}
           ${!store.storeId?`<button onclick="hideStoreCard('${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(242,166,160,.1);color:#f2a6a0;border:1px solid rgba(242,166,160,.28);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">🗑️ هذا المتجر محذوف — خبّي كرته</button>`:''}
-          ${store.storeId?`<button onclick="openAcctDetail('${store.storeId}','${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>`:''}
+          ${store.storeId?`<div style="display:flex;gap:8px;margin-top:8px;"><button onclick="openAcctDetail('${store.storeId}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>
+            <button onclick="openDebtBook('${store.storeId}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(201,162,74,.14);color:#f3e0a6;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📒 دفتر الديون</button></div>`:''}
         </div>
         ${refundBlock}
         ${acctRow}
@@ -27554,3 +27556,241 @@ async function dxfDownload() {
 
 window.dxfLoadFont=dxfLoadFont; window.dxfDownload=dxfDownload; window.dxfUpdatePreview=dxfUpdatePreview; window.dxfTabActivated=dxfTabActivated;
 window.dxfSetMode=dxfSetMode; window.dxfLoadTraceImage=dxfLoadTraceImage; window.dxfApplyThreshold=dxfApplyThreshold;
+
+// ═══ 📒 دفتر ديون المتاجر ═══
+// دفتر تنظيم خاص لكل متجر: مين إله عند المتجر ومين المتجر عليه إله. منفصل
+// تماماً — ما بيلمس operator_sales ولا الدفعات ولا الرأس مال ولا الكشف.
+// كل شخص مستند واحد بـstore_debts وحركاته (ديون وتسديدات) مصفوفة جوّاه.
+// dir: 'o' = المتجر عليه لهالشخص، 'h' = الشخص عليه للمتجر.
+let _sd={storeId:'',storeName:'',people:[],filter:'all',unsub:null,entry:null};
+const _sdR=n=>Math.round((Number(n)||0)*100)/100;
+const _sdF=n=>{const v=_sdR(n);return v%1?v.toFixed(2):String(v);};
+const _sdD=d=>d?String(d).split('-').reverse().join('/'):'';
+function _sdBal(p){let b=0;(p.mv||[]).forEach(m=>{b+=m.k==='d'?(Number(m.a)||0):-(Number(m.a)||0);});return _sdR(b);}
+function _sdLate(p){if(_sdBal(p)<=0)return false;const t=jordanDateStr();return (p.mv||[]).some(m=>m.k==='d'&&m.due&&m.due<t);}
+function _sdCss(){
+  if(document.getElementById('sdCss'))return;
+  const s=document.createElement('style');s.id='sdCss';
+  s.textContent=`.sdOv{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100004;display:flex;align-items:flex-end;justify-content:center;font-family:'Tajawal',sans-serif;}
+  .sdSh{background:#fff;color:#18241d;width:100%;max-width:560px;border-radius:20px 20px 0 0;max-height:92vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0px);}
+  .sdSh *{box-sizing:border-box;}
+  .sdH{padding:14px 16px 10px;border-bottom:1px solid #e7e4da;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .sdH b{font-size:1.02rem;}.sdH small{display:block;color:#6b7469;font-size:.74rem;margin-top:2px;}
+  .sdX{border:0;background:#f3f1ea;border-radius:10px;width:32px;height:32px;font-size:.95rem;cursor:pointer;flex-shrink:0;}
+  .sdB{overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px;}
+  .sdFt{padding:10px 14px 14px;border-top:1px solid #e7e4da;display:flex;gap:8px;}
+  .sdFt button,.sdBtn{flex:1;border:0;border-radius:12px;padding:12px;font-family:'Tajawal',sans-serif;font-weight:900;font-size:.88rem;cursor:pointer;}
+  .sdG{background:#1a3a2a;color:#fff;}.sdY{background:#c9a24a;color:#1a1a1a;}.sdN{background:#f3f1ea;color:#18241d;}
+  .sdBand{background:#1a3a2a;color:#fff;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+  .sdTot{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .sdTot div{background:rgba(255,255,255,.08);border-radius:12px;padding:8px 11px;}
+  .sdTot span{display:block;font-size:.72rem;opacity:.8;font-weight:700;}.sdTot b{font-size:1.2rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  .sdSep{font-size:.72rem;background:rgba(201,162,74,.18);border:1px dashed rgba(217,180,94,.6);border-radius:10px;padding:6px 10px;line-height:1.6;font-weight:700;color:#f7e7bf;}
+  .sdFl{display:flex;gap:6px;overflow-x:auto;}
+  .sdFl button{border:1px solid #e7e4da;background:#fff;color:#6b7469;border-radius:99px;padding:6px 12px;font-family:'Tajawal',sans-serif;font-weight:800;font-size:.78rem;white-space:nowrap;cursor:pointer;}
+  .sdFl button.on{border-color:#1a3a2a;color:#18241d;background:#f6edd6;}
+  .sdList{border:1px solid #e7e4da;border-radius:14px;overflow:hidden;}
+  .sdP{display:flex;align-items:center;gap:10px;padding:11px 12px;border:0;border-top:1px solid #e7e4da;width:100%;background:#fff;text-align:right;font-family:'Tajawal',sans-serif;cursor:pointer;color:#18241d;}
+  .sdP:first-child{border-top:0;}
+  .sdAv{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-weight:900;flex-shrink:0;}
+  .sdAv.o{background:#fdecea;color:#b42318;}.sdAv.h{background:#e8f6ec;color:#15803d;}.sdAv.z{background:#f3f1ea;color:#6b7469;}
+  .sdPm{flex:1;min-width:0;}.sdPm b{display:block;font-size:.9rem;}.sdPm small{display:block;color:#6b7469;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sdPa{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}.sdPa b{font-size:.98rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  .sdPill{font-size:.66rem;font-weight:800;border-radius:99px;padding:1px 8px;}
+  .sdPill.o{background:#fdecea;color:#b42318;}.sdPill.h{background:#e8f6ec;color:#15803d;}.sdPill.z{background:#f3f1ea;color:#6b7469;}.sdPill.w{background:#fdf3e1;color:#a15c07;}
+  .sdO{color:#b42318;}.sdHv{color:#15803d;}
+  .sdBig{border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .sdBig.o{background:#fdecea;}.sdBig.h{background:#e8f6ec;}.sdBig.z{background:#f3f1ea;}
+  .sdBig span{font-weight:800;font-size:.84rem;}.sdBig b{font-size:1.35rem;font-weight:900;font-variant-numeric:tabular-nums;}
+  .sdMv{display:grid;grid-template-columns:auto 1fr auto auto;gap:9px;align-items:center;padding:9px 0;border-top:1px solid #e7e4da;}
+  .sdMv:first-child{border-top:0;}
+  .sdIc{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:.85rem;}
+  .sdIc.d{background:#fdecea;}.sdIc.p{background:#e8f6ec;}
+  .sdMv b{display:block;font-size:.84rem;}.sdMv small{color:#6b7469;font-size:.7rem;}
+  .sdMa{text-align:left;font-weight:900;font-size:.9rem;font-variant-numeric:tabular-nums;}.sdMa small{display:block;font-weight:700;}
+  .sdDel{border:0;background:none;color:#9ca3af;font-size:.85rem;cursor:pointer;padding:4px;}
+  .sdFd{display:flex;flex-direction:column;gap:5px;}.sdFd label{font-size:.76rem;font-weight:800;color:#6b7469;}
+  .sdFd input,.sdFd select{border:1px solid #e7e4da;background:#faf9f5;color:#18241d;border-radius:11px;padding:11px 12px;font-family:'Tajawal',sans-serif;font-size:.95rem;width:100%;}
+  .sdTwo{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .sdSeg{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .sdSeg button{border:2px solid #e7e4da;background:#faf9f5;color:#18241d;border-radius:12px;padding:9px 6px;font-family:'Tajawal',sans-serif;font-weight:900;font-size:.84rem;line-height:1.4;cursor:pointer;}
+  .sdSeg button small{display:block;font-weight:700;color:#6b7469;font-size:.7rem;}
+  .sdSeg button.on.o{border-color:#b42318;background:#fdecea;}.sdSeg button.on.h{border-color:#15803d;background:#e8f6ec;}
+  .sdSt{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px;border:1px solid #e7e4da;border-radius:13px;background:#fff;width:100%;font-family:'Tajawal',sans-serif;cursor:pointer;color:#18241d;text-align:right;}
+  .sdSt b{font-size:.92rem;}.sdSt small{color:#6b7469;font-size:.74rem;}
+  .sdCnt{background:#c9a24a;color:#1a1a1a;border-radius:99px;padding:0 7px;font-size:.72rem;font-weight:900;margin-right:4px;}`;
+  document.head.appendChild(s);
+}
+function _sdOpen(id,html){
+  _sdCss();document.getElementById(id)?.remove();
+  const ov=document.createElement('div');ov.id=id;ov.className='sdOv';
+  ov.innerHTML=`<div class="sdSh" role="dialog">${html}</div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);return ov;
+}
+function _sdClose(id){document.getElementById(id)?.remove();}
+
+// بدون متجر ⇒ قائمة المتاجر وعدد الأرصدة المفتوحة عند كل واحد
+async function openDebtBook(storeId,storeName){
+  if(storeId)return _sdOpenStore(storeId,storeName);
+  if(!_opStoresList.length)await loadOpStores();
+  let cnt={};
+  try{const s=await db.collection('store_debts').get();
+    s.docs.forEach(d=>{const p=d.data();if(_sdBal(p)>0)cnt[p.storeId]=(cnt[p.storeId]||0)+1;});}catch(e){}
+  const L=(_opStoresList||[]).slice().sort((a,b)=>(cnt[b.id]||0)-(cnt[a.id]||0)||String(a.name).localeCompare(String(b.name),'ar'));
+  _sdOpen('sdPick',`<div class="sdH"><div><b>📒 دفتر ديون المتاجر</b><small>دفتر خاص لكل متجر — ما بيأثر على الحساب ولا الرأس مال</small></div><button class="sdX" onclick="_sdClose('sdPick')">✕</button></div>
+    <div class="sdB">${L.map(s=>`<button class="sdSt" onclick="_sdClose('sdPick');openDebtBook('${s.id}')"><span><b>🏪 ${_clrEsc(s.name)}</b>${cnt[s.id]?`<span class="sdCnt">${cnt[s.id]}</span>`:''}</span><small>${cnt[s.id]?'فيه أرصدة مفتوحة':'افتح الدفتر'} ←</small></button>`).join('')
+      ||'<div style="text-align:center;color:#6b7469;padding:20px;">ما في متاجر</div>'}</div>`);
+}
+function _sdOpenStore(storeId,storeName){
+  const st=(_opAllStoresList||[]).find(s=>s.id===storeId)||(_opStoresList||[]).find(s=>s.id===storeId);
+  _sd.storeId=storeId;_sd.storeName=storeName||(st&&st.name)||'';_sd.filter='all';_sd.people=[];
+  _sdOpen('sdBook',`<div class="sdH"><div><b>📒 دفتر ديون ${_clrEsc(_sd.storeName)}</b><small>دفتر خاص بالمتجر</small></div><button class="sdX" onclick="_sdCloseBook()">✕</button></div>
+    <div class="sdB" id="sdBody"><div style="text-align:center;color:#6b7469;padding:20px;">⏳ جاري التحميل…</div></div>
+    <div class="sdFt"><button class="sdG" onclick="sdEntry('d')">➕ دين جديد</button><button class="sdY" onclick="sdEntry('p')">💵 تسديد</button></div>`);
+  if(_sd.unsub){_sd.unsub();_sd.unsub=null;}
+  _sd.unsub=db.collection('store_debts').where('storeId','==',storeId).onSnapshot(s=>{
+    _sd.people=s.docs.map(d=>({id:d.id,...d.data()}));
+    _sdPaint();
+    const pid=document.getElementById('sdPerson')?.dataset.pid;if(pid)sdPerson(pid);
+  },e=>{const b=document.getElementById('sdBody');if(b)b.innerHTML=`<div style="text-align:center;color:#b42318;padding:20px;">❌ ما قدرنا نحمّل الدفتر — ${_clrEsc(e.message||'')}</div>`;});
+}
+function _sdCloseBook(){if(_sd.unsub){_sd.unsub();_sd.unsub=null;}['sdBook','sdPerson','sdEntry','sdShare'].forEach(_sdClose);}
+function _sdPaint(){
+  const b=document.getElementById('sdBody');if(!b)return;
+  let O=0,H=0;_sd.people.forEach(p=>{const v=_sdBal(p);if(v>0){if(p.dir==='h')H+=v;else O+=v;}});
+  const f=_sd.filter;
+  const L=_sd.people.filter(p=>{const v=_sdBal(p);return f==='all'?true:f==='z'?v<=0:f==='late'?_sdLate(p):(v>0&&(p.dir||'o')===f);})
+    .sort((a,c)=>(_sdLate(c)-_sdLate(a))||(_sdBal(c)-_sdBal(a))||String(a.name).localeCompare(String(c.name),'ar'));
+  const fl=[['all','الكل'],['o','عليه'],['h','إله'],['late','⏰ متأخر'],['z','مسدّد']];
+  b.innerHTML=`<div class="sdBand"><div class="sdTot"><div><span>عليه لناس</span><b style="color:#ffb4ab">${_sdF(O)}</b></div><div><span>إله عند ناس</span><b style="color:#9be7b0">${_sdF(H)}</b></div></div>
+      <div class="sdSep">🔒 منفصل تماماً: ما بيدخل بحسابك مع المتجر، ولا بالرأس مال، ولا بالكشف.</div></div>
+    <div class="sdFl">${fl.map(([k,t])=>`<button class="${f===k?'on':''}" onclick="_sd.filter='${k}';_sdPaint()">${t}</button>`).join('')}</div>
+    <div class="sdList">${L.map(p=>{const v=_sdBal(p),c=v<=0?'z':(p.dir||'o'),mv=(p.mv||[]).slice().sort((x,y)=>String(y.d).localeCompare(String(x.d)))[0];
+      return `<button class="sdP" onclick="sdPerson('${p.id}')"><span class="sdAv ${c}">${_clrEsc(String(p.name||'؟').trim()[0]||'؟')}</span>
+        <span class="sdPm"><b>${_clrEsc(p.name||'')}</b><small>${mv?`آخر حركة ${_sdD(mv.d)} · ${mv.k==='d'?'دين':'تسديد'}${mv.n?' · '+_clrEsc(mv.n):''}`:'بدون حركات'}</small></span>
+        <span class="sdPa"><b class="${c==='o'?'sdO':c==='h'?'sdHv':''}">${_sdF(Math.max(0,v))}</b>${_sdLate(p)?'<span class="sdPill w">⏰ متأخر</span>':`<span class="sdPill ${c}">${c==='o'?'عليه':c==='h'?'إله':'مسدّد ✓'}</span>`}</span></button>`;}).join('')
+      ||`<div style="padding:22px;text-align:center;color:#6b7469;font-weight:700;">${_sd.people.length?'ما في أشخاص بهالفلتر':'الدفتر فاضي — اكبس «➕ دين جديد» لأول دين'}</div>`}</div>`;
+}
+function sdPerson(id){
+  const p=_sd.people.find(x=>x.id===id);if(!p){_sdClose('sdPerson');return;}
+  const v=_sdBal(p),c=v<=0?'z':(p.dir||'o'),first=String(p.name||'').split(' ')[0];
+  let run=0;
+  const mv=(p.mv||[]).map((m,i)=>({...m,i})).sort((a,b)=>String(a.d).localeCompare(String(b.d))||(a.at||0)-(b.at||0))
+    .map(m=>{run=_sdR(run+(m.k==='d'?m.a:-m.a));return {...m,run};}).reverse();
+  const ov=_sdOpen('sdPerson',`<div class="sdH"><div><b>${_clrEsc(p.name||'')}</b><small>${p.phone?_clrEsc(p.phone):'بدون رقم'} · <a href="#" onclick="event.preventDefault();sdEditPerson('${p.id}')" style="color:#1a3a2a;font-weight:800;">✏️ تعديل</a></small></div><button class="sdX" onclick="_sdClose('sdPerson')">✕</button></div>
+    <div class="sdB">
+      <div class="sdBig ${c}"><span>${v<=0?'الحساب مسدّد ✓':c==='o'?`المتجر عليه لـ${_clrEsc(first)}`:`${_clrEsc(first)} عليه للمتجر`}</span><b class="${c==='o'?'sdO':c==='h'?'sdHv':''}">${_sdF(Math.max(0,v))} د.أ</b></div>
+      ${_sdLate(p)?'<span class="sdPill w" style="align-self:flex-start;font-size:.75rem;padding:3px 10px;">⏰ فات موعد السداد</span>':''}
+      <div>${mv.map(m=>`<div class="sdMv"><span class="sdIc ${m.k==='d'?'d':'p'}">${m.k==='d'?'📝':'💵'}</span>
+        <span style="min-width:0;"><b>${m.k==='d'?'دين':'تسديد'}${m.n?' — '+_clrEsc(m.n):''}</b><small>${_sdD(m.d)}${m.due?' · موعد السداد '+_sdD(m.due):''}${m.by?' · '+_clrEsc(m.by):''}</small></span>
+        <span class="sdMa">${m.k==='d'?'+':'−'}${_sdF(m.a)}<small style="color:#6b7469;">باقي ${_sdF(m.run)}</small></span>
+        <button class="sdDel" title="حذف الحركة" onclick="sdDelMv('${p.id}',${m.i})">🗑</button></div>`).join('')
+        ||'<div style="text-align:center;color:#6b7469;padding:14px;">ما في حركات</div>'}</div>
+      ${v<=0?`<button class="sdBtn sdN" style="color:#b42318;" onclick="sdDelPerson('${p.id}')">🗑 شيل الشخص من الدفتر</button>`:''}
+    </div>
+    <div class="sdFt"><button class="sdG" onclick="sdEntry('d','${p.id}')">➕ دين</button><button class="sdY" onclick="sdEntry('p','${p.id}')"${v<=0?' disabled style="opacity:.5"':''}>💵 تسديد</button><button class="sdN" onclick="sdShare('${p.id}')">📤 كشف</button></div>`);
+  ov.dataset.pid=id;
+}
+function sdEntry(kind,pid){
+  const open=_sd.people.filter(p=>kind==='d'||_sdBal(p)>0);
+  if(kind==='p'&&!open.length){toast('ما في حدا عليه رصيد');return;}
+  const sel=pid||(kind==='p'?open[0].id:(open[0]?open[0].id:'new'));
+  const p0=_sd.people.find(x=>x.id===sel);
+  _sd.entry={kind,dir:p0?(p0.dir||'o'):'o'};
+  const opts=open.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${_clrEsc(p.name)}${_sdBal(p)>0?` (${(p.dir||'o')==='o'?'عليه':'إله'} ${_sdF(_sdBal(p))})`:''}</option>`).join('')+(kind==='d'?`<option value="new" ${sel==='new'?'selected':''}>➕ شخص جديد…</option>`:'');
+  _sdOpen('sdEntry',`<div class="sdH"><div><b>${kind==='d'?'➕ دين جديد':'💵 تسديد'}</b><small>${_clrEsc(_sd.storeName)} · ما بيأثر على حسابك</small></div><button class="sdX" onclick="_sdClose('sdEntry')">✕</button></div>
+    <div class="sdB">
+      <div class="sdFd"><label for="sdPer">الشخص</label><select id="sdPer" onchange="_sdPerChg()">${opts}</select></div>
+      <div id="sdNew" style="display:${sel==='new'?'flex':'none'};flex-direction:column;gap:10px;">
+        <div class="sdSeg"><button id="sdDirO" class="o ${_sd.entry.dir==='o'?'on':''}" onclick="_sdDir('o')">🔴 على المتجر<small>المتجر مدين لهالشخص</small></button>
+          <button id="sdDirH" class="h ${_sd.entry.dir==='h'?'on':''}" onclick="_sdDir('h')">🟢 إله عند الشخص<small>الشخص مدين للمتجر</small></button></div>
+        <div class="sdTwo"><div class="sdFd"><label for="sdName">الاسم</label><input id="sdName" placeholder="مثلاً: المطبعة"></div>
+          <div class="sdFd"><label for="sdPhone">الرقم (اختياري)</label><input id="sdPhone" inputmode="tel" placeholder="07…"></div></div>
+      </div>
+      <div class="sdTwo"><div class="sdFd"><label for="sdAmt">المبلغ (د.أ)</label><input id="sdAmt" inputmode="decimal" placeholder="0.00"></div>
+        <div class="sdFd"><label for="sdDate">التاريخ</label><input id="sdDate" type="date" value="${jordanDateStr()}"></div></div>
+      ${kind==='d'?'<div class="sdFd"><label for="sdDue">موعد السداد (اختياري)</label><input id="sdDue" type="date"></div>':''}
+      <div class="sdFd"><label for="sdNote">ملاحظة</label><input id="sdNote" placeholder="${kind==='d'?'شو الدين؟':'كاش / كليك / …'}"></div>
+    </div>
+    <div class="sdFt"><button id="sdSave" class="${kind==='d'?'sdG':'sdY'}" onclick="sdSaveEntry()">حفظ</button><button class="sdN" onclick="_sdClose('sdEntry')">إلغاء</button></div>`);
+}
+function _sdPerChg(){const v=document.getElementById('sdPer').value;document.getElementById('sdNew').style.display=v==='new'?'flex':'none';}
+function _sdDir(d){_sd.entry.dir=d;document.getElementById('sdDirO').classList.toggle('on',d==='o');document.getElementById('sdDirH').classList.toggle('on',d==='h');}
+async function sdSaveEntry(){
+  const E=_sd.entry;if(!E)return;
+  const a=_sdR(parseFloat(String(document.getElementById('sdAmt').value).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫','.')));
+  if(!(a>0)){toast('اكتب المبلغ');return;}
+  const pid=document.getElementById('sdPer').value;
+  const m={k:E.kind,a,d:document.getElementById('sdDate').value||jordanDateStr(),n:document.getElementById('sdNote').value.trim(),
+    at:Date.now(),by:_currentAdminUser||''};
+  if(E.kind==='d'){const due=document.getElementById('sdDue').value;if(due)m.due=due;}
+  const btn=document.getElementById('sdSave');if(btn)btn.disabled=true;
+  try{
+    if(pid==='new'){
+      const name=document.getElementById('sdName').value.trim();
+      if(!name){toast('اكتب اسم الشخص');if(btn)btn.disabled=false;return;}
+      await db.collection('store_debts').add({storeId:_sd.storeId,storeName:_sd.storeName,name,
+        phone:document.getElementById('sdPhone').value.trim(),dir:E.dir,mv:[m],
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    }else{
+      const ref=db.collection('store_debts').doc(pid);
+      await db.runTransaction(async t=>{
+        const s=await t.get(ref);if(!s.exists)throw new Error('الشخص مش موجود');
+        const p=s.data();
+        if(E.kind==='p'&&a>_sdBal(p)+0.001)throw new Error(`التسديد أكبر من الباقي (${_sdF(_sdBal(p))})`);
+        t.update(ref,{mv:[...(p.mv||[]),m],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      });
+    }
+    _sdClose('sdEntry');toast(E.kind==='d'?'✅ انسجّل الدين':'✅ انسجّل التسديد');
+  }catch(e){toast('❌ '+(e.message||e));if(btn)btn.disabled=false;}
+}
+async function sdDelMv(pid,i){
+  const p=_sd.people.find(x=>x.id===pid);const m=p&&(p.mv||[])[i];if(!m)return;
+  if(!confirm(`نحذف ${m.k==='d'?'الدين':'التسديد'} ${_sdF(m.a)} د.أ (${_sdD(m.d)})؟`))return;
+  const ref=db.collection('store_debts').doc(pid);
+  try{
+    await db.runTransaction(async t=>{
+      const s=await t.get(ref);if(!s.exists)return;
+      const mv=(s.data().mv||[]).slice();
+      // نحذف الحركة نفسها بمطابقتها، مش بالترتيب — لو انضافت حركة بالنص من جهاز ثاني
+      const j=mv.findIndex(x=>x.at===m.at&&x.a===m.a&&x.k===m.k&&x.d===m.d);
+      if(j<0)return;mv.splice(j,1);
+      t.update(ref,{mv,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    });
+    toast('🗑 انحذفت الحركة');
+  }catch(e){toast('❌ '+(e.message||e));}
+}
+async function sdDelPerson(pid){
+  const p=_sd.people.find(x=>x.id===pid);if(!p)return;
+  if(_sdBal(p)>0){toast('عليه رصيد — سدّده أوّل');return;}
+  if(!confirm(`نشيل «${p.name}» من الدفتر مع كل حركاته؟`))return;
+  try{await db.collection('store_debts').doc(pid).delete();_sdClose('sdPerson');toast('🗑 انشال من الدفتر');}catch(e){toast('❌ '+(e.message||e));}
+}
+async function sdEditPerson(pid){
+  const p=_sd.people.find(x=>x.id===pid);if(!p)return;
+  const name=prompt('الاسم:',p.name||'');if(name===null)return;
+  const phone=prompt('الرقم (اختياري):',p.phone||'');if(phone===null)return;
+  if(!name.trim()){toast('الاسم ما بصير يكون فاضي');return;}
+  try{await db.collection('store_debts').doc(pid).update({name:name.trim(),phone:phone.trim(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});toast('✅ انحفظ');}
+  catch(e){toast('❌ '+(e.message||e));}
+}
+function _sdText(p){
+  const v=_sdBal(p),d=p.dir||'o';
+  const rows=(p.mv||[]).slice().sort((a,b)=>String(a.d).localeCompare(String(b.d))||(a.at||0)-(b.at||0))
+    .map(m=>`${_sdD(m.d)}  ${m.k==='d'?'دين':'تسديد'}  ${_sdF(m.a)}${m.n?' ('+m.n+')':''}`).join('\n');
+  return `📒 كشف ${p.name} — ${_sd.storeName}\n${rows}\n—————\nالباقي: ${_sdF(Math.max(0,v))} د.أ ${v<=0?'(مسدّد ✓)':d==='o'?'على المتجر':'على '+p.name}`;
+}
+function _sdWa(phone){const n=String(phone||'').replace(/[^0-9]/g,'');if(!n)return '';return n.startsWith('962')?n:n.startsWith('0')?'962'+n.slice(1):n.length===9?'962'+n:n;}
+function sdShare(pid){
+  const p=_sd.people.find(x=>x.id===pid);if(!p)return;
+  const t=_sdText(p),w=_sdWa(p.phone);
+  _sdOpen('sdShare',`<div class="sdH"><div><b>📤 كشف للواتساب</b><small>${_clrEsc(p.name)}</small></div><button class="sdX" onclick="_sdClose('sdShare')">✕</button></div>
+    <div class="sdB"><div style="background:#faf9f5;border:1px solid #e7e4da;border-radius:12px;padding:10px 12px;font-size:.82rem;line-height:1.8;white-space:pre-wrap;">${_clrEsc(t)}</div></div>
+    <div class="sdFt">${w?`<button class="sdG" onclick="window.open('https://wa.me/${w}?text='+encodeURIComponent(_sdText(_sd.people.find(x=>x.id==='${p.id}'))),'_blank')">💬 لرقمه</button>`:''}
+      <button class="${w?'sdN':'sdG'}" onclick="window.open('https://wa.me/?text='+encodeURIComponent(_sdText(_sd.people.find(x=>x.id==='${p.id}'))),'_blank')">💬 اختار جهة</button>
+      <button class="sdN" onclick="navigator.clipboard&&navigator.clipboard.writeText(_sdText(_sd.people.find(x=>x.id==='${p.id}'))).then(()=>toast('📋 انسخ'),()=>{})">📋 نسخ</button></div>`);
+}
+window.openDebtBook=openDebtBook;window.sdPerson=sdPerson;window.sdEntry=sdEntry;window.sdSaveEntry=sdSaveEntry;
+window.sdDelMv=sdDelMv;window.sdDelPerson=sdDelPerson;window.sdEditPerson=sdEditPerson;window.sdShare=sdShare;
+window._sdPerChg=_sdPerChg;window._sdDir=_sdDir;window._sdClose=_sdClose;window._sdCloseBook=_sdCloseBook;window._sdPaint=_sdPaint;
