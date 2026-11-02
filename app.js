@@ -9779,6 +9779,9 @@ async function saveEmpOrderEdit(){
     // فرق الألوان بين القديم والجديد — لا المجموع، فلا ينخصم شي مرّتين
     _orderStockSync(_empEditOrderId,prev,{products:updateData.products,colorStockReturned:prev.colorStockReturned},
       prev.colorStockApplied===true,_cnShouldHold(prev.status));
+    // الطلب محسوب على المتجر (من قيد التوصيل) ⇒ تكلفته لازم تمشي مع التعديل:
+    // المتجر الجديد، المنتجات والكميات الجديدة. كانت تضلّ على القديم.
+    _rebuildOrderSale(_empEditOrderId);
     toast('✅ تم حفظ التعديلات');
     closeEmpOrderEdit();
   }catch(e){toast('❌ '+e.message);}
@@ -10723,6 +10726,11 @@ async function updateEmpOrderStatus(id,newStatus){
     // طلب مُسلَّم يُلغى أو يُرجَع ⇒ عكس المبيعة. «ملغي» كان مستثنى، فكانت
     // تكلفته (شجر/مواد خام) تبقى محسوبة كأنها مباعة رغم رجوع البضاعة.
 
+    // رجع لورا قبل «قيد التوصيل» (انتظار مندوب، تجهيز، جديد…) ⇒ ما عاد
+    // محسوب على المتجر. كانت مبيعاته تطلع بس تكلفته تضلّ عليه.
+    if(_SALE_PRE.includes(newStatus)&&_SALE_ON.includes(prevStatus)){
+      unsyncOrderFromAccounting(id);
+    }
     // رجع الطلب «شغّال» (حتى «تم التوصيل») ⇒ قيد المرتجع القديم بينشال —
     // وإلا المبيعة بترجع تنسجّل وقيد المرتجع بيضل يمحيها عن المتجر
     if(!['cancelled','returned','refused'].includes(newStatus)&&['cancelled','returned','refused'].includes(prevStatus)){
@@ -10886,6 +10894,34 @@ async function _removeOrderFromStore(orderId){
   try{await unsyncOrderFromAccounting(orderId);}catch(e){}
   try{await removePageRefundEntry(orderId);}catch(e){}
 }
+// حالات الطلب وهو محسوب على المتجر، والحالات اللي قبل ما ينحسب
+const _SALE_ON=['delivering','delivered','onhold','postponed'];
+const _SALE_PRE=['pending','preparing','prepared','waiting_rep','queued'];
+// طلب محسوب على المتجر وتعدّل ⇒ نعيد بناء صفوف مبيعته من الطلب كما هو هلأ:
+// المتجر، المنتجات، والكميات بعد أي إرجاع جزئي. التاريخ والكشف بيضلّوا نفسهم.
+async function _rebuildOrderSale(orderId){
+  try{
+    const snap=await db.collection('employee_orders').doc(orderId).get();
+    if(!snap.exists)return false;
+    const o={id:orderId,...snap.data()};
+    const old=await db.collection('operator_sales').where('fromOrderId','==',orderId).get();
+    // ما انحسب أصلاً وهو مش قيد التوصيل/مُسلَّم ⇒ ما إلنا دخل
+    if(old.empty&&!['delivering','delivered'].includes(o.status))return false;
+    if(!_opStoresList.length)await loadOpStores();
+    // صفحته مش مربوطة بمتجر ⇒ ما في وين نكتب، فما منشيل القديم
+    if(_SALE_ON.includes(o.status)&&!_opStoresList.some(s=>s.pageId===o.pageId))return false;
+    const keep=old.empty?{}:(old.docs[0].data()||{});
+    if(!old.empty){const b=db.batch();old.docs.forEach(d=>b.delete(d.ref));await b.commit();}
+    if(!_SALE_ON.includes(o.status)){_refreshKashfIfOpen();return true;}
+    const prods=(o.products||[]).map((p,i)=>({...p,qty:_remQty(o,i)}));
+    await syncOrderToAccounting(orderId,{...o,products:prods},keep.date||o.deliveredDate||jordanDateStr(),true,
+      keep.sessionId||_opCurrentSession?.id||null,true);
+    // بند رجع كلّه: syncOrderToAccounting بيكتبه بكمية 1 — منشيله
+    for(let i=0;i<prods.length;i++) if(!(prods[i].qty>0)) await db.collection('operator_sales').doc(`${orderId}_${i}`).delete().catch(()=>{});
+    _refreshKashfIfOpen();return true;
+  }catch(e){console.error('_rebuildOrderSale error:',e);return false;}
+}
+window._rebuildOrderSale=_rebuildOrderSale;
 
 // ===== الإرجاع الجزئي — بند واحد أو بعض كميّته =====
 // الزبونة تأخذ المبخرة وتُرجع الشجرة، أو تطلب ثلاث شجرات فتُرجع واحدة.
@@ -16132,7 +16168,45 @@ async function _loadOpSessionData(){
     renderOperatorDailyView();
     const changed=await _autoSyncDeliveredToSales(orders);
     if(changed) renderOperatorDailyView();
+    // مرّة بكل فتحة: تكلفة على المتجر ما بتطابق طلبها ⇒ نصلّحها ونعيد التحميل
+    if(!_srecDone&&_currentAdminUser&&_opCurrentSession.status!=='closed'){
+      _srecDone=true;
+      const n=await _reconcileStoreSales(from);
+      if(n){toast(`🔧 تصلّحت تكلفة ${n} طلب على المتاجر`);_loadOpSessionData();}
+    }
   });
+}
+
+// ═══ مطابقة تكلفة المتاجر مع طلباتها ═══
+// صفوف المبيعة بتنكتب لحظة «قيد التوصيل». إذا الطلب تعدّل بعدها (متجر،
+// منتجات، كميات) أو رجع لورا لانتظار مندوب، الصفوف كانت تضلّ قديمة — فالمتجر
+// محسوب عليه تكلفة غلط. هون منلقطهم ومنصلّحهم: الرجوع لورا ⇒ نشيل، التعديل ⇒
+// نعيد البناء. من بداية الكشف المفتوح وبس.
+let _srecDone=false;
+async function _reconcileStoreSales(from){
+  try{
+    if(!_opStoresList.length)await loadOpStores();
+    await _loadStoreReset();
+    const [rows,orders]=await Promise.all([
+      _fsLite('operator_sales',[['date','>=',from||'0000']],['fromOrderId','storeId','productId','productName','qty','unitsPerItem','date']),
+      _fsLite('employee_orders',[['status','in',[..._SALE_ON,..._SALE_PRE]]],['status','pageId','products','returns'])]);
+    const O=new Map(orders.map(o=>[o.id,o])),by={};
+    rows.forEach(r=>{if(r.fromOrderId)(by[r.fromOrderId]=by[r.fromOrderId]||[]).push(r);});
+    let n=0;
+    for(const id of Object.keys(by)){
+      const o=O.get(id);if(!o)continue;              // ملغي/محذوف — إلهم أدوات لحالهم
+      const R=by[id];
+      // متجر إله «حساب جديد»: اللي قبل تاريخه مطويّ بالرصيد الافتتاحي — ما منلمسه
+      if(R.some(r=>_srOn(r.storeId)&&!_srIn(r.storeId,r)))continue;
+      if(_SALE_PRE.includes(o.status)){await unsyncOrderFromAccounting(id);n++;continue;}
+      const st=_opAllStoresList.find(s=>s.pageId&&s.pageId===o.pageId)||_opStoresList.find(s=>s.pageId===o.pageId);
+      const rk=R.map(r=>(r.productId||r.productName)+'×'+_sdR((Number(r.qty)||0)/(Number(r.unitsPerItem)||1))).sort().join(',');
+      const pk=(o.products||[]).map((p,i)=>[(p.id||p.name),_remQty(o,i)]).filter(x=>x[1]>0).map(x=>x[0]+'×'+x[1]).sort().join(',');
+      const storeBad=st?R.some(r=>r.storeId!==st.id):false;
+      if((rk!==pk||storeBad)&&await _rebuildOrderSale(id))n++;
+    }
+    return n;
+  }catch(e){console.error('_reconcileStoreSales error:',e);return 0;}
 }
 
 function prevOpDay(){
