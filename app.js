@@ -27921,7 +27921,7 @@ window._sdPerChg=_sdPerChg;window._sdDir=_sdDir;window._sdClose=_sdClose;window.
 function _szCss(){
   if(document.getElementById('szCss'))return;
   const s=document.createElement('style');s.id='szCss';
-  s.textContent=`.szOv{position:fixed;inset:0;z-index:100005;background:radial-gradient(120% 40% at 100% 0%,#1a3326 0%,transparent 60%),#0b1210;color:#eef2ee;font-family:'Tajawal',sans-serif;direction:rtl;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  s.textContent=`.szOv{position:fixed;inset:0;z-index:9000;background:radial-gradient(120% 40% at 100% 0%,#1a3326 0%,transparent 60%),#0b1210;color:#eef2ee;font-family:'Tajawal',sans-serif;direction:rtl;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .szOv *{box-sizing:border-box}
   .szW{max-width:560px;margin:0 auto;padding:14px 16px calc(30px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
   .szTop{display:flex;align-items:center;gap:10px;position:sticky;top:0;padding:8px 0;background:#0b1210;z-index:2}
@@ -28069,13 +28069,21 @@ async function openStoreLedger(id){
       <div class="szBig szN">${Math.abs(tot)<0.01?'الحساب مسوّى':tot>0?`عليك تدفعلهم ${_szF(tot)} د.أ`:`إلك عندهم ${_szF(-tot)} د.أ`}</div>
 </div>
     <div class="szActs">
-      <button onclick="showAddWithdrawalModalForStore('${id}','${_payEsc(st.name)}','payment')">💳<br>دفعة</button>
+      <button onclick="_szPay('${id}','${_payEsc(st.name)}')">💳<br>دفعة</button>
       <button onclick="_szShare()">💬<br>كشف واتساب</button>
       <button onclick="openDebtBook('${id}','${_payEsc(st.name)}')">📒<br>دفتر الديون</button>
     </div>
     <div class="szCard" style="gap:0">${L.length?L.map(line).join(''):'<div class="szL" style="text-align:center;padding:20px">ما في حركات بالحساب الجديد لسّا</div>'}</div>
     <div class="szEnd"><span>النتيجة</span><b class="szN ${tot>0.009?'szUp':'szDn'}">${lbl(tot)}</b></div>
     <div class="szL" style="line-height:1.8">+ بيزيد اللي عليك للمتجر: ربح طلب، أو دفعة قبضتها منه.<br>− بينقص اللي عليك: بيع مباشر إله، أو دفعة دفعتلهم.</div>`);
+}
+// نافذة الدفعة القديمة طبقتها تحت شاشات المتاجر — منرفعها، ولمّا تتسكّر
+// (انحفظت أو انلغت) منحدّث الكشف عشان الدفعة تبيّن فوراً
+function _szPay(id,name){
+  showAddWithdrawalModalForStore(id,name,'payment');
+  const m=document.getElementById('withdrawal_modal');if(!m)return;
+  m.style.zIndex='100010';
+  const t=setInterval(()=>{if(!document.getElementById('withdrawal_modal')){clearInterval(t);if(document.getElementById('szLed'))openStoreLedger(id);}},400);
 }
 function _szText(){
   const s=_szLed,stLbl={delivering:'قيد التوصيل',delivered:'تم التسليم',onhold:'عالق',postponed:'مؤجل'};
@@ -28197,4 +28205,4 @@ async function _szRun(){
   _sz.busy=false;
 }
 window.openStoresHub=openStoresHub;window.openStoreLedger=openStoreLedger;window.openStoreZero=openStoreZero;
-window._szBackup=_szBackup;window._szRun=_szRun;window._szShare=_szShare;window._szText=_szText;window._szClose=_szClose;window._szHubPaint=_szHubPaint;
+window._szPay=_szPay;window._szBackup=_szBackup;window._szRun=_szRun;window._szShare=_szShare;window._szText=_szText;window._szClose=_szClose;window._szHubPaint=_szHubPaint;
