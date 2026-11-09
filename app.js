@@ -8555,17 +8555,83 @@ async function catApplyEdit(rid){
       try{await db.collection('catalog_requests').doc(rid).update({status:'dismissed',doneBy:who,doneAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}
     return;
   }
-  const products=_catProductsOf(r),sub=products.reduce((t,i)=>t+i.price*i.qty,0),fee=Number(od.deliveryFee)||0,c=r.customer||{};
+  const neu=_catProductsOf(r),fee=Number(od.deliveryFee)||0,c=r.customer||{};
+  // كان التعديل يبدّل الطلب كامل دايماً — فطلب «زيدوني قطعة» كان يمحي الطلب الأصلي
+  // (#1456). هلأ منسأل: إضافة على الطلب ولا تبديل كامل.
+  const mode=await _catEditChoice(od,neu,r);
+  if(!mode)return;
+  const products=mode==='add'?[...(od.products||[]),...neu]:neu;
+  const sub=products.reduce((t,i)=>t+(Number(i.price)||0)*(Number(i.qty)||1),0);
+  // بيانات زبون وهمية (اسم حرف واحد أو رقم 0790000000) ما بتمحي الحقيقية
+  const okPhone=c.phone&&/^07[789]\d{7}$/.test(normalizePhone(c.phone))&&!/^07[789]0{7}$/.test(normalizePhone(c.phone));
+  const okName=c.name&&String(c.name).trim().length>1;
+  const cust=mode==='replace'?{...(okPhone?{customerPhone:normalizePhone(c.phone)}:{}),...(okName?{customerName:c.name}:{}),
+    ...(c.address?{address:c.address}:{}),...(c.area?{area:c.area}:{})}:{};
   try{
     const next={...od,products};
-    await db.collection('employee_orders').doc(oid).update({products,totalPrice:sub+fee,netPrice:sub+fee,
-      ...(c.phone?{customerPhone:normalizePhone(c.phone)}:{}),...(c.name?{customerName:c.name}:{}),...(c.address?{address:c.address}:{}),...(c.area?{area:c.area}:{}),
-      editHistory:firebase.firestore.FieldValue.arrayUnion({by:who,at:jordanDisplayDate(),note:'✏️ الزبون عدّل طلبه من الكتالوج #'+(r.ref||'')})});
+    await db.collection('employee_orders').doc(oid).update({products,totalPrice:sub+fee,netPrice:sub+fee,...cust,
+      // نسخة قبل التعديل — بيرجع عليها زرّ «↩️ رجّع الطلب قبل التعديل»
+      catEditPrev:{products:od.products||[],totalPrice:od.totalPrice||0,netPrice:od.netPrice||0,
+        customerName:od.customerName||'',customerPhone:od.customerPhone||'',address:od.address||'',area:od.area||''},
+      editHistory:firebase.firestore.FieldValue.arrayUnion({by:who,at:jordanDisplayDate(),note:(mode==='add'?'➕ إضافة من الكتالوج #':'✏️ الزبون عدّل طلبه من الكتالوج #')+(r.ref||'')})});
     _orderStockSync(oid,od,next,!!od.colorStockApplied,true);
-    await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:oid,doneBy:who,doneAt:firebase.firestore.FieldValue.serverTimestamp()});
-    toast('✅ انطبّق التعديل على البوليصة ('+(sub+fee).toFixed(2)+' د.أ)');
+    await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:oid,doneBy:who,applied:mode,doneAt:firebase.firestore.FieldValue.serverTimestamp()});
+    toast((mode==='add'?'✅ انضافت على البوليصة (':'✅ انطبّق التعديل على البوليصة (')+(sub+fee).toFixed(2)+' د.أ)');
   }catch(e){toast('❌ '+e.message);}
 }
+// نافذة: الطلب هلأ مقابل اللي وصل من الكتالوج ⇒ «➕ إضافة» أو «✏️ تبديل»
+function _catEditChoice(od,neu,r){
+  return new Promise(res=>{
+    const line=ps=>(ps||[]).map(p=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #f1f1f1;"><span>${_clrEsc(p.name||'')}${(p.colorNumbers||[]).length?' <span style="color:#9ca3af;font-size:.74rem;">('+p.colorNumbers.map(x=>x.num+'×'+x.qty).join('، ')+')</span>':''}</span><b>×${p.qty||1}</b></div>`).join('')||'<div style="color:#9ca3af;">—</div>';
+    const n0=(od.products||[]).reduce((t,p)=>t+(Number(p.qty)||1),0),n1=neu.reduce((t,p)=>t+(Number(p.qty)||1),0);
+    const ov=document.createElement('div');ov.id='catEditChoice';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100012;display:flex;align-items:flex-end;justify-content:center;font-family:Tajawal,sans-serif;direction:rtl;';
+    ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;">
+      <b style="font-size:1.02rem;">✏️ تعديل على طلب #${_clrEsc(r.ref||od.orderNum||'')}</b>
+      <div style="font-size:.85rem;color:#6b7280;">شو بدّك تعمل باللي وصل من الكتالوج؟</div>
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:10px;font-size:.86rem;"><div style="font-weight:800;margin-bottom:4px;">الطلب هلأ · ${n0} قطعة</div>${line(od.products)}</div>
+      <div style="border:1px solid #c4b5fd;background:#faf5ff;border-radius:12px;padding:10px;font-size:.86rem;"><div style="font-weight:800;margin-bottom:4px;">اللي وصل من الكتالوج · ${n1} قطعة</div>${line(neu)}</div>
+      ${n1<n0?`<div style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:10px;padding:8px 10px;font-size:.8rem;">⚠️ اللي وصل أقل من الطلب — إذا الزبون بدّه يزيد اختار «إضافة»، وإلا الطلب الأصلي بيروح.</div>`:''}
+      <button data-m="add" style="padding:13px;border:0;border-radius:12px;background:#166534;color:#fff;font-family:inherit;font-weight:800;font-size:.92rem;cursor:pointer;">➕ ضيفها على الطلب (${n0+n1} قطعة)</button>
+      <button data-m="replace" style="padding:13px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;color:#111;font-family:inherit;font-weight:800;font-size:.92rem;cursor:pointer;">✏️ بدّل الطلب كامل (${n1} قطعة)</button>
+      <button data-m="" style="padding:11px;border:0;border-radius:12px;background:none;color:#6b7280;font-family:inherit;font-weight:700;cursor:pointer;">إلغاء</button></div>`;
+    ov.addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b&&e.target!==ov)return;const m=b?b.dataset.m:'';ov.remove();res(m||null);});
+    document.body.appendChild(ov);
+  });
+}
+// ↩️ تعديل كتالوج انطبّق غلط: رجّع الطلب زي ما كان قبله. ولو بدّك، ضيف اللي وصل كإضافة.
+// الطلبات القديمة (قبل ما نحفظ نسخة) بترجع لطلب الكتالوج الأصلي نفسه.
+async function catEditUndo(oid,withAdd){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  try{
+    const ref=db.collection('employee_orders').doc(oid);
+    const _d=(await ref.get()).data();if(!_d){toast('❌ الطلب مش موجود');return;}
+    const od={..._d,products:[...(_d.products||[])]};   // نسخة: الفرق بالمخزون محسوب منها بعد الكتابة
+    if(!_SALE_PRE.includes(od.status)){toast('⚠️ الطلب لازم يكون قبل قيد التوصيل');return;}
+    let prev=od.catEditPrev||null;
+    if(!prev&&od.catalogReq){
+      const o=(await db.collection('catalog_requests').doc(od.catalogReq).get()).data();
+      if(o){const c=o.customer||{},ps=_catProductsOf(o),sub=ps.reduce((t,i)=>t+i.price*i.qty,0),fee=Number(od.deliveryFee)||0;
+        prev={products:ps,totalPrice:sub+fee,netPrice:sub+fee,customerName:c.name||'',customerPhone:c.phone?normalizePhone(c.phone):'',address:c.address||'',area:c.area||''};}
+    }
+    if(!prev){toast('⚠️ ما لقيت نسخة الطلب قبل التعديل');return;}
+    let products=prev.products||[];
+    if(withAdd)products=[...products,...(od.products||[])];
+    const fee=Number(od.deliveryFee)||0,sub=products.reduce((t,i)=>t+(Number(i.price)||0)*(Number(i.qty)||1),0);
+    if(!confirm(withAdd?`نرجّع الطلب الأصلي ونضيف عليه اللي وصل (${products.reduce((t,p)=>t+(Number(p.qty)||1),0)} قطعة، ${(sub+fee).toFixed(2)} د.أ)؟`:'نرجّع الطلب زي ما كان قبل التعديل؟'))return;
+    const next={...od,products};
+    await ref.update({products,totalPrice:sub+fee,netPrice:sub+fee,
+      ...(prev.customerName?{customerName:prev.customerName}:{}),...(prev.customerPhone?{customerPhone:prev.customerPhone}:{}),
+      ...(prev.address?{address:prev.address}:{}),...(prev.area?{area:prev.area}:{}),
+      catEditPrev:firebase.firestore.FieldValue.delete(),
+      editHistory:firebase.firestore.FieldValue.arrayUnion({by:_currentAdminUser,at:jordanDisplayDate(),note:withAdd?'↩️ رجع الطلب الأصلي + الإضافة':'↩️ رجع الطلب قبل تعديل الكتالوج'}),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await _orderStockSync(oid,od,next,!!od.colorStockApplied,_cnShouldHold(od.status));
+    closeOpOrderDetail&&closeOpOrderDetail();
+    toast('✅ رجع الطلب ('+(sub+fee).toFixed(2)+' د.أ)');
+  }catch(e){toast('❌ '+(e.message||e));}
+}
+window.catEditUndo=catEditUndo;
 window.catApplyEdit=catApplyEdit;
 async function empCatDismiss(id){
   if(!confirm('نشيل هاد الطلب؟ (ما رح يتسجّل — والألوان المحجوزة إله بترجع للمخزون)'))return;
@@ -9417,6 +9483,8 @@ function _showOpOrderDetail(o){
       </div>
       ${!isClosed?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${o.status!=='waiting_rep'&&o.status!=='delivering'&&o.status!=='queued'?_dBtn('إرسال لمندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${_currentAdminUser&&_SALE_PRE.includes(o.status)&&(o.catEditPrev||(o.catalogReq&&(o.editHistory||[]).some(e=>/الزبون عدّل طلبه من الكتالوج/.test(e.note||''))&&!(o.editHistory||[]).some(e=>/↩️ رجع الطلب/.test(e.note||''))))
+          ?_dBtn('↩️ رجّع الطلب الأصلي + الإضافة',`catEditUndo('${o.id}',true)`,'primary')+_dBtn('↩️ رجّع الطلب قبل التعديل',`catEditUndo('${o.id}',false)`):''}
         ${_currentAdminUser&&_SALE_PRE.includes(o.status)?_dBtn(`🏪 استلمه ${String(o.pageName||'المتجر').replace(/[<>"'`]/g,'')}`,`_storePickup('${o.id}')`,'primary'):''}
         ${_dBtn('🚫 إلغاء الطلب',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
