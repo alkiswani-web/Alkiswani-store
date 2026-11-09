@@ -27958,7 +27958,9 @@ function _szHubPaint(){
   const L=(_opStoresList||[]).filter(s=>!s.archived&&!_shHidden(s.name));
   let owe=0,have=0;
   L.forEach(s=>{const v=_szNet(s.id)||0;if(v>0.009)owe+=v;else if(v<-0.009)have-=v;});
-  const hid=(_storeHidden||[]);
+  // «مخفية» = متجر موجود خبّيت كرته. أسماء متاجر انمسحت بتضل بالقائمة بس
+  // عشان طلباتها القديمة ما تعمل كروت — ما إلها داعي تبيّن هون.
+  const hid=(_storeHidden||[]).filter(n=>(_opAllStoresList||[]).some(s=>s.name===n));
   _szOpen('szHub',`<div class="szTop"><h2>🏪 حسابات المتاجر</h2><button class="szX" onclick="_szClose('szHub')" aria-label="إغلاق">✕</button></div>
     ${_storeZero.date?`<div class="szL">حساب جديد لكل المتاجر من ${_szD(_storeZero.date)} — بدون أي رصيد سابق</div>`
       :`<button class="szBtn szDanger" onclick="openStoreZero()">🧹 تصفير حسابات المتاجر</button>`}
