@@ -16025,12 +16025,20 @@ async function _loadOpSessionData(){
   try{ await _loadDeliveryReps(); }catch(e){}
   // Load cumulative account balances for all stores
   try{
-    const [sSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
-      db.collection('operator_sales').get(),
-      db.collection('operator_store_payments').get(),
-      db.collection('page_refunds').get(),
+    // بعد التصفير ما بيهمّنا من حسابات المتاجر إلا اللي من نقطة الصفر (والعالق
+    // المعلّم يمشي عالجديد) — كنّا نقرأ كل المبيعات والدفعات من أول يوم بكل فتحة.
+    await _loadStoreZero();
+    const _zd=_storeZero.date;
+    const _since=col=>_zd?db.collection(col).where('date','>=',_zd).get():db.collection(col).get();
+    const [sSnap0,sInSnap,pSnap,rSnap,rSessionSnap]=await Promise.all([
+      _since('operator_sales'),
+      _zd?db.collection('operator_sales').where('storeIn','==',true).get():Promise.resolve({docs:[]}),
+      _since('operator_store_payments'),
+      _since('page_refunds'),
       db.collection('page_refunds').where('date','>=',from).where('date','<=',to).get()
     ]);
+    const _sSeen=new Set(sSnap0.docs.map(d=>d.id));
+    const sSnap={docs:[...sSnap0.docs,...sInSnap.docs.filter(d=>!_sSeen.has(d.id))]};
     await _loadStoreReset();
     await _loadStoreHidden();
     _opAcctOwed={};_opAcctPaid={};_opAcctRefund={};_opAcctDiscount={};_srRaw={};_srNoPrice={};
@@ -16204,9 +16212,26 @@ async function _reconcileStoreSales(from){
   try{
     if(!_opStoresList.length)await loadOpStores();
     await _loadStoreReset();
-    const [rows,orders]=await Promise.all([
-      _fsLite('operator_sales',[['date','>=',from||'0000']],['fromOrderId','storeId','productId','productName','qty','unitsPerItem','date']),
-      _fsLite('employee_orders',[['status','in',[..._SALE_ON,..._SALE_PRE]]],['status','pageId','products','returns'])]);
+    const RF=['fromOrderId','storeId','productId','productName','qty','unitsPerItem','date','preZero','storeIn'];
+    const OF=['status','pageId','products','returns'];
+    let rows,orders;
+    const zd=_storeZero.date;
+    if(zd){
+      // بعد التصفير: مبيعات من نقطة الصفر وطلباتها بس — كان يقرأ آلاف الطلبات بكل فتحة
+      const [r1,r2,o1,o2,o3]=await Promise.all([
+        _fsLite('operator_sales',[['date','>=',zd]],RF),
+        _fsLite('operator_sales',[['storeIn','==',true]],RF),
+        _fsLite('employee_orders',[['deliveredDate','>=',zd]],OF),
+        _fsLite('employee_orders',[['storeIn','==',true]],OF),
+        _fsLite('employee_orders',[['status','in',_SALE_PRE]],OF)]);
+      const ur=new Map();[...r1,...r2].forEach(x=>ur.set(x.id,x));rows=[...ur.values()];
+      const uo=new Map();[...o1,...o2,...o3].forEach(x=>uo.set(x.id,x));
+      orders=[...uo.values()].filter(o=>[..._SALE_ON,..._SALE_PRE].includes(o.status));
+    }else{
+      [rows,orders]=await Promise.all([
+        _fsLite('operator_sales',[['date','>=',from||'0000']],RF),
+        _fsLite('employee_orders',[['status','in',[..._SALE_ON,..._SALE_PRE]]],OF)]);
+    }
     const O=new Map(orders.map(o=>[o.id,o])),by={};
     rows.forEach(r=>{if(r.fromOrderId)(by[r.fromOrderId]=by[r.fromOrderId]||[]).push(r);});
     let n=0;
@@ -27991,11 +28016,17 @@ async function openStoreLedger(id){
   _szOpen('szLed',`<div class="szTop"><h2>${_clrEsc(st.name)}</h2><button class="szX" onclick="_szClose('szLed')" aria-label="إغلاق">✕</button></div><div class="szL" style="text-align:center;padding:30px">⏳ جاري تحميل الكشف…</div>`);
   const L=[];
   try{
-    const [sSnap,pSnap,rSnap]=await Promise.all([
-      db.collection('operator_sales').where('storeId','==',id).get(),
-      db.collection('operator_store_payments').where('storeId','==',id).get(),
-      db.collection('page_refunds').where('storeId','==',id).get()]);
-    const rows=sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false&&!_isPosSale(s)&&_srIn(id,s));
+    // بعد التصفير منقرأ بس اللي من نقطة الصفر — كنّا نقرأ كل تاريخ المتجر
+    const zd=_storeZero.date;
+    const q=(col)=>zd?db.collection(col).where('date','>=',zd).get():db.collection(col).where('storeId','==',id).get();
+    const [sSnap,sIn,pSnap,rSnap]=await Promise.all([
+      q('operator_sales'),
+      zd?db.collection('operator_sales').where('storeIn','==',true).get():Promise.resolve({docs:[]}),
+      q('operator_store_payments'),q('page_refunds')]);
+    const mine=snap=>snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.storeId===id);
+    const seenRow=new Set();
+    const rows=[...mine(sSnap),...mine(sIn)].filter(r=>!seenRow.has(r.id)&&seenRow.add(r.id))
+      .filter(s=>s.delivered!==false&&!_isPosSale(s)&&_srIn(id,s));
     const costBy={};rows.forEach(r=>{if(r.fromOrderId)(costBy[r.fromOrderId]=costBy[r.fromOrderId]||[]).push(r);});
     const orders=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName||o.source||'الموقع الإلكتروني')===st.name&&_srInOrder(id,o));
     const seen=new Set();
@@ -28007,13 +28038,13 @@ async function openStoreLedger(id){
     });
     rows.filter(r=>!seen.has(r.id)).forEach(r=>{const c=(Number(r.sellPrice)||0)*(Number(r.qty)||1);
       L.push({k:r.fromOrderId?'c':'s',d:r.date||'',name:r.productName||'',qty:r.qty||1,v:-c,ord:r.fromOrderId||''});});
-    pSnap.docs.map(d=>d.data()).forEach(p=>{
+    mine(pSnap).forEach(p=>{
       const mirror=p.withdrawalType==='withdrawal'||(p.sourceWithdrawalId&&p.withdrawalType!=='payment');
       if(mirror||!_srIn(id,p))return;const a=Number(p.amount)||0;
       L.push({k:'p',d:p.date||'',v:-a,dir:a>=0?'out':'in',note:p.notes||''});});
     (_opWithdrawals||[]).filter(w=>_wdForStore(w,st.name,id)&&w.withdrawalType!=='payment'&&_srIn(id,w)).forEach(w=>{
       L.push({k:'w',d:w.date||'',v:-(Number(w.amount)||0),note:w.notes||''});});
-    rSnap.docs.map(d=>d.data()).filter(r=>_srIn(id,r)).forEach(r=>{L.push({k:'r',d:r.date||'',v:-(Number(r.totalCost)||0),num:r.orderNum||''});});
+    mine(rSnap).filter(r=>_srIn(id,r)).forEach(r=>{L.push({k:'r',d:r.date||'',v:-(Number(r.totalCost)||0),num:r.orderNum||''});});
   }catch(e){_szOpen('szLed',`<div class="szTop"><h2>${_clrEsc(st.name)}</h2><button class="szX" onclick="_szClose('szLed')">✕</button></div><div class="szCard">❌ ما قدرنا نحمّل الكشف — ${_clrEsc(e.message||'')}</div>`);return;}
   const open=_srOpening(id);
   if(Math.abs(open)>0.009)L.push({k:'x',d:_srFrom(id),v:open});
