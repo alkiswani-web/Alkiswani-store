@@ -2629,6 +2629,12 @@ let _empDeliveryFee=2;
 let _empOrdersUnsub=null;
 let _opOrdersUnsub=null;
 let _opStmtUnsub=null;
+// طلبات الكشف بالذاكرة (بلا صور) — بتضل مزبوطة طول ما المستمع شغّال
+let _stmtMap=null,_stmtKey='',_stmtAlive=false;
+const _STMT_FIELDS=['address','area','assignedAt','cancelReason','catalogReq','colorStockApplied','colorStockReturned','createdAt','createdByAdmin',
+  'customerName','customerPhone','date','deliveredDate','deliveryFee','deliveryRepName','deliveryRepPhone','editHistory','fulfilledBy','holdReason',
+  'internalNote','isFrameOrder','needsReview','netPrice','notes','orderNum','pageId','pageName','photoTaken','preZero','products','repIssue',
+  'repTransferReq','returnReason','returns','source','status','storeIn','storeName','totalPrice','updatedAt','urgent','workerId','workerName'];
 let _opStmtPollId=null;
 let _empTodayUnsub=null;
 let _empEditOrderId=null;
@@ -16213,6 +16219,7 @@ async function _loadOpSessionData(){
   const ordersFrom=from;
 
   // Cancel previous statement listener and poll if any
+  const _stmtWasAlive=_stmtAlive;   // المستمع القديم كان شغّال ⇒ الطلبات اللي بالذاكرة لسّا مزبوطة
   if(_opStmtUnsub){_opStmtUnsub();_opStmtUnsub=null;}
   if(_opStmtPollId){clearInterval(_opStmtPollId);_opStmtPollId=null;}
 
@@ -16225,43 +16232,45 @@ async function _loadOpSessionData(){
     return oTs.toDate()>=sessionOpenedAt.toDate();
   }
 
-  // Helper: fetch delivered orders for this session range
-  async function _fetchStmtOrders(){
+  // ── طلبات الكشف ──
+  // كانت تنزل كاملة (مع صور الطلبات القديمة المخزّنة جوّا الطلب): ~76MB بكل
+  // فتحة، مرّتين (جلب + مستمع)، وكمان كل 30 ثانية. هلأ: جلب واحد بالحقول اللي
+  // بنحتاجها بس (بلا صور)، ومستمع بيجيب الطلبات اللي تغيّرت من هلأ وبس.
+  const _stmtKeyNow=(_opCurrentSession.id||'')+'|'+ordersFrom;
+  const _keep=o=>(o.status==='delivered'||o.status==='delivering')&&!!o.deliveredDate
+    &&o.deliveredDate>=ordersFrom&&o.deliveredDate<=to&&_orderBelongsToSession(o);
+  async function _fetchStmtOrders(force){
+    if(!force&&_stmtWasAlive&&_stmtMap&&_stmtKey===_stmtKeyNow) return Object.values(_stmtMap);
     try{
-      const snap=await db.collection('employee_orders')
-        .where('deliveredDate','>=',ordersFrom).where('deliveredDate','<=',to).get();
-      const withDate=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .filter(o=>(o.status==='delivered'||o.status==='delivering')&&_orderBelongsToSession(o));
-      const fromTs=firebase.firestore.Timestamp.fromDate(new Date(ordersFrom+'T00:00:00'));
-      const toTs=firebase.firestore.Timestamp.fromDate(new Date(to+'T23:59:59'));
-      let noDate=[];
+      const L=await _fsLite('employee_orders',[['deliveredDate','>=',ordersFrom]],_STMT_FIELDS);
+      const m={};L.forEach(o=>{if(_keep(o))m[o.id]=o;});
+      // طلبات «تم التوصيل» قديمة بلا تاريخ تسليم
       try{
-        const snap2=await db.collection('employee_orders')
-          .where('status','==','delivered')
-          .where('updatedAt','>=',fromTs)
-          .where('updatedAt','<=',toTs).get();
-        noDate=snap2.docs.map(d=>({id:d.id,...d.data()}))
-          .filter(o=>!o.deliveredDate&&_orderBelongsToSession(o));
+        const L2=await _fsLite('employee_orders',[['status','==','delivered'],['updatedAt','>=',new Date(ordersFrom+'T00:00:00')]],_STMT_FIELDS);
+        L2.forEach(o=>{if(!o.deliveredDate&&_orderBelongsToSession(o))m[o.id]=o;});
       }catch(e2){}
-      const map={};
-      [...withDate,...noDate].forEach(o=>map[o.id]=o);
-      return Object.values(map);
+      _stmtMap=m;_stmtKey=_stmtKeyNow;
+      return Object.values(m);
     }catch(e){return _opDayOrders;}
   }
 
-  // Real-time listener on deliveredDate range
-  _opStmtUnsub=db.collection('employee_orders')
-    .where('deliveredDate','>=',ordersFrom)
-    .where('deliveredDate','<=',to)
-    .onSnapshot(async snap=>{
-      const withDate=snap.docs.map(d=>({id:d.id,...d.data()}))
-        .filter(o=>(o.status==='delivered'||o.status==='delivering')&&_orderBelongsToSession(o));
-      const noDateOrders=_opDayOrders.filter(o=>!o.deliveredDate);
-      const map={};
-      [...withDate,...noDateOrders].forEach(o=>map[o.id]=o);
-      _opDayOrders=Object.values(map);
-      renderOperatorDailyView();
+  // مستمع خفيف: بس الطلبات اللي تغيّرت من هلأ (دقيقة احتياط)
+  const _since=firebase.firestore.Timestamp.fromDate(new Date(Date.now()-60000));
+  const _u=db.collection('employee_orders').where('updatedAt','>=',_since).onSnapshot(snap=>{
+      if(!_stmtMap||_stmtKey!==_stmtKeyNow)return;
+      let ch=false;
+      const chg=snap.docChanges?snap.docChanges():snap.docs.map(d=>({type:'modified',doc:d}));
+      chg.forEach(c=>{
+        const o={id:c.doc.id,...c.doc.data()};delete o.imageDataUrls;delete o.imageDataUrl;
+        const legacy=o.status==='delivered'&&!o.deliveredDate&&_orderBelongsToSession(o);   // قديم بلا تاريخ تسليم
+        if(c.type!=='removed'&&(_keep(o)||legacy)){_stmtMap[o.id]=o;ch=true;}
+        else if(_stmtMap[o.id]){delete _stmtMap[o.id];ch=true;}   // انلغى أو رجع لورا ⇒ برّا الكشف
+      });
+      if(ch){_opDayOrders=Object.values(_stmtMap);renderOperatorDailyView();
+        _autoSyncDeliveredToSales(_opDayOrders).then(c=>{if(c)renderOperatorDailyView();});}
     },e=>{console.error('opStatement listener error:',e);});
+  _stmtAlive=true;
+  _opStmtUnsub=()=>{_stmtAlive=false;try{_u();}catch(e){}};
 
   // AUTO-SYNC: any delivered order not yet recorded in operator_sales is synced
   // automatically — no manual "تسليم" button needed. Reuses the proven sync logic,
@@ -16288,13 +16297,13 @@ async function _loadOpSessionData(){
     return did>0;
   }
 
-  // Fallback poll every 30s (also catches reps' deliveries live while admin is viewing)
+  // تحديث كامل خفيف كل 5 دقائق — احتياط لأي تغيير ما حرّك updatedAt
   _opStmtPollId=setInterval(async()=>{
     if(!_opCurrentSession)return;
-    _opDayOrders=await _fetchStmtOrders();
+    _opDayOrders=await _fetchStmtOrders(true);
     await _autoSyncDeliveredToSales(_opDayOrders);
     renderOperatorDailyView();
-  },30000);
+  },300000);
 
   _fetchStmtOrders().then(async orders=>{
     _opDayOrders=orders;
