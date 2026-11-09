@@ -9417,6 +9417,7 @@ function _showOpOrderDetail(o){
       </div>
       ${!isClosed?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${o.status!=='waiting_rep'&&o.status!=='delivering'&&o.status!=='queued'?_dBtn('إرسال لمندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
+        ${_currentAdminUser&&_SALE_PRE.includes(o.status)?_dBtn(`🏪 استلمه ${String(o.pageName||'المتجر').replace(/[<>"'`]/g,'')}`,`_storePickup('${o.id}')`,'primary'):''}
         ${_dBtn('🚫 إلغاء الطلب',`_cancelOpOrderFromDetail('${o.id}')`,'danger')}
       </div>`
       :o.status==='delivered'?`<div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -9939,8 +9940,9 @@ function _renderAdminOrderCard(o,isOperator,customerHist){
           <div class="ro-chips">${chips}</div>
           ${o.repIssue?`<div class="ro-memo" style="border-color:rgba(242,166,160,.5);">🔔 المندوب ${_roEsc(o.repIssue.by||'')} بلّغ: <b>${_roEsc(o.repIssue.reason||'')}</b> — غيّر الحالة (ملغي/مرتجع/رفض) أو رجّعه للتوصيل</div>`:''}
           ${o.repTransferReq?`<div class="ro-memo">↔ ${_roEsc(o.repTransferReq.by||'')} طلب يحوّله لـ${_roEsc(o.repTransferReq.toName||'')} (بيستنّى المشرف)</div>`:''}
-          ${o.needsReview||repeatN>1||_isTreeFulfilled(o)?`<div class="ro-flags">
+          ${o.needsReview||repeatN>1||_isTreeFulfilled(o)||_isStoreFulfilled(o)?`<div class="ro-flags">
             ${_isTreeFulfilled(o)?'<span class="ro-fl" style="background:rgba(110,231,168,.14);color:#6ee7a8;border-color:rgba(110,231,168,.3);">🌲 طلّعه مشغل الشجر</span>':''}
+            ${_isStoreFulfilled(o)?`<span class="ro-fl" style="background:rgba(226,196,131,.16);color:#b8912f;border-color:rgba(226,196,131,.4);">🏪 طلّعه ${_roEsc(o.pageName||'المتجر')}</span>`:''}
             ${o.needsReview?(o.repIssue?'<span class="ro-fl acc">🔔 بلاغ من المندوب</span>':'<span class="ro-fl acc">معدّل · يحتاج مراجعة</span>'):''}
             ${repeatN>1?`<button type="button" class="ro-fl n tap" title="عرض طلبات الزبون السابقة" onclick="event.stopPropagation();viewCustomerHistory('${_roPhoneArg}')">زبون متكرر · ${repeatN} ←</button>`:''}
           </div>`:''}
@@ -10688,6 +10690,8 @@ async function updateEmpOrderStatus(id,newStatus){
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
     if(['cancelled','returned','refused'].includes(newStatus))
       extraFields.deliveredDate=firebase.firestore.FieldValue.delete();
+    // طلب طلّعه المتجر ورجع لورا: بيرجع طلب عادي (لو طلّعناه احنا بعدين ما يضل محسوب عالمتجر)
+    if(data.fulfilledBy==='store'&&newStatus!=='delivered') extraFields.fulfilledBy=firebase.firestore.FieldValue.delete();
     // Clear rep assignment when moving back to waiting_rep
     const _deleteFields=[];
     if(newStatus==='waiting_rep'){
@@ -10750,6 +10754,8 @@ async function updateEmpOrderStatus(id,newStatus){
 // تخرج كل الأرقام صحيحةً من نفسها: المستحق على الصفحة = الربح، حساب مشغل
 // الشجر لا يتحرّك، والربح في رصيد روزميري هو نفسه في الحالتين.
 function _isTreeFulfilled(o){ return !!o && o.fulfilledBy==='tree'; }
+// المتجر استلم الطلب جاهز منّا وطلّعه لحاله: الكاش عنده لا عندي، وعليه سعر متجره
+function _isStoreFulfilled(o){ return !!o && o.fulfilledBy==='store'; }
 
 // الطلب يصلح لمشغل الشجر فقط إذا كان كلّ منتج فيه منتجَ شجر — الخشب من مشغلي.
 function _orderAllTree(orderData){
@@ -10804,7 +10810,8 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
       // دزينةٍ كتكلفة حبّة.
       const _units=_poUnits(opProd,product);
       const customerUnit=(parseFloat(product.price)||0)/_units;
-      const soldPrice=(customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
+      // المتجر طلّعه لحاله: سعر الزبون ما إلنا دخل فيه — بيعتنا إله بسعر متجره
+      const soldPrice=(!_isStoreFulfilled(orderData)&&customerUnit>0&&customerUnit<sellPrice)?customerUnit:sellPrice;
       // ما قبضه مشغل الشجر بالنيابة عنّي = قيمة الطلب للزبون − أجرة التوصيل
       // (يدفعها هو). يُكتب على الصفّ الأول فقط كي لا يتضاعف بعدد المنتجات.
       const _treeCollected=(_treeMade&&pi===0)
@@ -10829,7 +10836,7 @@ async function syncOrderToAccounting(orderId,orderData,dateOverride,silent,sessi
         treeCost:opProd?(opProd.treeCost||0):0,
         machineWorkerWage:opProd?(opProd.machineWorkerWage||0):0,
         assemblyWorkerWage:opProd?(opProd.assemblyWorkerWage||0):0,
-        fulfilledBy:_treeMade?'tree':'me',
+        fulfilledBy:_treeMade?'tree':(_isStoreFulfilled(orderData)?'store':'me'),
         treeCollected:_treeCollected,
         notes:orderData.notes||'',
         date:dateOverride||jordanDateStr(),
@@ -10927,6 +10934,39 @@ async function _rebuildOrderSale(orderId){
   }catch(e){console.error('_rebuildOrderSale error:',e);return false;}
 }
 window._rebuildOrderSale=_rebuildOrderSale;
+// 🏪 المتجر استلم الطلب جاهز منّا وبيطلّعه لحاله (للإدارة بس): الطلب بيتسكّر
+// «تم التسليم» بلا مندوب، وعالمتجر سعر متجره بحسابه (بيدفعه بعدين)، والكاش ما بيعدّه.
+async function _storePickup(id){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  try{
+    const ref=db.collection('employee_orders').doc(id);
+    const snap=await ref.get();
+    if(!snap.exists){toast('❌ الطلب غير موجود');return;}
+    const d=snap.data()||{};
+    if(!_SALE_PRE.includes(d.status)){toast('⚠️ الطلب لازم يكون قبل قيد التوصيل');return;}
+    if(!_opStoresList.length)await loadOpStores();
+    if(!_opStoresList.some(s=>s.pageId===d.pageId)){toast('⚠️ صفحة الطلب مش مربوطة بمتجر');return;}
+    const nm=d.pageName||'المتجر';
+    if(!confirm(`«${nm}» استلمت الطلب جاهز وبتطلّعه لحالها؟\n\nبينسجّل عليها سعر المتجر بحسابها (بتدفعه بعدين)، وما بيدخل الكاش.`))return;
+    const FV=firebase.firestore.FieldValue,dd=jordanDateStr();
+    const by=_currentAdminUser||'admin';
+    const upd={status:'delivered',fulfilledBy:'store',deliveredDate:dd,
+      deliveryRepName:FV.delete(),deliveryRepPhone:FV.delete(),assignedAt:FV.delete(),needsReview:FV.delete(),
+      editHistory:[...(d.editHistory||[]),{by,at:jordanDisplayDate(),note:`${_empSt(d.status).label} ← استلمه المتجر (${nm})`}],
+      updatedAt:FV.serverTimestamp()};
+    await ref.update(upd);
+    await _orderStockSync(id,d,d,d.colorStockApplied===true,_cnShouldHold('delivered'));
+    await _rebuildOrderSale(id);
+    closeOpOrderDetail&&closeOpOrderDetail();
+    const _p=arr=>{if(!arr)return;const i=arr.findIndex(o=>o.id===id);if(i>=0){const o={...arr[i],status:'delivered',fulfilledBy:'store',deliveredDate:dd};delete o.deliveryRepName;arr[i]=o;}};
+    _p(typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:null);
+    _p(typeof _empOrdersAllData!=='undefined'?_empOrdersAllData:null);
+    if(typeof _renderOpOrdersView==='function')_renderOpOrdersView();
+    toast(`🏪 انسجّل على «${nm}» — بكشفها`);
+    _refreshKashfIfOpen();
+  }catch(e){toast('❌ '+(e.message||e));}
+}
+window._storePickup=_storePickup;
 
 // ===== الإرجاع الجزئي — بند واحد أو بعض كميّته =====
 // الزبونة تأخذ المبخرة وتُرجع الشجرة، أو تطلب ثلاث شجرات فتُرجع واحدة.
@@ -16413,7 +16453,8 @@ function renderOperatorDailyView(){
       // «نصفّر كل اشي»: متجرٌ أُعيد ضبطه ما بيشوف ولا طلباً قبل تاريخ البداية —
       // لا بالعدّ ولا بالإجمالي ولا بـ«عند الشركة». بداية نظيفة فعلاً.
       if(_srOn(byStore[sname].storeId)&&!_srInOrder(byStore[sname].storeId,o)) return;
-      const amt=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+      // طلّعه المتجر لحاله ⇒ ما قبضنا من الزبون ولا اشي: بيضل عليه سعر متجره بس
+      const amt=_isStoreFulfilled(o)?0:Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
       // شركة محاسبة = كاشها ما وصل. الطلب برّا الكاش وبرّا «قابل للسحب»
       // بغضّ النظر عن تاريخه — القبضة وحدها بتزيد الكاش.
       const isExcl=_crIsCourier(o.deliveryRepName);
@@ -16732,9 +16773,11 @@ function renderOperatorDailyView(){
     // مرّ من عندي. تُستثنى بغضّ النظر عن المندوب المسجّل (إن سُجّل للمتابعة).
     // كاشُ طلبات شركة المحاسبة ما وصل — بيوصل لمّا تسجّل قبضةً منها، وهي
     // تُحسب في _collCourierIn. فلو عددنا الطلب هون كمان انعدّ المال مرّتين.
-    const _collOrders=_opDayOrders.filter(o=>!_isTreeFulfilled(o)&&!_crIsCourier(o.deliveryRepName));
+    // وطلب طلّعه المتجر لحاله: الزبون دفعله هو، فما في كاش وصلني منه
+    const _collOrders=_opDayOrders.filter(o=>!_isTreeFulfilled(o)&&!_isStoreFulfilled(o)&&!_crIsCourier(o.deliveryRepName));
     const _collTreeMadeCount=_opDayOrders.filter(_isTreeFulfilled).length;
-    const _collExcludedCount=_opDayOrders.length-_collOrders.length-_collTreeMadeCount;
+    const _collStoreMadeCount=_opDayOrders.filter(_isStoreFulfilled).length;
+    const _collExcludedCount=_opDayOrders.length-_collOrders.length-_collTreeMadeCount-_collStoreMadeCount;
     const _collCustomer=_collOrders.reduce((s,o)=>s+(o.netPrice!=null?o.netPrice:(o.totalPrice||0)),0);
     const _collDelivery=_collOrders.reduce((s,o)=>s+(o.deliveryFee||0),0);
     const _collOrdersNet=_collOrders.reduce((s,o)=>s+Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0)),0);
@@ -28031,10 +28074,11 @@ async function openStoreLedger(id){
     const orders=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName||o.source||'الموقع الإلكتروني')===st.name&&_srInOrder(id,o));
     const seen=new Set();
     orders.forEach(o=>{
-      const cash=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+      const sf=_isStoreFulfilled(o);
+      const cash=sf?0:Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
       const R=costBy[o.id]||[];R.forEach(r=>seen.add(r.id));
       const cost=R.reduce((t,r)=>t+(Number(r.sellPrice)||0)*(Number(r.qty)||1),0);
-      L.push({k:'o',d:_crOrderDate(o)||o.date||'',num:o.orderNum||o.id.slice(-5).toUpperCase(),st:o.status,cash,cost,v:cash-cost,noCost:!R.length});
+      L.push({k:'o',d:_crOrderDate(o)||o.date||'',num:o.orderNum||o.id.slice(-5).toUpperCase(),st:o.status,cash,cost,v:cash-cost,noCost:!R.length,sf});
     });
     rows.filter(r=>!seen.has(r.id)).forEach(r=>{const c=(Number(r.sellPrice)||0)*(Number(r.qty)||1);
       L.push({k:r.fromOrderId?'c':'s',d:r.date||'',name:r.productName||'',qty:r.qty||1,v:-c,ord:r.fromOrderId||''});});
@@ -28055,6 +28099,7 @@ async function openStoreLedger(id){
   const stLbl={delivering:'قيد التوصيل',delivered:'تم التسليم',onhold:'عالق',postponed:'مؤجل'};
   const line=l=>{
     const amt=`<div class="szA szN"><b class="${l.v>0.009?'szUp':l.v<-0.009?'szDn':''}">${l.v>0?'+':l.v<0?'−':''}${_szF(Math.abs(l.v))}</b><small>${lbl(l.run)}</small></div>`;
+    if(l.k==='o'&&l.sf)return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🏪</span><div class="t"><b>طلب #${_clrEsc(l.num)} · طلّعه المتجر</b><small>${_szD(l.d)} · استلمه جاهز منّا، فعليه سعر المتجر${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>سعر المتجر <b>${_szF(l.cost)}</b></span></div></div>${amt}</div>`;
     if(l.k==='o')return `<div class="szLn"><span class="szIc" style="background:rgba(226,196,131,.13)">🛒</span><div class="t"><b>طلب #${_clrEsc(l.num)} · ${stLbl[l.st]||''}</b><small>${_szD(l.d)} · ربح المتجر بيزيد اللي عليك${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>الزبون <b>${_szF(l.cash)}</b></span><span>سعر المتجر <b>${_szF(l.cost)}</b></span><span>ربحه <b>${_szF(l.v)}</b></span></div></div>${amt}</div>`;
     if(l.k==='s')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🧾</span><div class="t"><b>بيع مباشر${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · المتجر اشترى منك، فصار عليه</small></div>${amt}</div>`;
     if(l.k==='c')return `<div class="szLn"><span class="szIc" style="background:rgba(242,196,107,.13)">📦</span><div class="t"><b>تكلفة طلب${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · طلب مش ضمن طلبات الكشف (عالق أو تغيّر)</small></div>${amt}</div>`;
@@ -28088,6 +28133,7 @@ function _szPay(id,name){
 function _szText(){
   const s=_szLed,stLbl={delivering:'قيد التوصيل',delivered:'تم التسليم',onhold:'عالق',postponed:'مؤجل'};
   const rows=s.lines.map(l=>{const d=_szD(l.d);
+    if(l.k==='o'&&l.sf)return `${d}  طلب #${l.num} (طلّعتوه): ${_szF(l.cost)} عليكم`;
     if(l.k==='o')return `${d}  طلب #${l.num}: ربحكم ${_szF(l.v)}`;
     if(l.k==='s'||l.k==='c')return `${d}  ${l.k==='s'?'مواد خام':'تكلفة طلب'}${l.name?' ('+l.name+')':''}: ${_szF(-l.v)} عليكم`;
     if(l.k==='p')return `${d}  دفعة ${l.dir==='out'?'إلكم':'منكم'}: ${_szF(Math.abs(l.v))}`;
