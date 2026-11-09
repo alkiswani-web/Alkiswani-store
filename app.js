@@ -10918,6 +10918,11 @@ async function _rebuildOrderSale(orderId){
       keep.sessionId||_opCurrentSession?.id||null,true);
     // بند رجع كلّه: syncOrderToAccounting بيكتبه بكمية 1 — منشيله
     for(let i=0;i<prods.length;i++) if(!(prods[i].qty>0)) await db.collection('operator_sales').doc(`${orderId}_${i}`).delete().catch(()=>{});
+    // علامات التصفير بتمشي مع الصفوف الجديدة، وإلا طلب قبل التصفير بيرجع ينحسب
+    const flags={...(keep.preZero===true?{preZero:true}:{}),...(keep.storeIn===true?{storeIn:true}:{})};
+    if(Object.keys(flags).length){
+      for(let i=0;i<prods.length;i++) if(prods[i].qty>0) await db.collection('operator_sales').doc(`${orderId}_${i}`).update(flags).catch(()=>{});
+    }
     _refreshKashfIfOpen();return true;
   }catch(e){console.error('_rebuildOrderSale error:',e);return false;}
 }
@@ -12837,7 +12842,7 @@ async function sendDailyReport(){
 // فوراً — فالشي اليومي لسا بضغطة وحدة — ومعها صفُّ وجهاتها.
 const OP_FAM=[
   {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['@catreq','🛍️ الكتالوج','openCatAdmin()'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
-  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['@debts','📒 ديون المتاجر','openDebtBook()']]},
+  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['@stores','🏪 حسابات المتاجر','openStoresHub()'],['@debts','📒 ديون المتاجر','openDebtBook()']]},
   // «@» = وجهةٌ بتفتح نافذة لا لوحة. الألوان والمخزون كانوا مدفونين جوّا
   // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
   {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
@@ -15712,7 +15717,19 @@ let _opDayRecord=null;
 // ورأس المال لا يتأثّر: صيغتُه (المتفق + المشتريات − الخام المستهلك) ما
 // إلها علاقة بحسابات المتاجر ولا المناديب.
 let _storeReset={};
+// ═══ تصفير حسابات المتاجر ═══
+// نقطة صفر وحدة لكل المتاجر: من تاريخها وبس، بلا أي رصيد افتتاحي — كأنها
+// متاجر جديدة. اللي قبلها بيضل محفوظ بس ما بيدخل بالحساب. وسجلات يوم التصفير
+// اللي سبقت لحظته معلَّمة preZero؛ والطلب العالق اللي قرّرنا يمشي عالجديد storeIn.
+let _storeZero={},_storeZeroLoaded=false;
+async function _loadStoreZero(force){
+  if(_storeZeroLoaded&&!force) return _storeZero;
+  try{const d=await db.collection('operator_config').doc('store_zero').get();_storeZero=(d.exists&&d.data())||{};}
+  catch(e){_storeZero={};}
+  _storeZeroLoaded=true;return _storeZero;
+}
 async function _loadStoreReset(force){
+  await _loadStoreZero(force);
   if(!force&&Object.keys(_storeReset).length) return _storeReset;
   try{
     const d=await db.collection('operator_config').doc('store_reset').get();
@@ -15720,12 +15737,12 @@ async function _loadStoreReset(force){
   }catch(e){_storeReset={};}
   return _storeReset;
 }
-function _srFrom(id){return (id&&_storeReset[id]&&_storeReset[id].from)||'';}
-function _srOpening(id){return Number(id&&_storeReset[id]&&_storeReset[id].opening)||0;}
+function _srFrom(id){if(_storeZero.date)return id?_storeZero.date:'';return (id&&_storeReset[id]&&_storeReset[id].from)||'';}
+function _srOpening(id){if(_storeZero.date)return 0;return Number(id&&_storeReset[id]&&_storeReset[id].opening)||0;}
 function _srOn(id){return !!_srFrom(id);}
 // تاريخ السجلّ — المبيعة والدفعة والمسحوب كلّها تحمل date
 function _srDate(x){return (x&&(x.date||x.deliveredDate))||'';}
-function _srIn(id,x){const f=_srFrom(id);return !f||_srDate(x)>=f;}
+function _srIn(id,x){if(x&&x.storeIn===true)return true;const f=_srFrom(id);if(f&&x&&x.preZero===true)return false;return !f||_srDate(x)>=f;}
 // متاجر محذوفة أو مخفيّة: كرت المتجر مبنيٌّ من الطلبات لا من سجلّ المتجر،
 // فحذفُ المتجر ما كان بيشيل كرته. هاي قائمة الأسماء اللي بدنا نخبّيها.
 let _storeHidden=[];
@@ -15760,7 +15777,7 @@ async function unhideStoreCard(name){
 }
 window.hideStoreCard=hideStoreCard; window.unhideStoreCard=unhideStoreCard;
 // الطلب تاريخُه تاريخ التسليم أولاً — نفس اللي بيتعرض بالكرت
-function _srInOrder(id,o){const f=_srFrom(id);return !f||(_crOrderDate(o)||_srDate(o))>=f;}
+function _srInOrder(id,o){if(o&&o.storeIn===true)return true;const f=_srFrom(id);if(f&&o&&o.preZero===true)return false;return !f||(_crOrderDate(o)||_srDate(o))>=f;}
 // سجلّ مختصر بكل حركات الحساب مع تاريخها — عشان شاشة إعادة الضبط تقدر
 // تحسب المستحق لأي تاريخ تجرّبه قبل ما تحفظ. [تاريخ, نوع, مبلغ]
 let _srRaw={};
@@ -16595,7 +16612,7 @@ function renderOperatorDailyView(){
             <button onclick="showAddWithdrawalModalForStore('${store.storeId||''}','${safeStoreName}','payment')" style="flex:1;padding:10px;background:linear-gradient(145deg,#f3e0a6,#b8912f);color:#20180f;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">💳 دفعة للمتجر — دفعتلهم أو قبضتُ منهم</button>
           </div>`:''}
           ${!store.storeId?`<button onclick="hideStoreCard('${safeStoreName}')" style="width:100%;margin-top:8px;padding:10px;background:rgba(242,166,160,.1);color:#f2a6a0;border:1px solid rgba(242,166,160,.28);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">🗑️ هذا المتجر محذوف — خبّي كرته</button>`:''}
-          ${store.storeId?`<div style="display:flex;gap:8px;margin-top:8px;"><button onclick="openAcctDetail('${store.storeId}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>
+          ${store.storeId?`<div style="display:flex;gap:8px;margin-top:8px;"><button onclick="openStoreLedger('${store.storeId}')" style="flex:1;padding:10px;background:rgba(255,255,255,.06);color:#e7c66b;border:1px solid rgba(231,198,107,.25);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📋 كشف حساب المتجر</button>
             <button onclick="openDebtBook('${store.storeId}','${safeStoreName}')" style="flex:1;padding:10px;background:rgba(201,162,74,.14);color:#f3e0a6;border:1px solid rgba(231,198,107,.35);border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.8rem;font-weight:800;cursor:pointer;">📒 دفتر الديون</button></div>`:''}
         </div>
         ${refundBlock}
@@ -17274,13 +17291,14 @@ function _payHubRows(){
                              :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','payment','${d}')`;
       const actW=n.isGroup?`showAddWithdrawalModalForGroup('${g}','withdrawal')`
                           :`showAddWithdrawalModalForStore('${_payEsc(sid)}','${g}','withdrawal')`;
-      const wdAct={label:'💸 مسحوب',act:actW,tone:'out'};
+      // «سحب من كاشي» صار نفسه «دفعة · دفعتلهم» — زرّ واحد
+      const wdAct=null;
       // الزرّ بيتبع جهة الصفّ: عليك ⇐ «ادفع»، وإلك ⇐ «اقبض». وكان الاثنان
       // «اقبض» وبيفتحا على «دفعتلهم» — فالقبضة كانت بتنسجّل دفعةً بالمقلوب.
       if(dir>0.009) out.push({icon,name:nm,sub,amount:dir,
-        acts:[{label:'💳 ادفع',act:actP('1'),tone:'out'},wdAct]});
+        acts:[{label:'💳 ادفع',act:actP('1'),tone:'out'}]});
       else if(dir<-0.009) inn.push({icon,name:nm,sub,amount:-dir,
-        acts:[{label:'💰 اقبض',act:actP('-1'),tone:'in'},wdAct]});
+        acts:[{label:'💰 اقبض',act:actP('-1'),tone:'in'}]});
     });
     // مشغل الشجر — بدّك منه
     // شركات التوصيل الماسكة كاشك
@@ -27868,3 +27886,273 @@ function sdShare(pid){
 window.openDebtBook=openDebtBook;window.sdPerson=sdPerson;window.sdEntry=sdEntry;window.sdSaveEntry=sdSaveEntry;
 window.sdDelMv=sdDelMv;window.sdDelPerson=sdDelPerson;window.sdEditPerson=sdEditPerson;window.sdShare=sdShare;
 window._sdPerChg=_sdPerChg;window._sdDir=_sdDir;window._sdClose=_sdClose;window._sdCloseBook=_sdCloseBook;window._sdPaint=_sdPaint;
+
+// ═══ 🏪 حسابات المتاجر — الشكل الجديد (كشف بسطور + تصفير) ═══
+// الكشف مبني من نفس مصادر كرت المتجر بالرصيد تماماً، فرقمه الأخير هو نفس
+// «الصافي» بالكرت: طلبات (سعر الزبون − سعر المتجر)، بيع مباشر، دفعات، سحب.
+function _szCss(){
+  if(document.getElementById('szCss'))return;
+  const s=document.createElement('style');s.id='szCss';
+  s.textContent=`.szOv{position:fixed;inset:0;z-index:100005;background:radial-gradient(120% 40% at 100% 0%,#1a3326 0%,transparent 60%),#0b1210;color:#eef2ee;font-family:'Tajawal',sans-serif;direction:rtl;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .szOv *{box-sizing:border-box}
+  .szW{max-width:560px;margin:0 auto;padding:14px 16px calc(30px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+  .szTop{display:flex;align-items:center;gap:10px;position:sticky;top:0;padding:8px 0;background:#0b1210;z-index:2}
+  .szTop h2{flex:1;margin:0;font-size:1.1rem;font-weight:800;min-width:0}
+  .szX{width:44px;height:44px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#eef2ee;font-size:1rem;cursor:pointer;flex-shrink:0}
+  .szL{font-size:12px;color:#9fb0a6}
+  .szN{font-variant-numeric:tabular-nums}
+  .szCard{background:linear-gradient(160deg,#18241e,#131d18);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .szRow{display:flex;align-items:flex-start;gap:12px}
+  .szIc{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex-shrink:0;font-size:1rem}
+  .szRow b{display:block;font-weight:800;font-size:.95rem}.szRow p{margin:2px 0 0;font-size:.84rem;color:#9fb0a6;line-height:1.6}
+  .szSafe{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .szSafe div{border-radius:14px;padding:10px 12px;background:rgba(143,217,182,.07);border:1px solid rgba(143,217,182,.2);font-size:.85rem}
+  .szSafe b{display:block}
+  .szBtn{border:0;border-radius:14px;padding:13px;font-family:'Tajawal',sans-serif;font-weight:800;font-size:.92rem;cursor:pointer;min-height:48px;width:100%}
+  .szBtn:disabled{opacity:.45;cursor:not-allowed}
+  .szMint{background:#8fd9b6;color:#0b1d14}.szGhost{background:rgba(255,255,255,.05);color:#eef2ee;border:1px solid rgba(255,255,255,.1)}.szDanger{background:#3a1c19;color:#f2a49b;border:1px solid rgba(242,164,155,.35)}
+  .szGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .szSt{border-radius:18px;overflow:hidden;background:#0f1814;border:1px solid rgba(255,255,255,.08);padding:0;text-align:right;color:#eef2ee;font-family:'Tajawal',sans-serif;cursor:pointer}
+  .szSt .t{height:58px;display:flex;align-items:flex-end;padding:8px 12px;font-weight:800}
+  .szSt .b{padding:9px 12px 11px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+  .szChip{display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:800;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#cfd8d2;white-space:nowrap}
+  .szYou{color:#8fd9b6;border-color:rgba(143,217,182,.3);background:rgba(143,217,182,.08)}.szThem{color:#f2a49b;border-color:rgba(242,164,155,.3);background:rgba(242,164,155,.08)}
+  .szBand{border-radius:20px;padding:16px;background:linear-gradient(150deg,#1d4a33,#12301f);border:1px solid rgba(143,217,182,.25);display:flex;flex-direction:column;gap:6px}
+  .szBig{font-size:1.7rem;font-weight:900}
+  .szActs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .szActs button{border:1px solid rgba(255,255,255,.08);background:#131d18;color:#eef2ee;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:.82rem;font-weight:800;padding:10px 4px;min-height:56px;cursor:pointer}
+  .szLn{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:12px 0;border-top:1px solid rgba(255,255,255,.07)}
+  .szLn:first-child{border-top:0}
+  .szLn .t b{display:block;font-weight:800;font-size:.9rem}.szLn .t small{display:block;color:#9fb0a6;font-size:.76rem}
+  .szTrio{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+  .szTrio span{font-size:.72rem;background:rgba(255,255,255,.05);border-radius:7px;padding:1px 7px;color:#9fb0a6}.szTrio span b{display:inline;color:#eef2ee}
+  .szA{text-align:left;white-space:nowrap}.szA b{display:block;font-weight:800}.szA small{display:block;color:#9fb0a6;font-size:.72rem}
+  .szUp{color:#f2a49b}.szDn{color:#8fd9b6}
+  .szEnd{display:flex;justify-content:space-between;align-items:center;border-radius:14px;padding:12px 14px;background:rgba(143,217,182,.08);border:1px solid rgba(143,217,182,.22)}
+  .szEnd b{font-size:1.25rem}
+  .szWa{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;font-size:.84rem;white-space:pre-wrap;line-height:1.8}`;
+  document.head.appendChild(s);
+}
+function _szOpen(id,html){_szCss();document.getElementById(id)?.remove();const ov=document.createElement('div');ov.id=id;ov.className='szOv';ov.innerHTML=`<div class="szW">${html}</div>`;document.body.appendChild(ov);return ov;}
+function _szClose(id){document.getElementById(id)?.remove();}
+const _szF=n=>(Math.round((Number(n)||0)*100)/100).toFixed(2);
+const _szD=d=>d?String(d).split('-').reverse().slice(0,2).join('/'):'';
+const _szGrad=['#2f4f5d,#152630','#3a5a3f,#1d3324','#6a5530,#33270f','#5d3a4a,#2b1822','#4f4a2f,#262312','#3d3a5d,#1c1a30'];
+// صافي المتجر بنفس معادلة الكرت (موجب = عليك تدفعلهم)
+function _szNet(id){const n=_opStoreNets&&_opStoreNets[id];return n?(Number(n.safi)||0):null;}
+
+// ── قائمة المتاجر ──
+async function openStoresHub(){
+  if(!_opStoresList.length)await loadOpStores();
+  await _loadStoreZero();
+  // الأرقام بتنحسب مع تاب الرصيد — إذا لسّا ما انفتح منفتحه ومنستنّى
+  if(!Object.keys(_opStoreNets||{}).length){
+    if(typeof switchOpTab==='function')switchOpTab('balance');
+    toast('⏳ عم نحسب أرصدة المتاجر…');
+    let k=0;const t=setInterval(()=>{k++;if(Object.keys(_opStoreNets||{}).length||k>20){clearInterval(t);_szHubPaint();}},500);
+    return;
+  }
+  _szHubPaint();
+}
+function _szHubPaint(){
+  const L=(_opStoresList||[]).filter(s=>!s.archived&&!_shHidden(s.name));
+  let owe=0,have=0;
+  L.forEach(s=>{const v=_szNet(s.id)||0;if(v>0.009)owe+=v;else if(v<-0.009)have-=v;});
+  const hid=(_storeHidden||[]);
+  _szOpen('szHub',`<div class="szTop"><h2>🏪 حسابات المتاجر</h2><button class="szX" onclick="_szClose('szHub')" aria-label="إغلاق">✕</button></div>
+    ${_storeZero.date?`<div class="szL">حساب جديد لكل المتاجر من ${_szD(_storeZero.date)} — بدون أي رصيد سابق</div>`
+      :`<button class="szBtn szDanger" onclick="openStoreZero()">🧹 تصفير حسابات المتاجر</button>`}
+    <div class="szCard" style="gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div><span class="szL">مجموع اللي عليك</span><div class="szBig szN szUp">${_szF(owe)}</div></div>
+      <div style="text-align:left"><span class="szL">مجموع اللي إلك</span><div class="szBig szN szDn">${_szF(have)}</div></div></div></div>
+    <div class="szGrid">${L.map((s,i)=>{const v=_szNet(s.id)||0;
+      return `<button class="szSt" onclick="openStoreLedger('${s.id}')"><div class="t" style="background:linear-gradient(135deg,${_szGrad[i%_szGrad.length]})">${_clrEsc(s.name)}</div>
+        <div class="b">${Math.abs(v)<0.01?'<span class="szChip">مسوّى 0.00</span>':v>0?`<span class="szChip szThem">عليك <span class="szN">${_szF(v)}</span></span>`:`<span class="szChip szYou">إلك <span class="szN">${_szF(-v)}</span></span>`}</div></button>`;}).join('')}</div>
+    ${hid.length?`<div class="szCard"><b>متاجر مخفية</b>${hid.map(n=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${_clrEsc(n)}</span><button class="szChip" style="cursor:pointer" onclick="unhideStoreCard('${_payEsc(n)}');_szClose('szHub')">↩️ رجّعه</button></div>`).join('')}</div>`:''}`);
+}
+
+// ── كشف المتجر ──
+let _szLed={id:'',lines:[],name:''};
+async function openStoreLedger(id){
+  const st=(_opAllStoresList||[]).find(s=>s.id===id)||(_opStoresList||[]).find(s=>s.id===id);
+  if(!st){toast('❌ المتجر مش موجود');return;}
+  await _loadStoreReset();
+  _szOpen('szLed',`<div class="szTop"><h2>${_clrEsc(st.name)}</h2><button class="szX" onclick="_szClose('szLed')" aria-label="إغلاق">✕</button></div><div class="szL" style="text-align:center;padding:30px">⏳ جاري تحميل الكشف…</div>`);
+  const L=[];
+  try{
+    const [sSnap,pSnap,rSnap]=await Promise.all([
+      db.collection('operator_sales').where('storeId','==',id).get(),
+      db.collection('operator_store_payments').where('storeId','==',id).get(),
+      db.collection('page_refunds').where('storeId','==',id).get()]);
+    const rows=sSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false&&!_isPosSale(s)&&_srIn(id,s));
+    const costBy={};rows.forEach(r=>{if(r.fromOrderId)(costBy[r.fromOrderId]=costBy[r.fromOrderId]||[]).push(r);});
+    const orders=(_opDayOrders||[]).filter(o=>(o.pageName||o.storeName||o.source||'الموقع الإلكتروني')===st.name&&_srInOrder(id,o));
+    const seen=new Set();
+    orders.forEach(o=>{
+      const cash=Math.max(0,(o.netPrice!=null?o.netPrice:(o.totalPrice||0))-(o.deliveryFee||0));
+      const R=costBy[o.id]||[];R.forEach(r=>seen.add(r.id));
+      const cost=R.reduce((t,r)=>t+(Number(r.sellPrice)||0)*(Number(r.qty)||1),0);
+      L.push({k:'o',d:_crOrderDate(o)||o.date||'',num:o.orderNum||o.id.slice(-5).toUpperCase(),st:o.status,cash,cost,v:cash-cost,noCost:!R.length});
+    });
+    rows.filter(r=>!seen.has(r.id)).forEach(r=>{const c=(Number(r.sellPrice)||0)*(Number(r.qty)||1);
+      L.push({k:r.fromOrderId?'c':'s',d:r.date||'',name:r.productName||'',qty:r.qty||1,v:-c,ord:r.fromOrderId||''});});
+    pSnap.docs.map(d=>d.data()).forEach(p=>{
+      const mirror=p.withdrawalType==='withdrawal'||(p.sourceWithdrawalId&&p.withdrawalType!=='payment');
+      if(mirror||!_srIn(id,p))return;const a=Number(p.amount)||0;
+      L.push({k:'p',d:p.date||'',v:-a,dir:a>=0?'out':'in',note:p.notes||''});});
+    (_opWithdrawals||[]).filter(w=>_wdForStore(w,st.name,id)&&w.withdrawalType!=='payment'&&_srIn(id,w)).forEach(w=>{
+      L.push({k:'w',d:w.date||'',v:-(Number(w.amount)||0),note:w.notes||''});});
+    rSnap.docs.map(d=>d.data()).filter(r=>_srIn(id,r)).forEach(r=>{L.push({k:'r',d:r.date||'',v:-(Number(r.totalCost)||0),num:r.orderNum||''});});
+  }catch(e){_szOpen('szLed',`<div class="szTop"><h2>${_clrEsc(st.name)}</h2><button class="szX" onclick="_szClose('szLed')">✕</button></div><div class="szCard">❌ ما قدرنا نحمّل الكشف — ${_clrEsc(e.message||'')}</div>`);return;}
+  const open=_srOpening(id);
+  if(Math.abs(open)>0.009)L.push({k:'x',d:_srFrom(id),v:open});
+  L.sort((a,b)=>String(a.d).localeCompare(String(b.d))||(a.k==='x'?-1:b.k==='x'?1:0));
+  let run=0;L.forEach(l=>{run+=l.v;l.run=run;});
+  _szLed={id,name:st.name,lines:L,total:run};
+  const lbl=v=>Math.abs(v)<0.01?'مسوّى':v>0?`عليك ${_szF(v)}`:`إلك ${_szF(-v)}`;
+  const stLbl={delivering:'قيد التوصيل',delivered:'تم التسليم',onhold:'عالق',postponed:'مؤجل'};
+  const line=l=>{
+    const amt=`<div class="szA szN"><b class="${l.v>0.009?'szUp':l.v<-0.009?'szDn':''}">${l.v>0?'+':l.v<0?'−':''}${_szF(Math.abs(l.v))}</b><small>${lbl(l.run)}</small></div>`;
+    if(l.k==='o')return `<div class="szLn"><span class="szIc" style="background:rgba(226,196,131,.13)">🛒</span><div class="t"><b>طلب #${_clrEsc(l.num)} · ${stLbl[l.st]||''}</b><small>${_szD(l.d)} · ربح المتجر بيزيد اللي عليك${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>الزبون <b>${_szF(l.cash)}</b></span><span>سعر المتجر <b>${_szF(l.cost)}</b></span><span>ربحه <b>${_szF(l.v)}</b></span></div></div>${amt}</div>`;
+    if(l.k==='s')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🧾</span><div class="t"><b>بيع مباشر${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · المتجر اشترى منك، فصار عليه</small></div>${amt}</div>`;
+    if(l.k==='c')return `<div class="szLn"><span class="szIc" style="background:rgba(242,196,107,.13)">📦</span><div class="t"><b>تكلفة طلب${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · طلب مش ضمن طلبات الكشف (عالق أو تغيّر)</small></div>${amt}</div>`;
+    if(l.k==='p')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">💳</span><div class="t"><b>دفعة · ${l.dir==='out'?'دفعتلهم':'قبضت منهم'}</b><small>${_szD(l.d)}${l.note?' · '+_clrEsc(l.note):''}</small></div>${amt}</div>`;
+    if(l.k==='w')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">💳</span><div class="t"><b>دفعة · سحب من كاشك</b><small>${_szD(l.d)}${l.note?' · '+_clrEsc(l.note):''}</small></div>${amt}</div>`;
+    if(l.k==='r')return `<div class="szLn"><span class="szIc" style="background:rgba(242,164,155,.13)">↩️</span><div class="t"><b>قيد مرتجع قديم${l.num?' #'+_clrEsc(l.num):''}</b><small>${_szD(l.d)}</small></div>${amt}</div>`;
+    return `<div class="szLn"><span class="szIc" style="background:rgba(242,196,107,.13)">🤝</span><div class="t"><b>رصيد سابق</b><small>${_szD(l.d)}</small></div>${amt}</div>`;
+  };
+  const tot=run;
+  _szOpen('szLed',`<div class="szTop"><h2>${_clrEsc(st.name)}</h2><button class="szX" onclick="_szClose('szLed')" aria-label="إغلاق">✕</button></div>
+    <div class="szBand"><span class="szL" style="color:#b9d9c7">كشف حساب · ${_clrEsc(st.name)}${_srFrom(id)?' · من '+_szD(_srFrom(id)):''}</span>
+      <div class="szBig szN">${Math.abs(tot)<0.01?'الحساب مسوّى':tot>0?`عليك تدفعلهم ${_szF(tot)} د.أ`:`إلك عندهم ${_szF(-tot)} د.أ`}</div>
+</div>
+    <div class="szActs">
+      <button onclick="showAddWithdrawalModalForStore('${id}','${_payEsc(st.name)}','payment')">💳<br>دفعة</button>
+      <button onclick="_szShare()">💬<br>كشف واتساب</button>
+      <button onclick="openDebtBook('${id}','${_payEsc(st.name)}')">📒<br>دفتر الديون</button>
+    </div>
+    <div class="szCard" style="gap:0">${L.length?L.map(line).join(''):'<div class="szL" style="text-align:center;padding:20px">ما في حركات بالحساب الجديد لسّا</div>'}</div>
+    <div class="szEnd"><span>النتيجة</span><b class="szN ${tot>0.009?'szUp':'szDn'}">${lbl(tot)}</b></div>
+    <div class="szL" style="line-height:1.8">+ بيزيد اللي عليك للمتجر: ربح طلب، أو دفعة قبضتها منه.<br>− بينقص اللي عليك: بيع مباشر إله، أو دفعة دفعتلهم.</div>`);
+}
+function _szText(){
+  const s=_szLed,stLbl={delivering:'قيد التوصيل',delivered:'تم التسليم',onhold:'عالق',postponed:'مؤجل'};
+  const rows=s.lines.map(l=>{const d=_szD(l.d);
+    if(l.k==='o')return `${d}  طلب #${l.num}: ربحكم ${_szF(l.v)}`;
+    if(l.k==='s'||l.k==='c')return `${d}  ${l.k==='s'?'مواد خام':'تكلفة طلب'}${l.name?' ('+l.name+')':''}: ${_szF(-l.v)} عليكم`;
+    if(l.k==='p')return `${d}  دفعة ${l.dir==='out'?'إلكم':'منكم'}: ${_szF(Math.abs(l.v))}`;
+    if(l.k==='w')return `${d}  دفعة إلكم: ${_szF(-l.v)}`;
+    if(l.k==='r')return `${d}  مرتجع: ${_szF(-l.v)}`;
+    return `${d}  رصيد سابق: ${_szF(l.v)}`;}).join('\n');
+  const t=s.total;
+  return `📒 كشف حساب ${s.name}${_srFrom(s.id)?' — من '+_szD(_srFrom(s.id)):''}\n${rows||'ما في حركات'}\n—————\n${Math.abs(t)<0.01?'الحساب مسوّى ✓':t>0?`الباقي إلكم: ${_szF(t)} د.أ`:`الباقي عليكم: ${_szF(-t)} د.أ`}`;
+}
+function _szShare(){
+  const t=_szText();
+  _szOpen('szShare',`<div class="szTop"><h2>💬 كشف واتساب</h2><button class="szX" onclick="_szClose('szShare')" aria-label="إغلاق">✕</button></div>
+    <div class="szWa szN">${_clrEsc(t)}</div>
+    <button class="szBtn szMint" onclick="window.open('https://wa.me/?text='+encodeURIComponent(_szText()),'_blank')">💬 ابعت عالواتساب</button>
+    <button class="szBtn szGhost" onclick="navigator.clipboard&&navigator.clipboard.writeText(_szText()).then(()=>toast('📋 انسخ'),()=>{})">📋 نسخ</button>`);
+}
+
+// ── شاشة التصفير (لمرة وحدة) ──
+let _sz={backup:false,busy:false};
+async function openStoreZero(){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  await _loadStoreZero(true);
+  if(_storeZero.date){toast('حسابات المتاجر متصفّرة من '+_szD(_storeZero.date));return;}
+  if(!_opStoresList.length)await loadOpStores();
+  _szOpen('szZero',`<div class="szTop"><h2>🧹 تصفير حسابات المتاجر</h2><button class="szX" onclick="_szClose('szZero')" aria-label="إغلاق">✕</button></div><div class="szL" style="text-align:center;padding:30px">⏳ عم نجهّز الأرقام…</div>`);
+  let dlv=[],held=[],fresh=0;
+  try{
+    [dlv,held]=await Promise.all([
+      _fsLite('employee_orders',[['status','==','delivering']],['deliveredDate','orderNum']),
+      _fsLite('employee_orders',[['status','in',['onhold','postponed']]],['deliveredDate','orderNum','status'])]);
+    fresh=(await _fsLite('employee_orders',[['status','in',_SALE_PRE]],['status'])).length;
+  }catch(e){}
+  _sz.dlv=dlv;_sz.held=held;
+  const stores=(_opStoresList||[]).filter(s=>!s.archived);
+  const noDate=dlv.filter(o=>!o.deliveredDate).length;
+  _szOpen('szZero',`<div class="szTop"><h2>🧹 تصفير حسابات المتاجر</h2><button class="szX" onclick="_szClose('szZero')" aria-label="إغلاق">✕</button></div>
+    <div class="szCard">
+      <div class="szL">لمرة وحدة · كل المتاجر بتبلّش كأنها جديدة من اليوم ${_szD(jordanDateStr())}</div>
+      <div class="szRow"><span class="szIc" style="background:rgba(226,196,131,.13)">🏪</span><div><b><span class="szN">${stores.length}</span> متاجر بيصير رصيدها صفر</b><p>${stores.map(s=>_clrEsc(s.name)).join(' · ')}</p></div></div>
+      <div class="szRow"><span class="szIc" style="background:rgba(143,217,182,.13)">🚚</span><div><b><span class="szN">${dlv.length-noDate}</span> طلب قيد التوصيل ← تم التسليم</b><p>بيتسكّروا عالقديم بنفس تاريخهم، وما بيدخلوا بالحساب الجديد.${noDate?` (${noDate} بلا تاريخ تسليم بيضلّوا زي ما هم)`:''}</p></div></div>
+      <div class="szRow"><span class="szIc" style="background:rgba(242,196,107,.13)">⏳</span><div><b><span class="szN">${fresh+held.length}</span> طلب بيضلّوا عالجديد</b><p>${fresh} جديد أو بانتظار مندوب${held.length?` و${held.length} عالق/مؤجل`:''}. بينحسبوا عالمتجر بالحساب الجديد.</p></div></div>
+      <div class="szRow"><span class="szIc" style="background:rgba(242,164,155,.13)">✕</span><div><b>ما في رصيد افتتاحي</b><p>شاشة «إعادة الضبط» والرصيد الافتتاحي بينشالوا.</p></div></div>
+    </div>
+    <div class="szCard"><b>ما بينلمسوا</b><div class="szSafe"><div><b>💵 الكاش</b>ولا رقم</div><div><b>👛 المحفظة</b>زي ما هي</div><div><b>🏦 رأس المال</b>زي ما هو</div><div><b>📋 كشف المشغل</b>بيضل مفتوح</div></div></div>
+    <div class="szCard">
+      <div class="szRow"><span class="szIc" style="background:rgba(143,217,182,.13)">⬇️</span><div><b>نسخة احتياطية أوّل</b><p>ملف فيه كل سجلات حسابات المتاجر. ما بينمسح ولا سجل من النظام.</p></div></div>
+      <button class="szBtn szGhost" id="szBk" onclick="_szBackup()">⬇️ نزّل النسخة الاحتياطية</button>
+      <button class="szBtn szDanger" id="szGo" onclick="_szRun()" ${_sz.backup?'':'disabled'}>صفّر حسابات المتاجر</button>
+      <div class="szL" id="szMsg" style="text-align:center">زر التصفير بيشتغل بعد النسخة الاحتياطية</div>
+    </div>`);
+}
+async function _szBackup(){
+  const b=document.getElementById('szBk');if(b){b.disabled=true;b.textContent='⏳ عم نجهّز النسخة…';}
+  try{
+    const cols=['operator_sales','operator_store_payments','operator_withdrawals','page_refunds','operator_stores'];
+    const out={at:new Date().toISOString(),by:_currentAdminUser||'',config:{}};
+    for(const c of cols){const s=await db.collection(c).get();out[c]=s.docs.map(d=>({id:d.id,...d.data()}));}
+    for(const k of ['store_reset','store_hidden']){try{const d=await db.collection('operator_config').doc(k).get();out.config[k]=d.exists?d.data():null;}catch(e){}}
+    out.deliveringOrders=(_sz.dlv||[]).map(o=>({id:o.id,orderNum:o.orderNum||'',deliveredDate:o.deliveredDate||''}));
+    out.heldOrders=(_sz.held||[]).map(o=>({id:o.id,status:o.status}));
+    const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`alkiswani-stores-backup-${jordanDateStr()}.json`;
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    _sz.backup=true;
+    if(b)b.textContent='✅ نزلت النسخة الاحتياطية';
+    const g=document.getElementById('szGo');if(g)g.disabled=false;
+    const m=document.getElementById('szMsg');if(m)m.textContent='تأكد إنه الملف نزل على جهازك قبل التصفير';
+  }catch(e){toast('❌ ما قدرنا نجهّز النسخة — '+(e.message||e));if(b){b.disabled=false;b.textContent='⬇️ نزّل النسخة الاحتياطية';}}
+}
+async function _szBatch(ops){
+  for(let i=0;i<ops.length;i+=400){const b=db.batch();ops.slice(i,i+400).forEach(([ref,u])=>b.update(ref,u));await b.commit();}
+}
+async function _szRun(){
+  if(!_sz.backup||_sz.busy)return;
+  const zero=jordanDateStr();
+  if(!confirm(`نصفّر حسابات كل المتاجر من اليوم ${zero}؟\n\nكل الطلبات قيد التوصيل بتصير تم التسليم.\nالكاش والمحفظة ورأس المال ما بيتغيّروا.`))return;
+  _sz.busy=true;const g=document.getElementById('szGo'),m=document.getElementById('szMsg');
+  const say=t=>{if(m)m.textContent=t;};if(g)g.disabled=true;
+  try{
+    const by=_currentAdminUser||'admin',at=jordanDisplayDate(),FV=firebase.firestore.FieldValue;
+    // ١. قيد التوصيل ← تم التسليم، بنفس التاريخ وبدون ما نلمس updatedAt (الكاش بيعتمد عليه)
+    const dlv=(await _fsLite('employee_orders',[['status','==','delivering']],['deliveredDate'])).filter(o=>o.deliveredDate);
+    say(`⏳ ${dlv.length} طلب ← تم التسليم…`);
+    await _szBatch(dlv.map(o=>[db.collection('employee_orders').doc(o.id),
+      {status:'delivered',editHistory:FV.arrayUnion({by,at,note:'قيد التوصيل ← تم التسليم (تصفير المتاجر)'})}]));
+    // ٢. العالق والمؤجل بيمشوا عالجديد: الطلب وصفوف مبيعته
+    const held=await _fsLite('employee_orders',[['status','in',['onhold','postponed']]],['status']);
+    const hOps=[];
+    for(const o of held){
+      hOps.push([db.collection('employee_orders').doc(o.id),{storeIn:true}]);
+      const rs=await db.collection('operator_sales').where('fromOrderId','==',o.id).get();
+      rs.docs.forEach(d=>hOps.push([d.ref,{storeIn:true}]));
+    }
+    await _szBatch(hOps);
+    // ٣. اللي صار اليوم قبل لحظة التصفير بيضل عالقديم
+    say('⏳ عم نعلّم حركات اليوم القديمة…');
+    const heldIds=new Set(held.map(o=>o.id));
+    const [tOrd,tSales,tPays,tWds]=await Promise.all([
+      _fsLite('employee_orders',[['deliveredDate','==',zero]],['status']),
+      _fsLite('operator_sales',[['date','==',zero]],['fromOrderId']),
+      _fsLite('operator_store_payments',[['date','==',zero]],['storeId']),
+      _fsLite('operator_withdrawals',[['date','==',zero]],['storeId','storeName'])]);
+    await _szBatch([
+      ...tOrd.filter(o=>!heldIds.has(o.id)).map(o=>[db.collection('employee_orders').doc(o.id),{preZero:true}]),
+      ...tSales.filter(s=>!heldIds.has(s.fromOrderId)).map(s=>[db.collection('operator_sales').doc(s.id),{preZero:true}]),
+      ...tPays.map(p=>[db.collection('operator_store_payments').doc(p.id),{preZero:true}]),
+      ...tWds.filter(w=>w.storeId||w.storeName).map(w=>[db.collection('operator_withdrawals').doc(w.id),{preZero:true}])]);
+    // ٤. نقطة الصفر — آخر خطوة، فلو انقطع إشي قبلها بنعيد بأمان
+    await db.collection('operator_config').doc('store_zero').set({date:zero,at:FV.serverTimestamp(),by,moved:dlv.length,held:held.length});
+    await _loadStoreZero(true);
+    _szClose('szZero');
+    toast(`✅ تصفّرت حسابات المتاجر — ${dlv.length} طلب صار تم التسليم`);
+    if(typeof _loadOpSessionData==='function')_loadOpSessionData();
+  }catch(e){say('❌ '+(e.message||e)+' — ما تقلق، بتقدر تعيد');toast('❌ '+(e.message||e));if(g)g.disabled=false;}
+  _sz.busy=false;
+}
+window.openStoresHub=openStoresHub;window.openStoreLedger=openStoreLedger;window.openStoreZero=openStoreZero;
+window._szBackup=_szBackup;window._szRun=_szRun;window._szShare=_szShare;window._szText=_szText;window._szClose=_szClose;window._szHubPaint=_szHubPaint;
