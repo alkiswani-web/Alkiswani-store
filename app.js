@@ -16559,7 +16559,7 @@ function renderOperatorDailyView(){
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
         eligible:store.eligibleTotal||0,wd:storeWdTotal||0,matloub:stMatloub||0,safi:stSafi||0,
-        held:stHeld,inGroup:!!inGroup};
+        held:stHeld,inGroup:!!inGroup,orders:(store.orders||[]).length};
       const _heldLine=(stHeld>0.009&&!_srOn(store.storeId))?`<div style="padding:7px 15px;background:rgba(231,198,107,.07);border-top:1px solid rgba(231,198,107,.14);font-size:0.68rem;color:#e7c66b;line-height:1.7;">⏳ <b>${stHeld.toFixed(2)}</b> من طلبات هذا المتجر شركةُ التوصيل حاسبت المتجر عليها — فما بتدخل «قابل للسحب»</div>`:'';
       const _srOp=_srOpening(store.storeId);
       const _srOpTxt=_srOp?(_srOp<0?` · بدايته <b>بدّك منهم ${Math.abs(_srOp).toFixed(2)}</b>`:` · بدايته <b>إلهم عندك ${_srOp.toFixed(2)}</b>`):'';
@@ -16792,10 +16792,13 @@ function renderOperatorDailyView(){
         <span style="font-size:0.78rem;color:#9fc7b4;">🧱 ${rb.date||''}${rb.notes?' — '+rb.notes:''}</span>
         <span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:800;font-size:0.85rem;color:#f2a6a0;font-variant-numeric:tabular-nums;">${(rb.amount||0).toFixed(2)}</span>${!isClosed?`<button onclick="deleteRawBuy('${rb.id}')" style="background:rgba(242,166,160,.16);color:#f2a6a0;border:1px solid rgba(242,166,160,.3);border-radius:6px;width:22px;height:22px;font-size:0.78rem;cursor:pointer;font-weight:900;line-height:1;">×</button>`:''}</span>
       </div>`).join('')}</div>`:''}`;
-    storesHtml+=_ccHead('🏪','المتاجر · طلبات التوصيل','('+_opDayOrders.length+')')+`${groupCards}${ungroupedCards}`;
+    // بعد التصفير: كروت المتاجر بالشكل الجديد، والكبسة بتفتح كشف المتجر.
+    // الكروت القديمة لسّا بتنحسب فوق لأنها هي اللي بتعبّي الأرقام (_opStoreNets).
+    if(_storeZero.date) storesHtml+=_szGridHtml(true);
+    else storesHtml+=_ccHead('🏪','المتاجر · طلبات التوصيل','('+_opDayOrders.length+')')+`${groupCards}${ungroupedCards}`;
     // orphan withdrawals (for stores not in orders) — split by type
     const orphanWds=_opWithdrawals.filter(w=>!orderStoreNames.has(w.storeName));
-    if(orphanWds.length){
+    if(orphanWds.length&&!_storeZero.date){
       const _oRow=(w,color,bg,border)=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed ${border};gap:8px;">
           <div style="flex:1;min-width:0;">
@@ -27954,23 +27957,29 @@ async function openStoresHub(){
   }
   _szHubPaint();
 }
-function _szHubPaint(){
+// كروت المتاجر بالشكل الجديد — بالشاشة الكاملة وجوّا تاب «المتاجر» بالرصيد
+function _szGridHtml(inline){
+  _szCss();
   const L=(_opStoresList||[]).filter(s=>!s.archived&&!_shHidden(s.name));
   let owe=0,have=0;
   L.forEach(s=>{const v=_szNet(s.id)||0;if(v>0.009)owe+=v;else if(v<-0.009)have-=v;});
   // «مخفية» = متجر موجود خبّيت كرته. أسماء متاجر انمسحت بتضل بالقائمة بس
   // عشان طلباتها القديمة ما تعمل كروت — ما إلها داعي تبيّن هون.
   const hid=(_storeHidden||[]).filter(n=>(_opAllStoresList||[]).some(s=>s.name===n));
-  _szOpen('szHub',`<div class="szTop"><h2>🏪 حسابات المتاجر</h2><button class="szX" onclick="_szClose('szHub')" aria-label="إغلاق">✕</button></div>
-    ${_storeZero.date?`<div class="szL">حساب جديد لكل المتاجر من ${_szD(_storeZero.date)} — بدون أي رصيد سابق</div>`
-      :`<button class="szBtn szDanger" onclick="openStoreZero()">🧹 تصفير حسابات المتاجر</button>`}
+  return `<div style="display:flex;flex-direction:column;gap:12px;font-family:'Tajawal',sans-serif;color:#eef2ee">
+    ${_storeZero.date?`<div class="szL">حساب جديد لكل المتاجر من ${_szD(_storeZero.date)} — بدون أي رصيد سابق · كبسة على المتجر بتفتح كشفه</div>`
+      :(inline?'':`<button class="szBtn szDanger" onclick="openStoreZero()">🧹 تصفير حسابات المتاجر</button>`)}
     <div class="szCard" style="gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <div><span class="szL">مجموع اللي عليك</span><div class="szBig szN szUp">${_szF(owe)}</div></div>
       <div style="text-align:left"><span class="szL">مجموع اللي إلك</span><div class="szBig szN szDn">${_szF(have)}</div></div></div></div>
-    <div class="szGrid">${L.map((s,i)=>{const v=_szNet(s.id)||0;
+    <div class="szGrid">${L.map((s,i)=>{const v=_szNet(s.id)||0,n=_opStoreNets[s.id];
       return `<button class="szSt" onclick="openStoreLedger('${s.id}')"><div class="t" style="background:linear-gradient(135deg,${_szGrad[i%_szGrad.length]})">${_clrEsc(s.name)}</div>
-        <div class="b">${Math.abs(v)<0.01?'<span class="szChip">مسوّى 0.00</span>':v>0?`<span class="szChip szThem">عليك <span class="szN">${_szF(v)}</span></span>`:`<span class="szChip szYou">إلك <span class="szN">${_szF(-v)}</span></span>`}</div></button>`;}).join('')}</div>
-    ${hid.length?`<div class="szCard"><b>متاجر مخفية</b>${hid.map(n=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${_clrEsc(n)}</span><button class="szChip" style="cursor:pointer" onclick="unhideStoreCard('${_payEsc(n)}');_szClose('szHub')">↩️ رجّعه</button></div>`).join('')}</div>`:''}`);
+        <div class="b">${n&&n.orders?`<span class="szL"><span class="szN">${n.orders}</span> طلب</span>`:''}${Math.abs(v)<0.01?'<span class="szChip">مسوّى 0.00</span>':v>0?`<span class="szChip szThem">عليك <span class="szN">${_szF(v)}</span></span>`:`<span class="szChip szYou">إلك <span class="szN">${_szF(-v)}</span></span>`}</div></button>`;}).join('')}</div>
+    ${hid.length?`<div class="szCard"><b>متاجر مخفية</b>${hid.map(n=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${_clrEsc(n)}</span><button class="szChip" style="cursor:pointer" onclick="unhideStoreCard('${_payEsc(n)}');_szClose('szHub')">↩️ رجّعه</button></div>`).join('')}</div>`:''}
+  </div>`;
+}
+function _szHubPaint(){
+  _szOpen('szHub',`<div class="szTop"><h2>🏪 حسابات المتاجر</h2><button class="szX" onclick="_szClose('szHub')" aria-label="إغلاق">✕</button></div>${_szGridHtml(false)}`);
 }
 
 // ── كشف المتجر ──
