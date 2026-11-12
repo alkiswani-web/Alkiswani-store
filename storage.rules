@@ -1,0 +1,20 @@
+rules_version = '2';
+// قواعد مخزن الصور — الكسواني روزميري
+// الصور بتنعرض للكل (الموقع والكتالوج بيعرضوها)، بس الرفع والمسح للفريق
+// الداخل برقمه: الإدارة بأرقامها، والموظفات والمناديب بقائمة staff_phones.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function phone() { return request.auth != null ? request.auth.token.phone_number : null; }
+    function isAdmin() { return phone() in ['+962796754457', '+962777977737']; }
+    function isStaff() {
+      return isAdmin() || (phone() != null
+        && firestore.exists(/databases/(default)/documents/staff_phones/$(phone())));
+    }
+    match /{allPaths=**} {
+      allow get: if true;
+      allow list: if isStaff();
+      allow create, update: if isStaff() && request.resource.size < 60 * 1024 * 1024;
+      allow delete: if isStaff();
+    }
+  }
+}
