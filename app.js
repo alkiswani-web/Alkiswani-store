@@ -8485,7 +8485,10 @@ function _empCatPaint(){
         ${r.pageName?`<div style="font-size:.72rem;color:#0f766e;font-weight:800;margin-top:2px;">📄 ${_clrEsc(r.pageName)}</div>`:''}
         <div style="font-size:.78rem;color:#4b5563;font-weight:700;margin-top:3px;line-height:1.6;">${(r.items||[]).length?`📦 <bdi>${_clrEsc(r.productName||'')}</bdi>: ${_empCatItems(r)}<br>`:''}${(r.extras||[]).map(x=>`${(r.items||[]).length?'➕':'📦'} <bdi>${_clrEsc(x.name)}</bdi>${(x.colorNumbers||[]).length?' '+_empCatItems({items:x.colorNumbers}):''}${_catOptHtml(x)} <bdi dir="ltr">×${x.qty}</bdi><br>`).join('')}${r.extraText?`✍️ <b style="color:#92400e;">بدّه كمان:</b> ${_clrEsc(r.extraText)}<br>`:''}<b>(${r.pieces||0} قطعة)</b><br>📍 ${_clrEsc(c.area||'')} — ${_clrEsc(c.address||'')}${c.notes?`<br>📝 ${_clrEsc(c.notes)}`:''}${r.ref?` <span style="color:#9ca3af;">#${_clrEsc(r.ref)}</span>`:''}</div>
         <div style="display:flex;gap:6px;margin-top:8px;">
-          ${r.editOf?`<button type="button" onclick="catApplyEdit('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:#b45309;color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">✏️ طبّق على البوليصة</button>`
+          ${(r.editOf||r.addTo)&&!_canEditOrders()
+            ?(r.editOf?`<div style="flex:1;padding:9px;border-radius:10px;background:#fef3c7;color:#92400e;font-weight:800;font-size:.8rem;text-align:center;">✏️ تعديل على طلب — بتطبّقه الإدارة</div>`
+                      :`<button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:#166534;color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">➕ سجّله ببوليصة جديدة</button>`)
+          :r.editOf?`<button type="button" onclick="catApplyEdit('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:#b45309;color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">✏️ طبّق على البوليصة</button>`
           :r.addTo?`<button type="button" onclick="catAddToOrder('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">➕ ضيفه على البوليصة</button>`
           :`<button type="button" onclick="empCatFill('${r.id}')" style="${F}flex:1;padding:9px;border:none;border-radius:10px;background:${on?'#92400e':'#166534'};color:#fff;font-weight:900;font-size:.84rem;cursor:pointer;">${on?'✓ بالبوليصة — كمّل واختم':'📝 حطّه بالبوليصة'}</button>`}
           ${r.channel==='messenger'
@@ -8594,6 +8597,7 @@ function _catProductsOf(r){
 }
 // ➕ الزبون زاد على طلب انسجّل بوليصة (ولسّا «جديد»): الإضافة بتنضاف على نفس البوليصة
 async function catAddToOrder(rid){
+  if(!_canEditOrders()){empCatFill(rid);return;}   // بلا صلاحية تعديل: الإضافة بتنسجّل ببوليصة جديدة
   const r=(_empCatReqs||[]).find(x=>x.id===rid)||((typeof _catAdm!=='undefined'&&_catAdm.reqs)||[]).find(x=>x.id===rid);
   if(!r||!r.addTo)return;
   const oid=r.addTo.orderId;let od=null;
@@ -8621,6 +8625,7 @@ window.catAddToOrder=catAddToOrder;
 // ✏️ الزبون عدّل طلب انسجّل بوليصة (ولسّا «جديد»): الطلب الجديد كامل بيحلّ محلّ منتجات البوليصة
 // ومعلوماته، والمخزون بيتظبط على الفرق
 async function catApplyEdit(rid){
+  if(!_canEditOrders()){toast('✏️ هاد تعديل على طلب — الإدارة بتطبّقه');return;}
   const r=(_empCatReqs||[]).find(x=>x.id===rid)||((typeof _catAdm!=='undefined'&&_catAdm.reqs)||[]).find(x=>x.id===rid);
   if(!r||!r.editOf)return;
   const oid=r.editOf.orderId;let od=null;
@@ -9119,7 +9124,7 @@ function loadEmpDlvTodayList(){
 // تماماً زي ما كان: يضيف ويعدّل ويطبع، وما يشوف طلبات غيره.
 const EMP_PERMS=[
   {k:'canAddOrders', lbl:'📝 إضافة طلبات', def:true,  desc:'يفتح نموذج «طلب جديد». لو شلته بيشوف طلباته بس'},
-  {k:'canEditOrders',lbl:'✏️ تعديل الطلبات',def:true, desc:'زرّ التعديل على طلباته'},
+  {k:'canEditOrders',lbl:'✏️ تعديل الطلبات',def:true, desc:'يعدّل طلبات مسجّلة ويطبّق تعديلات الكتالوج — بلاها بيضيف طلبات بس'},
   {k:'canPrint',     lbl:'🖨 طباعة',        def:true,  desc:'زرّ طباعة الطلب'},
   {k:'canViewAll',   lbl:'👁 عرض كل الطلبات',def:false,desc:'يشوف طلبات كل الموظفين لا طلباته وحده'},
   {k:'isOperator',   lbl:'🔧 مشغل (تغيير حالة)',def:false,desc:'يغيّر حالة الطلب من شاشته'},
@@ -9556,7 +9561,7 @@ function _showOpOrderDetail(o){
         ${isOperator&&nextSt==='delivering'&&!isClosed?_dBtn('اختر مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
         ${o.status==='waiting_rep'?_dBtn('تعيين مندوب ←',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
         ${(o.status==='delivering'||o.status==='queued')&&!isClosed?_dBtn('🔄 تغيير المندوب',`closeOpOrderDetail();_openRepPickerFromDetail('${o.id}')`,'green'):''}
-        ${_dIconBtn('✏️',`closeOpOrderDetail();openEmpOrderEdit('${o.id}')`)}
+        ${_canEditOrders()?_dIconBtn('✏️',`closeOpOrderDetail();openEmpOrderEdit('${o.id}')`):''}
         ${_dIconBtn('🖨',`printEmpOrder('${o.id}',false)`)}
         ${_dIconBtn('🏷️',`printOrderQR('${o.id}')`)}
         ${isOperator?_dIconBtn('📱',`closeOpOrderDetail();openDeliveryModal&&openDeliveryModal('${o.id}')`):''}
@@ -9672,7 +9677,10 @@ function _fillEmpEditForm(o){
   renderEmpEditCart();
 }
 
+// تعديل طلب قائم: للإدارة دايماً، وللموظف إذا معه «✏️ تعديل الطلبات»
+function _canEditOrders(){return !!_currentAdminUser||_empCan('canEditOrders');}
 function openEmpOrderEdit(orderId){
+  if(!_canEditOrders()){toast('✏️ تعديل الطلبات مش من صلاحياتك');return;}
   _empEditOrderId=orderId;
   _empEditCart=[];
   _empEditDeliveryFee=0;
@@ -9890,6 +9898,7 @@ function updateEmpEditNet(){
 }
 
 async function saveEmpOrderEdit(){
+  if(!_canEditOrders()){toast('✏️ تعديل الطلبات مش من صلاحياتك');return;}
   if(!_empEditOrderId){toast('⚠️ خطأ: لا يوجد طلب');return;}
   if(!_empEditCart.length){toast('⚠️ يجب أن يكون هناك منتج واحد على الأقل');return;}
   const phone=normalizePhone(document.getElementById('empEdit_phone').value);
@@ -10130,7 +10139,7 @@ function openOpCardMenu(id,isOperator){
   const label=o.orderNum?`#${o.orderNum}`:'#'+(o.id||'').slice(-5).toUpperCase();
   const noteEsc=(o.internalNote||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const items=[
-    `<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpOrderEdit('${o.id}')">✏️ تعديل الطلب</button>`,
+    _canEditOrders()?`<button class="lux-menu-item" onclick="closeOpCardMenu();openEmpOrderEdit('${o.id}')">✏️ تعديل الطلب</button>`:'',
     `<button class="lux-menu-item" onclick="closeOpCardMenu();printEmpOrder('${o.id}',false)">🖨 طباعة</button>`,
     imgs.length?`<button class="lux-menu-item" onclick="closeOpCardMenu();printEmpOrder('${o.id}',true)">🖨📷 طباعة مع الصور</button>`:'',
     `<button class="lux-menu-item" onclick="closeOpCardMenu();printOrderQR('${o.id}')">🏷️ ليبل QR</button>`,
