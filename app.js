@@ -933,6 +933,8 @@ function switchAuthTab(tab){
   document.getElementById('authRegisterForm').classList.toggle('active',tab==='register');
 }
 async function doCustomerLogin(){
+  // حسابات المتجر القديم وقفت (كانت كلمات سرها مكشوفة) — الطلب صار من الكتالوج
+  toast('حسابات الزبائن القديمة وقفت — اطلب من الكتالوج');return;
   const phone=document.getElementById('loginPhone').value.trim();
   const pass=document.getElementById('loginPassword').value;
   await loadCustomers();
@@ -950,6 +952,7 @@ async function doCustomerLogin(){
   }
 }
 async function doCustomerRegister(){
+  toast('حسابات الزبائن القديمة وقفت — اطلب من الكتالوج');return;
   const name=document.getElementById('regName').value.trim();
   const phone=document.getElementById('regPhone').value.trim();
   const pass=document.getElementById('regPassword').value;
@@ -1189,6 +1192,7 @@ function _setPanelOpen(on){
 function _markStaffDevice(){try{localStorage.setItem('ak_staff_device','1');}catch(e){}}
 function openAdmin(){
   _markStaffDevice();
+  _staffPhonesSoon();
   document.getElementById('adminPanel').classList.add('open');
   _setPanelOpen(true);
   const lbl=document.getElementById('adminLoggedUser');
@@ -8179,10 +8183,11 @@ async function empSendCode(){
   const raw=document.getElementById('empPhone').value,err=document.getElementById('empLoginErr');err.textContent='';
   if(_last9(raw).length<9){err.textContent='اكتبي رقم الجوال كامل (07XXXXXXXX)';return;}
   const b=document.getElementById('empSendBtn');b.disabled=true;b.textContent='⏳';
-  let w=null;
+  let w=null,looked=false;
   try{
-    w=await _empByPhone(raw);
-    if(!w){err.textContent='هاد الرقم مش مسجّل لموظفة — اطلبي من المحل يضيفه';return;}
+    // بعد قفل قاعدة البيانات ما منقدر نشيّك على الرقم قبل الدخول — منشيّك بعد الرمز
+    try{w=await _empByPhone(raw);looked=true;}catch(e0){}
+    if(looked&&!w){err.textContent='هاد الرقم مش مسجّل لموظفة — اطلبي من المحل يضيفه';return;}
     if(!_empVerifier)_empVerifier=new firebase.auth.RecaptchaVerifier('empRecaptcha',{size:'invisible'});
     _empConfirm=await firebase.auth().signInWithPhoneNumber('+'+_empIntl(raw),_empVerifier);
     document.getElementById('empLgStep1').style.display='none';document.getElementById('empLgStep2').style.display='';
@@ -8191,8 +8196,8 @@ async function empSendCode(){
     setTimeout(()=>document.getElementById('empCode')?.focus(),200);
   }catch(e){
     const c=e&&e.code||'';
-    // إعدادات الرسائل مش جاهزة عند Firebase: زي المناديب — بتدخل برقمها بدل ما توقف
-    if(w&&_EMP_CFG_ERR.includes(c)){toast('⚠️ الرمز مش شغّال حالياً — دخلتِ برقمك. بلّغي المحل');_empStartWith(w);return;}
+    // ما في دخول بدون رمز — حتى لو الرسائل معطّلة
+    if(_EMP_CFG_ERR.includes(c)){err.textContent='رسائل الرمز معطّلة حالياً — بلّغي المحل';return;}
     err.textContent=c==='auth/too-many-requests'?'طلبتِ رمز كثير — استني شوي وجرّبي':c==='auth/invalid-phone-number'?'الرقم مش صحيح':'ما قدرنا نبعت الرمز — تأكّدي من النت وجرّبي كمان مرّة';
     try{_empVerifier&&_empVerifier.clear();}catch(x){}_empVerifier=null;const rc=document.getElementById('empRecaptcha');if(rc)rc.innerHTML='';
   }finally{b.disabled=false;b.textContent='ابعتلي الرمز';}
@@ -8206,7 +8211,10 @@ async function empVerifyCode(){
   try{
     const res=await _empConfirm.confirm(code);
     const ph=(res&&res.user&&res.user.phoneNumber)||document.getElementById('empPhone').value;
-    const w=await _empByPhone(ph);
+    let w=null;
+    try{w=await _empByPhone(ph);}catch(e1){
+      // رقمها مش بقائمة الفريق لسّا (الإدارة بتفعّلها لما تفتح لوحتها)
+      err.textContent='رقمك مش مفعّل عند المحل لسّا — خلّي الإدارة تضيفه وتفتح لوحتها';try{await firebase.auth().signOut();}catch(e){}return;}
     if(!w){err.textContent='رقمك ما عاد مسجّل — راجعي المحل';try{await firebase.auth().signOut();}catch(e){}return;}
     _empStartWith(w);
   }catch(e){err.textContent=(e&&e.code)==='auth/invalid-verification-code'?'الرمز غلط — تأكّدي منه':(e&&e.code)==='auth/code-expired'?'الرمز انتهى — ابعتي رمز جديد':'ما زبط — جرّبي كمان مرّة';}
@@ -9136,6 +9144,7 @@ async function loadEmpWorkers(){
 }
 
 async function addEmpWorker(){
+  _staffPhonesSoon();
   const name=document.getElementById('newWorkerName').value.trim();
   const phone=normalizePhone(document.getElementById('newWorkerPhone')?.value||'');
   let username=document.getElementById('newWorkerUsername').value.trim();
@@ -9173,6 +9182,7 @@ async function addEmpWorker(){
 }
 
 async function deleteEmpWorker(id){
+  _staffPhonesSoon();
   if(!confirm('حذف هذا الموظف نهائياً؟'))return;
   try{await db.collection('employee_workers').doc(id).delete();toast('🗑 تم الحذف');loadEmpWorkers();}
   catch(e){toast('❌ '+e.message);}
@@ -9345,6 +9355,7 @@ function _ewPermPaint(cb){
   l.style.background=cb.checked?'#f0fdf4':'#fff';
 }
 async function saveEmpWorkerEdit(id){
+  _staffPhonesSoon();
   const name=(document.getElementById('ew_name')?.value||'').trim();
   const password=(document.getElementById('ew_pass')?.value||'').trim();
   const phone=normalizePhone(document.getElementById('ew_phone')?.value||'');
@@ -13000,7 +13011,7 @@ const OP_FAM=[
                                       ['@barcode','🏷️ باركود','openBarcodes()'],
                                       ['@cbcast','📢 تحديث الألوان','openColorBroadcast()'],
                                       ['stores','🏪 المتاجر']]},
-  {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات']]}
+  {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات'],['@security','🔐 الحماية','openSecurity()']]}
 ];
 function _opFamOf(tab){
   return OP_FAM.find(f=>f.tabs.some(t=>t[0]===tab&&t[0][0]!=='@'))
@@ -21034,6 +21045,7 @@ async function _loadDeliveryReps(){
 async function _saveDeliveryReps(reps){
   _deliveryRepsCache=reps;
   await db.collection('operator_config').doc('delivery_reps').set({reps});
+  _staffPhonesSoon();
 }
 
 // ===== DELIVERY BATCH CONFIRMATION LINK =====
@@ -21046,6 +21058,9 @@ async function _initDeliveryBatchPage(){
   document.getElementById('deliverBatchOverlay').style.display='block';
   document.body.style.overflow='hidden';
   const content=document.getElementById('deliverBatchContent');
+  // روابط التسليم بلا دخول وقفت — المندوب بيسلّم من تطبيقه (برقمه والرمز)
+  content.innerHTML=`<div style="text-align:center;padding:40px 20px;font-family:'Tajawal',sans-serif;"><div style="font-size:2.4rem;">🚚</div><div style="font-weight:800;font-size:1.1rem;margin:10px 0;">هاد الرابط ما عاد شغّال</div><div style="color:#4b5563;line-height:1.8;">سلّم الطلبات من تطبيق المناديب:<br><a href="/rep.html" style="color:#166534;font-weight:800;">alkiswanirosemary.com/rep.html</a></div></div>`;
+  return;
   try{
     const snap=await db.collection('delivery_batches').doc(batchId).get();
     if(!snap.exists){content.innerHTML='<div style="text-align:center;padding:30px;color:#dc2626;">❌ الرابط غير صالح</div>';return;}
@@ -28364,3 +28379,85 @@ async function _szRun(){
 }
 window.openStoresHub=openStoresHub;window.openStoreLedger=openStoreLedger;window.openStoreZero=openStoreZero;
 window._szPay=_szPay;window._szBackup=_szBackup;window._szRun=_szRun;window._szShare=_szShare;window._szText=_szText;window._szClose=_szClose;window._szHubPaint=_szHubPaint;
+
+
+// ═══ 🔐 قائمة أرقام الفريق + شاشة الحماية ═══
+// قواعد قاعدة البيانات بتسمح لأي رقم موجود بـ staff_phones (موظفة أو مندوب)،
+// وللإدارة بأرقامها. القائمة بتتعبّى من الموظفين والمناديب اللي إلهم رقم، كل ما
+// الإدارة تفتح لوحتها أو تعدّل حد. وكلمات السر القديمة بتنمسح.
+let _spSyncT=null,_spLast=null;
+function _staffPhonesSoon(){clearTimeout(_spSyncT);_spSyncT=setTimeout(()=>{_syncStaffPhones();_wipeCustomerPasswords();},1500);}
+async function _syncStaffPhones(){
+  if(!_currentAdminUser)return null;
+  try{
+    const FV=firebase.firestore.FieldValue;
+    const [ws,rd,sp]=await Promise.all([db.collection('employee_workers').get(),
+      db.collection('operator_config').doc('delivery_reps').get(),db.collection('staff_phones').get()]);
+    const want={},intl=p=>'+'+_empIntl(p);
+    ws.docs.forEach(d=>{const v=d.data();if(v.phone&&_last9(v.phone).length===9)want[intl(v.phone)]={role:'emp',name:v.name||'',ref:d.id};});
+    ((rd.exists&&rd.data().reps)||[]).forEach(r=>{if(r&&r.phone&&_last9(r.phone).length===9){const k=intl(r.phone);if(!want[k])want[k]={role:'rep',name:r.name||'',ref:r.name||''};}});
+    const have={};sp.docs.forEach(d=>{have[d.id]=d.data();});
+    const ops=[];
+    Object.entries(want).forEach(([k,v])=>{const h=have[k];if(!h||h.role!==v.role||h.name!==v.name||h.ref!==v.ref)ops.push(['set',db.collection('staff_phones').doc(k),v]);});
+    Object.keys(have).forEach(k=>{if(!want[k])ops.push(['del',db.collection('staff_phones').doc(k)]);});
+    // موظفة صار إلها رقم ⇒ كلمة سرها القديمة ما إلها لزمة
+    ws.docs.forEach(d=>{const v=d.data();if(v.phone&&v.password!==undefined)ops.push(['upd',d.ref,{password:FV.delete()}]);});
+    for(let i=0;i<ops.length;i+=400){const b=db.batch();ops.slice(i,i+400).forEach(([t,r,v])=>t==='set'?b.set(r,v):t==='del'?b.delete(r):b.update(r,v));await b.commit();}
+    _spLast={staff:want,noPhone:ws.docs.map(d=>d.data()).filter(v=>!v.phone).map(v=>v.name||v.username||'—'),changed:ops.length};
+    return _spLast;
+  }catch(e){console.error('_syncStaffPhones',e);return null;}
+}
+// حسابات الزبائن القديمة: كلمات السر بتنمسح مرّة وحدة
+async function _wipeCustomerPasswords(){
+  if(!_currentAdminUser||_wipeCustomerPasswords.done)return;
+  _wipeCustomerPasswords.done=true;
+  try{
+    const flag=await db.collection('operator_config').doc('security').get();
+    if(flag.exists&&flag.data().customersWiped)return;
+    const s=await db.collection('customers').get();
+    const docs=s.docs.filter(d=>d.data().password!==undefined);
+    for(let i=0;i<docs.length;i+=400){const b=db.batch();docs.slice(i,i+400).forEach(d=>b.update(d.ref,{password:firebase.firestore.FieldValue.delete()}));await b.commit();}
+    await db.collection('operator_config').doc('security').set({customersWiped:true,wipedCount:docs.length,at:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  }catch(e){console.error('_wipeCustomerPasswords',e);_wipeCustomerPasswords.done=false;}
+}
+// هل قاعدة البيانات مقفولة؟ منجرّب نقرأ المبيعات بلا أي دخول
+async function _dbLockedProbe(){
+  try{const o=(typeof firebaseConfig!=='undefined'&&firebaseConfig)||firebase.app().options;
+    const r=await fetch(`https://firestore.googleapis.com/v1/projects/${o.projectId}/databases/(default)/documents/operator_sales?pageSize=1&key=${o.apiKey}`);
+    return r.status===403||r.status===401?true:r.ok?false:null;
+  }catch(e){return null;}
+}
+async function openSecurity(){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  _szCss();
+  _szOpen('szSec',`<div class="szTop"><h2>🔐 الحماية</h2><button class="szX" onclick="_szClose('szSec')" aria-label="إغلاق">✕</button></div><div class="szL" style="text-align:center;padding:30px">⏳ عم نفحص…</div>`);
+  const [sp,locked]=await Promise.all([_syncStaffPhones(),_dbLockedProbe()]);
+  const staff=sp?Object.values(sp.staff):[];
+  const emps=staff.filter(x=>x.role==='emp'),reps=staff.filter(x=>x.role==='rep');
+  const row=(ok,t,sub)=>`<div class="szRow"><span class="szIc" style="background:${ok?'rgba(143,217,182,.14)':'rgba(242,164,155,.14)'}">${ok?'✅':'⚠️'}</span><div><b>${t}</b>${sub?`<p>${sub}</p>`:''}</div></div>`;
+  _szOpen('szSec',`<div class="szTop"><h2>🔐 الحماية</h2><button class="szX" onclick="_szClose('szSec')" aria-label="إغلاق">✕</button></div>
+    <div class="szCard">
+      ${row(true,'دخول الإدارة برقمين والرمز','0796754457 · 0777977737')}
+      ${row(!!sp,`أرقام الفريق المفعّلة: ${staff.length}`,sp?`موظفات: ${emps.map(x=>_clrEsc(x.name)).join('، ')||'—'}<br>مناديب: ${reps.map(x=>_clrEsc(x.name)).join('، ')||'—'}`:'ما قدرنا نعبّي القائمة')}
+      ${sp&&sp.noPhone.length?row(false,`موظفين بلا رقم: ${sp.noPhone.length}`,`${sp.noPhone.map(_clrEsc).join('، ')} — ضيف رقم كل واحد من الفريق ← موظفون، أو احذف اللي ما عاد شغّال. بعد قفل قاعدة البيانات ما بيقدروا يدخلوا.`):row(true,'كل الموظفين إلهم أرقام','')}
+      ${locked===true?row(true,'قاعدة البيانات مقفولة','الزائر بيشوف الكتالوج بس'):locked===false?row(false,'قاعدة البيانات لسّا مفتوحة','أي حد بيقدر يقرأ البيانات — اتبع الخطوات تحت'):row(false,'ما قدرنا نفحص القفل','')}
+    </div>
+    ${locked===true?'':`<div class="szCard">
+      <b>🔒 قفل قاعدة البيانات — الخطوات</b>
+      <div class="szL" style="line-height:2;font-size:.86rem;color:#cfd8d2">
+        ١. تأكد إنه كل موظف ومندوب شغّال إله رقم (فوق).<br>
+        ٢. افتح <b>console.firebase.google.com</b> ← مشروع <b>alkiswani-store</b> ← <b>Firestore Database</b> ← تبويب <b>Rules</b>.<br>
+        ٣. امسح كل اللي هناك والصق القواعد (زر النسخ تحت) ← <b>Publish</b>.<br>
+        ٤. ارجع هون واكبس «افحص من جديد» — لازم يطلع ✅ مقفولة.<br>
+        ٥. جرّب: الكتالوج، تطبيق المناديب، دخول موظفة.</div>
+      <button class="szBtn szMint" onclick="_secCopyRules()">📋 انسخ قواعد الحماية</button>
+    </div>`}
+    <button class="szBtn szGhost" onclick="openSecurity()">🔄 افحص من جديد</button>`);
+}
+async function _secCopyRules(){
+  try{const t=await (await fetch('/firestore.rules',{cache:'no-store'})).text();
+    if(!/service cloud\.firestore/.test(t))throw new Error('x');
+    await navigator.clipboard.writeText(t);toast('📋 انسخت القواعد — الصقها بـ Firebase');
+  }catch(e){toast('❌ ما قدرنا ننسخ — افتح alkiswanirosemary.com/firestore.rules وانسخ منه');}
+}
+window.openSecurity=openSecurity;window._secCopyRules=_secCopyRules;
