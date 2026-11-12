@@ -259,7 +259,8 @@ function jordanDateStr(){return new Date().toLocaleDateString('en-CA',{timeZone:
 function jordanDisplayDate(opts={}){return new Date().toLocaleDateString('ar-JO',{timeZone:'Asia/Amman',...opts});}
 
 // ===== CONFIG =====
-const ADMIN_USER='alkiswani', ADMIN_PASS='rosemary2026', WA='962775665598';
+// دخول الإدارة صار برقم التلفون والرمز (Firebase) — كلمة سر بملف الموقع كان أي حد بيقدر يقرأها
+const _ADMIN_PHONES9=['796754457','777977737'];
 
 // ===== STATE =====
 let products=[];
@@ -1096,41 +1097,74 @@ function _loadAdminSession(){
   }catch(e){return null;}
 }
 
-function openAdminLogin(){
+// ═══ دخول الإدارة برقم التلفون ═══
+// رقمين مسموحين بس. الجلسة المحفوظة ما بتكفي لحالها: لازم الجوال يكون داخل
+// على Firebase برقم إدارة، وإلا منطلب الرمز من جديد (والجلسات القديمة بالباسورد بتنشال).
+function _isAdminFbUser(u){return !!(u&&u.phoneNumber&&_ADMIN_PHONES9.includes(_last9(u.phoneNumber)));}
+function _fbUserReady(){
+  return new Promise(res=>{
+    try{const a=firebase.auth();const un=a.onAuthStateChanged(u=>{try{un();}catch(e){}res(u||null);});}
+    catch(e){res(null);}
+  });
+}
+let _adminConfirm=null,_adminVerifier=null;
+async function openAdminLogin(){
   const saved=_loadAdminSession();
-  if(saved){
-    _currentAdminUser=saved.user;_currentAdminPerms=saved.perms;
+  const u=await _fbUserReady();
+  if(saved&&_isAdminFbUser(u)){
+    _currentAdminUser='MAIN';_currentAdminPerms=null;
     openAdmin();return;
   }
+  if(saved)_clearAdminSession();
+  adminLgBack();
   document.getElementById('adminLoginOverlay').classList.add('open');
-  setTimeout(()=>document.getElementById('aUser').focus(),300);
+  setTimeout(()=>document.getElementById('aPhone')?.focus(),300);
 }
 function closeAdminLogin(){document.getElementById('adminLoginOverlay').classList.remove('open');}
-async function doAdminLogin(){
-  const u=document.getElementById('aUser').value.trim();
-  const p=document.getElementById('aPass').value;
-  const remember=document.getElementById('aRemember').checked;
-  // Main owner login
-  if(u===ADMIN_USER&&p===ADMIN_PASS){
-    _currentAdminUser='MAIN';_currentAdminPerms=null;
-    if(remember) _saveAdminSession('MAIN',null);
-    closeAdminLogin();openAdmin();return;
-  }
-  // Sub-user login from Firestore
-  try{
-    const snap=await db.collection('admin_users').where('username','==',u).limit(1).get();
-    if(!snap.empty){
-      const docData=snap.docs[0].data();
-      if(docData.password===p){
-        _currentAdminUser=u;_currentAdminPerms=docData.permissions||[];
-        if(remember) _saveAdminSession(u, docData.permissions||[]);
-        closeAdminLogin();openAdmin();return;
-      }
-    }
-  }catch(e){}
-  document.getElementById('aErr').style.display='block';
-  setTimeout(()=>document.getElementById('aErr').style.display='none',3000);
+function adminLgBack(){
+  const s1=document.getElementById('aLgStep1'),s2=document.getElementById('aLgStep2');
+  if(s1)s1.style.display='';if(s2)s2.style.display='none';
+  const e=document.getElementById('aErr');if(e)e.textContent='';
+  const c=document.getElementById('aCode');if(c)c.value='';
 }
+async function adminSendCode(){
+  const raw=document.getElementById('aPhone').value,err=document.getElementById('aErr');err.textContent='';
+  if(_last9(raw).length<9){err.textContent='اكتب رقم الجوال كامل (07XXXXXXXX)';return;}
+  if(!_ADMIN_PHONES9.includes(_last9(raw))){err.textContent='هاد الرقم مش رقم إدارة';return;}
+  const b=document.getElementById('aSendBtn');b.disabled=true;b.textContent='⏳';
+  try{
+    if(!_adminVerifier)_adminVerifier=new firebase.auth.RecaptchaVerifier('adminRecaptcha',{size:'invisible'});
+    _adminConfirm=await firebase.auth().signInWithPhoneNumber('+'+_empIntl(raw),_adminVerifier);
+    document.getElementById('aLgStep1').style.display='none';document.getElementById('aLgStep2').style.display='';
+    document.getElementById('aLgHint').textContent='بعتنالك رسالة فيها رمز من 6 أرقام على '+raw.trim()+' — اكتبه هون.';
+    setTimeout(()=>document.getElementById('aCode')?.focus(),200);
+  }catch(e){
+    const c=e&&e.code||'';
+    // للإدارة ما في دخول بدون رمز، حتى لو الرسائل معطّلة
+    err.textContent=c==='auth/too-many-requests'?'طلبت رمز كثير — استنّى شوي وجرّب':c==='auth/invalid-phone-number'?'الرقم مش صحيح'
+      :_EMP_CFG_ERR.includes(c)?'رسائل الرمز مش مفعّلة على Firebase ('+c+')':'ما قدرنا نبعت الرمز — تأكّد من النت وجرّب كمان مرّة';
+    try{_adminVerifier&&_adminVerifier.clear();}catch(x){}_adminVerifier=null;const rc=document.getElementById('adminRecaptcha');if(rc)rc.innerHTML='';
+  }finally{b.disabled=false;b.textContent='ابعتلي الرمز';}
+}
+async function adminVerifyCode(){
+  const code=String(document.getElementById('aCode').value||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g,'');
+  const err=document.getElementById('aErr');err.textContent='';
+  if(code.length!==6){err.textContent='الرمز 6 أرقام';return;}
+  if(!_adminConfirm){adminLgBack();return;}
+  const b=document.getElementById('aVerifyBtn');if(b.disabled)return;b.disabled=true;b.textContent='⏳';
+  try{
+    const res=await _adminConfirm.confirm(code);
+    if(!_isAdminFbUser(res&&res.user)){try{await firebase.auth().signOut();}catch(x){}err.textContent='هاد الرقم مش رقم إدارة';return;}
+    _currentAdminUser='MAIN';_currentAdminPerms=null;
+    _saveAdminSession('MAIN',null);
+    _adminConfirm=null;
+    closeAdminLogin();openAdmin();
+  }catch(e){
+    const c=e&&e.code||'';
+    err.textContent=c==='auth/invalid-verification-code'?'الرمز غلط':c==='auth/code-expired'?'الرمز انتهى — اطلب رمز جديد':'ما قدرنا نتحقّق — جرّب كمان مرّة';
+  }finally{b.disabled=false;b.textContent='دخول';}
+}
+window.adminSendCode=adminSendCode;window.adminVerifyCode=adminVerifyCode;window.adminLgBack=adminLgBack;
 async function _migrateDeliveryRepsLegacy(){
   try{
     const legacy=JSON.parse(localStorage.getItem('delivery_reps')||'[]');
@@ -1173,6 +1207,7 @@ function closeAdmin(){
 }
 function logoutAdmin(){
   _clearAdminSession();
+  try{const a=firebase.auth();if(_isAdminFbUser(a.currentUser))a.signOut();}catch(e){}
   _currentAdminUser=null;_currentAdminPerms=null;
   document.getElementById('adminPanel').classList.remove('open');
   _setPanelOpen(false);
@@ -1205,7 +1240,7 @@ function applyAdminPerms(){
     if(btn)btn.click();
   }
 }
-document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('adminLoginOverlay').classList.contains('open'))doAdminLogin();});
+// Enter بخانة الرقم والرمز ليه معالِجه بالـ HTML
 
 function switchAdminTab(tab){
   if(tab!=='operator'){
@@ -2427,7 +2462,7 @@ async function addAdminUser(){
   if(!u){toast('⚠️ أدخل اسم المستخدم');return;}
   if(!p){toast('⚠️ أدخل كلمة المرور');return;}
   if(!perms.length){toast('⚠️ اختر صلاحية واحدة على الأقل');return;}
-  if(u===ADMIN_USER){toast('⚠️ هذا الاسم محجوز');return;}
+  if(u==='MAIN'){toast('⚠️ هذا الاسم محجوز');return;}
   // check duplicate
   const dup=_adminUsersList.find(x=>x.username===u);
   if(dup){toast('⚠️ اسم المستخدم موجود مسبقاً');return;}
@@ -20191,7 +20226,7 @@ window.doCustomerLogin=doCustomerLogin; window.doCustomerRegister=doCustomerRegi
 window.openProfile=openProfile; window.closeProfile=closeProfile;
 window.logoutCustomer=logoutCustomer;
 window.openAdminLogin=openAdminLogin; window.closeAdminLogin=closeAdminLogin;
-window.doAdminLogin=doAdminLogin;
+
 window.openAdmin=openAdmin; window.closeAdmin=closeAdmin; window.logoutAdmin=logoutAdmin;
 window.switchAdminTab=switchAdminTab;
 window.loadAdminUsers=loadAdminUsers; window.addAdminUser=addAdminUser; window.deleteAdminUser=deleteAdminUser;

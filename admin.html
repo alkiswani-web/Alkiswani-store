@@ -28,7 +28,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v412"></script>
+<script defer src="app.js?v413"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -1917,14 +1917,20 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
   <div class="admin-login-card">
     <div class="logo">الكسواني روزميري</div>
     <div class="sub">Admin Access</div>
-    <input type="text" id="aUser" placeholder="اسم المستخدم" autocomplete="off">
-    <input type="password" id="aPass" placeholder="كلمة المرور">
-    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:rgba(255,255,255,0.5);cursor:pointer;margin-bottom:4px;justify-content:center;">
-      <input type="checkbox" id="aRemember" style="accent-color:var(--gold);width:15px;height:15px;cursor:pointer;">
-      تذكرني
-    </label>
-    <button class="btn-admin-login" onclick="doAdminLogin()">🔐 دخول</button>
-    <div class="admin-login-err" id="aErr">❌ بيانات غير صحيحة</div>
+    <div id="aLgStep1">
+      <label for="aPhone" style="display:block;font-size:0.8rem;color:rgba(255,255,255,0.6);margin-bottom:6px;text-align:center;">رقم جوال الإدارة</label>
+      <input type="tel" id="aPhone" placeholder="07XXXXXXXX" inputmode="tel" autocomplete="tel" dir="ltr" style="text-align:center;" onkeydown="if(event.key==='Enter')adminSendCode()">
+      <button class="btn-admin-login" id="aSendBtn" onclick="adminSendCode()">ابعتلي الرمز</button>
+    </div>
+    <div id="aLgStep2" style="display:none;">
+      <div id="aLgHint" style="font-size:0.8rem;color:rgba(255,255,255,0.65);text-align:center;margin-bottom:8px;line-height:1.7;"></div>
+      <label for="aCode" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">الرمز</label>
+      <input type="text" id="aCode" placeholder="• • • • • •" inputmode="numeric" autocomplete="one-time-code" maxlength="6" dir="ltr" style="text-align:center;letter-spacing:6px;" onkeydown="if(event.key==='Enter')adminVerifyCode()">
+      <button class="btn-admin-login" id="aVerifyBtn" onclick="adminVerifyCode()">دخول</button>
+      <button class="btn-admin-cancel" onclick="adminLgBack()">← غيّر الرقم</button>
+    </div>
+    <div id="aErr" role="alert" style="min-height:1.2em;font-size:0.82rem;color:#f2a6a0;text-align:center;margin-top:6px;"></div>
+    <div id="adminRecaptcha"></div>
     <button class="btn-admin-cancel" onclick="closeAdminLogin()">إلغاء</button>
   </div>
 </div>
