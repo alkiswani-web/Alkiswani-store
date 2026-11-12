@@ -3422,6 +3422,30 @@ function _fmtCN(cn,prodId){
 
 // شبكة اختيار اللون — مشتركة بين سلّة الطلب وسلّة التعديل، فالشكل واحد
 // والسلوك واحد. المتوقّف لا يظهر إلا إذا كان مختاراً في طلب قائم.
+// ═══ إعادة الرسم بدون ما الشاشة تطلع لفوق ═══
+// كبسة على لون بتعيد رسم القائمة كلها، فكانت ترجع لأوّلها (والصفحة كمان). منحفظ
+// مكان التمرير قبل (الصفحة، الأهل، وكل قائمة جوّا) ومنرجّعه بعد بنفس الترتيب.
+// get: العنصر أو دالّة بترجّعه (لعنصر بينشال وبينبني من جديد).
+function _keepScroll(get,fn){
+  const el0=typeof get==='function'?get():get;
+  const isS=n=>{if(!n||n.nodeType!==1)return false;if(n.scrollHeight<=n.clientHeight+1&&n.scrollWidth<=n.clientWidth+1)return false;
+    const cs=getComputedStyle(n);return /(auto|scroll)/.test(cs.overflowY+' '+cs.overflowX);};
+  const anc=[];let a=el0&&el0.parentElement;
+  while(a&&a!==document.body&&a!==document.documentElement){if(isS(a))anc.push([a,a.scrollTop,a.scrollLeft]);a=a.parentElement;}
+  const own=el0&&isS(el0)?[el0.scrollTop,el0.scrollLeft]:null;
+  const inner=el0?[...el0.querySelectorAll('*')].filter(isS).map(n=>[n.scrollTop,n.scrollLeft]):[];
+  const wx=window.scrollX,wy=window.scrollY;
+  const r=fn();
+  const back=()=>{
+    anc.forEach(([n,t,l])=>{if(n.scrollTop!==t)n.scrollTop=t;if(n.scrollLeft!==l)n.scrollLeft=l;});
+    const el1=typeof get==='function'?get():get;
+    if(el1){if(own){el1.scrollTop=own[0];el1.scrollLeft=own[1];}
+      [...el1.querySelectorAll('*')].filter(isS).forEach((n,i)=>{const v=inner[i];if(v){n.scrollTop=v[0];n.scrollLeft=v[1];}});}
+    if(Math.abs(window.scrollY-wy)>1||Math.abs(window.scrollX-wx)>1)window.scrollTo(wx,wy);
+  };
+  back();try{requestAnimationFrame(back);}catch(e){}
+  return r;
+}
 function _cnGridHtml(codes,sel,fn,i,small,own,prod){
   const box=small?38:44;
   if(own) return codes.map(n=>{
@@ -5192,7 +5216,11 @@ function posClose(){
 }
 
 // ═══ الرسم ═══
-function posRender(){posRenderTape();posRenderMoney();posRenderDeck();posRenderSheet();}
+function posRender(){
+  // مكان التمرير بالألوان وبالنافذة اللي فوق (بتنشال وبتنبني) بيضل زي ما هو
+  _keepScroll(()=>document.getElementById('posGrid'),()=>
+    _keepScroll(()=>document.getElementById('posSheetEl'),()=>{posRenderTape();posRenderMoney();posRenderDeck();posRenderSheet();}));
+}
 function posRenderTape(){
   const t=document.getElementById('posTape'); if(!t)return;
   if(_posDone){
@@ -8009,7 +8037,7 @@ function renderEmpOrderCart(){
     updateEmpNet();
     return;
   }
-  wrap.innerHTML=_empOrderCart.map((item,i)=>{
+  _keepScroll(wrap,()=>{wrap.innerHTML=_empOrderCart.map((item,i)=>{
     const prod=(_empSharedProducts||[]).find(p=>p.id===item.id)||{};
     const colors=Array.isArray(prod.colors)?prod.colors:[];
     const priceOpts=_productPriceChoices(prod);
@@ -8045,7 +8073,7 @@ function renderEmpOrderCart(){
       </div>
       ${showExtras?priceOptsHtml+colorHtml+writingHtml+colorNumbersHtml:''}
     </div>`;
-  }).join('');
+  }).join('');});
   const t=document.getElementById('emp_total');
   if(t)t.value=calcEmpOrderTotal().toFixed(2);
   updateEmpNet();
@@ -9707,7 +9735,7 @@ function renderEmpEditCart(){
   const wrap=document.getElementById('empEditCartWrap');
   if(!wrap)return;
   if(!_empEditCart.length){wrap.innerHTML='<div style="color:#9ca3af;font-size:0.82rem;padding:8px;text-align:center;">لا يوجد منتجات</div>';updateEmpEditNet();return;}
-  wrap.innerHTML=`<div style="font-size:0.8rem;font-weight:700;color:#1a3a2a;margin-bottom:6px;">📦 المنتجات</div>`+
+  _keepScroll(wrap,()=>{wrap.innerHTML=`<div style="font-size:0.8rem;font-weight:700;color:#1a3a2a;margin-bottom:6px;">📦 المنتجات</div>`+
     _empEditCart.map((item,i)=>{
       const pr=(_opProductsList||[]).find(p=>p.id===item.id)||(_empSharedProducts||[]).find(p=>p.id===item.id)||{};
       const hasCN=!!pr.hasColorNumbers;const cnCount=pr.colorNumbersCount||0;
@@ -9740,7 +9768,7 @@ function renderEmpEditCart(){
           <input value="${(item.color||'').replace(/"/g,'&quot;')}" placeholder="🎨 اللون" oninput="_empEditCart[${i}].color=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
           <input value="${(item.writing||'').replace(/"/g,'&quot;')}" placeholder="✍️ الكتابة" oninput="_empEditCart[${i}].writing=this.value" style="flex:1;padding:6px 9px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:'Tajawal',sans-serif;font-size:0.8rem;outline:none;" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e5e7eb'">
         </div>`}
-      </div>`;}).join('');
+      </div>`;}).join('');});
   updateEmpEditNet();
 }
 
@@ -9760,8 +9788,13 @@ function empEditCN(i,num,delta){
   if(j>=0){const q=(cns[j].qty||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
   else if(delta>0){cns.push({num,qty:1});}
   cns.sort((a,b)=>a.num-b.num);
+  // الإجمالي بيمشي مع عدد القطع (زي زرّ الكمية) — كان يضل على القديم
+  const _before=(Array.isArray(item.colorNumbers)?item.colorNumbers:[]).reduce((s,c)=>s+(c.qty||0),0);
   item.colorNumbers=cns;
-  item.qty=cns.reduce((s,c)=>s+(c.qty||0),0)||1;
+  const _after=cns.reduce((s,c)=>s+(c.qty||0),0);
+  item.qty=_after||1;
+  const totalEl=document.getElementById('empEditTotalInput');
+  if(totalEl&&_after!==_before)totalEl.value=Math.max(0,parseFloat(totalEl.value||0)+(_after-_before)*parseFloat(item.price||0)).toFixed(2);
   renderEmpEditCart();
 }
 

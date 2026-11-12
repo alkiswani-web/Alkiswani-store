@@ -1673,6 +1673,16 @@ function fdAdd(i){
 }
 
 // ── الأحداث ──
+// كبسة على لون بتعيد رسم الصفحة: الصور بتنبني من جديد فالصفحة بتقصر لحظة
+// وبتطلع لفوق. منثبّت طول القائمة ومكان التمرير (الصفحة والسلّة) لحد ما تخلص.
+function keepY(fn){
+  const y=window.scrollY,g=document.getElementById('grid'),sb=document.getElementById('sl');
+  const sy=sb?sb.scrollTop:0;
+  if(g){g.style.minHeight=g.offsetHeight+'px';clearTimeout(keepY.t);keepY.t=setTimeout(()=>{g.style.minHeight='';},700);}
+  fn();
+  const back=()=>{if(Math.abs(window.scrollY-y)>1)window.scrollTo(0,y);if(sb&&sb.scrollTop!==sy)sb.scrollTop=sy;};
+  back();requestAnimationFrame(back);setTimeout(back,120);
+}
 document.addEventListener('click',e=>{
   const pjp=e.target.closest('[data-pjp]');if(pjp){PJS.proj=pjp.dataset.pjp;if(!PJS.fixed)PJS.pid='';pjPaint();return;}
   const pjy=e.target.closest('[data-pjy]');if(pjy){PJS.pid=pjy.dataset.pjy;PJS.n=1;pjPaint();setTimeout(()=>$('#pjBd').scrollTo({top:$('#pjBd').scrollHeight,behavior:'smooth'}),30);return;}
@@ -1699,16 +1709,16 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-editx]')){cancelEdit();return;}
   const stb=e.target.closest('[data-st]');if(stb){STORE=stores().find(x=>x.id===stb.dataset.st)||null;paintStores();$('#ckErr').textContent='';return;}
   const pq=e.target.closest('[data-pq]');if(pq){const [id,d]=pq.dataset.pq.split(':');const was=cTot(id);bump(id,null,Number(d));
-    if(!was&&cTot(id))toast('✓ انضاف '+((PR[id]&&PR[id].name)||''));render();return;}
-  const cq=e.target.closest('[data-cq]');if(cq){const [n,d]=cq.dataset.cq.split(':');bump(CUR,Number(n),Number(d));render();return;}
-  const wf=e.target.closest('[data-wpf]');if(wf){OSEL.f=wf.dataset.wpf;render();return;}
-  const oc=e.target.closest('[data-oc]');if(oc){OSEL.c=oc.dataset.oc;$('#oErr')&&($('#oErr').textContent='');render();return;}
+    if(!was&&cTot(id))toast('✓ انضاف '+((PR[id]&&PR[id].name)||''));keepY(render);return;}
+  const cq=e.target.closest('[data-cq]');if(cq){const [n,d]=cq.dataset.cq.split(':');bump(CUR,Number(n),Number(d));keepY(render);return;}
+  const wf=e.target.closest('[data-wpf]');if(wf){OSEL.f=wf.dataset.wpf;keepY(render);return;}
+  const oc=e.target.closest('[data-oc]');if(oc){OSEL.c=oc.dataset.oc;$('#oErr')&&($('#oErr').textContent='');keepY(render);return;}
   const oq=e.target.closest('[data-oq]');if(oq){OSEL.q=Math.max(1,Math.min(99,OSEL.q+Number(oq.dataset.oq)));const b=$('#oQ');if(b)b.textContent=OSEL.q;return;}
   if(e.target.closest('[data-oadd]')){optAdd();return;}
-  const ol=e.target.closest('[data-ol]');if(ol){const [i,d]=ol.dataset.ol.split(':').map(Number);const l=CART[CUR]&&CART[CUR].L&&CART[CUR].L[i];if(l)setLine(CUR,i,l.q+d);render();return;}
+  const ol=e.target.closest('[data-ol]');if(ol){const [i,d]=ol.dataset.ol.split(':').map(Number);const l=CART[CUR]&&CART[CUR].L&&CART[CUR].L[i];if(l)setLine(CUR,i,l.q+d);keepY(render);return;}
   const sq=e.target.closest('[data-sq]');if(sq){const [id,n,d]=sq.dataset.sq.split(':');
     if(n[0]==='L'){const i=Number(n.slice(1)),l=CART[id]&&CART[id].L&&CART[id].L[i];if(l)setLine(id,i,l.q+Number(d));}
-    else bump(id,n===''?null:Number(n),Number(d));render();
+    else bump(id,n===''?null:Number(n),Number(d));keepY(render);
     if(cartEmpty())closeSheet();return;}
 });
 $('#back').onclick=()=>showHome();
