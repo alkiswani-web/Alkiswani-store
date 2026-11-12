@@ -363,21 +363,17 @@ async function sendCode(){
   if(last9(raw).length<9){err.textContent='اكتب رقم الجوّال كامل (07XXXXXXXX)';return;}
   const b=$('#lgSend');b.disabled=true;b.innerHTML='<span class="spin"></span>';
   try{
-    await loadReps();
-    const r=findRepByPhone(raw);
-    if(!r){err.textContent='هاد الرقم مش مسجّل كمندوب — اطلب من المحل يضيفه';return;}
-    if(!r.phone){err.textContent='رقمك مش محفوظ عند المحل — اطلب منهم يضيفوه';return;}
+    // بعد قفل قاعدة البيانات ما منقدر نقرأ المناديب قبل الدخول — منشيّك بعد الرمز
+    let loaded=false;try{await loadReps();loaded=true;}catch(e0){}
+    if(loaded&&!findRepByPhone(raw)){err.textContent='هاد الرقم مش مسجّل كمندوب — اطلب من المحل يضيفه';return;}
     confirmRes=await auth.signInWithPhoneNumber('+'+toIntl(raw),getVerifier());
     $('#lgStep1').hidden=true;$('#lgStep2').hidden=false;
     $('#lgHint').textContent='بعتنالك رسالة فيها رمز من 6 أرقام على '+raw.trim()+' — اكتبه هون.';
     setTimeout(()=>{try{$('#lgCode').focus();}catch(e){}},200);
   }catch(e){
     const c=e&&e.code||'';
-    if(CFG_ERR.includes(c)){
-      // إعدادات الرسائل مش مكتملة عند Firebase — منخلّي المندوب يشتغل بدل ما يوقف
-      const r=findRepByPhone(raw);
-      if(r){store.set(LEGACY,{phone:r.phone,at:Date.now()});err.textContent='';toast('⚠️ الرمز مش شغّال حالياً — دخلت برقمك. بلّغ المحل');startWith(r);return;}
-    }
+    // ما في دخول بدون رمز — حتى لو الرسائل معطّلة
+    if(CFG_ERR.includes(c)){err.textContent='رسائل الرمز معطّلة حالياً — بلّغ المحل';try{verifier&&verifier.clear();}catch(x){}verifier=null;$('#recaptcha').innerHTML='';return;}
     err.textContent=c==='auth/too-many-requests'?'طلبت رمز كثير — استنّى شوي وجرّب':c==='auth/invalid-phone-number'?'الرقم مش صحيح':'ما قدرنا نبعت الرمز — تأكّد من النت وجرّب كمان مرّة';
     try{verifier&&verifier.clear();}catch(x){}verifier=null;$('#recaptcha').innerHTML='';
   }finally{b.disabled=false;b.textContent='ابعتلي الرمز';}
@@ -415,17 +411,18 @@ async function boot(){
   window.addEventListener('online',()=>$('#offBar').hidden=true);
   window.addEventListener('offline',()=>$('#offBar').hidden=false);
   $('#offBar').hidden=navigator.onLine!==false;
+  store.del(LEGACY);   // الدخول القديم بلا رمز وقف
   auth.onAuthStateChanged(async u=>{
+    if(!u||!u.phoneNumber){showLogin('');return;}
     try{await loadReps();}catch(e){
+      if(e&&e.code==='permission-denied'){showLogin('رقمك مش مفعّل عند المحل لسّا — خلّي الإدارة تفتح لوحتها');return;}
       // بلا نت ولا كاش: منعتمد آخر هويّة معروفة
-      const c=store.get('_repLastRep',null);if((u||store.get(LEGACY,null))&&c){startWith(c);return;}
+      const c=store.get('_repLastRep',null);if(c){startWith(c);return;}
       showLogin('ما في نت — افتح التطبيق لما يرجع');return;
     }
-    const legacy=store.get(LEGACY,null);
-    const ph=u&&u.phoneNumber?u.phoneNumber:(legacy&&legacy.phone);
-    if(!ph){showLogin('');return;}
+    const ph=u.phoneNumber;
     const r=findRepByPhone(ph);
-    if(!r){if(u)try{await auth.signOut();}catch(e){}store.del(LEGACY);showLogin('رقمك ما عاد مسجّل كمندوب — راجع المحل');return;}
+    if(!r){try{await auth.signOut();}catch(e){}showLogin('رقمك ما عاد مسجّل كمندوب — راجع المحل');return;}
     store.set('_repLastRep',r);
     startWith(r);
   });

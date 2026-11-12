@@ -1,0 +1,79 @@
+rules_version = '2';
+// قواعد حماية قاعدة البيانات — الكسواني روزميري
+// القاعدة: كل اشي للفريق بس (إدارة، موظفات، مناديب) — داخلين برقمهم والرمز.
+// الزبون بلا دخول: بيشوف المنتجات والألوان، بيبعت طلب من الكتالوج ويعدّله
+// وهو «جديد»، بيتابع طلبه برقمه، وبيسجّل «خبّروني لما يرجع».
+// تتغيّر من Firebase Console ← Firestore ← Rules (الصق الملف كامل ← Publish).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function phone() { return request.auth != null ? request.auth.token.phone_number : null; }
+    function isAdmin() { return phone() in ['+962796754457', '+962777977737']; }
+    // موظفة أو مندوب: رقمه مسجّل بـ staff_phones (الإدارة بتعبّيها من الفريق)
+    function isStaff() {
+      return isAdmin() || (phone() != null && exists(/databases/$(database)/documents/staff_phones/$(phone())));
+    }
+    function onlyKeys(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ── الأساس: الفريق بس (قائمة أرقام الفريق إلها قاعدتها تحت) ──
+    match /{coll}/{rest=**} {
+      allow read, write: if isStaff() && coll != 'staff_phones';
+    }
+
+    // قائمة أرقام الفريق: الإدارة بس بتعدّلها
+    match /staff_phones/{p} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ── الكتالوج: قراءة للكل ──
+    match /operator_products/{id} {
+      allow read: if true;
+      // حجز الألوان وقت طلب الكتالوج بيعدّل عدد ألوان المنتج بس
+      allow update: if onlyKeys(['ownColorQty']);
+    }
+    match /color_library/{id} {
+      allow read: if true;
+      allow update: if onlyKeys(['qty']) && request.resource.data.qty is number;
+    }
+    match /color_imgs/{id} { allow read: if true; }
+    match /own_color_imgs/{id} { allow read: if true; }
+    match /dxf_fonts/{id} {
+      allow read: if true;
+      match /data/{d} { allow read: if true; }
+    }
+    // رابط الكتالوج الخاص بالصفحة أو الموظفة (بالرقم المعروف بس، بلا قوائم)
+    match /employee_pages/{id} { allow get: if true; }
+    match /employee_workers/{id} { allow get: if true; }
+    match /operator_config/catalog_cfg { allow get: if true; }
+
+    // رقم الطلب التالي: الكتالوج بيزيده واحد
+    match /operator_config/order_seq {
+      allow get: if true;
+      allow create: if request.resource.data.keys().hasOnly(['n']) && request.resource.data.n is int;
+      allow update: if onlyKeys(['n']) && request.resource.data.n == resource.data.n + 1;
+    }
+
+    // طلبات الكتالوج: الزبون بيبعت، بيتابع، وبيعدّل لسّا «جديد»
+    match /catalog_requests/{id} {
+      allow get: if true;
+      allow create: if request.resource.data.status == 'new'
+        && request.resource.data.source in ['catalog', 'site'];
+      allow update: if resource.data.status == 'new'
+        && request.resource.data.status == 'new'
+        && onlyKeys(['extras', 'items', 'productName', 'pieces', 'customer', 'pageId', 'pageName',
+                     'reservation', 'reserved', 'edits', 'editedAt']);
+    }
+
+    // «خبّروني لما يرجع اللون»
+    match /restock_waits/{id} {
+      allow create, update: if request.resource.data.status == 'waiting';
+    }
+
+    // تتبّع الطلب: طلب واحد برقمه (بلا قوائم)
+    match /employee_orders/{id} { allow get: if true; }
+
+    // معرض صور الزبون برابطه: بحث بالرمز، نتيجة وحدة بس
+    match /customer_galleries/{id} { allow list: if request.query.limit <= 1; }
+  }
+}
