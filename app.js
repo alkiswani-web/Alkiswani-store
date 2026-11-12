@@ -2535,10 +2535,18 @@ function _empWatchSelf(){
 }
 function _empStopSelf(){if(_empSelfUnsub){try{_empSelfUnsub();}catch(e){}}_empSelfUnsub=null;_empSelfId='';}
 
-function openEmpLogin(){
+// الجلسة المحفوظة بتفتح بس إذا الجوال داخل برقم الموظفة نفسها (والرمز). جلسات
+// الدخول القديم (اسم وكلمة سر، أو بلا رمز) ما إلها هوية، فقاعدة البيانات المقفولة
+// بترفض كل اشي — وكان يطلع «عطل في قاعدة البيانات المحلية». منطلب الرمز مرّة.
+async function openEmpLogin(){
   const saved=_loadEmpSession();
-  if(saved){_empCurrentUser=saved;openEmpPanel();return;}
+  if(saved){
+    const u=await _fbUserReady();
+    if(saved.phone&&u&&u.phoneNumber&&_last9(u.phoneNumber)===_last9(saved.phone)){_empCurrentUser=saved;openEmpPanel();return;}
+    _clearEmpSession();
+  }
   _empLgReset();
+  if(saved){const e=document.getElementById('empLoginErr');if(e)e.textContent='🔐 صار الدخول برقمك والرمز — ادخلي مرّة وحدة وبيضل محفوظ';}
   document.getElementById('empLoginOverlay').classList.add('open');
   setTimeout(()=>document.getElementById('empPhone').focus(),300);
 }
@@ -8197,7 +8205,7 @@ function _empStartWith(w){
 function _empLgReset(){
   const g=id=>document.getElementById(id);
   if(g('empLgStep1'))g('empLgStep1').style.display='';if(g('empLgStep2'))g('empLgStep2').style.display='none';
-  if(g('empLgOld'))g('empLgOld').style.display='none';if(g('empOldLink'))g('empOldLink').style.display='';
+  if(g('empLgOld'))g('empLgOld').style.display='none';if(g('empOldLink'))g('empOldLink').style.display='none';   // الدخول بكلمة السر وقف
   if(g('empCode'))g('empCode').value='';if(g('empLoginErr'))g('empLoginErr').textContent='';
 }
 function empLgBack(){_empLgReset();setTimeout(()=>document.getElementById('empPhone')?.focus(),100);}
@@ -25837,6 +25845,9 @@ window.repairLocalDb=repairLocalDb;
 // بالإنجليزية لا تدلّ على مخرج. نرصده أينما وقع ونعرض زرّ الإصلاح مباشرةً،
 // بدل أن يضطرّ المالك لاكتشاف أنّ العلاج مدفون في أداة تشخيص.
 function _showLocalDbBanner(){
+  // مش عطل بالجهاز: جلسة موظفة قديمة بلا رقم ⇒ رجّعها لشاشة الدخول بالرمز
+  try{const u=firebase.auth().currentUser;
+    if(_empCurrentUser&&!_currentAdminUser&&!(u&&u.phoneNumber)){_clearEmpSession();_empCurrentUser=null;location.reload();return;}}catch(e){}
   if(document.getElementById('_dbFixBar'))return;
   const b=document.createElement('div');
   b.id='_dbFixBar';
