@@ -1466,6 +1466,9 @@ async function ewOpenEmployee(workerId,workerName){
   document.getElementById('ewScreen3Title').textContent=`👤 ${workerName}`;
   const orderSec=document.getElementById('ewOrderRateSection');
   if(orderSec)orderSec.style.display=isMashghal?'none':'';
+  // الدوام (أجر الساعة) بينحسب بقسم المشغل بس — بالمتاجر أجر الطلبات
+  const hrSec=document.getElementById('ewHourlySection');
+  if(hrSec)hrSec.style.display=isMashghal?'':'none';
   // افتراضياً عرض كامل تراكمي (بدون تحديد شهر)
   const picker=document.getElementById('ewMonthPicker');
   if(picker)picker.value=_ewMonth||'';
@@ -1497,8 +1500,9 @@ async function _ewRefreshEmployee(){
         : db.collection('employee_orders').where('workerId','==',_ewWorker.id).where('pageId','==',_ewStore.pageId||'').get(),
       db.collection('emp_wage_payments').where('workerId','==',_ewWorker.id).where('storeId','==',_ewStore.id).get(),
       db.collection('emp_wage_rates').doc(_ewWorker.id).get(),
-      // نطابق الدوام بالمعرّف واسم الموظف معاً — عشان نلقط السجلات القديمة لو انكتبت بمعرّف مختلف
-      (async()=>{
+      // نطابق الدوام بالمعرّف واسم الموظف معاً — عشان نلقط السجلات القديمة لو انكتبت بمعرّف مختلف.
+      // والدوام إله حساب واحد: قسم المشغل. كان ينحسب كمان جوّا كل متجر فيطلع مرّتين.
+      !isMashghal?Promise.resolve({docs:[]}):(async()=>{
         const [byId,byName]=await Promise.all([
           db.collection('attendance').where('employeeId','==',_ewWorker.id).get(),
           _ewWorker.name?db.collection('attendance').where('employeeName','==',_ewWorker.name).get():Promise.resolve({docs:[]})
