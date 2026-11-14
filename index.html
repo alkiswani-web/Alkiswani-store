@@ -1274,17 +1274,23 @@ function bump(id,num,d){
 // بانرات بتتقلّب، أقسام بصور، فلتر حسب القسم، وكروت بصور طويلة. القسم والبانرات
 // بتنحسب من منتجات حساب المشغل نفسها؛ و CFG.shopBanners إذا الإدارة حدّدت بانرات.
 let SHC='',BNI=0,BNT=null,shBuilt='';
-const nmCat=c=>c==='اشجار'?'أشجار':c==='ضيافه'?'ضيافة':c;
+// اسم القسم: اللي كتبته الإدارة من «🛍️ الواجهة»، وإلا تصحيح بسيط للإملاء
+const nmCat=c=>{const o=CFG.shopCats&&CFG.shopCats[c];return (o&&String(o.name||'').trim())||(c==='اشجار'?'أشجار':c==='ضيافه'?'ضيافة':c);};
 function shopCats(L){
   // صورة القسم: منتج إله ألوان (الصوف = كبّة مش إكسسوار)، وبعدين الأغلى — أوضح من «أوّل منتج بالأبجدية»
   const G=[],sc=p=>(['own','lib'].includes(kind(p))?1e6:0)+(Number(p.sellPrice)||0);
   L.forEach(p=>{const c=String(p.category||'').trim();if(!c)return;let g=G.find(x=>x.c===c);if(!g)G.push(g={c,n:0,img:'',s:-1});g.n++;
     const i=pImg(p);if(i&&sc(p)>g.s){g.img=i;g.s=sc(p);}});
-  return G;
+  // تعديلات الإدارة: صورة، إخفاء، ترتيب
+  const O=CFG.shopCats||{};
+  G.forEach(g=>{const o=O[g.c]||{};const pi=o.imgPid&&pImg(PR[o.imgPid]);if(o.img||pi)g.img=o.img||pi;g.ord=Number.isFinite(Number(o.order))?Number(o.order):999;g.hide=!!o.hide;});
+  return G.filter(g=>!g.hide).sort((a,b)=>a.ord-b.ord);
 }
 function shopBanners(L){
-  const C=Array.isArray(CFG.shopBanners)?CFG.shopBanners.filter(b=>b&&b.pid&&PR[b.pid]):[];
-  if(C.length)return C.map((b,i)=>({pid:b.pid,tag:b.tag||'',title:b.title||PR[b.pid].name,btn:b.btn||'شوفه ←',img:pImg(PR[b.pid]),s:i%3}));
+  // بنرات الإدارة: صورة مرفوعة أو صورة منتج، والكبسة بتفتح منتج أو قسم أو كل المنتجات
+  const C=Array.isArray(CFG.shopBanners)?CFG.shopBanners.filter(b=>b&&!b.off&&(b.img||(b.pid&&PR[b.pid])||(b.imgPid&&PR[b.imgPid]))):[];
+  if(C.length)return C.map((b,i)=>({pid:b.pid&&PR[b.pid]?b.pid:'',cat:b.cat||'',tag:b.tag||'',title:b.title||(b.pid&&PR[b.pid]?PR[b.pid].name:''),
+    btn:b.btn||(b.pid?'شوفه ←':'تسوّق ←'),img:b.img||pImg(PR[b.imgPid])||pImg(PR[b.pid]),s:i%3}));
   const B=[],img=p=>pImg(p);
   const w=L.find(p=>p.requiresWriting&&img(p)&&/مبخر|مباخر/.test(p.category||''))||L.find(p=>p.requiresWriting&&img(p));
   if(w)B.push({pid:w.id,tag:'جديدنا ✨',title:/مبخر|مباخر/.test(w.category||'')?'مبخرة باسمك\nبخط ديواني':'اكتب الاسم\nوشوفه قبل الطلب',btn:'صمّمها هلّأ ←',img:img(w),s:0});
@@ -1312,10 +1318,10 @@ function renderShop(){
   const qq=String($('#q').value||'').trim();
   const G=shopCats(all);if(SHC&&!G.some(g=>g.c===SHC))SHC='';
   // البانرات والأقسام بتنبنى من جديد بس لما تتغيّر المنتجات (عشان ما يرجع البانر لأوّل)
-  const sig=all.map(p=>p.id+(pImg(p)?1:0)+(p.category||'')).join(',')+'|'+SHC+'|'+qq+'|'+JSON.stringify(CFG.shopBanners||'');
+  const sig=all.map(p=>p.id+(pImg(p)?1:0)+(p.category||'')).join(',')+'|'+SHC+'|'+qq+'|'+JSON.stringify(CFG.shopBanners||'')+JSON.stringify(CFG.shopCats||'');
   if(sig!==shBuilt){shBuilt=sig;
     const B=qq?[]:shopBanners(all);
-    $('#shHome').innerHTML=(B.length?`<div class="bnw"><div class="bns" id="bns">${B.map((b,i)=>`<button class="bn s${b.s+1}" ${b.pid?`data-open="${esc(b.pid)}"`:'data-shn="prods"'}><span class="t"><small>${esc(b.tag)}</small><h2>${esc(b.title)}</h2><span class="go3">${esc(b.btn)}</span></span><span class="im" style="background-image:url('${b.img}')"></span></button>`).join('')}</div>
+    $('#shHome').innerHTML=(B.length?`<div class="bnw"><div class="bns" id="bns">${B.map((b,i)=>`<button class="bn s${b.s+1}" ${b.pid?`data-open="${esc(b.pid)}"`:b.cat?`data-shc="${esc(b.cat)}"`:'data-shn="prods"'}><span class="t"><small>${esc(b.tag)}</small><h2>${esc(b.title)}</h2><span class="go3">${esc(b.btn)}</span></span><span class="im" style="background-image:url('${b.img}')"></span></button>`).join('')}</div>
         ${B.length>1?`<div class="dots" id="bnd">${B.map((_,i)=>`<i class="${i===BNI?'on':''}"></i>`).join('')}</div>`:''}</div>`:'')
       +(!qq&&G.length?`<div class="shh" id="shCats"><b>الأقسام</b></div><div class="scats">${G.map(g=>`<button class="scat" data-shc="${esc(g.c)}" aria-pressed="${SHC===g.c}"><span class="c" style="${g.img?`background-image:url('${g.img}')`:''}">${g.img?'':catIc({category:g.c})}</span>${esc(nmCat(g.c))}</button>`).join('')}</div>`:'')
       +`<div class="shh" id="shProds"><b>${qq?'نتائج البحث':SHC?esc(nmCat(SHC)):'منتجاتنا'}</b>${SHC?'<button data-shc="">الكل ←</button>':''}</div>`
