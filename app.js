@@ -13064,7 +13064,7 @@ const OP_FAM=[
                                       ['@pnstock','📦 وارد وصرف','openProdStock()'],
                                       ['@barcode','🏷️ باركود','openBarcodes()'],
                                       ['@cbcast','📢 تحديث الألوان','openColorBroadcast()'],
-                                      ['stores','🏪 المتاجر']]},
+                                      ['@shopedit','🛍️ الواجهة','openShopEditor()'],['stores','🏪 المتاجر']]},
   {k:'team', label:'👥 الفريق',   tabs:[['workers','👥 موظفون'],['emppoints','🏆 نقاط'],['settings','⚙️ إعدادات'],['@security','🔐 الحماية','openSecurity()']]}
 ];
 function _opFamOf(tab){
@@ -28518,3 +28518,131 @@ async function _secCopyRules(){
   }catch(e){toast('❌ ما قدرنا ننسخ — افتح alkiswanirosemary.com/firestore.rules وانسخ منه');}
 }
 window.openSecurity=openSecurity;window._secCopyRules=_secCopyRules;
+
+// ═══ 🛍️ تعديل الواجهة (الصفحة الرئيسية للموقع) ═══
+// البنرات (صورة مرفوعة أو صورة منتج، نص، والكبسة لمنتج أو قسم أو كل المنتجات)،
+// الأقسام (اسم، صورة، إخفاء، ترتيب)، واسم المتجر — كلها بـ catalog_cfg.
+let _se={cfg:null,title:'',banners:[],cats:{},busy:false};
+function _seCats(){
+  const m={};
+  (_opProductsList||[]).filter(p=>!p.isRawMaterial).forEach(p=>{const c=String(p.category||'').trim();if(!c)return;
+    const g=m[c]||(m[c]={c,n:0,imgs:[]});g.n++;const im=p.imageDataUrl||(Array.isArray(p.images)&&p.images[0])||'';if(im&&g.imgs.length<12)g.imgs.push({img:im,name:p.name||'',pid:p.id});});
+  return Object.values(m).sort((a,b)=>{const oa=Number((_se.cats[a.c]||{}).order),ob=Number((_se.cats[b.c]||{}).order);
+    return (Number.isFinite(oa)?oa:999)-(Number.isFinite(ob)?ob:999)||b.n-a.n;});
+}
+function _seProdImg(pid){const p=(_opProductsList||[]).find(x=>x.id===pid);return p?(p.imageDataUrl||(Array.isArray(p.images)&&p.images[0])||''):'';}
+async function openShopEditor(){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  _szCss();
+  _szOpen('szShop',`<div class="szTop"><h2>🛍️ تعديل الواجهة</h2><button class="szX" onclick="_szClose('szShop')" aria-label="إغلاق">✕</button></div><div class="szL" style="text-align:center;padding:30px">⏳</div>`);
+  try{
+    if(!(_opProductsList||[]).length)await loadOpProducts(true);
+    const d=await db.collection('operator_config').doc('catalog_cfg').get();
+    const c=(d.exists&&d.data())||{};
+    _se={cfg:c,title:c.shopTitle||'',banners:(Array.isArray(c.shopBanners)?c.shopBanners:[]).map(b=>({...b})),cats:JSON.parse(JSON.stringify(c.shopCats||{})),busy:false};
+    // ترتيب الأقسام يبلّش من الترتيب الحالي
+    _seCats().forEach((g,i)=>{const o=_se.cats[g.c]||(_se.cats[g.c]={});if(!Number.isFinite(Number(o.order)))o.order=i;});
+  }catch(e){toast('❌ '+(e.message||e));return;}
+  _sePaint();
+}
+function _sePaint(){
+  const ov=document.getElementById('szShop');if(!ov)return;
+  const P=(_opProductsList||[]).filter(p=>!p.isRawMaterial).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar'));
+  const cats=_seCats();
+  const inp='width:100%;padding:10px 12px;border-radius:11px;border:1px solid rgba(255,255,255,.12);background:#0f1814;color:#eef2ee;font-family:Tajawal,sans-serif;font-size:.9rem;box-sizing:border-box';
+  const sm='border:1px solid rgba(255,255,255,.12);background:#131d18;color:#eef2ee;border-radius:10px;min-width:40px;height:38px;font-family:Tajawal,sans-serif;font-weight:800;cursor:pointer;padding:0 10px';
+  const opt=(v,t,cur)=>`<option value="${_clrEsc(v)}"${v===cur?' selected':''}>${_clrEsc(t)}</option>`;
+  const bn=_se.banners.map((b,i)=>{
+    const img=b.img||_seProdImg(b.imgPid)||_seProdImg(b.pid);
+    const link=b.pid?'p':b.cat?'c':'all';
+    return `<div class="szCard" style="gap:10px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="width:84px;height:84px;border-radius:14px;background:#0f1814 center/cover no-repeat;${img?`background-image:url('${img}')`:''};flex-shrink:0;display:grid;place-items:center;color:#9fb0a6;font-size:.7rem">${img?'':'بلا صورة'}</div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+          <b>بنر ${i+1}${b.off?' · مخفي':''}</b>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button style="${sm}" onclick="_seMove('b',${i},-1)" aria-label="لفوق">↑</button><button style="${sm}" onclick="_seMove('b',${i},1)" aria-label="لتحت">↓</button>
+            <button style="${sm}" onclick="_se.banners[${i}].off=!_se.banners[${i}].off;_sePaint()">${b.off?'👁 أظهره':'🙈 خبّيه'}</button>
+            <button style="${sm};color:#f2a49b" onclick="_se.banners.splice(${i},1);_sePaint()">🗑</button></div></div></div>
+      <label class="szL">الجملة الصغيرة فوق</label><input style="${inp}" value="${_clrEsc(b.tag||'')}" placeholder="🇯🇴 لكل الأردن" oninput="_se.banners[${i}].tag=this.value">
+      <label class="szL">العنوان (سطرين بالأكثر)</label><textarea style="${inp};min-height:62px" placeholder="توصيل لباب بيتك&#10;ومعاينة عند الاستلام" oninput="_se.banners[${i}].title=this.value">${_clrEsc(b.title||'')}</textarea>
+      <label class="szL">نص الزر</label><input style="${inp}" value="${_clrEsc(b.btn||'')}" placeholder="تسوّق ←" oninput="_se.banners[${i}].btn=this.value">
+      <label class="szL">لما الزبون يكبس عليه بيروح لـ</label>
+      <select style="${inp}" onchange="const b=_se.banners[${i}];b.pid='';b.cat='';if(this.value==='p')b.pid='${_clrEsc((P[0]||{}).id||'')}';if(this.value==='c')b.cat='${_clrEsc((cats[0]||{}).c||'')}';_sePaint()">
+        ${opt('all','كل المنتجات',link)}${opt('p','منتج معيّن',link)}${opt('c','قسم معيّن',link)}</select>
+      ${link==='p'?`<select style="${inp}" onchange="_se.banners[${i}].pid=this.value;_sePaint()">${P.map(p=>opt(p.id,p.name||'—',b.pid)).join('')}</select>`:''}
+      ${link==='c'?`<select style="${inp}" onchange="_se.banners[${i}].cat=this.value">${cats.map(g=>opt(g.c,(_se.cats[g.c]||{}).name||g.c,b.cat)).join('')}</select>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label style="${sm};display:inline-flex;align-items:center;gap:6px">📷 ارفع صورة<input type="file" accept="image/*" style="display:none" onchange="_seUpload(this,'b',${i})"></label>
+        ${b.img?`<button style="${sm}" onclick="_se.banners[${i}].img='';_sePaint()">✕ شيل الصورة المرفوعة</button>`:''}
+      </div>
+      ${!b.img&&!b.pid?`<label class="szL">أو خذ صورة من منتج</label><select style="${inp}" onchange="_se.banners[${i}].imgPid=this.value;_sePaint()">${opt('','— اختار —',b.imgPid||'')}${P.filter(p=>_seProdImg(p.id)).map(p=>opt(p.id,p.name||'—',b.imgPid||'')).join('')}</select>`:''}
+      </div>`;}).join('');
+  const ct=cats.map((g,i)=>{const o=_se.cats[g.c]||{};const img=o.img||(o.imgPid&&_seProdImg(o.imgPid))||(g.imgs[0]||{}).img||'';
+    return `<div class="szCard" style="gap:8px;${o.hide?'opacity:.55':''}">
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="width:64px;height:64px;border-radius:18px;background:#0f1814 center/cover no-repeat;${img?`background-image:url('${img}')`:''};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+          <input style="${inp}" value="${_clrEsc(o.name||'')}" placeholder="${_clrEsc(g.c)}" aria-label="اسم القسم" oninput="(_se.cats['${_payEsc(g.c)}']=_se.cats['${_payEsc(g.c)}']||{}).name=this.value">
+          <span class="szL">${g.n} منتج · بالمنتجات اسمه «${_clrEsc(g.c)}»</span></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button style="${sm}" onclick="_seMove('c',${i},-1)" aria-label="لفوق">↑</button><button style="${sm}" onclick="_seMove('c',${i},1)" aria-label="لتحت">↓</button>
+        <button style="${sm}" onclick="const o=_se.cats['${_payEsc(g.c)}']=_se.cats['${_payEsc(g.c)}']||{};o.hide=!o.hide;_sePaint()">${o.hide?'👁 أظهره':'🙈 خبّيه'}</button>
+        <label style="${sm};display:inline-flex;align-items:center;gap:6px">📷 صورة<input type="file" accept="image/*" style="display:none" onchange="_seUpload(this,'c','${_payEsc(g.c)}')"></label>
+        ${o.img||o.imgPid?`<button style="${sm}" onclick="delete _se.cats['${_payEsc(g.c)}'].img;delete _se.cats['${_payEsc(g.c)}'].imgPid;_sePaint()">↩️ تلقائي</button>`:''}</div>
+      ${g.imgs.length>1?`<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">${g.imgs.map(x=>`<button title="${_clrEsc(x.name)}" onclick="const o=(_se.cats['${_payEsc(g.c)}']=_se.cats['${_payEsc(g.c)}']||{});o.imgPid='${_payEsc(x.pid)}';delete o.img;_sePaint()" style="flex:0 0 46px;height:46px;border-radius:12px;border:2px solid ${img===x.img?'#8fd9b6':'transparent'};background:#0f1814 center/cover no-repeat;background-image:url('${x.img}');cursor:pointer"></button>`).join('')}</div>`:''}
+    </div>`;}).join('');
+  ov.querySelector('.szW').innerHTML=`<div class="szTop"><h2>🛍️ تعديل الواجهة</h2><button class="szX" onclick="_szClose('szShop')" aria-label="إغلاق">✕</button></div>
+    <div class="szCard"><label class="szL">اسم المتجر فوق الصفحة</label><input style="${inp}" value="${_clrEsc(_se.title)}" placeholder="الكسواني روزميري" oninput="_se.title=this.value"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:1.05rem">🖼 البنرات</b><button style="${sm}" onclick="_se.banners.push({tag:'',title:'',btn:''});_sePaint()">＋ بنر</button></div>
+    ${bn||`<div class="szCard" style="gap:10px"><div class="szL" style="line-height:1.8">هلأ البنرات تلقائية من المنتجات. بتقدر تنسخها وتعدّلها، أو تعمل بنر جديد.</div><button class="szBtn szGhost" onclick="_seAutoBanners()">📋 انسخ البنرات الحالية وعدّلها</button></div>`}
+    <b style="font-size:1.05rem">🗂 الأقسام</b>
+    <div class="szL">الأقسام بتطلع من «القسم» تبع كل منتج. هون بتغيّر الاسم اللي بيشوفه الزبون، الصورة، الترتيب، أو تخبّي قسم.</div>
+    ${ct||'<div class="szCard szL">ما في أقسام — حطّ «قسم» للمنتجات من صفحة المنتجات</div>'}
+    <div style="position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0;background:#0b1210">
+      <button class="szBtn szMint" id="seSave" onclick="_seSave()">💾 احفظ الواجهة</button>
+      <a class="szBtn szGhost" href="/" target="_blank" rel="noopener" style="text-align:center;text-decoration:none;display:grid;place-items:center">👁 شوف</a></div>`;
+}
+function _seMove(k,i,d){
+  if(k==='b'){const A=_se.banners,j=i+d;if(j<0||j>=A.length)return;[A[i],A[j]]=[A[j],A[i]];}
+  else{const L=_seCats(),j=i+d;if(j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];L.forEach((g,n)=>{(_se.cats[g.c]=_se.cats[g.c]||{}).order=n;});}
+  _sePaint();
+}
+async function _seUpload(input,k,key){
+  const f=input.files&&input.files[0];if(!f)return;
+  toast('⏳ عم نرفع الصورة…');
+  try{
+    const data=await compressImage(f,1400,0.85);
+    const [url]=await _uploadImagesToStorage([data],'shop');
+    if(!url||String(url).startsWith('data:'))throw new Error('ما انرفعت');
+    if(k==='b')_se.banners[key].img=url;else (_se.cats[key]=_se.cats[key]||{}).img=url;
+    toast('✅ انرفعت — لا تنسى «احفظ»');_sePaint();
+  }catch(e){toast('❌ '+(e.message||e));}
+}
+async function _seSave(){
+  if(_se.busy)return;_se.busy=true;const b=document.getElementById('seSave');if(b){b.disabled=true;b.textContent='⏳';}
+  try{
+    const banners=_se.banners.map(x=>{const o={tag:String(x.tag||'').trim().slice(0,40),title:String(x.title||'').trim().slice(0,80),btn:String(x.btn||'').trim().slice(0,24)};
+      if(x.pid)o.pid=x.pid;if(x.cat)o.cat=x.cat;if(x.img)o.img=x.img;else if(x.imgPid&&!x.pid)o.imgPid=x.imgPid;if(x.off)o.off=true;return o;}).filter(x=>x.img||x.pid||x.imgPid);
+    const cats={};Object.entries(_se.cats).forEach(([c,o])=>{const v={};if(String(o.name||'').trim())v.name=String(o.name).trim().slice(0,30);
+      if(o.img)v.img=o.img;else if(o.imgPid)v.imgPid=o.imgPid;if(o.hide)v.hide=true;if(Number.isFinite(Number(o.order)))v.order=Number(o.order);if(Object.keys(v).length)cats[c]=v;});
+    const dropped=_se.banners.length-banners.length;
+    await db.collection('operator_config').doc('catalog_cfg').set({shopTitle:String(_se.title||'').trim().slice(0,40),shopBanners:banners,shopCats:cats},{merge:true});
+    toast('✅ انحفظت الواجهة'+(dropped?` (${dropped} بنر بلا صورة ولا منتج ما انحفظ)`:''));
+  }catch(e){toast('❌ '+(e.message||e));}
+  _se.busy=false;if(b){b.disabled=false;b.textContent='💾 احفظ الواجهة';}
+}
+window.openShopEditor=openShopEditor;window._sePaint=_sePaint;window._seMove=_seMove;window._seUpload=_seUpload;window._seSave=_seSave;
+
+// نفس البنرات التلقائية اللي بالواجهة — نسخة قابلة للتعديل
+function _seAutoBanners(){
+  const L=(_opProductsList||[]).filter(p=>!p.isRawMaterial&&_seProdImg(p.id)),B=[];
+  const w=L.find(p=>p.requiresWriting&&/مبخر|مباخر/.test(p.category||''))||L.find(p=>p.requiresWriting);
+  if(w)B.push({pid:w.id,tag:'جديدنا ✨',title:/مبخر|مباخر/.test(w.category||'')?'مبخرة باسمك\nبخط ديواني':'اكتب الاسم\nوشوفه قبل الطلب',btn:'صمّمها هلّأ ←'});
+  const y=L.find(p=>p.hasColorNumbers&&/صوف/.test(p.category||''))||L.find(p=>p.hasColorNumbers);
+  if(y)B.push({pid:y.id,tag:'📷 جديد',title:'عندك لون؟\nصوّره ونلاقي رقمه',btn:'جرّب ←'});
+  const t=L.find(p=>/شجر|اشجار|أشجار/.test(p.category||''))||L.find(p=>!B.some(b=>b.pid===p.id));
+  if(t)B.push({imgPid:t.id,tag:'🇯🇴 لكل الأردن',title:'توصيل لباب بيتك\nومعاينة عند الاستلام',btn:'تسوّق ←'});
+  _se.banners=B;_sePaint();toast('📋 انسخت — عدّل واكبس «احفظ»');
+}
+window._seAutoBanners=_seAutoBanners;
