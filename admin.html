@@ -28,7 +28,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v417"></script>
+<script defer src="app.js?v418"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -2964,7 +2964,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <div id="ewScreen3Title" style="font-size:1rem;font-weight:800;color:var(--green-dark);margin-bottom:12px;"></div>
             <div id="ewEmpSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
             <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:160px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:11px;">
+              <div id="ewHourlySection" style="flex:1;min-width:160px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:11px;">
                 <div style="font-size:0.72rem;font-weight:700;color:#92400e;margin-bottom:7px;">⏱ أجر الساعة</div>
                 <div style="display:flex;gap:6px;align-items:center;">
                   <input type="number" id="ewHourlyRateInput" min="0" step="0.25" placeholder="0.00"
