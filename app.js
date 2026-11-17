@@ -5184,7 +5184,7 @@ async function openPos(){
   ov.innerHTML=`<style>${POS_CSS}</style>
   <div class="pk-wrap">
     <div class="pk-hdr">
-      <div class="t"><b>بيع مباشر</b><span id="posHdrSub">كاش فوري</span></div>
+      <div class="t"><b>🏬 المعرض</b><span id="posHdrSub">كاش فوري</span></div>
       <button class="pk-x" onclick="openSwapFree()" title="تبديل ألوان — الزبونة رجّعت ألوان وأخدت غيرها" style="margin-inline-start:auto;margin-inline-end:6px;font-size:.8rem;width:auto;padding:0 10px;">🔄 تبديل</button>
       <button class="pk-x" onclick="posClose()" title="إغلاق">✕</button>
     </div>
@@ -5857,12 +5857,13 @@ async function posSave(){
     const ids=[];
     const foot=_posFootprint();
     const batch=db.batch();
+    await _loadShowroom();
     _posCart.forEach((it,i)=>{
       ids.push(posId+'_'+i);
       const ref=db.collection('operator_sales').doc(posId+'_'+i);
       batch.set(ref,{
         ...(_posStore?{storeId:_posStore.id,storeName:_posStore.name,posStoreSale:true}
-                     :{storeId:POS_STORE,storeName:'بيع مباشر',posSale:true}),
+                     :{storeId:POS_STORE,storeName:'المعرض',posSale:true}),
         posId,
         customerName:_posStore?'':(_posCustomer.name||''), customerPhone:_posStore?'':(_posCustomer.phone||''),
         productId:it.id||'', productName:it.name||'',
@@ -5874,6 +5875,8 @@ async function posSave(){
         listPrice:Number(it.list)||0,
         discount:Math.max(0,(Number(it.list)||0)-(Number(it.price)||0)),
         colorNumbers:(it.colorNumbers||[]),
+        // المعرض: ربح البيعة (سعر الزبون − سعر المعرض) بيتقسم بالنص على متجرين
+        ...(_posStore?{}:_showroomRow(it,date)),
         date, delivered:true, sessionId:(_opCurrentSession&&_opCurrentSession.id)||null,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -5966,7 +5969,7 @@ async function openPosLog(){
   ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:95vh;display:flex;flex-direction:column;font-family:'Tajawal',sans-serif;">
     <div style="padding:13px 15px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <div>
-        <div style="font-weight:900;font-size:1rem;color:#166534;">📒 سجلّ البيع المباشر</div>
+        <div style="font-weight:900;font-size:1rem;color:#166534;">📒 سجلّ المعرض</div>
         <div style="font-size:0.67rem;color:#6b7280;margin-top:2px;">بيعات المشغل — ومن هون بترجّع</div>
       </div>
       <button onclick="document.getElementById('posLogModal')?.remove()" style="background:#f3f4f6;border:none;border-radius:9px;width:30px;height:30px;font-size:0.95rem;cursor:pointer;flex-shrink:0;">✕</button>
@@ -16260,6 +16263,12 @@ async function _loadOpSessionData(){
     Object.keys(_storeReset).forEach(id=>{
       if(_srOn(id)) _opAcctOwed[id]=_srOpening(id);
     });
+    _opShowroom={};
+    sSnap.docs.forEach(d=>{const s=d.data();
+      // حصص المتاجر من ربح المعرض (بيعة مش مرتجعة، من نقطة الصفر)
+      if(_isPosSale(s)&&s.delivered!==false&&s.returned!==true&&s.showroom&&s.showroom.shares){
+        Object.entries(s.showroom.shares).forEach(([sid,v])=>{if(_srIn(sid,s))_opShowroom[sid]=(_opShowroom[sid]||0)+(Number(v)||0);});
+      }});
     sSnap.docs.forEach(d=>{const s=d.data();if(s.storeId&&s.delivered!==false&&!_isPosSale(s)){
       _srRawPush(s.storeId,_srDate(s),'o',(s.sellPrice||0)*(s.qty||1)); // للمعاينة قبل الحفظ
       if(!_srIn(s.storeId,s))return;   // قبل بداية الحساب — مطويّ
@@ -16595,11 +16604,14 @@ function renderOperatorDailyView(){
       +_ccStat('🔧 أجرة التركيب',totAssembly,'gold')
       +'<div style="grid-column:1/-1;">'+_ccStat('💸 إجمالي التكاليف',totCost,'red')+'</div>'
       +'</div>';
-    const totProfitAfterExp=totProfit-totExp-totWages;
+    // ربح المعرض للمتاجر: انقبض معك بس مش إلك
+    const totShow=Math.round(_opDailySales.reduce((t,s)=>t+(_isPosSale(s)&&s.returned!==true&&s.showroom?Number(s.showroom.profit)||0:0),0)*100)/100;
+    const totProfitAfterExp=totProfit-totExp-totWages-totShow;
     const isPE=totProfitAfterExp>=0;
     const gridCols=(totExp>0&&totWages>0)?'1fr 1fr':(totExp>0||totWages>0)?'1fr 1fr 1fr':'1fr 1fr';
     html+='<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;margin-bottom:14px;">'
       +_ccStat('💰 إجمالي البيع',totSell,'green')
+      +(totShow>0?_ccStat('🏬 ربح المعرض للمتاجر',totShow,'amber'):'')
       +(totExp>0?_ccStat('🧾 مصاريف',totExp,'amber'):'')
       +(totWages>0?_ccStat('👷 رواتب المشغل',totWages,'amber'):'')
       +_ccStat((isPE?'✅ صافي الربح':'⚠️ الخسارة')+((totExp>0||totWages>0)?' (بعد المصاريف والرواتب)':''),Math.abs(totProfitAfterExp),isPE?'green':'red')
@@ -16796,8 +16808,9 @@ function renderOperatorDailyView(){
       const stSales=_noDlv?(store.eligibleTotal||0):0;    // بيعُه للزبون
       // «مسحوب» = المتجر سحب من كاشي ⇒ أخد من مصاريه اللي عندي، فنقص اللي
       // عليك. زي الدفعة تماماً — الفرق بس مين اللي حرّكها.
+      const stShow=Math.round(((_opShowroom||{})[store.storeId]||0)*100)/100;   // حصّته من ربح المعرض
       const stSafi=_noDlv
-        ?(stOpen+stSales-stCost-acctPaid-acctRefund-storeWdTotal)
+        ?(stOpen+stSales-stCost-acctPaid-acctRefund-storeWdTotal+stShow)
         :(stMatloub-store.eligibleTotal-storeWdTotal);
       const stHeld=Math.round((store.courierHeld||0)*100)/100;
       if(store.storeId) _opStoreNets[store.storeId]={name:store.name||'',
@@ -26470,7 +26483,7 @@ function _wedgeRoute(raw){
     }
     const hit=_bcFind(raw);
     if(hit){
-      toast('🏷️ '+_bcLabel(hit)+' — افتح «🛒 بيع مباشر» أو «📦 وارد وصرف» وامسح من جوّا');
+      toast('🏷️ '+_bcLabel(hit)+' — افتح «🏬 المعرض» أو «📦 وارد وصرف» وامسح من جوّا');
       return true;
     }
     // كودٌ من توليدنا: أكيد مش رقم طلب، فما منبعته لفحص الطلبات
@@ -28264,6 +28277,10 @@ async function openStoreLedger(id){
       const cost=R.reduce((t,r)=>t+(Number(r.sellPrice)||0)*(Number(r.qty)||1),0);
       L.push({k:'o',d:_crOrderDate(o)||o.date||'',num:o.orderNum||o.id.slice(-5).toUpperCase(),st:o.status,cash,cost,v:cash-cost,noCost:!R.length,sf});
     });
+    // حصّة المتجر من ربح المعرض — من نفس قراءة مبيعات ما بعد الصفر
+    [...sSnap.docs].map(d=>({id:d.id,...d.data()})).filter(s=>_isPosSale(s)&&s.delivered!==false&&s.returned!==true
+      &&s.showroom&&s.showroom.shares&&(Number(s.showroom.shares[id])||0)>0.004&&_srIn(id,s)).forEach(s=>{
+      L.push({k:'sr',d:s.date||'',v:Number(s.showroom.shares[id])||0,name:s.productName||'',qty:s.qty||1,sale:(Number(s.sellPrice)||0)*(Number(s.qty)||1),price:(Number(s.showroom.price)||0)*(Number(s.qty)||1)});});
     rows.filter(r=>!seen.has(r.id)).forEach(r=>{const c=(Number(r.sellPrice)||0)*(Number(r.qty)||1);
       L.push({k:r.fromOrderId?'c':'s',d:r.date||'',name:r.productName||'',qty:r.qty||1,v:-c,ord:r.fromOrderId||''});});
     mine(pSnap).forEach(p=>{
@@ -28285,6 +28302,7 @@ async function openStoreLedger(id){
     const amt=`<div class="szA szN"><b class="${l.v>0.009?'szUp':l.v<-0.009?'szDn':''}">${l.v>0?'+':l.v<0?'−':''}${_szF(Math.abs(l.v))}</b><small>${lbl(l.run)}</small></div>`;
     if(l.k==='o'&&l.sf)return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🏪</span><div class="t"><b>طلب #${_clrEsc(l.num)} · طلّعه المتجر</b><small>${_szD(l.d)} · استلمه جاهز منّا، فعليه سعر المتجر${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>سعر المتجر <b>${_szF(l.cost)}</b></span></div></div>${amt}</div>`;
     if(l.k==='o')return `<div class="szLn"><span class="szIc" style="background:rgba(226,196,131,.13)">🛒</span><div class="t"><b>طلب #${_clrEsc(l.num)} · ${stLbl[l.st]||''}</b><small>${_szD(l.d)} · ربح المتجر بيزيد اللي عليك${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>الزبون <b>${_szF(l.cash)}</b></span><span>سعر المتجر <b>${_szF(l.cost)}</b></span><span>ربحه <b>${_szF(l.v)}</b></span></div></div>${amt}</div>`;
+    if(l.k==='sr')return `<div class="szLn"><span class="szIc" style="background:rgba(226,196,131,.13)">🏬</span><div class="t"><b>ربح المعرض · ${_clrEsc(l.name)}${l.qty>1?' ×'+l.qty:''}</b><small>${_szD(l.d)} · نصّ ربح البيعة إله</small><div class="szTrio szN"><span>البيع <b>${_szF(l.sale)}</b></span><span>سعر المعرض <b>${_szF(l.price)}</b></span><span>حصّته <b>${_szF(l.v)}</b></span></div></div>${amt}</div>`;
     if(l.k==='s')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🧾</span><div class="t"><b>بيع مباشر${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · المتجر اشترى منك، فصار عليه</small></div>${amt}</div>`;
     if(l.k==='c')return `<div class="szLn"><span class="szIc" style="background:rgba(242,196,107,.13)">📦</span><div class="t"><b>تكلفة طلب${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · طلب مش ضمن طلبات الكشف (عالق أو تغيّر)</small></div>${amt}</div>`;
     if(l.k==='p')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">💳</span><div class="t"><b>دفعة · ${l.dir==='out'?'دفعتلهم':'قبضت منهم'}</b><small>${_szD(l.d)}${l.note?' · '+_clrEsc(l.note):''}</small></div>${amt}</div>`;
@@ -28318,6 +28336,7 @@ function _szText(){
   const s=_szLed,stLbl={delivering:'قيد التوصيل',delivered:'تم التسليم',onhold:'عالق',postponed:'مؤجل'};
   const rows=s.lines.map(l=>{const d=_szD(l.d);
     if(l.k==='o'&&l.sf)return `${d}  طلب #${l.num} (طلّعتوه): ${_szF(l.cost)} عليكم`;
+    if(l.k==='sr')return `${d}  ربح المعرض (${l.name}): ${_szF(l.v)} إلكم`;
     if(l.k==='o')return `${d}  طلب #${l.num}: ربحكم ${_szF(l.v)}`;
     if(l.k==='s'||l.k==='c')return `${d}  ${l.k==='s'?'مواد خام':'تكلفة طلب'}${l.name?' ('+l.name+')':''}: ${_szF(-l.v)} عليكم`;
     if(l.k==='p')return `${d}  دفعة ${l.dir==='out'?'إلكم':'منكم'}: ${_szF(Math.abs(l.v))}`;
@@ -28646,3 +28665,63 @@ function _seAutoBanners(){
   _se.banners=B;_sePaint();toast('📋 انسخت — عدّل واكبس «احفظ»');
 }
 window._seAutoBanners=_seAutoBanners;
+
+
+// ═══ 🏬 المعرض ═══
+// البيع المباشر صار «المعرض»: زي متجر سعره سعر متجر بتختاره، وربح كل بيعة
+// (سعر الزبون − سعر المعرض) بيتقسم بالنص على متجرين بتختارهم. البيع بأقل من
+// سعر المعرض: الخسارة عليك (الربح صفر). من تاريخ التفعيل وطالع بس.
+let _showroom={},_showroomLoaded=false,_opShowroom={};
+async function _loadShowroom(force){
+  if(_showroomLoaded&&!force)return _showroom;
+  try{const d=await db.collection('operator_config').doc('showroom').get();_showroom=(d.exists&&d.data())||{};}catch(e){_showroom={};}
+  _showroomLoaded=true;return _showroom;
+}
+function _showroomOn(date){
+  const c=_showroom||{};return !!(c.priceStoreId&&Array.isArray(c.shareStores)&&c.shareStores.length===2&&c.from&&(date||jordanDateStr())>=c.from);
+}
+function _showroomRow(it,date){
+  if(!_showroomOn(date))return {};
+  const c=_showroom,p=_prodById(it.id);
+  const unit=p&&p.storePrices?Number(p.storePrices[c.priceStoreId])||0:0;
+  if(!(unit>0))return {showroom:{missing:true,priceStoreId:c.priceStoreId}};
+  const q=Number(it.qty)||0,sale=(Number(it.price)||0)*q;
+  const profit=Math.max(0,Math.round((sale-unit*q)*100)/100);
+  const half=Math.round(profit/2*100)/100;
+  const [a,b]=c.shareStores;
+  return {showroom:{price:unit,profit,priceStoreId:c.priceStoreId,shares:{[a]:half,[b]:Math.round((profit-half)*100)/100}}};
+}
+async function openShowroomSettings(){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  if(!_opStoresList.length)await loadOpStores();
+  await _loadShowroom(true);
+  _szCss();
+  const c=_showroom||{},S=(_opStoresList||[]).filter(s=>!s.archived);
+  const inp='width:100%;padding:11px 12px;border-radius:11px;border:1px solid rgba(255,255,255,.12);background:#0f1814;color:#eef2ee;font-family:Tajawal,sans-serif;font-size:.92rem';
+  const sel=(id,cur)=>`<select id="${id}" style="${inp}"><option value="">— اختار متجر —</option>${S.map(s=>`<option value="${s.id}"${s.id===cur?' selected':''}>${_clrEsc(s.name)}</option>`).join('')}</select>`;
+  const sh=Array.isArray(c.shareStores)?c.shareStores:[];
+  _szOpen('szShow',`<div class="szTop"><h2>🏬 المعرض</h2><button class="szX" onclick="_szClose('szShow')" aria-label="إغلاق">✕</button></div>
+    <div class="szCard"><div class="szL" style="line-height:1.9">المعرض زي متجر: كل منتج بينحسب عليه بسعر متجر بتختاره. وربح كل بيعة (سعر الزبون − سعر المعرض) بيتقسم بالنص على متجرين، وبتنزل حصّة كل واحد بكشفه.<br>إذا انباع بأقل من سعر المعرض، الخسارة عليك.</div></div>
+    <div class="szCard"><b>سعر المعرض = سعر متجر</b>${sel('srPrice',c.priceStoreId||'')}
+      <div class="szL">المنتج اللي ما إله سعر لهالمتجر ما بينحسبله ربح معرض.</div></div>
+    <div class="szCard"><b>الربح بيتقسم على</b>${sel('srA',sh[0]||'')}${sel('srB',sh[1]||'')}</div>
+    <div class="szCard"><b>من تاريخ</b><input id="srFrom" type="date" style="${inp}" value="${_clrEsc(c.from||jordanDateStr())}"><div class="szL">المبيعات قبل هالتاريخ بتضل زي ما هي.</div></div>
+    <button class="szBtn szMint" onclick="_showroomSave()">💾 احفظ</button>
+    ${c.priceStoreId?`<button class="szBtn szGhost" onclick="_showroomOff()">إيقاف تقسيم الربح</button>`:''}`);
+}
+async function _showroomSave(){
+  const v=id=>document.getElementById(id).value;
+  const priceStoreId=v('srPrice'),a=v('srA'),b=v('srB'),from=v('srFrom');
+  if(!priceStoreId||!a||!b){toast('اختار سعر المعرض والمتجرين');return;}
+  if(a===b){toast('اختار متجرين مختلفين');return;}
+  if(!from){toast('اختار التاريخ');return;}
+  try{await db.collection('operator_config').doc('showroom').set({priceStoreId,shareStores:[a,b],from,at:firebase.firestore.FieldValue.serverTimestamp(),by:_currentAdminUser});
+    await _loadShowroom(true);_szClose('szShow');toast('✅ انحفظ — بيعات المعرض من '+_szD(from)+' بتتقسم');}
+  catch(e){toast('❌ '+(e.message||e));}
+}
+async function _showroomOff(){
+  if(!confirm('نوقف تقسيم ربح المعرض؟ البيعات الجاية ما بتنحسب للمتاجر (القديمة بتضل).'))return;
+  try{await db.collection('operator_config').doc('showroom').set({priceStoreId:'',shareStores:[],from:''});await _loadShowroom(true);_szClose('szShow');toast('انوقف');}
+  catch(e){toast('❌ '+(e.message||e));}
+}
+window.openShowroomSettings=openShowroomSettings;window._showroomSave=_showroomSave;window._showroomOff=_showroomOff;
