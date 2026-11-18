@@ -28749,7 +28749,7 @@ function _clrRecoverHtml(){
     <b style="font-size:.84rem;color:#9a3412">🗑 ألوان محذوفة</b>
     ${trash.map(t=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">لون <b>${t.code}</b>${t.name?' · '+_clrEsc(t.name):''}${t.qty!=null?` · كمية ${t.qty}`:''}</span><button style="${btn}" onclick="clrRestore('${t.id}')">↩️ رجّعه</button></div>`).join('')}
     ${ownMiss.map(m=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">رقم <b>${m.num}</b> من <b>${_clrEsc(m.name)}</b> · بطلبات شغّالة بس انشال من المنتج</span><button style="${btn}" onclick="clrOwnRecreate('${m.pid}',${m.num})">↩️ رجّعه</button></div>`).join('')}
-    ${miss.map(m=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">لون <b>${m.code}</b> · مستعمل بـ ${m.prods.slice(0,2).map(_clrEsc).join('، ')}${m.prods.length>2?' …':''} <span style="color:#9a3412">(انحذف قبل السلّة — بيرجع بلا اسم وكمية)</span></span><button style="${btn}" onclick="clrRecreate(${m.code})">↩️ رجّعه</button></div>`).join('')}
+    ${miss.map(m=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">لون <b>${m.code}</b> · ${m.prods.length?'مستعمل بـ '+m.prods.slice(0,2).map(_clrEsc).join('، ')+(m.prods.length>2?' …':''):'ناقص من تسلسل الأرقام'} <span style="color:#9a3412">(انحذف قبل السلّة — بيرجع بلا اسم وكمية)</span></span><button style="${btn}" onclick="clrRecreate(${m.code})">↩️ رجّعه</button></div>`).join('')}
   </div>`;
 }
 function _clrMissing(){
@@ -28757,6 +28757,13 @@ function _clrMissing(){
   const have=new Set(_colorLib.map(c=>Number(c.code))),inTrash=new Set((_clrTrash||[]).map(t=>Number(t.code))),m={};
   (_opProductsList||[]).forEach(p=>{if(!p||!p.hasColorNumbers||_prodOwnColors(p))return;
     _prodColorCodes(p).forEach(n=>{n=Number(n);if(n>0&&!have.has(n)&&!inTrash.has(n)){(m[n]=m[n]||{code:n,prods:[]}).prods.push(p.name||'');}});});
+  const add=(n,lbl)=>{n=Number(n);if(!(n>0)||have.has(n)||inTrash.has(n))return;const e=(m[n]=m[n]||{code:n,prods:[]});if(lbl&&!e.prods.includes(lbl))e.prods.push(lbl);};
+  // منتجات بتاخد المكتبة كاملة: اللون المحذوف بيبيّن من الطلبات اللي فيها رقمه
+  (typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:[]).forEach(o=>(o.products||[]).forEach(it=>{
+    const p=_prodById(it.id);if(p&&_prodOwnColors(p))return;
+    (it.colorNumbers||[]).forEach(c=>add(c.num,'طلب #'+(o.orderNum||o.num||'')));}));
+  // ورقم ناقص من تسلسل المكتبة (١ لآخر رقم)
+  const mx=Math.max(0,...have);for(let n=1;n<mx;n++)add(n,'');
   return Object.values(m).sort((a,b)=>a.code-b.code);
 }
 async function clrRestore(tid){
