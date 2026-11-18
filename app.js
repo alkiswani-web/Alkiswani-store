@@ -4194,7 +4194,7 @@ function _renderColorHQ(){
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.78rem;font-weight:800;color:#374151;"><span style="flex:1;">🏷️ ${nbc?`${nbc} لون بدون باركود`:'الباركود'}</span>
       <button onclick="openBarcodes()" style="padding:7px 11px;background:#f9fafb;color:#374151;border:1.5px solid #e5e7eb;border-radius:9px;${F}font-size:.76rem;font-weight:800;cursor:pointer;">اربط باركود</button></div>`);
   const qe=document.getElementById('hqQ'),qv=qe?qe.value:'',qf=qe&&document.activeElement===qe;
-  list.innerHTML=h;
+  list.innerHTML=_clrRecoverHtml()+h;   // ألوان انحذفت بالغلط — أوّل اشي بتشوفه
   const qi=document.getElementById('hqQ');if(qi&&qv){qi.value=qv;hqFind(qv);}if(qi&&qf)qi.focus();
 }
 window.hqFilter=hqFilter;window.hqOpen=hqOpen;window.hqShoot=hqShoot;window.hqFind=hqFind;
@@ -4389,7 +4389,7 @@ function renderColorLib(){
       المكتبة فاضية.<br>اضغط <b>⚡ عبّي المكتبة</b> ليصير عندك سطر لكل رقم موجود حالياً — طلباتك القديمة بتضلّ صحيحة زي ما هي — وبعدها عبّي الأسماء والألوان على راحتك.</div>`;
     return;
   }
-  list.innerHTML=_colorLib.map((c,i)=>{
+  list.innerHTML=_clrRecoverHtml()+_colorLib.map((c,i)=>{
     const s=CLR_ST[c.status||'active']||CLR_ST.active;
     const hex=c.hex||'';
     const q=Number(c.qty);
@@ -4497,9 +4497,13 @@ async function clrMove(id,dir){
 
 async function clrDelete(id){
   const c=_colorLib.find(x=>x.id===id);if(!c)return;
-  if(!confirm(`حذف «${c.name||'لون '+c.code}» نهائياً؟\n\nالطلبات القديمة اللي فيها هاد اللون رح تعرضه «لون ${c.code}» بدون اسم.\nلو بدك بس توقفه عن البيع اختار ⚫️ متوقّف بدل الحذف.`))return;
+  if(!confirm(`حذف «${c.name||'لون '+c.code}»؟\n\nبيروح لـ«🗑 المحذوفة» وبتقدر ترجّعه زي ما هو.\nلو بدك بس توقفه عن البيع اختار ⚫️ متوقّف بدل الحذف.`))return;
   try{
+    // قبل الحذف نسخة كاملة بسلّة المحذوفات — الحذف بالغلط بيرجع بكبسة
+    const snap=await db.collection('color_library').doc(id).get();
+    if(snap.exists)await db.collection('color_trash').doc(id).set({...snap.data(),_id:id,deletedAt:firebase.firestore.FieldValue.serverTimestamp(),deletedBy:_currentAdminUser||''});
     await db.collection('color_library').doc(id).delete();
+    _clrTrash=null;
     await loadColorLibrary(true);
     _clrOpenId=null;
     renderColorLib();
@@ -28725,3 +28729,72 @@ async function _showroomOff(){
   catch(e){toast('❌ '+(e.message||e));}
 }
 window.openShowroomSettings=openShowroomSettings;window._showroomSave=_showroomSave;window._showroomOff=_showroomOff;
+
+
+// ═══ ألوان انحذفت بالغلط ═══
+// ١) سلّة المحذوفات: كل لون بينحذف بتنحفظ نسخته الكاملة (اسم، صورة، كمية) وبيرجع بكبسة.
+// ٢) ألوان انحذفت قبل السلّة وما زالت مستعملة بالمنتجات: منرجّعها بنفس الرقم
+//    (الطلبات بتربط بالرقم، فبيرجع اسمه عليها)، والاسم والكمية بتعبّيهم من جديد.
+let _clrTrash=null,_clrTrashBusy=false;
+function _clrRecoverHtml(){
+  if(_clrTrash===null&&!_clrTrashBusy){_clrTrashBusy=true;
+    db.collection('color_trash').get().then(s=>{_clrTrash=s.docs.map(d=>({id:d.id,...d.data()}));}).catch(()=>{_clrTrash=[];})
+      .finally(()=>{_clrTrashBusy=false;if((_clrTrash||[]).length||_clrMissing().length)try{renderColorLib();}catch(e){}});}
+  const have=new Set(_colorLib.map(c=>Number(c.code)));
+  const trash=(_clrTrash||[]).filter(t=>!have.has(Number(t.code)));
+  const miss=_clrMissing(),ownMiss=_clrOwnMissing();
+  if(!trash.length&&!miss.length&&!ownMiss.length)return '';
+  const btn='padding:6px 11px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-family:Tajawal,sans-serif;font-size:.76rem;font-weight:800;cursor:pointer';
+  return `<div style="border:1.5px solid #fed7aa;background:#fff7ed;border-radius:12px;padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:7px">
+    <b style="font-size:.84rem;color:#9a3412">🗑 ألوان محذوفة</b>
+    ${trash.map(t=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">لون <b>${t.code}</b>${t.name?' · '+_clrEsc(t.name):''}${t.qty!=null?` · كمية ${t.qty}`:''}</span><button style="${btn}" onclick="clrRestore('${t.id}')">↩️ رجّعه</button></div>`).join('')}
+    ${ownMiss.map(m=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">رقم <b>${m.num}</b> من <b>${_clrEsc(m.name)}</b> · بطلبات شغّالة بس انشال من المنتج</span><button style="${btn}" onclick="clrOwnRecreate('${m.pid}',${m.num})">↩️ رجّعه</button></div>`).join('')}
+    ${miss.map(m=>`<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span style="font-size:.8rem">لون <b>${m.code}</b> · مستعمل بـ ${m.prods.slice(0,2).map(_clrEsc).join('، ')}${m.prods.length>2?' …':''} <span style="color:#9a3412">(انحذف قبل السلّة — بيرجع بلا اسم وكمية)</span></span><button style="${btn}" onclick="clrRecreate(${m.code})">↩️ رجّعه</button></div>`).join('')}
+  </div>`;
+}
+function _clrMissing(){
+  if(!_colorLib.length)return [];
+  const have=new Set(_colorLib.map(c=>Number(c.code))),inTrash=new Set((_clrTrash||[]).map(t=>Number(t.code))),m={};
+  (_opProductsList||[]).forEach(p=>{if(!p||!p.hasColorNumbers||_prodOwnColors(p))return;
+    _prodColorCodes(p).forEach(n=>{n=Number(n);if(n>0&&!have.has(n)&&!inTrash.has(n)){(m[n]=m[n]||{code:n,prods:[]}).prods.push(p.name||'');}});});
+  return Object.values(m).sort((a,b)=>a.code-b.code);
+}
+async function clrRestore(tid){
+  let t=(_clrTrash||[]).find(x=>x.id===tid);
+  if(!t){try{const d=await db.collection('color_trash').doc(tid).get();if(d.exists)t={id:d.id,...d.data()};}catch(e){}}
+  if(!t){toast('ما لقيته بالمحذوفة');return;}
+  try{const {deletedAt,deletedBy,_id,id:_tid,...data}=t;
+    await db.collection('color_library').doc(_id||tid).set(data);
+    await db.collection('color_trash').doc(tid).delete();
+    _clrTrash=null;await loadColorLibrary(true);renderColorLib();toast('↩️ رجع لون '+t.code+' زي ما كان');}
+  catch(e){toast('❌ '+(e.message||e));}
+}
+async function clrRecreate(code){
+  if(_colorLib.some(c=>Number(c.code)===Number(code))){toast('اللون موجود');return;}
+  try{
+    await db.collection('color_library').doc('c'+code).set({code:Number(code),name:'',hex:'',status:'active',lowAt:0,sort:Number(code),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),restored:true});
+    await loadColorLibrary(true);_clrOpenId='c'+code;renderColorLib();
+    toast('↩️ رجع لون '+code+' — اكتب اسمه وصورته، وعدّ كميته من الجرد');
+  }catch(e){toast('❌ '+(e.message||e));}
+}
+window.clrRestore=clrRestore;window.clrRecreate=clrRecreate;
+
+// رقم من ترقيم منتج خاص انشال من المنتج وهو لسّا بطلبات شغّالة ⇒ منرجّعه للمنتج بكمية صفر
+// (صورته محفوظة لحالها بـ own_color_imgs فبترجع معه)
+function _clrOwnMissing(){
+  const out=[],seen=new Set();
+  const dead=['cancelled','returned','refused'];
+  (typeof _opOrdersAllData!=='undefined'?_opOrdersAllData:[]).forEach(o=>{if(dead.includes(o.status))return;
+    (o.products||[]).forEach(it=>{const p=_prodById(it.id);if(!p||!_prodOwnColors(p))return;
+      const have=new Set(_ownNums(p).map(Number));
+      (it.colorNumbers||[]).forEach(c=>{const n=Number(c.num),k=p.id+'|'+n;if(n>0&&!have.has(n)&&!seen.has(k)){seen.add(k);out.push({pid:p.id,name:p.name||'',num:n});}});});});
+  return out;
+}
+async function clrOwnRecreate(pid,num){
+  try{await db.collection('operator_products').doc(pid).update({['ownColorQty.'+num]:0});
+    const p=_prodById(pid);if(p){p.ownColorQty=Object.assign({},p.ownColorQty||{},{[num]:0});}
+    renderColorLib();toast('↩️ رجع الرقم '+num+' للمنتج — عدّ كميته من الجرد');}
+  catch(e){toast('❌ '+(e.message||e));}
+}
+window.clrOwnRecreate=clrOwnRecreate;
