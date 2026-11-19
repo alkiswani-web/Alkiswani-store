@@ -4881,6 +4881,7 @@ let _posScanMsg='';
 // (مرّة وحدة للأبد) وبتضيفه للسلّة — بلا ما تطلع من البيع لشاشة الباركود.
 let _posLink=null;   // {code,pid}
 let _posCnq=null;    // {pid,n,v} — كتابة كمية لون
+let _posQty=null;    // {id,v} — كتابة عدد صنف بالأرقام
 let _posUP=null;     // {id} — تعديل سعر الحبّة لصنف واحد
 let _posSeq=0;
 
@@ -5266,7 +5267,7 @@ function posRenderTape(){
     const on=_posActive===it.id;
     const rc=!on?'':(_posIsYarn(p)
       ?`<div class="pk-rc"><span class="cl">الكمية من ${_cnIsSize(p)?'القياسات':'أرقام الألوان'} تحت ▼</span><button class="up" data-ta="price">✎ سعر الحبّة</button><button class="del" data-ta="del">🗑 احذف</button></div>`
-      :`<div class="pk-rc"><button class="dec" data-ta="dec">−</button><span class="q num">${q}</span><button class="inc" data-ta="inc">＋</button><button class="up" data-ta="price">✎ سعر الحبّة</button><button class="del" data-ta="del">🗑 احذف</button></div>`);
+      :`<div class="pk-rc"><button class="dec" data-ta="dec">−</button><span class="q num" data-ta="qty" title="اكتب العدد" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:5px">${q}</span><button class="inc" data-ta="inc">＋</button><button class="up" data-ta="price">✎ سعر الحبّة</button><button class="del" data-ta="del">🗑 احذف</button></div>`);
     return `<div class="pk-row${on?' on':''}${_posHit===it.id?' hit':''}" data-tid="${_clrEsc(it.id)}" style="--hue:${_posHue(p)}">
       <div class="nm"><b>${_clrEsc(it.name)}</b><div class="pk-sub">${sub}</div>${rc}</div>
       <span class="num amt">${((Number(it.price)||0)*q).toFixed(2)}</span></div>`;
@@ -5292,6 +5293,7 @@ function _posBindTape(){
     else if(ta==='dec')posAct('step:-1');
     else if(ta==='del')posAct('del');
     else if(ta==='price'){_posUP={id};_posSheet='uprice';_posBuzz(12);posRender();}
+    else if(ta==='qty')posAct('qty');
   });
 }
 let _posLastSell=null;
@@ -5413,7 +5415,7 @@ function posRenderDeck(){
     const it=_posLine(a.id),q=it?(Number(it.qty)||0):0;
     g.innerHTML='<div class="pk-krow">'
       +_posK({act:'step:-1',cls:'mid',html:'<span class="lbl" style="font-size:26px;color:#FF6B6B">−</span>'})
-      +_posK({act:'noop',cls:'mid',html:`<span class="num" style="font-size:29px;font-weight:700">${q}</span><span class="sub">العدد</span>`})
+      +_posK({act:'qty',cls:'mid',html:`<span class="num" style="font-size:29px;font-weight:700">${q}</span><span class="sub">العدد ✎</span>`})
       +_posK({act:'step:1',cls:'mid',html:'<span class="lbl" style="font-size:26px;color:#C6FF4F">＋</span>'})
       +'</div><div class="pk-krow">'
       +[2,3,5,10].map(n=>_posK({act:'set:'+n,cls:'ghost mid',html:`<span class="lbl num" style="font-size:16px">${n}</span>`})).join('')
@@ -5519,6 +5521,36 @@ function posRenderSheet(){
       const idx=_posCart.findIndex(x=>x.id===pid);
       const c0=idx>=0?_posCnQty(_posCart[idx],n):0;
       if(idx>=0&&target!==c0)posCN(idx,n,target-c0);else posRender();
+    });
+    return;
+  }
+  if(_posSheet==='qty'&&_posQty){
+    const it=_posLine(_posQty.id),p=_prodById(_posQty.id);
+    const cur=it?(Number(it.qty)||0):0;
+    d.innerHTML=`<h4>${_clrEsc((it&&it.name)||(p&&p.name)||'')} — كم حبّة؟</h4>
+      <div style="text-align:center;font-size:12.5px;font-weight:800;color:#8FA39C">هلّق بالسلّة <span class="num">${cur}</span></div>
+      <div id="qtyV" class="num" style="text-align:center;font-size:44px;font-weight:700;color:var(--acc);min-height:54px">${_posQty.v||'0'}</div>
+      <div class="pk-cnwrap" style="grid-template-columns:repeat(3,1fr)">${['1','2','3','4','5','6','7','8','9','C','0','⌫'].map(k=>`<button class="key mid cn" data-k="${k}" style="height:52px"><span class="lbl num" style="font-size:20px">${k}</span></button>`).join('')}</div>
+      <div class="btns">
+        <button class="key ghost mid" data-qs="cancel" style="flex:1"><span class="lbl">رجوع</span></button>
+        <button class="key go mid" data-qs="ok" style="flex:2"><span class="lbl" style="font-size:16px">تمّ ✓</span></button>
+      </div>`;
+    document.querySelector('#posModal .pk-wrap').appendChild(d);
+    const show=()=>{const v=document.getElementById('qtyV');if(v)v.textContent=_posQty.v||'0';};
+    d.addEventListener('click',e=>{
+      const k=e.target.closest('[data-k]');
+      if(k){const c=k.dataset.k;
+        if(c==='⌫')_posQty.v=_posQty.v.slice(0,-1);else if(c==='C')_posQty.v='';
+        else if(_posQty.v.length<4)_posQty.v=(_posQty.v==='0'?'':_posQty.v)+c;
+        _posBuzz(8);show();return;}
+      const b=e.target.closest('[data-qs]');if(!b)return;
+      const id=_posQty.id,v=parseInt(_posQty.v,10);
+      _posSheet='';_posQty=null;
+      if(b.dataset.qs==='cancel'||!(v>=0)){posRender();return;}
+      const ln=_posEnsure(id);ln.qty=v;
+      if(!v){_posClean();_posActive='';_posBeep('dup');}
+      else{_posBeep('ok');_posBuzz(24);_posFlash(id);}
+      posRender();
     });
     return;
   }
@@ -5697,6 +5729,11 @@ function posAct(a){
     it.qty=nq;_posBuzz(15);_posBeep(d>0?'ok':'dup');
     if(!nq){_posClean();_posActive='';}
     posRender();return;
+  }
+  if(a==='qty'){
+    // عدد كبير (30، 120…) بالكتابة بدل الضغط
+    if(!_posActive)return;
+    _posQty={id:_posActive,v:''};_posSheet='qty';_posBuzz(18);posRender();return;
   }
   if((m=a.match(/^set:(\d+)$/))){
     if(!_posActive)return;
