@@ -3040,7 +3040,7 @@ function _clrQtyLine(c){
   if(!c||c.counted!==true) return '<div data-cnq style="height:11px;"></div>';
   const q=Number(c.qty)||0;
   const col=q<=0?'#dc2626':_clrIsLow(c)?'#b45309':'#15803d';
-  return `<div data-cnq style="font-size:0.58rem;font-weight:800;color:${col};line-height:1.2;">${q<=0?'خلص':q}</div>`;
+  return `<div data-cnq style="font-size:0.58rem;font-weight:800;color:${col};line-height:1.2;">${q<0?_negQ(q):q===0?'خلص':q}</div>`;
 }
 // رقمٌ مقروء فوق أي خلفية — الأصفر الفاتح والكحلي ما بيرضوا بنفس لون الخطّ
 function _clrInk(hex){
@@ -4124,7 +4124,7 @@ function hqFind(v){
   box.innerHTML=H.length?H.map(({p,st,i})=>`<div onclick="hqOpen('${p.id}',${st.own})" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:12px;margin-top:6px;background:#fff;cursor:pointer;">
       <div style="width:38px;height:38px;border-radius:9px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);${i.img?`background:url('${i.img}') center/cover;`:i.hex?`background:${_clrEsc(i.hex)};`:'background:#f3f4f6;'}"></div>
       <div style="flex:1;min-width:0;font-size:.84rem;font-weight:800;color:#111827;">${_clrEsc(p.name)} — ${_cnWord(p)} <bdi>${_clrEsc(i.tag)}</bdi></div>
-      <div style="font-size:.74rem;font-weight:800;color:${i.out?'#dc2626':i.low?'#b45309':'#16a34a'};white-space:nowrap;">${i.out?'🟡 خلص':i.q!=null?'🟢 متوفّر '+i.q:'🟢 متوفّر'}</div></div>`).join('')
+      <div style="font-size:.74rem;font-weight:800;color:${i.out?'#dc2626':i.low?'#b45309':'#16a34a'};white-space:nowrap;">${i.q!=null&&i.q<0?'🔴 بالسالب '+_negQ(i.q):i.out?'🟡 خلص':i.q!=null?'🟢 متوفّر '+i.q:'🟢 متوفّر'}</div></div>`).join('')
     :`<div style="padding:10px;text-align:center;color:#9ca3af;font-size:.8rem;">ما في لون «${_clrEsc(v)}» بأي منتج</div>`;
 }
 function _renderColorHQ(){
@@ -4314,7 +4314,7 @@ function _roPaint(){
   L.innerHTML=(rows.length?rows.map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid #f3f4f6;">
       <div style="position:relative;width:46px;height:46px;border-radius:10px;border:1px solid rgba(0,0,0,.12);flex-shrink:0;${face(r)}"><span style="position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.93);border-radius:5px;padding:0 4px;font-size:.72rem;font-weight:900;">${_clrEsc(r.tag)}</span></div>
       <div style="flex:1;min-width:0;"><div style="font-weight:900;font-size:.88rem;color:#111827;">${_clrEsc(r.name)}</div>
-        <div style="font-size:.74rem;font-weight:800;color:${r.q<=0?'#dc2626':'#b45309'};">${r.q==null?'ما انجرد':r.q<=0?'خلص — 0':'متوفّر '+r.q}</div></div>
+        <div style="font-size:.74rem;font-weight:800;color:${r.q<=0?'#dc2626':'#b45309'};">${r.q==null?'ما انجرد':r.q<0?'بالسالب '+_negQ(r.q):r.q===0?'خلص — 0':'متوفّر '+r.q}</div></div>
       <div style="display:flex;align-items:center;gap:4px;">
         <button onclick="roWant(${r.num},0,-1)" style="width:30px;height:32px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:900;cursor:pointer;">−</button>
         <input id="roW_${r.num}" type="text" inputmode="decimal" value="${_roN(r.want)}" oninput="roWant(${r.num},this.value)" style="width:52px;padding:6px 2px;border:1.5px solid #bbf7d0;border-radius:8px;${F}font-size:.95rem;font-weight:900;text-align:center;color:#166534;">
@@ -6922,7 +6922,7 @@ async function openProdStock(prodId,keep){
           <div style="aspect-ratio:1;${im?`background:url('${im}') center/cover;`:own?'background:#eef2f7;':_clrFace(c)}position:relative;${cur>0?'':'filter:grayscale(.7);opacity:.75;'}">
             <span style="position:absolute;top:6px;right:6px;background:rgba(17,24,39,.88);color:#fff;border-radius:999px;min-width:26px;height:26px;padding:0 6px;display:grid;place-items:center;font-size:.78rem;font-weight:900;">${_clrEsc(own?_cnTag(prod,n):n)}</span>
           </div>
-          <div style="padding:5px 4px 7px;font-size:.7rem;font-weight:800;color:${cur>0?'#64748b':'#dc2626'};">${cur>0?'عندك '+cur:'خلص'}</div>
+          <div style="padding:5px 4px 7px;font-size:.7rem;font-weight:800;color:${cur>0?'#64748b':'#dc2626'};">${cur>0?'عندك '+cur:cur<0?'بالسالب '+_negQ(cur):'خلص'}</div>
           <span id="pnt_${n}" style="display:none;position:absolute;bottom:30px;left:6px;right:6px;background:${AC};color:#fff;border-radius:10px;padding:3px 0;font-size:.74rem;font-weight:900;"></span>
           <input type="hidden" id="pni_${n}" data-cur="${cur}" value="${_clrEsc(keepVals['pni_'+n]||'')}">
         </button>`;}).join('')
@@ -6948,6 +6948,8 @@ function pnClose(){
   if(_pnTyped()&&!confirm('في كميات مكتوبة وما انحفظت — تطلع وتضيّعها؟'))return;
   document.getElementById('pnAsk')?.remove();document.getElementById('pnStockModal')?.remove();
 }
+// السالب بيبيّن كرقم (بيع مباشر أكثر من المسجّل) — عشان تعرف كم لازم تجيب
+function _negQ(q){return `<bdi dir="ltr">${q}</bdi>`;}
 function _pnCur(prod,n){
   if(_prodOwnColors(prod))return _ownQty(prod,n)||0;
   const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):0;
@@ -6995,7 +6997,7 @@ function pnAsk(n,mode){
         <div style="font-size:.8rem;font-weight:800;opacity:.9;">${_clrEsc(prod.name||'')}</div>
         <div style="font-size:1.6rem;font-weight:900;line-height:1.2;">${_clrEsc(word)} <bdi>${_clrEsc(tag)}</bdi>${!own&&c&&c.name?` <span style="font-size:.85rem;font-weight:700;opacity:.85;">${_clrEsc(c.name)}</span>`:''}</div>
       </div>
-      <span style="position:absolute;top:10px;left:10px;background:#fff;color:${cur>0?'#166534':'#dc2626'};border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:900;">${cur>0?'عندك '+cur:'خلص'}</span>
+      <span style="position:absolute;top:10px;left:10px;background:#fff;color:${cur>0?'#166534':'#dc2626'};border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:900;">${cur>0?'عندك '+cur:cur<0?'بالسالب '+_negQ(cur):'خلص'}</span>
     </div>
     <div style="padding:14px 16px 16px;">
       <div style="font-size:.9rem;font-weight:900;color:${AC};margin-bottom:8px;">${OUT?'📤 كم طلع منه؟':'📥 كم إجاك منه؟'}${had&&_pnAskMode==='scan'?` <span style="color:#64748b;font-weight:700;font-size:.78rem;">(مكتوب قبل ${OUT?'−':'+'}${had} — بينجمعوا)</span>`:''}</div>
@@ -7036,7 +7038,7 @@ function _pnAskPrev(){
   const cur=_pnCur(prod,_pnAskN),had=parseInt(el&&el.value)||0,v=_pnAskVal();
   const tot=_pnAskMode==='scan'?had+v:v,OUT=_pnMode==='out';
   if(!tot){pv.textContent='';return;}
-  const nv=OUT?Math.max(0,cur-tot):cur+tot;
+  const nv=OUT?(cur<=0?cur:Math.max(0,cur-tot)):cur+tot;
   pv.innerHTML=`عندك <b>${cur}</b> ${OUT?'−':'+'} <b>${tot}</b> ⇒ بيصير <b style="color:${OUT?'#b45309':'#16a34a'}">${nv}</b>${OUT&&tot>cur?' <span style="color:#dc2626">(أكثر من الموجود)</span>':''}`;
 }
 function pnAskOk(again){
@@ -7138,8 +7140,9 @@ function _cbNums(p){
 }
 // −1 يعني «ما انجرد» — ما منحسبه خالصاً ولا منبلّغ عنه
 function _cbQty(p,n){
-  if(_prodOwnColors(p)){const q=_ownQty(p,n);return q===undefined||q===null?-1:(Number(q)||0);}
-  const c=_clr(n); return (c&&c.counted===true)?(Number(c.qty)||0):-1;
+  // −1 = ما انجرد؛ الرصيد السالب للموظفين «خلص» (صفر)
+  if(_prodOwnColors(p)){const q=_ownQty(p,n);return q===undefined||q===null?-1:Math.max(0,Number(q)||0);}
+  const c=_clr(n); return (c&&c.counted===true)?Math.max(0,Number(c.qty)||0):-1;
 }
 function _cbProds(list){
   return (list||_opProductsList||[]).filter(p=>p&&p.hasColorNumbers&&!p.isRawMaterial);
@@ -7478,7 +7481,7 @@ function _pnPrev(n){
   const card=out.closest('[data-pnn]');
   if(isNaN(v)||v<=0){out.style.display='none';out.textContent='';if(card)card.style.boxShadow='';}
   else{
-    const nv=OUT?Math.max(0,cur-v):cur+v;
+    const nv=OUT?(cur<=0?cur:Math.max(0,cur-v)):cur+v;
     out.style.display='block';out.textContent=(OUT?'−':'+')+v+' ⇒ '+nv;
     if(card)card.style.boxShadow='0 0 0 3px '+(OUT?'#b45309':'#1d4ed8');
   }
@@ -7513,7 +7516,7 @@ async function pnStockSave(){
         const ref=db.collection('color_library').doc(c.id);
         const cur=c.counted===true?(Number(c.qty)||0):0;
         if(OUT){
-          const take=Math.min(v,cur); if(take<v)capped++;
+          const take=Math.max(0,Math.min(v,cur)); if(take<v)capped++;
           batch.update(ref,{qty:firebase.firestore.FieldValue.increment(-take),counted:true});
           tot+=take;
         }
@@ -7535,7 +7538,7 @@ async function pnStockSave(){
     const u={};let capped=0,tot=0;
     add.forEach(({n,v,cur})=>{
       // ما بنصرف أكثر من الموجود — بنصفّره وبنقوله
-      const d=OUT?-Math.min(v,cur):v;
+      const d=OUT?-Math.max(0,Math.min(v,cur)):v;
       if(OUT&&v>cur)capped++;
       u['ownColorQty.'+n]=firebase.firestore.FieldValue.increment(d);
       tot+=Math.abs(d);
@@ -7548,7 +7551,7 @@ async function pnStockSave(){
         if(pr.id!==_pnProdId||seen.has(pr)||!pr.ownColorQty)return;
         seen.add(pr);
         add.forEach(({n,v,cur})=>{
-          pr.ownColorQty[n]=(Number(pr.ownColorQty[n])||0)+(OUT?-Math.min(v,cur):v);
+          pr.ownColorQty[n]=(Number(pr.ownColorQty[n])||0)+(OUT?-Math.max(0,Math.min(v,cur)):v);
         });
       });
     });
@@ -7770,7 +7773,7 @@ function renderOppCNPicker(){
         const q=Number(_oppOwnQty[n])||0;
         return `<div style="display:flex;align-items:center;gap:5px;border:1.5px solid ${q>0?'#bbf7d0':'#fecaca'};background:${q>0?'#f0fdf4':'#fef2f2'};border-radius:18px;padding:3px 6px 3px 10px;">
           <span style="font-size:0.78rem;font-weight:900;color:#111827;">📏 ${_clrEsc(_cnTag(fake,n))}</span>
-          <span style="font-size:0.7rem;font-weight:800;color:${q>0?'#166534':'#dc2626'};">${q>0?q:'خلص'}</span>
+          <span style="font-size:0.7rem;font-weight:800;color:${q>0?'#166534':'#dc2626'};">${q>0?q:q<0?_negQ(q):'خلص'}</span>
           <button type="button" onclick="oppOwnBump(${n},-1)" style="width:19px;height:19px;border:none;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">−</button>
           <button type="button" onclick="oppOwnBump(${n},1)" style="width:19px;height:19px;border:none;background:#dcfce7;color:#166534;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">+</button>
           <button type="button" onclick="oppOwnDel(${n})" title="شيل القياس" style="width:19px;height:19px;border:none;background:#f3f4f6;color:#6b7280;border-radius:5px;cursor:pointer;font-size:0.68rem;line-height:1;">🗑️</button>
@@ -7794,7 +7797,7 @@ function renderOppCNPicker(){
         const q=Number(_oppOwnQty[n])||0;
         return `<div style="display:flex;align-items:center;gap:5px;border:1.5px solid ${q>0?'#bbf7d0':'#fecaca'};background:${q>0?'#f0fdf4':'#fef2f2'};border-radius:18px;padding:3px 6px 3px 10px;">
           <span style="font-size:0.78rem;font-weight:900;color:#111827;">${n}</span>
-          <span style="font-size:0.7rem;font-weight:800;color:${q>0?'#166534':'#dc2626'};">${q>0?q:'خلص'}</span>
+          <span style="font-size:0.7rem;font-weight:800;color:${q>0?'#166534':'#dc2626'};">${q>0?q:q<0?_negQ(q):'خلص'}</span>
           <button type="button" onclick="oppOwnBump(${n},-1)" style="width:19px;height:19px;border:none;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">−</button>
           <button type="button" onclick="oppOwnBump(${n},1)" style="width:19px;height:19px;border:none;background:#dcfce7;color:#166534;border-radius:5px;cursor:pointer;font-weight:900;font-size:0.72rem;line-height:1;">+</button>
           <button type="button" onclick="oppOwnDel(${n})" title="شيل الرقم" style="width:19px;height:19px;border:none;background:#f3f4f6;color:#6b7280;border-radius:5px;cursor:pointer;font-size:0.68rem;line-height:1;">🗑️</button>
