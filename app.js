@@ -3516,6 +3516,22 @@ function _cnBlocked(num,cur,delta,own,prod,ctx){
   if(delta<=0) return false;
   const others=(ctx&&Number(ctx.others))||0, held=(ctx&&Number(ctx.held))||0;
   const c0=Number(cur)||0;
+  // البيع المباشر: البضاعة بإيد الزبون — الرصيد بيقدر ينزل تحت الصفر (بتنبيه)،
+  // بس اللون «المتوقّف» بيضل ممنوع. الكتالوج والطلبات ما بتمرق من هون.
+  if(ctx&&ctx.pos){
+    if(own){
+      const stock=prod?_ownQty(prod,num):null;if(stock==null)return false;
+      const after=(Number(stock)||0)-others-(c0+delta);
+      if(after<0)toast(`⚠️ ${_cnWord(prod)} ${_cnTag(prod,num)} صار بالسالب (${after})`);
+      return false;
+    }
+    const st=_clrSt(num);
+    if(st!=='active'&&st!=='out'){toast(`⚠️ ${_clrName(num)} متوقّف — اختر لوناً غيره`);return true;}
+    const c=_clr(num);if(!c||c.counted!==true)return false;
+    const after=(Number(c.qty)||0)-others-(c0+delta);
+    if(after<0)toast(`⚠️ ${_clrName(num)} (${num}) صار بالسالب (${after})`);
+    return false;
+  }
   if(own){
     const stock=prod?_ownQty(prod,num):null;
     if(stock==null) return false;               // ما انجرد — ما منخمّن
@@ -3594,8 +3610,7 @@ async function _autoColorStatus(){
     }
     const q=Number(c.qty);
     if(!isFinite(q)) return;
-    // رصيدٌ سالب ما إله معنى — بيصفّر مهما كان الطريق اللي وصّله
-    if(q<0){batch.update(ref,{qty:0,status:'out',outAuto:true});n++;return;}
+    // الرصيد السالب (بيع مباشر أكثر من المسجّل) بيضل زي ما هو لحدّ الجرد أو الوارد
     if(q<=0&&c.status!=='out'){batch.update(ref,{status:'out',outAuto:true});n++;}
     else if(q>0&&c.status==='out'&&c.outAuto===true){batch.update(ref,{status:'active',outAuto:false});n++;}
   });
@@ -4085,13 +4100,13 @@ function _hqStats(p){
   let items;
   if(own){const im=_ownImgs[p.id]||{};
     items=_ownNums(p).map(n=>{const q=_ownQty(p,n),m=im[String(n)]||{};
-      return {n,tag:_cnTag(p,n),q,img:m.img||'',hex:m.hex||'',out:q!=null&&q<=0,low:q!=null&&q>0&&q<=2};});}
+      return {n,tag:_cnTag(p,n),q,img:m.img||'',hex:m.hex||'',out:q!=null&&q<=0,low:q!=null&&q>0&&q<=2,neg:q!=null&&q<0};});}
   else items=_prodColorCodes(p).map(code=>{const c=_clr(code);if(!c||c.status==='retired')return null;
     const q=c.counted===true?(Number(c.qty)||0):null;
-    return {n:code,tag:String(code),q,id:c.id,img:c.img||'',hex:c.hex||'',out:c.status==='out'||(q!=null&&q<=0),low:_clrIsLow(c)};}).filter(Boolean);
+    return {n:code,tag:String(code),q,id:c.id,img:c.img||'',hex:c.hex||'',out:c.status==='out'||(q!=null&&q<=0),low:_clrIsLow(c),neg:q!=null&&q<0};}).filter(Boolean);
   const bcm=_bcColors(p),usesBc=Object.keys(bcm).length>0;
   return {own,size,items,
-    av:items.filter(i=>!i.out&&!i.low),low:items.filter(i=>i.low),out:items.filter(i=>i.out),
+    av:items.filter(i=>!i.out&&!i.low),low:items.filter(i=>i.low),out:items.filter(i=>i.out),neg:items.filter(i=>i.neg),
     noPic:size?[]:items.filter(i=>!i.img),noBc:usesBc?items.filter(i=>!bcm[String(i.n)]):[]};
 }
 function _hqProds(){return _cbProds().map(p=>({p,st:_hqStats(p)})).filter(x=>x.st.items.length);}
@@ -4128,6 +4143,7 @@ function _renderColorHQ(){
   const AL=[
     {k:'l',v:sum('low'),t:'قرب يخلص',c:'#b45309',bg:'#fffbeb',bd:'#fde68a'},
     {k:'o',v:sum('out'),t:'خلص',c:'#dc2626',bg:'#fef2f2',bd:'#fecaca'},
+    ...(sum('neg')?[{k:'n',v:sum('neg'),t:'بالسالب — بدها جرد',c:'#991b1b',bg:'#fee2e2',bd:'#fca5a5'}]:[]),
     {k:'p',v:ld?null:sum('noPic'),t:'بدون صورة',c:'#1e40af',bg:'#eff6ff',bd:'#bfdbfe'},
     ...(_stk.list&&_stk.list.length?[{k:'s',v:_stk.list.length,t:'طلب ملغي ألوانه ما رجعت',c:'#b91c1c',bg:'#fef2f2',bd:'#fecaca',act:'openStuckFix()'}]:[]),
     {k:'w',v:_rw.loaded?_rwSplit().back.length:null,t:'زبون لونه رجع'+(_rw.loaded&&_rwSplit().out.length?` · ${_rwSplit().out.length} بستنوا`:''),c:'#166534',bg:'#f0fdf4',bd:'#86efac',act:'openRestockWaits()'},
@@ -4143,15 +4159,15 @@ function _renderColorHQ(){
     return `<button onclick="${a.act||`hqFilter('${a.k}')`}" style="text-align:right;padding:9px 11px;border-radius:12px;border:1.5px solid ${on?a.c:a.bd};background:${a.bg};color:${a.c};${F}cursor:pointer;${on?`box-shadow:0 0 0 1.5px ${a.c};`:''}">
       <div style="font-size:1.25rem;font-weight:900;line-height:1.15;">${a.v==null?'…':a.v}</div><div style="font-size:.74rem;font-weight:800;">${a.t}${a.act?' ←':on?' ✓':''}</div></button>`;}).join('')}</div>`;
   // المنتجات
-  const fk={l:'low',o:'out',p:'noPic'}[_hq.f];
+  const fk={l:'low',o:'out',p:'noPic',n:'neg'}[_hq.f];
   const L=fk?P.filter(x=>x.st[fk].length):P;
-  const fT={l:'قرب يخلص',o:'خلص',p:'بدون صورة'}[_hq.f];
+  const fT={l:'قرب يخلص',o:'خلص',p:'بدون صورة',n:'بالسالب'}[_hq.f];
   h+=H(fk?`المنتجات — ${fT} (${L.length}) · <a onclick="hqFilter('${_hq.f}')" style="color:#2563eb;cursor:pointer;">الكل</a>`:`المنتجات (${P.length})`);
   const BT=(fn,t,hot)=>`<button onclick="${fn}" style="padding:6px 9px;background:#fff;color:${hot?'#b45309':'#374151'};border:1.5px solid ${hot?'#fcd34d':'#e5e7eb'};border-radius:9px;${F}font-size:0.74rem;font-weight:800;cursor:pointer;">${t}</button>`;
   h+=L.map(({p,st:s})=>{
     const T=s.items.length||1,id=p.id,ow=s.own,np=ld?0:s.noPic.length;
     const chips=fk?s[fk].map(i=>{const tap=_hq.f==='p'?(ow?`clrOwnShoot('${id}',${i.n})`:`clrPickImage('${i.id}')`):'';
-      return `<span ${tap?`onclick="${tap}" `:''}style="display:inline-block;padding:3px 9px;border-radius:999px;background:#f3f4f6;font-size:.74rem;font-weight:800;margin:0 0 4px 4px;${tap?'cursor:pointer;':''}">${_hq.f==='p'?'📷 ':''}<bdi>${_clrEsc(i.tag)}</bdi>${_hq.f==='l'&&i.q!=null?` <span style="color:#b45309;">(${i.q})</span>`:''}</span>`;}).join(''):'';
+      return `<span ${tap?`onclick="${tap}" `:''}style="display:inline-block;padding:3px 9px;border-radius:999px;background:#f3f4f6;font-size:.74rem;font-weight:800;margin:0 0 4px 4px;${tap?'cursor:pointer;':''}">${_hq.f==='p'?'📷 ':''}<bdi>${_clrEsc(i.tag)}</bdi>${(_hq.f==='l'||_hq.f==='n')&&i.q!=null?` <span style="color:${i.q<0?'#dc2626':'#b45309'};" dir="ltr">(${i.q})</span>`:''}</span>`;}).join(''):'';
     return `<div style="border:1.5px solid #e5e7eb;border-radius:14px;padding:11px 12px;margin-bottom:8px;background:#fff;">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:38px;height:38px;border-radius:10px;background:#eff6ff;display:grid;place-items:center;font-size:1.05rem;flex-shrink:0;">${s.size?'📏':ow?'🔢':'🎨'}</div>
@@ -5040,6 +5056,8 @@ const POS_CSS=`
 #posModal .cn.pick{background:var(--acc);box-shadow:0 4px 0 var(--acc-d);}
 #posModal .cn.pick .n{color:#0C100F;}
 #posModal .cn.pick .st{background:#0C100F;color:var(--acc);}
+#posModal .cn.zero .n{color:#8A9A95;}
+#posModal .cn .st.neg{color:var(--bad);}
 #posModal .cn.out{background:#161D1C;box-shadow:none;pointer-events:none;
  background-image:linear-gradient(135deg,transparent 46%,rgba(255,107,107,.5) 46%,rgba(255,107,107,.5) 54%,transparent 54%);}
 #posModal .cn.out .n{color:#4A5754;}
@@ -5105,10 +5123,11 @@ function _posNums(p){
   if(!_posIsYarn(p))return [];
   return _prodOwnColors(p)?_ownNums(p):_prodColorCodes(p).filter(n=>_clrSt(n)!=='retired');
 }
-// −1 يعني «ما انجرد» — ما منمنع البيع عليه، بس ما منعرض رقماً كذباً
+// null يعني «ما انجرد» — ما منمنع البيع عليه، بس ما منعرض رقماً كذباً.
+// السالب رصيد حقيقي (انباع بالمباشر أكثر من المسجّل)
 function _posStock(p,n){
-  if(_prodOwnColors(p)){const q=_ownQty(p,n);return (q===undefined||q===null)?-1:(Number(q)||0);}
-  const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):-1;
+  if(_prodOwnColors(p)){const q=_ownQty(p,n);return (q===undefined||q===null)?null:(Number(q)||0);}
+  const c=_clr(n);return (c&&c.counted===true)?(Number(c.qty)||0):null;
 }
 function _posLine(id){return _posCart.find(x=>x.id===id)||null;}
 function _posCnQty(it,num){const c=(it&&it.colorNumbers||[]).find(x=>Number(x.num)===Number(num));return c?(Number(c.qty)||0):0;}
@@ -5119,7 +5138,7 @@ function _posLq(it){
   return Number(it.qty)||0;
 }
 function _posLeft(p,n){
-  const s=_posStock(p,n); if(s<0)return -1;
+  const s=_posStock(p,n); if(s==null)return null;
   const mine=_posCnQty(_posLine(p.id),n);
   if(_prodOwnColors(p)) return s-mine;
   // مخزون المكتبة مشترك — منحسب اللي حاجزينه السطور التانية كمان
@@ -5346,7 +5365,7 @@ function _posProdKey(p){
   const it=_posLine(p.id),q=it?_posLq(it):0;
   let sub;
   if(_posIsYarn(p)){
-    const av=_posNums(p).filter(n=>_posLeft(p,n)!==0).length;
+    const av=_posNums(p).filter(n=>{const l=_posLeft(p,n);return l==null||l>0;}).length;
     sub=`<span class="num">${av}</span> ألوان`;
   }else sub=q>0?'مطوّل = العدد':'قطعة';
   return _posK({act:'prod:'+p.id,lp:'open:'+p.id,cls:(q>0?'has':''),hue:_posHue(p),
@@ -5403,10 +5422,13 @@ function posRenderDeck(){
     const it=_posLine(a.id);
     const nums=_posNums(a);
     const keys=nums.map(n=>{
-      const lf=_posLeft(a,n),got=_posCnQty(it,n),out=(lf===0&&got<=0);
-      const cls='cn mid '+(got>0?'pick ':'')+(out?'out ':'')+(_posMinus&&got>0?'canminus ':'');
-      const badge=out?'<span class="st">خلص</span>'
-        :`<span class="st${(lf>=0&&lf<=2)?' low':''}">${lf<0?'—':`<span class="num">${lf}</span>`}</span>`;
+      const lf=_posLeft(a,n),got=_posCnQty(it,n),out=(lf!=null&&lf<=0&&got<=0);
+      // خلص بالمباشر ما بيقفل الزر — البيع بيمشي والرصيد بيصير بالسالب
+      const cls='cn mid '+(got>0?'pick ':'')+(out?'zero ':'')+(_posMinus&&got>0?'canminus ':'');
+      const badge=lf==null?'<span class="st">—</span>'
+        :lf<0?`<span class="st neg"><span class="num" dir="ltr">${lf}</span></span>`
+        :out?'<span class="st neg">خلص</span>'
+        :`<span class="st${lf<=2?' low':''}"><span class="num">${lf}</span></span>`;
       return _posK({act:`cn:${a.id}:${n}`,lp:`cnq:${a.id}:${n}`,cls,
         html:badge+(_cnIsSize(a)?`<span class="n num sz">${_clrEsc(_cnTag(a,n))}</span>`:`<span class="n num">${n}</span>`)+(got>0?`<span class="x num">&times;${got}</span>`:'')+'<span class="mn">−</span>'});
     }).join('');
@@ -5492,10 +5514,10 @@ function posRenderSheet(){
   if(_posSheet==='cnq'&&_posCnq){
     const p=_prodById(_posCnq.pid),n=_posCnq.n;
     const it=_posLine(_posCnq.pid),cur=it?_posCnQty(it,n):0;
-    const lf=p?_posLeft(p,n):-1;          // الباقي بعد اللي بالسلّة
-    const max=lf<0?null:lf+cur;
+    const lf=p?_posLeft(p,n):null;        // الباقي بعد اللي بالسلّة
+    const max=lf==null?null:lf+cur;
     d.innerHTML=`<h4>${_clrEsc((p&&p.name)||'')} · ${_clrEsc(_cnWord(p))} ${_clrEsc(_cnTag(p,n))} — كم قطعة؟</h4>
-      <div style="text-align:center;font-size:12.5px;font-weight:800;color:#8FA39C">${max==null?'المخزون مش مجرود':`متوفّر <span class="num">${max}</span>`}${cur?` · بالسلّة <span class="num">${cur}</span>`:''}</div>
+      <div style="text-align:center;font-size:12.5px;font-weight:800;color:#8FA39C">${max==null?'المخزون مش مجرود':max<=0?`<span style="color:#FF6B6B">الرصيد <span class="num" dir="ltr">${max}</span> — البيع بيمشي بالسالب</span>`:`متوفّر <span class="num">${max}</span>`}${cur?` · بالسلّة <span class="num">${cur}</span>`:''}</div>
       <div id="cnqV" class="num" style="text-align:center;font-size:44px;font-weight:700;color:var(--acc);min-height:54px">${_posCnq.v||'0'}</div>
       <div class="pk-cnwrap" style="grid-template-columns:repeat(3,1fr)">${['1','2','3','4','5','6','7','8','9','C','0','⌫'].map(k=>`<button class="key mid cn" data-k="${k}" style="height:52px"><span class="lbl num" style="font-size:20px">${k}</span></button>`).join('')}</div>
       <div class="btns">
@@ -5515,7 +5537,7 @@ function posRenderSheet(){
       const pid=_posCnq.pid;
       {const it0=_posLine(pid),i0=_posCart.findIndex(x=>x.id===pid),cc=it0?_posCnQty(it0,n):0;
        // أكثر من المتوفّر ⇒ التنبيه بيطلع والشاشة بتضل مفتوحة لتصحّح الرقم
-       if(target>cc&&_cnBlocked(n,cc,target-cc,_prodOwnColors(p),p,{others:_cnCartUsed(_posCart,n,i0)})){_posBeep('bad');_posBuzz([60,50,60]);return;}}
+       if(target>cc&&_cnBlocked(n,cc,target-cc,_prodOwnColors(p),p,{pos:true,others:_cnCartUsed(_posCart,n,i0)})){_posBeep('bad');_posBuzz([60,50,60]);return;}}
       _posSheet='';_posCnq=null;
       if(!_posLine(pid)&&target>0)_posEnsure(pid);
       const idx=_posCart.findIndex(x=>x.id===pid);
@@ -5784,7 +5806,7 @@ function posCN(i,num,delta){
   const cur=_posCnQty(it,num);
   if(delta<0&&cur<=0){_posBeep('bad');_posBuzz([60,50,60]);return;}
   if(delta>0&&_cnBlocked(num,cur,delta,_prodOwnColors(pr),pr,
-      {others:_cnCartUsed(_posCart,num,i)})){_posBeep('bad');_posBuzz([60,50,60]);return;}
+      {pos:true,others:_cnCartUsed(_posCart,num,i)})){_posBeep('bad');_posBuzz([60,50,60]);return;}
   let cns=(it.colorNumbers||[]).slice();
   const j=cns.findIndex(c=>Number(c.num)===Number(num));
   if(j>=0){const q=(Number(cns[j].qty)||0)+delta;if(q<=0)cns.splice(j,1);else cns[j]={num,qty:q};}
@@ -6228,7 +6250,7 @@ function _swapPaint(){
       <b style="flex:1;font-size:.88rem;">${_clrEsc(_cnWord(p))} <bdi>${_clrEsc(_cnTag(p,c.num))}</bdi> <span style="color:#9ca3af;font-weight:700;font-size:.74rem;">(أخدت ${c.qty})</span></b>
       ${B(`_swapSet('out',${c.num},-1)`,'−')}<b class="num" style="min-width:22px;text-align:center;color:#b91c1c;">${q}</b>${B(`_swapSet('out',${c.num},1)`,'＋')}</div>`;}).join('')}
     <div style="font-size:.82rem;font-weight:900;color:#166534;margin:14px 0 6px;">٢ · شو أخدت بدلها؟</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">${codes.map(n=>{const q=inn[n]||0,stk=_swapStock(p,n),back=out[n]||0,av=stk==null?null:stk+back,dis=av===0&&!q;
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">${codes.map(n=>{const q=inn[n]||0,stk=_swapStock(p,n),back=out[n]||0,av=stk==null?null:stk+back,dis=false;
       return `<div style="border:1.5px solid ${q?'#16a34a':'#e5e7eb'};border-radius:10px;padding:5px 3px;text-align:center;background:${q?'#f0fdf4':dis?'#f9fafb':'#fff'};${dis?'opacity:.45;':''}">
         <button onclick="_swapSet('in',${n},1)" ${dis?'disabled':''} style="width:100%;border:none;background:none;font-weight:900;font-size:.92rem;cursor:pointer;${F}">${_clrEsc(_cnTag(p,n))}</button>
         <div style="font-size:.62rem;color:${av===0?'#dc2626':'#6b7280'};font-weight:700;">${av==null?'—':av===0?'خلص':'متوفّر '+av}</div>
@@ -6244,7 +6266,7 @@ function _swapSet(side,num,d){
   if(!_swap)return;const {s,p}=_swap,m=_swap[side==='out'?'out':'inn'];
   const cur=m[num]||0,nv=cur+d;if(nv<0)return;
   if(side==='out'&&!_swap.free){const sold=((s.colorNumbers||[]).find(c=>c.num===num)||{}).qty||0;if(nv>sold){toast('⚠️ أخدت من هاللون '+sold+' بس');return;}}
-  else if(d>0){const stk=_swapStock(p,num);if(stk!=null&&nv>stk+(_swap.out[num]||0)){toast('⚠️ المتوفّر من '+_cnTag(p,num)+' '+(stk+(_swap.out[num]||0))+' بس');return;}}
+  else if(d>0){const stk=_swapStock(p,num);if(stk!=null&&nv>stk+(_swap.out[num]||0))toast('⚠️ '+_cnTag(p,num)+' رح يصير بالسالب ('+(stk+(_swap.out[num]||0)-nv)+')');}
   if(nv)m[num]=nv;else delete m[num];_swapPaint();
 }
 async function posSwapSave(){
