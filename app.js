@@ -28905,12 +28905,44 @@ async function openDailySales(date){
   await _ds2Load();
 }
 async function _ds2Load(){
-  _ds2.busy=true;_ds2Paint();
+  _ds2.busy=true;_ds2.fixed=0;_ds2Paint();
+  const get=async()=>{const sn=await db.collection('operator_sales').where('date','==',_ds2.date).get();
+    return sn.docs.map(d=>({id:d.id,...d.data()}));};
   try{
-    const sn=await db.collection('operator_sales').where('date','==',_ds2.date).get();
-    _ds2.rows=sn.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false&&s.returned!==true&&(Number(s.qty)||0)>0);
+    let all=await get();
+    // طلب انعدّل وما مشي التعديل على الحسابات ⇒ منقارن كل طلب بصفوفه ومنصحّحه قبل العرض
+    const n=await _ds2Verify(all);
+    if(n){_ds2.fixed=n;all=await get();}
+    _ds2.rows=all.filter(s=>s.delivered!==false&&s.returned!==true&&(Number(s.qty)||0)>0);
   }catch(e){_ds2.rows=[];toast('❌ '+(e.message||e));}
   _ds2.busy=false;_ds2Paint();
+}
+// صفوف طلبات المتاجر لازم تطابق الطلب نفسه (المنتجات والكميات والمتجر). أي اختلاف
+// = تعديل ما انعكس ⇒ منعيد بناء صفوف الطلب من نسخته الحالية. وطلب انسلّم بهاليوم
+// ومتجره مربوط بس ما إله صفوف ⇒ منسجّله.
+async function _ds2Verify(all){
+  let n=0;
+  try{
+    if(!_opStoresList.length)await loadOpStores();
+    const by={};all.forEach(r=>{if(r.fromOrderId)(by[r.fromOrderId]=by[r.fromOrderId]||[]).push(r);});
+    const dl=await db.collection('employee_orders').where('deliveredDate','==',_ds2.date).get().catch(()=>({docs:[]}));
+    const O=new Map(dl.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
+    await Promise.all(Object.keys(by).filter(id=>!O.has(id)).map(id=>
+      db.collection('employee_orders').doc(id).get().then(d=>{if(d.exists)O.set(id,{id,...d.data()});}).catch(()=>{})));
+    for(const [id,o] of O){
+      const R=by[id]||[];
+      if(R.some(r=>r.preZero===true||(_srOn(r.storeId)&&!_srIn(r.storeId,r))))continue;   // قبل التصفير — ما منلمسه
+      if(!_SALE_ON.includes(o.status)){if(R.length&&await _rebuildOrderSale(id))n++;continue;}
+      const st=_opStoresList.find(x=>x.pageId===o.pageId);
+      if(!st)continue;                                   // صفحة مش مربوطة بمتجر
+      // صفوفه مسجّلة بيوم تاني ⇒ مش شغل هالكشف
+      if(!R.length){const any=await db.collection('operator_sales').where('fromOrderId','==',id).limit(1).get().catch(()=>null);if(!any||!any.empty)continue;}
+      const rk=R.map(r=>(r.productId||r.productName)+'×'+_sdR((Number(r.qty)||0)/(Number(r.unitsPerItem)||1))).sort().join(',');
+      const pk=(o.products||[]).map((p,i)=>[(p.id||p.name),_remQty(o,i)]).filter(x=>x[1]>0).map(x=>x[0]+'×'+x[1]).sort().join(',');
+      if(rk!==pk||R.some(r=>r.storeId!==st.id)){if(await _rebuildOrderSale(id))n++;}
+    }
+  }catch(e){console.error('_ds2Verify:',e);}
+  return n;
 }
 function ds2Day(n){_ds2.date=_ds2Shift(_ds2.date,n);_ds2.open={};_ds2Load();}
 function ds2Pick(v){if(v){_ds2.date=v;_ds2.open={};_ds2Load();}}
@@ -28945,6 +28977,7 @@ function _ds2Paint(){
       ${_ds2.busy?'<div style="padding:22px;text-align:center;color:#9fb0a6">…بحمّل</div>'
         :rows||'<div style="padding:22px;text-align:center;color:#9fb0a6">ما في مبيعات بهاليوم</div>'}
     </div>
+    ${_ds2.fixed?`<div style="font-size:.8rem;color:#8fd9b6;background:rgba(143,217,182,.08);border:1px solid rgba(143,217,182,.22);border-radius:12px;padding:9px 12px">🔄 صحّحت ${_ds2.fixed} طلب انعدّل وما كان التعديل نازل على الحسابات</div>`:''}
     <div style="font-size:.74rem;color:#9fb0a6;line-height:1.7">🏬 المعرض: سعر البيع = سعر المعرض، والربح اللي إلك (حصّة المتجرين من فرق سعر الزبون مش محسوبة). اكبس على المنتج بيفتح تفصيله.</div>
     ${L.length?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <button class="szBtn szGhost" onclick="ds2Print()">🖨️ اطبع</button>
