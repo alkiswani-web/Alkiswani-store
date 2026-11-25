@@ -28348,7 +28348,7 @@ async function openStoreLedger(id){
       &&s.showroom&&s.showroom.shares&&(Number(s.showroom.shares[id])||0)>0.004&&_srIn(id,s)).forEach(s=>{
       L.push({k:'sr',d:s.date||'',v:Number(s.showroom.shares[id])||0,name:s.productName||'',qty:s.qty||1,sale:(Number(s.sellPrice)||0)*(Number(s.qty)||1),price:(Number(s.showroom.price)||0)*(Number(s.qty)||1)});});
     rows.filter(r=>!seen.has(r.id)).forEach(r=>{const c=(Number(r.sellPrice)||0)*(Number(r.qty)||1);
-      L.push({k:r.fromOrderId?'c':'s',d:r.date||'',name:r.productName||'',qty:r.qty||1,v:-c,ord:r.fromOrderId||''});});
+      L.push({k:r.fromOrderId?'c':'s',d:r.date||'',name:r.productName||'',qty:r.qty||1,v:-c,ord:r.fromOrderId||'',rid:r.id,unit:Number(r.sellPrice)||0});});
     mine(pSnap).forEach(p=>{
       const mirror=p.withdrawalType==='withdrawal'||(p.sourceWithdrawalId&&p.withdrawalType!=='payment');
       if(mirror||!_srIn(id,p))return;const a=Number(p.amount)||0;
@@ -28369,7 +28369,8 @@ async function openStoreLedger(id){
     if(l.k==='o'&&l.sf)return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🏪</span><div class="t"><b>طلب #${_clrEsc(l.num)} · طلّعه المتجر</b><small>${_szD(l.d)} · استلمه جاهز منّا، فعليه سعر المتجر${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>سعر المتجر <b>${_szF(l.cost)}</b></span></div></div>${amt}</div>`;
     if(l.k==='o')return `<div class="szLn"><span class="szIc" style="background:rgba(226,196,131,.13)">🛒</span><div class="t"><b>طلب #${_clrEsc(l.num)} · ${stLbl[l.st]||''}</b><small>${_szD(l.d)} · ربح المتجر بيزيد اللي عليك${l.noCost?' · ⚠️ بلا تكلفة مسجّلة':''}</small><div class="szTrio szN"><span>الزبون <b>${_szF(l.cash)}</b></span><span>سعر المتجر <b>${_szF(l.cost)}</b></span><span>ربحه <b>${_szF(l.v)}</b></span></div></div>${amt}</div>`;
     if(l.k==='sr')return `<div class="szLn"><span class="szIc" style="background:rgba(226,196,131,.13)">🏬</span><div class="t"><b>ربح المعرض · ${_clrEsc(l.name)}${l.qty>1?' ×'+l.qty:''}</b><small>${_szD(l.d)} · نصّ ربح البيعة إله</small><div class="szTrio szN"><span>البيع <b>${_szF(l.sale)}</b></span><span>سعر المعرض <b>${_szF(l.price)}</b></span><span>حصّته <b>${_szF(l.v)}</b></span></div></div>${amt}</div>`;
-    if(l.k==='s')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🧾</span><div class="t"><b>بيع مباشر${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · المتجر اشترى منك، فصار عليه</small></div>${amt}</div>`;
+    if(l.k==='s')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">🧾</span><div class="t"><b>بيع مباشر${l.name?' · '+_clrEsc(l.name):''}${l.qty>1?' ×'+l.qty:''}</b><small>${_szD(l.d)} · ${l.qty>1?l.qty+' × '+_szF(l.unit)+' · ':''}المتجر اشترى منك، فصار عليه</small>
+      <button onclick="szDelSale('${l.rid}','${id}')" style="margin-top:6px;border:1px solid rgba(242,164,155,.35);background:#3a1c19;color:#f2a49b;border-radius:9px;padding:4px 10px;font-family:Tajawal,sans-serif;font-size:.74rem;font-weight:800;cursor:pointer">🗑 احذف البيعة</button></div>${amt}</div>`;
     if(l.k==='c')return `<div class="szLn"><span class="szIc" style="background:rgba(242,196,107,.13)">📦</span><div class="t"><b>تكلفة طلب${l.name?' · '+_clrEsc(l.name):''}</b><small>${_szD(l.d)} · طلب مش ضمن طلبات الكشف (عالق أو تغيّر)</small></div>${amt}</div>`;
     if(l.k==='p')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">💳</span><div class="t"><b>دفعة · ${l.dir==='out'?'دفعتلهم':'قبضت منهم'}</b><small>${_szD(l.d)}${l.note?' · '+_clrEsc(l.note):''}</small></div>${amt}</div>`;
     if(l.k==='w')return `<div class="szLn"><span class="szIc" style="background:rgba(143,217,182,.13)">💳</span><div class="t"><b>دفعة · سحب من كاشك</b><small>${_szD(l.d)}${l.note?' · '+_clrEsc(l.note):''}</small></div>${amt}</div>`;
@@ -29012,3 +29013,16 @@ function ds2Print(){
   pw.document.close();
 }
 window.openDailySales=openDailySales;window.ds2Day=ds2Day;window.ds2Pick=ds2Pick;window.ds2Tog=ds2Tog;window.ds2Wa=ds2Wa;window.ds2Print=ds2Print;
+
+// حذف بيعة مباشرة لمتجر من كشفه (بعد التسليم ما كان في مكان تحذفها منه)
+async function szDelSale(rid,storeId){
+  if(!rid)return;
+  if(!confirm('حذف هاي البيعة من حساب المتجر؟\n\nإذا فيها ألوان، بترجع للمخزون.'))return;
+  try{
+    const back=await _saleStockBack(rid);
+    await db.collection('operator_sales').doc(rid).delete();
+    toast(back?'🗑 انحذفت — والألوان رجعت للمخزون':'🗑 انحذفت البيعة');
+    openStoreLedger(storeId);
+  }catch(e){toast('❌ '+(e.message||e));}
+}
+window.szDelSale=szDelSale;
