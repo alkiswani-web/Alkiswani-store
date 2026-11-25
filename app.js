@@ -13125,7 +13125,7 @@ async function sendDailyReport(){
 // فوراً — فالشي اليومي لسا بضغطة وحدة — ومعها صفُّ وجهاتها.
 const OP_FAM=[
   {k:'work', label:'📋 الشغل',    tabs:[['oporders','📋 الطلبات'],['@catreq','🛍️ الكتالوج','openCatAdmin()'],['sales','🛒 مبيعات'],['reps','🚚 مناديب']]},
-  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['@stores','🏪 حسابات المتاجر','openStoresHub()'],['@debts','📒 ديون المتاجر','openDebtBook()']]},
+  {k:'money',label:'💰 المال',    tabs:[['balance','🌿 الرصيد'],['expenses','🧾 مصاريف'],['daysheet','📅 يومي'],['@stores','🏪 حسابات المتاجر','openStoresHub()'],['@debts','📒 ديون المتاجر','openDebtBook()'],['@dsales','📊 كشف المبيعات','openDailySales()']]},
   // «@» = وجهةٌ بتفتح نافذة لا لوحة. الألوان والمخزون كانوا مدفونين جوّا
   // «منتجات» — لازم تنزل وتدوّر على زرّ عشان توصلهم. صاروا وجهةً لحالهم.
   {k:'cat',  label:'📦 كتالوج', tabs:[['products','📦 منتجات'],
@@ -28867,3 +28867,115 @@ async function clrOwnRecreate(pid,num){
   catch(e){toast('❌ '+(e.message||e));}
 }
 window.clrOwnRecreate=clrOwnRecreate;
+
+
+// ═════════ 📊 كشف المبيعات اليومي ═════════
+// كل اللي انباع بيوم: المعرض والمتاجر (بيع الكاش وطلبات المتاجر المسلّمة) — بغضّ
+// النظر مين المتجر. منتج بسطر، بتكبس عليه بيفتح: كم من المعرض وكم من المتاجر.
+// المعرض: سعر البيع = سعر المعرض (سعر المتجر المختار)، والربح اللي إلك بس —
+// فرق سعر الزبون حصّة المتجرين وما بيدخل هون.
+let _ds2={date:'',rows:[],open:{},busy:false};
+function _ds2Nums(s){
+  const q=Number(s.qty)||0;
+  const unit=(Number(s.rawMaterialCost)||0)+(Number(s.treeCost)||0)
+            +(Number(s.machineWorkerWage)||0)+(Number(s.assemblyWorkerWage)||0);
+  const pos=_isPosSale(s);
+  const show=pos&&s.showroom&&Number(s.showroom.price)>0;
+  const sell=(show?Number(s.showroom.price):(Number(s.sellPrice)||0))*q;
+  return {qty:q,sell,cost:unit*q,profit:sell-unit*q,src:pos?'show':'store'};
+}
+function _ds2Group(){
+  const G={};
+  _ds2.rows.forEach(s=>{
+    const k=s.productId||s.productName||'?',n=_ds2Nums(s);
+    const g=G[k]||(G[k]={k,name:s.productName||(_prodById(s.productId)||{}).name||'—',qty:0,sell:0,cost:0,profit:0,
+      show:{qty:0,sell:0,cost:0,profit:0},store:{qty:0,sell:0,cost:0,profit:0}});
+    ['qty','sell','cost','profit'].forEach(f=>{g[f]+=n[f];g[n.src][f]+=n[f];});
+  });
+  return Object.values(G).sort((a,b)=>b.sell-a.sell);
+}
+function _ds2Tot(L){return L.reduce((t,g)=>{['qty','sell','cost','profit'].forEach(f=>t[f]+=g[f]);return t;},{qty:0,sell:0,cost:0,profit:0});}
+const _ds2F=v=>(Math.round(v*100)/100).toFixed(2);
+function _ds2Shift(d,n){const t=new Date(d+'T12:00:00');t.setDate(t.getDate()+n);
+  const z=x=>(x<10?'0':'')+x;return t.getFullYear()+'-'+z(t.getMonth()+1)+'-'+z(t.getDate());}
+async function openDailySales(date){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  _ds2.date=date||_ds2.date||jordanDateStr();_ds2.open={};
+  if(!(_opProductsList||[]).length&&typeof loadOpProducts==='function'){try{await loadOpProducts();}catch(e){}}
+  await _ds2Load();
+}
+async function _ds2Load(){
+  _ds2.busy=true;_ds2Paint();
+  try{
+    const sn=await db.collection('operator_sales').where('date','==',_ds2.date).get();
+    _ds2.rows=sn.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.delivered!==false&&s.returned!==true&&(Number(s.qty)||0)>0);
+  }catch(e){_ds2.rows=[];toast('❌ '+(e.message||e));}
+  _ds2.busy=false;_ds2Paint();
+}
+function ds2Day(n){_ds2.date=_ds2Shift(_ds2.date,n);_ds2.open={};_ds2Load();}
+function ds2Pick(v){if(v){_ds2.date=v;_ds2.open={};_ds2Load();}}
+function ds2Tog(k){_ds2.open[k]=!_ds2.open[k];_keepScroll(()=>document.getElementById('szDs'),()=>_ds2Paint());}
+function _ds2Paint(){
+  const L=_ds2Group(),T=_ds2Tot(L),today=jordanDateStr(),F=_ds2F;
+  const nav='width:44px;height:44px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#eef2ee;font-size:1rem;cursor:pointer;flex-shrink:0';
+  const part=(lbl,x)=>x.qty?`<div style="display:grid;grid-template-columns:minmax(0,1fr) repeat(4,auto);gap:4px 10px;align-items:center;font-size:.8rem;padding:6px 0;border-top:1px dashed rgba(255,255,255,.08)">
+      <span style="color:#cfd8d2;font-weight:800">${lbl}</span><span class="szN">${x.qty} حبّة</span><span class="szN">${F(x.sell)}</span><span class="szN" style="color:#f2a49b">${F(x.cost)}</span><span class="szN" style="color:#8fd9b6;font-weight:800">${F(x.profit)}</span></div>`:'';
+  const rows=L.map(g=>{const on=!!_ds2.open[g.k];
+    return `<div onclick="ds2Tog('${String(g.k).replace(/'/g,"\\'")}')" style="padding:12px 0;border-top:1px solid rgba(255,255,255,.07);cursor:pointer">
+      <div style="display:flex;align-items:center;gap:8px"><b style="flex:1;min-width:0;font-size:.95rem">${_clrEsc(g.name)}</b>
+        <span class="szChip">${g.qty} حبّة</span><span style="color:#9fb0a6;font-size:.8rem">${on?'▲':'▼'}</span></div>
+      <div class="szTrio"><span>بيع <b class="szN">${F(g.sell)}</b></span><span>تكلفة <b class="szN" style="color:#f2a49b">${F(g.cost)}</b></span><span>ربح <b class="szN" style="color:${g.profit<0?'#f2a49b':'#8fd9b6'}">${F(g.profit)}</b></span></div>
+      ${on?`<div style="margin-top:8px">${part('🏬 المعرض',g.show)}${part('🏪 المتاجر',g.store)}</div>`:''}
+    </div>`;}).join('');
+  const html=`<div class="szTop"><h2>📊 كشف المبيعات</h2><button class="szX" onclick="_szClose('szDs')" aria-label="إغلاق">✕</button></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button style="${nav}" onclick="ds2Day(-1)" aria-label="اليوم اللي قبل">→</button>
+      <input type="date" value="${_ds2.date}" max="${today}" onchange="ds2Pick(this.value)" style="flex:1;min-width:0;height:44px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:#0f1814;color:#eef2ee;font-family:Tajawal,sans-serif;font-size:.95rem;font-weight:800;text-align:center;color-scheme:dark">
+      <button style="${nav}" onclick="ds2Day(1)" ${_ds2.date>=today?'disabled':''} aria-label="اليوم اللي بعد">←</button>
+    </div>
+    <div class="szBand">
+      <span class="szL">${_ds2.date===today?'مبيعات اليوم':'مبيعات '+_ds2.date} · ${T.qty} حبّة</span>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <div><span class="szL">سعر البيع</span><div class="szN" style="font-size:1.2rem;font-weight:900">${F(T.sell)}</div></div>
+        <div><span class="szL">التكلفة</span><div class="szN" style="font-size:1.2rem;font-weight:900;color:#f2a49b">${F(T.cost)}</div></div>
+        <div><span class="szL">الربح</span><div class="szN" style="font-size:1.2rem;font-weight:900;color:#8fd9b6">${F(T.profit)}</div></div>
+      </div>
+    </div>
+    <div class="szCard" style="gap:0;padding-top:4px;padding-bottom:4px">
+      ${_ds2.busy?'<div style="padding:22px;text-align:center;color:#9fb0a6">…بحمّل</div>'
+        :rows||'<div style="padding:22px;text-align:center;color:#9fb0a6">ما في مبيعات بهاليوم</div>'}
+    </div>
+    <div style="font-size:.74rem;color:#9fb0a6;line-height:1.7">🏬 المعرض: سعر البيع = سعر المعرض، والربح اللي إلك (حصّة المتجرين من فرق سعر الزبون مش محسوبة). اكبس على المنتج بيفتح تفصيله.</div>
+    ${L.length?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="szBtn szGhost" onclick="ds2Print()">🖨️ اطبع</button>
+      <button class="szBtn szMint" onclick="ds2Wa()">📤 واتساب</button></div>`:''}`;
+  const ov=document.getElementById('szDs');
+  if(ov){ov.querySelector('.szW').innerHTML=html;}else _szOpen('szDs',html);
+}
+function ds2Wa(){
+  const L=_ds2Group(),T=_ds2Tot(L),F=_ds2F;
+  const msg=`📊 كشف المبيعات — ${_ds2.date}\n\n`+L.map(g=>`▫️ ${g.name} × ${g.qty}\n   بيع ${F(g.sell)} · تكلفة ${F(g.cost)} · ربح ${F(g.profit)}`).join('\n')
+    +`\n\n— المجموع (${T.qty} حبّة) —\nسعر البيع: ${F(T.sell)}\nالتكلفة: ${F(T.cost)}\nالربح: ${F(T.profit)}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+function ds2Print(){
+  const pw=window.open('','_blank');if(!pw){toast('⚠️ اسمح بفتح النوافذ عشان تطبع');return;}
+  const L=_ds2Group(),T=_ds2Tot(L),F=_ds2F,e=_clrEsc;
+  const tr=(a,b,c,d,f,st)=>`<tr${st?` class="${st}"`:''}><td>${a}</td><td>${b}</td><td>${c}</td><td>${d}</td><td>${f}</td></tr>`;
+  const body=L.map(g=>tr(`<b>${e(g.name)}</b>`,g.qty,F(g.sell),F(g.cost),F(g.profit))
+    +(g.show.qty&&g.store.qty?tr('&nbsp;&nbsp;🏬 المعرض',g.show.qty,F(g.show.sell),F(g.show.cost),F(g.show.profit),'sub')
+      +tr('&nbsp;&nbsp;🏪 المتاجر',g.store.qty,F(g.store.sell),F(g.store.cost),F(g.store.profit),'sub'):'')).join('');
+  pw.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>كشف المبيعات ${_ds2.date}</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap">
+  <style>@page{size:A4;margin:12mm}body{font-family:'Tajawal',Arial,sans-serif;color:#111;padding:16px;max-width:760px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}small{color:#6b7280}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+  th,td{padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:center}th{background:#1a3a2a;color:#fff}td:first-child,th:first-child{text-align:right}
+  tr.sub td{color:#6b7280;font-size:12.5px}tfoot td{font-weight:900;background:#f0fdf4;border-top:2px solid #1a3a2a}</style></head><body>
+  <h1>📊 كشف المبيعات</h1><small>الكسواني روزميري — ${_ds2.date} · المعرض والمتاجر</small>
+  <table><thead><tr><th>المنتج</th><th>العدد</th><th>سعر البيع</th><th>التكلفة</th><th>الربح</th></tr></thead><tbody>${body}</tbody>
+  <tfoot>${tr('المجموع',T.qty,F(T.sell),F(T.cost),F(T.profit))}</tfoot></table>
+  <p style="font-size:11.5px;color:#6b7280;margin-top:10px">المعرض: سعر البيع = سعر المعرض، والربح بدون حصّة المتاجر.</p>
+  <script>setTimeout(()=>print(),400)<\/script></body></html>`);
+  pw.document.close();
+}
+window.openDailySales=openDailySales;window.ds2Day=ds2Day;window.ds2Pick=ds2Pick;window.ds2Tog=ds2Tog;window.ds2Wa=ds2Wa;window.ds2Print=ds2Print;
