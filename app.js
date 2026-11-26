@@ -10493,6 +10493,7 @@ function _renderEmpOrdersView(){
 
 function setEmpOrderFilter(filter,btn){
   _empOrdersFilter=filter;
+  if(filter!=='all'&&_empKanbanBoardView){_empKanbanBoardView=false;const kb=document.getElementById('empKanbanBtn');if(kb)_styleToggleBtn(kb,false);}
   _empRenderCap=ORDERS_PAGE;
   document.querySelectorAll('#empOrdersChips .order-stab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
@@ -10874,6 +10875,8 @@ async function printSelectedLabels(){
 
 function setOpOrderFilter(filter,btn){
   _opOrdersFilter=filter;
+  // عرض اللوحة بيعرض كل المراحل وما بيصفّي — اختيار مرحلة بيرجّع للقائمة العادية
+  if(filter!=='all'&&_opKanbanBoardView){_opKanbanBoardView=false;const kb=document.getElementById('opKanbanBtn');if(kb)_styleToggleBtn(kb,false);}
   _opRenderCap=ORDERS_PAGE;
   document.querySelectorAll('#opOrdersChips .order-stab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
