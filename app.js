@@ -3696,12 +3696,130 @@ function _orderCnFootprint(o){
   });
   return m;
 }
-// نقطة الدخول الوحيدة: انقل الطلب من حالة مخزون إلى حالة مخزون
-async function _orderStockSync(orderId,prevOrder,nextOrder,wasApplied,shouldApply){
+// ═══ محرّك مخزون الطلبات ═══
+// كل طلب بيحمل «بصمة» اللي انخصم منه فعلاً (stockFoot) — والمحرّك بيوصّل المخزون لحالة
+// الطلب الحالية بقاعدة البيانات جوّا معاملة وحدة: بيقرا الطلب، بيحسب شو لازم يكون محجوز،
+// بيطبّق الفرق وبيكتب البصمة الجديدة — كلّه أو ولا اشي.
+//  • جهازين بنفس اللحظة: المعاملة التانية بتقرا البصمة الجديدة، فما بينخصم/بيرجع مرّتين،
+//    والمخزون دايماً بيطابق آخر حالة للطلب (ما بيضل طلب شغّال ومخزونه راجع).
+//  • لون ما كان مجرود وقت دخوله: بيتسجّل بـskip — ما انخصم، فما بيرجع إله اشي لو انجرد بعدين.
+//  • نت قطع بالنص: يا انكتب الكل يا ولا اشي، والفحص الدوري (_stockHeal) بيكمّل اللي ما خلص.
+// شكل البصمة: {lib:{رقم:كمية}, own:{'منتج|رقم':كمية}, skip:{lib:{رقم:كمية ما انخصمت}, own:{...}}}
+const _STK_EMPTY=()=>({lib:{},own:{},skip:{lib:{},own:{}}});
+function _stkNorm(f){
+  f=f||{};const sk=f.skip||{},o=_STK_EMPTY();
+  ['lib','own'].forEach(k=>{
+    Object.keys(f[k]||{}).forEach(x=>{const v=Number(f[k][x])||0;if(v)o[k][x]=v;});
+    Object.keys(sk[k]||{}).forEach(x=>{const v=sk[k][x]===true?1e9:Number(sk[k][x])||0;if(v>0)o.skip[k][x]=v;});
+  });
+  return o;
+}
+function _stkSame(a,b){
+  const eqM=(x,y)=>{const kx=Object.keys(x),ky=Object.keys(y);return kx.length===ky.length&&kx.every(k=>y[k]!==undefined&&String(y[k])===String(x[k]));};
+  return eqM(a.lib,b.lib)&&eqM(a.own,b.own)&&eqM(a.skip.lib,b.skip.lib)&&eqM(a.skip.own,b.skip.own);
+}
+function _stkLibCounted(code){const c=_clr(code);return !!(c&&c.counted===true);}
+function _stkOwnCounted(key){const i=key.lastIndexOf('|'),p=_prodById(key.slice(0,i));return !!(p&&_prodOwnColors(p)&&_ownQty(p,key.slice(i+1))!==null);}
+// بصمة الطلب من بنوده (ناقص المرتجع) — المنتج المش موجود ما بنخمّن مخزونه
+function _stkFootOf(o){
+  const known={...(o||{}),products:((o&&o.products)||[]).filter(p=>p&&_prodById(p.id))};
+  return {lib:_orderCnFootprint(known),own:_ownCnFootprint(known)};
+}
+// اللي لازم يكون محجوز للطلب هلّق
+function _stkWant(o,applied,release){
+  const want=_STK_EMPTY();
+  if(release||!_cnShouldHold(o&&o.status))return want;
+  const F=_stkFootOf(o);
+  // لكل لون: a = اللي انخصم، sk = اللي ما انخصم (لون ما كان مجرود وقت دخوله). a+sk = كمية الطلب
+  const side=(kind,counted)=>Object.keys(F[kind]).forEach(k=>{
+    const q=Number(F[kind][k])||0;if(q<=0)return;
+    const a=Number(applied[kind][k])||0,sk=Number(applied.skip[kind][k])||0;
+    let wa,ws;
+    if(counted(k)){ws=Math.min(sk,q);wa=q-ws;}       // اللي ما انخصم بيضل برّا؛ أي زيادة جديدة بتنخصم
+    else{wa=a;ws=Math.max(0,q-a);}                   // اللون مش مجرود هلّق: ما منلمس اللي انخصم
+    if(wa>0)want[kind][k]=wa;if(ws>0)want.skip[kind][k]=ws;
+  });
+  side('lib',_stkLibCounted);side('own',_stkOwnCounted);
+  return want;
+}
+// طلب قديم (قبل البصمة): اللي انخصم منه = بنوده قبل التغيير، بالألوان المجرودة بس
+function _stkLegacy(prev){
+  const a=_STK_EMPTY();if(!prev)return a;
+  const F=_stkFootOf(prev);
+  Object.keys(F.lib).forEach(k=>{if(_stkLibCounted(k))a.lib[k]=F.lib[k];else a.skip.lib[k]=F.lib[k];});
+  Object.keys(F.own).forEach(k=>{if(_stkOwnCounted(k))a.own[k]=F.own[k];else a.skip.own[k]=F.own[k];});
+  return a;
+}
+// كتابة الفرق جوّا المعاملة (موجب = بيرجع للمخزون)
+function _stkWrites(tx,d){
+  const INC=firebase.firestore.FieldValue.increment;
+  Object.keys(d.lib).forEach(code=>{const c=_clr(code);if(!c||c.counted!==true||!d.lib[code])return;
+    tx.update(db.collection('color_library').doc(c.id),{qty:INC(d.lib[code])});});
+  const byP={};
+  Object.keys(d.own).forEach(k=>{if(!d.own[k]||!_stkOwnCounted(k))return;const i=k.lastIndexOf('|');
+    (byP[k.slice(0,i)]=byP[k.slice(0,i)]||{})['ownColorQty.'+k.slice(i+1)]=INC(d.own[k]);});
+  Object.keys(byP).forEach(pid=>tx.update(db.collection('operator_products').doc(pid),byP[pid]));
+}
+function _stkLocalOwn(d){
+  // النسخة اللي بالذاكرة (القائمتان أحياناً بيشاركوا نفس الكائن)
+  Object.keys(d.own||{}).forEach(k=>{
+    if(!_stkOwnCounted(k))return;
+    const i=k.lastIndexOf('|'),pid=k.slice(0,i),num=k.slice(i+1),seen=new Set();
+    [_opProductsList,_empSharedProducts].forEach(arr=>(arr||[]).forEach(pr=>{
+      if(pr.id!==pid||seen.has(pr)||!pr.ownColorQty)return;seen.add(pr);
+      if(pr.ownColorQty[num]!=null)pr.ownColorQty[num]=(Number(pr.ownColorQty[num])||0)+d.own[k];}));
+  });
+}
+async function _orderStockTx(orderId,legacyApplied,release){
+  const ref=db.collection('employee_orders').doc(orderId);
+  try{
+    await loadColorLibrary();
+    const pre=await ref.get();
+    if(!pre.exists)return false;
+    await _ensureProds((pre.data().products||[]).map(p=>p&&p.id));
+    // ما منخمّن: مكتبة ما انقرت (نت ضعيف) أو منتج ما انقرا ⇒ منأجّل، والفحص الدوري بيعيد
+    const _unknown=o=>((o&&o.products)||[]).some(p=>p&&(p.colorNumbers||[]).length&&!_prodById(p.id));
+    if(!release&&_unknown(pre.data()))throw new Error('product-unknown');
+    const libBad=!!_colorLibError||!_colorLib.length;
+    let moved=null;
+    await db.runTransaction(async tx=>{
+      moved=null;
+      const sn=await tx.get(ref);if(!sn.exists)return;
+      const o=sn.data()||{};
+      if(!release&&_unknown(o))throw new Error('product-unknown');
+      const applied=o.stockV===1?_stkNorm(o.stockFoot):_stkNorm(legacyApplied);
+      if(libBad&&(Object.keys(applied.lib).length||Object.keys(_stkFootOf(o).lib).length))throw new Error('library-unavailable');
+      const want=_stkWant(o,applied,release);
+      const d={lib:{},own:{}};
+      ['lib','own'].forEach(kind=>new Set([...Object.keys(applied[kind]),...Object.keys(want[kind])]).forEach(k=>{
+        const v=(Number(applied[kind][k])||0)-(Number(want[kind][k])||0);if(v)d[kind][k]=v;}));
+      _stkWrites(tx,d);
+      const hold=!release&&_cnShouldHold(o.status);
+      if(!(o.stockV===1&&_stkSame(_stkNorm(o.stockFoot),want)&&o.colorStockApplied===hold))
+        tx.update(ref,{stockFoot:want,stockV:1,colorStockApplied:hold});
+      moved=d;
+    });
+    if(moved){
+      _stkLocalOwn(moved);
+      if(Object.keys(moved.lib).length){_colorLibLoaded=false;await _autoColorStatus();}
+    }
+    return true;
+  }catch(e){console.error('_orderStockTx:',e);return false;}
+}
+// نقطة الدخول الوحيدة. للطلبات: المحرّك فوق (حالة الطلب بقاعدة البيانات هي المرجع —
+// prev/wasApplied بيلزموا بس لطلب قديم ما إله بصمة). للبيع المباشر (بلا طلب): نقلة وحدة.
+// opts.release: الطلب رايح ينحذف ⇒ كل اللي محجوز إله بيرجع.
+async function _orderStockSync(orderId,prevOrder,nextOrder,wasApplied,shouldApply,opts){
+  if(orderId){
+    try{
+      if(wasApplied&&prevOrder)await _ensureProds(((prevOrder.products)||[]).map(p=>p&&p.id));
+      await loadColorLibrary();
+    }catch(e){}
+    return _orderStockTx(orderId,wasApplied&&prevOrder?_stkLegacy(prevOrder):_STK_EMPTY(),!!(opts&&opts.release));
+  }
   try{
     await loadColorLibrary();
     await _ensureProds([...((prevOrder&&prevOrder.products)||[]),...((nextOrder&&nextOrder.products)||[])].map(p=>p&&p.id));
-    // المنتجات ذات الترقيم الخاص مخزونها عليها هي، فبتشتغل حتى لو المكتبة فاضية
     const _diff=(oldM,newM)=>{
       const d={};
       new Set([...Object.keys(oldM),...Object.keys(newM)]).forEach(k=>{
@@ -3713,22 +3831,36 @@ async function _orderStockSync(orderId,prevOrder,nextOrder,wasApplied,shouldAppl
     await _applyOwnColorStock(_diff(
       wasApplied?_ownCnFootprint(prevOrder):{},
       shouldApply?_ownCnFootprint(nextOrder):{}));
-    if(!_colorLib.length){
-      if(orderId&&wasApplied!==shouldApply){
-        try{await db.collection('employee_orders').doc(orderId).update({colorStockApplied:!!shouldApply});}catch(e){}
-      }
-      return;
-    }
-    const oldM=wasApplied?_orderCnFootprint(prevOrder):{};
-    const newM=shouldApply?_orderCnFootprint(nextOrder):{};
-    const d=_diff(oldM,newM);
-    await _applyColorStock(d);
-    if(orderId&&wasApplied!==shouldApply){
-      try{await db.collection('employee_orders').doc(orderId).update({colorStockApplied:!!shouldApply});}catch(e){}
-    }
+    if(!_colorLib.length)return;
+    await _applyColorStock(_diff(wasApplied?_orderCnFootprint(prevOrder):{},shouldApply?_orderCnFootprint(nextOrder):{}));
     await _autoColorStatus();
   }catch(e){console.error('_orderStockSync:',e);}
 }
+// 🩺 فحص دوري: أي طلب بصمته مش مطابقة لحالته (مزامنة انقطعت: نت، تسكير التطبيق) بيتصلّح.
+// بيلمس بس الطلبات اللي إلها بصمة — الطلبات القديمة جداً ما منخمّن شو انخصم منها.
+let _stockHealAt=0,_stockHealBusy=false;
+async function _stockHeal(list,force){
+  if(!_currentAdminUser||_stockHealBusy)return 0;
+  if(!force&&Date.now()-_stockHealAt<5*60e3)return 0;
+  _stockHealAt=Date.now();_stockHealBusy=true;
+  let n=0;
+  try{
+    const L=(list||[]).filter(o=>o&&o.id&&o.stockV===1);
+    if(!L.length)return 0;
+    await loadColorLibrary();
+    await _ensureProds([...new Set(L.flatMap(o=>(o.products||[]).map(p=>p&&p.id)))]);
+    for(const o of L){
+      const applied=_stkNorm(o.stockFoot),want=_stkWant(o,applied,false);
+      if(_stkSame(applied,want)&&o.colorStockApplied===_cnShouldHold(o.status))continue;
+      if(await _orderStockTx(o.id,null,false))n++;
+    }
+  }catch(e){console.error('_stockHeal:',e);}
+  finally{_stockHealBusy=false;}
+  if(n)toast('🩺 صحّحت مخزون '+n+' طلب كانت مزامنته مقطوعة');
+  return n;
+}
+window._stockHeal=_stockHeal;
+const _stkWait=pr=>Promise.race([pr,new Promise(r=>setTimeout(r,4000))]);
 const _CN_DEAD=['cancelled','returned','refused'];
 function _cnShouldHold(status){return !_CN_DEAD.includes(status);}
 // أي لونٍ رجع بالإرجاع الجزئي؟ لو رجع البند كلّه فكل ألوانه، ولو رجع بعضُه
@@ -4064,7 +4196,7 @@ async function stkApply(restore){
   for(const o of L){
     try{
       if(restore)await _orderStockSync(o.id,o,o,true,false);   // بيرجّع وبيشيل العلامة
-      else await db.collection('employee_orders').doc(o.id).update({colorStockApplied:false});
+      else await db.collection('employee_orders').doc(o.id).update({colorStockApplied:false,stockV:1,stockFoot:_STK_EMPTY()});
       k++;
     }catch(e){}
   }
@@ -5940,6 +6072,7 @@ async function posSave(){
         listPrice:Number(it.list)||0,
         discount:Math.max(0,(Number(it.list)||0)-(Number(it.price)||0)),
         colorNumbers:(it.colorNumbers||[]),
+        stockFoot:_saleFootOf(it.id,it.colorNumbers||[]),
         // المعرض: ربح البيعة (سعر الزبون − سعر المعرض) بيتقسم بالنص على متجرين
         ...(_posStore?{}:_showroomRow(it,date)),
         date, delivered:true, sessionId:(_opCurrentSession&&_opCurrentSession.id)||null,
@@ -5971,13 +6104,7 @@ async function posSave(){
 async function posUndoSale(ids,foot){
   if(!ids||!ids.length)return;
   try{
-    const batch=db.batch();
-    ids.forEach(id=>batch.update(db.collection('operator_sales').doc(id),
-      {delivered:false,returned:true,returnedAt:firebase.firestore.FieldValue.serverTimestamp()}));
-    await batch.commit();
-    if(foot&&foot.products&&foot.products.some(p=>(p.colorNumbers||[]).length)){
-      try{ await _orderStockSync(null,foot,null,true,false); }catch(e){}
-    }
+    await _saleRestoreTx(ids,'return');
     _posDone=null;
     toast('↩️ رجّعت البيعة — والبضاعة رجعت للمخزون');
     if(document.getElementById('posModal')) posRender();
@@ -6003,11 +6130,8 @@ async function posReturnSale(id){
   const amt=(Number(s.sellPrice)||0)*(Number(s.qty)||1);
   if(!confirm(`↩️ إرجاع «${s.productName||''}»\n\nالمبلغ ${amt.toFixed(2)} د.أ رح يطلع من الكاش،\nوالبضاعة رح ترجع للمخزون.\n\nنكمّل؟`))return;
   try{
-    await db.collection('operator_sales').doc(id)
-      .update({delivered:false,returned:true,returnedAt:firebase.firestore.FieldValue.serverTimestamp()});
-    if(Array.isArray(s.colorNumbers)&&s.colorNumbers.length){
-      try{ await _orderStockSync(null,{products:[{id:s.productId,colorNumbers:s.colorNumbers}]},null,true,false); }catch(e){}
-    }
+    // الإرجاع والمخزون بمعاملة وحدة: جهازين بنفس اللحظة ما بيرجّعوا البضاعة مرّتين
+    await _saleRestoreTx([id],'return');
     toast('↩️ رجعت — '+amt.toFixed(2)+' د.أ طلعت من الكاش');
     _invalidateQuery&&_invalidateQuery('operator_sales');
     if(typeof _loadOpSessionData==='function') await _loadOpSessionData();
@@ -6282,10 +6406,8 @@ async function posSwapSave(){
   const next=Object.keys(cur).map(Number).filter(n=>cur[n]>0).sort((a,b)=>a-b).map(n=>({num:n,qty:cur[n]}));
   const who=(_currentAdminUser&&_currentAdminUser!=='MAIN'?_currentAdminUser:'')||(_empCurrentUser&&(_empCurrentUser.displayName||_empCurrentUser.username))||'الأدمن';
   try{
-    await db.collection('operator_sales').doc(id).update({colorNumbers:next,
-      swaps:firebase.firestore.FieldValue.arrayUnion({at:jordanDisplayDate(),out:O,in:I,by:who})});
-    // اللي رجع بيرجع للمخزون واللي انأخد بينخصم — نفس محرّك المخزون تبع الطلبات
-    await _orderStockSync(null,{products:[{id:s.productId,colorNumbers:O}]},{products:[{id:s.productId,colorNumbers:I}]},true,true);
+    // اللي رجع بيرجع للمخزون واللي انأخد بينخصم، وبصمة البيعة بتتحدّث — بمعاملة وحدة
+    await _saleSwapTx(id,s.productId,O,I,next,{at:jordanDisplayDate(),out:O,in:I,by:who});
     document.getElementById('swapModal')?.remove();_swap=null;
     toast('🔄 تبدّلت — رجّعت '+O.map(c=>_cnTag(p,c.num)+'×'+c.qty).join('، ')+' وأخدت '+I.map(c=>_cnTag(p,c.num)+'×'+c.qty).join('، '));
     if(typeof posLogLoad==='function'&&document.getElementById('posLogBody')){await posLogLoad(true);posLogRender();}
@@ -8444,13 +8566,15 @@ async function submitEmpOrder(){
       totalPrice,deliveryFee,netPrice,
       date:jordanDateStr(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      editHistory:[]
+      editHistory:[],
+      // بصمة المخزون فاضية — المحرّك بيخصم ويكتبها، ولو انقطع النت الفحص الدوري بيكمّل
+      stockV:1,stockFoot:_STK_EMPTY(),colorStockApplied:false
     });
     // طلب من الكتالوج: ألوانه محجوزة من لما الزبون ثبّت — منفكّ الحجز أوّل، وبعدين البوليصة
     // بتخصم اللي فيها فعلاً (لو الموظف عدّل الألوان بيطلع المخزون صح)
     if(_empCatReqId)await _catRelease(_empCatReqId);
     // مخزون الألوان ينخصم على إدخال الطلب — الشنيل انحجز للزبونة من هلق
-    _orderStockSync(_newRef.id,null,{products:_newProducts},false,true);
+    await _stkWait(_orderStockSync(_newRef.id,null,{products:_newProducts},false,true));
     _empUpsertCustomer(phone,customerName,address,areaInput,_empOrderCart[0]?.name||'');
     if(_empCatReqId){const rid=_empCatReqId;_empCatReqId=null;
       db.collection('catalog_requests').doc(rid).update({status:'done',orderId:_newRef.id,doneBy:_empCurrentUser.displayName||_empCurrentUser.username,doneAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
@@ -8670,9 +8794,14 @@ async function _catSweep(force){
   _catSweep.t=now;
   try{
     const s=await db.collection('catalog_requests').where('reserved','==',true).get();
-    const old=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.status==='new'&&(_catAgeH(r)||0)>=CAT_HOLD_H);
+    const all=s.docs.map(d=>({id:d.id,...d.data()}));
+    const old=all.filter(r=>r.status==='new'&&(_catAgeH(r)||0)>=CAT_HOLD_H);
+    // طلب انسجّل أو انشال وحجزه لسّا قائم = فكّ الحجز فشل لحظتها (نت) ⇒ البوليصة خصمت
+    // لحالها، فالحجز لازم يرجع وإلا بيضل الشي مخصوم مرّتين
+    const stuck=all.filter(r=>r.status!=='new');
     for(const r of old)await _catRelease(r.id,{holdExpired:true});
-    return old.length;
+    for(const r of stuck)await _catRelease(r.id);
+    return old.length+stuck.length;
   }catch(e){return 0;}
 }
 // منتجات طلب الكتالوج بشكل منتجات البوليصة
@@ -8703,7 +8832,7 @@ async function catAddToOrder(rid){
     await db.collection('employee_orders').doc(oid).update({products:next.products,
       totalPrice:(Number(od.totalPrice)||0)+sub,netPrice:(Number(od.netPrice)||0)+sub,
       editHistory:firebase.firestore.FieldValue.arrayUnion({by:who,at:jordanDisplayDate(),note:'➕ إضافة من الكتالوج #'+(r.ref||'')})});
-    _orderStockSync(oid,od,next,!!od.colorStockApplied,true);
+    await _stkWait(_orderStockSync(oid,od,next,!!od.colorStockApplied,true));
     await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:oid,doneBy:who,doneAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast('✅ انضافت على البوليصة (+'+sub.toFixed(2)+' د.أ)');
   }catch(e){toast('❌ '+e.message);}
@@ -8743,7 +8872,7 @@ async function catApplyEdit(rid){
       catEditPrev:{products:od.products||[],totalPrice:od.totalPrice||0,netPrice:od.netPrice||0,
         customerName:od.customerName||'',customerPhone:od.customerPhone||'',address:od.address||'',area:od.area||''},
       editHistory:firebase.firestore.FieldValue.arrayUnion({by:who,at:jordanDisplayDate(),note:(mode==='add'?'➕ إضافة من الكتالوج #':'✏️ الزبون عدّل طلبه من الكتالوج #')+(r.ref||'')})});
-    _orderStockSync(oid,od,next,!!od.colorStockApplied,true);
+    await _stkWait(_orderStockSync(oid,od,next,!!od.colorStockApplied,true));
     await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:oid,doneBy:who,applied:mode,doneAt:firebase.firestore.FieldValue.serverTimestamp()});
     toast((mode==='add'?'✅ انضافت على البوليصة (':'✅ انطبّق التعديل على البوليصة (')+(sub+fee).toFixed(2)+' د.أ)');
   }catch(e){toast('❌ '+e.message);}
@@ -10027,8 +10156,8 @@ async function saveEmpOrderEdit(){
     updateData.imageDataUrl=_empEditImages[0]||'';
     await docRef.update(updateData);
     // فرق الألوان بين القديم والجديد — لا المجموع، فلا ينخصم شي مرّتين
-    _orderStockSync(_empEditOrderId,prev,{products:updateData.products,colorStockReturned:prev.colorStockReturned},
-      prev.colorStockApplied===true,_cnShouldHold(prev.status));
+    await _stkWait(_orderStockSync(_empEditOrderId,prev,{products:updateData.products,colorStockReturned:prev.colorStockReturned},
+      prev.colorStockApplied===true,_cnShouldHold(prev.status)));
     // الطلب محسوب على المتجر (من قيد التوصيل) ⇒ تكلفته لازم تمشي مع التعديل:
     // المتجر الجديد، المنتجات والكميات الجديدة. كانت تضلّ على القديم.
     _rebuildOrderSale(_empEditOrderId);
@@ -10538,6 +10667,8 @@ function loadOperatorOrders(){
       _opOrdersAllData=newData;
       _updateFrameGalleryCount();
       _renderOpOrdersView();
+      // 🩺 مخزون أي طلب انقطعت مزامنته بيتصلّح (كل ٥ دقايق بالكتير)، وحجوزات كتالوج عالقة بترجع
+      setTimeout(()=>{_stockHeal(_opOrdersAllData);_catSweep();},4000);
       if(_tvModeActive)_renderTVMode();
     },e=>{wrap.innerHTML='<div style="color:#dc2626;font-size:0.82rem;padding:10px;">❌ '+e.message+'</div>';});
 }
@@ -10899,7 +11030,7 @@ async function deleteEmpOrder(id){
     // تُحتسب تكلفته للأبد ولا يمكن مطابقته لاحقاً لأن الطلب اختفى.
     // الاستدعاء بلا شرط آمن: لا يفعل شيئاً إن لم تكن هناك صفوف.
     // ألوانه بترجع للمخزون قبل ما ينحذف (كانت تضل مخصومة للأبد)
-    if(data&&data.colorStockApplied===true)await _orderStockSync(null,data,data,true,false);
+    if(data)await _orderStockSync(id,data,data,data.colorStockApplied===true,false,{release:true});
     await db.collection('employee_orders').doc(id).delete();
     // مُسلَّم: نفس الإلغاء (بالكشف المفتوح بتنشال المبيعة، بكشف مسكّر قيد مرتجع) —
     // كان يشيل المبيعة ويضيف قيد مرتجع كمان ⇒ المتجر ينخصم عنه مرّتين
@@ -10955,7 +11086,7 @@ async function updateEmpOrderStatus(id,newStatus){
     await docRef.update({status:newStatus,editHistory,...extraFields,needsReview:firebase.firestore.FieldValue.delete(),
       repIssue:firebase.firestore.FieldValue.delete(),repTransferReq:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     // إلغاء/إرجاع ⇒ الشنيل يرجع للمخزون. والرجوع عن الإلغاء ⇒ ينخصم ثانيةً.
-    _orderStockSync(id,data,data,data.colorStockApplied===true,_cnShouldHold(newStatus));
+    await _stkWait(_orderStockSync(id,data,data,data.colorStockApplied===true,_cnShouldHold(newStatus)));
     toast('✅ تم تحديث الحالة');
     // Update local cache immediately (don't wait for snapshot)
     const _patchLocal=(arr)=>{
@@ -13350,9 +13481,10 @@ async function catAdmRegGo(rid){
       address:c.address||'',notes:note,...(c.area?{area:c.area}:{}),catalogReq:rid,...(orderNum?{orderNum}:{}),
       status:'pending',totalPrice:sub+fee,deliveryFee:fee,netPrice:sub+fee,
       date:jordanDateStr(),createdAt:firebase.firestore.FieldValue.serverTimestamp(),editHistory:[],
-      createdByAdmin:_currentAdminUser||'admin'
+      createdByAdmin:_currentAdminUser||'admin',
+      stockV:1,stockFoot:_STK_EMPTY(),colorStockApplied:false
     });
-    _orderStockSync(ref.id,null,{products},false,true);
+    await _stkWait(_orderStockSync(ref.id,null,{products},false,true));
     _empUpsertCustomer(phone,c.name||'',c.address||'',c.area||'',products[0]?.name||'');
     await db.collection('catalog_requests').doc(rid).update({status:'done',orderId:ref.id,doneBy:'الأدمن',doneAt:firebase.firestore.FieldValue.serverTimestamp()});
     document.getElementById('catAdmReg')?.remove();
@@ -15386,15 +15518,8 @@ async function saveSaleEntry(){
 // حذف بيعة من البيع المباشر (لزبون أو لمتجر) لازم يرجّع ألوانها للمخزون زي «إرجاع» —
 // كان بينحذف السجلّ بس والحبات بتضيع. (بيعات الطلبات مخزونها على الطلب نفسه، فما منلمسه)
 async function _saleStockBack(id){
-  try{
-    const d=await db.collection('operator_sales').doc(id).get();
-    if(!d.exists)return false;
-    const s=d.data();
-    if(!(s.posSale||s.posStoreSale)||s.returned===true)return false;
-    if(!Array.isArray(s.colorNumbers)||!s.colorNumbers.length)return false;
-    await _orderStockSync(null,{products:[{id:s.productId,colorNumbers:s.colorNumbers}]},null,true,false);
-    return true;
-  }catch(e){console.error('saleStockBack',e);return false;}
+  try{const d=await _saleRestoreTx([id],'mark');return !!(d&&(Object.keys(d.lib).length||Object.keys(d.own).length));}
+  catch(e){console.error('saleStockBack',e);return false;}
 }
 async function deleteSaleEntry(id){
   if(!confirm('حذف هذه المبيعة؟\n\nإذا كانت من البيع المباشر، ألوانها بترجع للمخزون.')) return;
@@ -29050,3 +29175,64 @@ async function openAdminNewOrder(){
   await openEmpPanel();
 }
 window.openAdminNewOrder=openAdminNewOrder;
+
+
+// ═════════ مخزون البيع المباشر ═════════
+// بصمة البيعة = اللي انخصم منها فعلاً وقت البيع (الألوان المجرودة بس) — فالإرجاع بيرجّعها هي بالضبط
+function _saleFootOf(pid,cns){
+  const f=_STK_EMPTY(),p=_prodById(pid),own=_prodOwnColors(p);
+  (cns||[]).forEach(c=>{const n=Number(c.num)||0,q=Number(c.qty)||0;if(!(n>0&&q>0))return;
+    if(own){const k=pid+'|'+n;if(_stkOwnCounted(k))f.own[k]=(f.own[k]||0)+q;}
+    else if(p&&_stkLibCounted(n))f.lib[n]=(f.lib[n]||0)+q;});
+  return f;
+}
+// إرجاع/حذف بيعات مباشرة: قراءة البيعة + رجوع البضاعة + علامتها بمعاملة وحدة.
+// mode: 'return' = مرتجعة (بتطلع من الكاش)، 'mark' = رجعت بضاعتها وهي رايحة تنحذف
+async function _saleRestoreTx(ids,mode){
+  ids=(ids||[]).filter(Boolean);if(!ids.length)return null;
+  await loadColorLibrary();
+  const refs=ids.map(id=>db.collection('operator_sales').doc(id));
+  const pre=await Promise.all(refs.map(r=>r.get().catch(()=>null)));
+  await _ensureProds(pre.filter(d=>d&&d.exists).map(d=>d.data().productId));
+  let moved=null;
+  await db.runTransaction(async tx=>{
+    moved=null;const d={lib:{},own:{}},rows=[];
+    for(const r of refs)rows.push([r,await tx.get(r)]);
+    rows.forEach(([r,sn])=>{
+      if(!sn.exists)return;const s=sn.data()||{};
+      if(s.returned===true||s.stockBack===true||!(s.posSale||s.posStoreSale))return;
+      const f=s.stockFoot?_stkNorm(s.stockFoot):_saleFootOf(s.productId,s.colorNumbers);
+      ['lib','own'].forEach(k=>Object.keys(f[k]).forEach(x=>{d[k][x]=(d[k][x]||0)+(Number(f[k][x])||0);}));
+    });
+    _stkWrites(tx,d);
+    const FV=firebase.firestore.FieldValue;
+    rows.forEach(([r,sn])=>{if(!sn.exists)return;const s=sn.data()||{};
+      if(mode==='return'){if(s.returned!==true)tx.update(r,{delivered:false,returned:true,stockBack:true,returnedAt:FV.serverTimestamp()});}
+      else if(s.stockBack!==true&&s.returned!==true)tx.update(r,{stockBack:true});});
+    moved=d;
+  });
+  if(moved){_stkLocalOwn(moved);if(Object.keys(moved.lib).length){_colorLibLoaded=false;await _autoColorStatus();}}
+  return moved;
+}
+
+// تبديل ألوان بيعة: اللي رجع (بحدود اللي انخصم منه فعلاً) بيرجع، واللي انأخد بينخصم، والبصمة بتتحدّث
+async function _saleSwapTx(id,pid,O,I,next,entry){
+  await loadColorLibrary();await _ensureProds([pid]);
+  const ref=db.collection('operator_sales').doc(id),p=_prodById(pid),own=_prodOwnColors(p);
+  const key=n=>own?pid+'|'+n:String(n),kind=own?'own':'lib',cnt=k=>own?_stkOwnCounted(k):_stkLibCounted(k);
+  let moved=null;
+  await db.runTransaction(async tx=>{
+    moved=null;const sn=await tx.get(ref);if(!sn.exists)throw new Error('البيعة مش موجودة');
+    const row=sn.data()||{};
+    const f=row.stockFoot?_stkNorm(row.stockFoot):_saleFootOf(pid,row.colorNumbers);
+    const d={lib:{},own:{}};
+    (O||[]).forEach(c=>{const k=key(c.num),take=Math.min(Number(f[kind][k])||0,Number(c.qty)||0);
+      if(take>0){d[kind][k]=(d[kind][k]||0)+take;f[kind][k]-=take;if(f[kind][k]<=0)delete f[kind][k];}});
+    (I||[]).forEach(c=>{const k=key(c.num),q=Number(c.qty)||0;if(q>0&&cnt(k)){d[kind][k]=(d[kind][k]||0)-q;f[kind][k]=(Number(f[kind][k])||0)+q;}});
+    _stkWrites(tx,d);
+    tx.update(ref,{colorNumbers:next,stockFoot:f,swaps:firebase.firestore.FieldValue.arrayUnion(entry)});
+    moved=d;
+  });
+  if(moved){_stkLocalOwn(moved);if(Object.keys(moved.lib).length){_colorLibLoaded=false;await _autoColorStatus();}}
+  return moved;
+}
