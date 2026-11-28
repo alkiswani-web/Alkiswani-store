@@ -28,7 +28,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script defer src="app.js?v430"></script>
+<script defer src="app.js?v431"></script>
 
 <!-- الخطوط لا تحجب الرسم: تُحمَّل كـprint ثم تُفعَّل عند الجهوز.
      كان وسم stylesheet عادياً يمنع أول رسم حتى تعود رحلة شبكة خارجية. -->
@@ -3350,6 +3350,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
             <button onclick="openFrameGallery()" id="frameGalleryBtn" style="padding:8px 14px;background:#7c3aed;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:5px;">📁 البراويز <span id="frameGalleryCount" style="background:rgba(255,255,255,0.25);border-radius:8px;padding:1px 7px;font-size:0.72rem;">0</span></button>
             <button onclick="openGalleryMgmt()" style="padding:8px 14px;background:#c9a84c;color:#000;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">📸 معارض الزبائن</button>
             <button onclick="openAttendanceModal()" style="padding:8px 14px;background:#166534;color:#4ade80;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;">⏱ الدوام</button>
+            <button onclick="openAdminNewOrder()" style="padding:8px 16px;background:#166534;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(22,101,52,0.25);">➕ طلب جديد</button>
             <button onclick="openBatchDistributeModal()" style="padding:8px 16px;background:#111;color:#fff;border:none;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.18);">🚚 وزّع الطلبات</button>
             <button id="opSelectModeBtn" onclick="toggleOpSelectMode()" style="padding:8px 16px;background:#fff;color:#555;border:1px solid #ebebeb;border-radius:11px;font-family:'Tajawal',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;">☑ تحديد للطباعة</button>
           </div>
@@ -4057,7 +4058,7 @@ body.dark-mode .advisor-opt.selected,body.dark-mode .advisor-price-opt.selected{
   <div class="bl-hd">
     <button class="bl-hbtn" onclick="closeEmpPanel()">→ رجوع</button>
     <div class="bl-ttl"><b id="empPanelTitle">📦 تسجيل الطلبات</b><div id="empNameLabel"></div></div>
-    <button class="bl-hbtn" onclick="logoutEmp()">خروج 🚪</button>
+    <button class="bl-hbtn" id="empLogoutBtn" onclick="logoutEmp()">خروج 🚪</button>
   </div>
   <div class="bl-tools">
     <button id="empNotifBanner" class="bl-tl bl-alert" style="display:none;" onclick="enableEmpNotifications()">🔔 فعّل الإشعارات</button>

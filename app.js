@@ -2514,6 +2514,7 @@ function _loadEmpSession(){
 // (مثلاً من «ماسح QR» لـ«مدخل طلبات») الجهاز ما كان يعرف. هلّأ بنسمع لملفّه وقت اللوحة مفتوحة.
 let _empSelfUnsub=null,_empSelfId='';
 function _empWatchSelf(){
+  if(_empCurrentUser&&_empCurrentUser.adminProxy)return;   // الإدارة بتسجّل — مش موظف
   const id=_empCurrentUser&&_empCurrentUser.id;
   if(!id||(_empSelfUnsub&&_empSelfId===id))return;
   _empStopSelf();_empSelfId=id;
@@ -2742,7 +2743,8 @@ async function openEmpPanel(){
   _setPanelOpen(true);
   _checkEmpNotifBanner();
   _cbStartBanner();
-  _initFCM().then(()=>{if(Notification.permission==='granted')_registerFCMToken(_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username),'emp');});
+  if(!_empCurrentUser.adminProxy)_initFCM().then(()=>{if(Notification.permission==='granted')_registerFCMToken(_empCurrentUser&&(_empCurrentUser.id||_empCurrentUser.username),'emp');});
+  {const lo=document.getElementById('empLogoutBtn');if(lo)lo.style.display=_empCurrentUser.adminProxy?'none':'';}
   const lbl=document.getElementById('empNameLabel');
   if(lbl)lbl.textContent=_empCurrentUser.displayName||_empCurrentUser.username;
   _empLinkPaint();
@@ -2804,7 +2806,7 @@ async function _loadEmpPagesIntoPanel(){
   const sel=document.getElementById('emp_page');
   if(!sel)return;
   sel.innerHTML='<option value="">— اختار الصفحة —</option>'+
-    _empPagesCache.filter(p=>!p.hiddenFromEmployee).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    _empPagesCache.filter(p=>!p.hiddenFromEmployee||(_empCurrentUser&&_empCurrentUser.adminProxy)).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
   // pre-select default page
   if(_empCurrentUser.defaultPage){
     const match=_empPagesCache.find(p=>p.id===_empCurrentUser.defaultPage||p.name===_empCurrentUser.defaultPage);
@@ -8200,8 +8202,12 @@ function closeEmpPanel(){
   if(_empCatUnsub){_empCatUnsub();_empCatUnsub=null;}_empCatReqId=null;clearInterval(_empCatSweepT);
   _cbStopBanner();
   _empStopSelf();
+  // الإدارة كانت بتسجّل طلب ⇒ منرجع للوحة الإدارة بلا ما يضلّ «موظف» شغّال
+  if(_empCurrentUser&&_empCurrentUser.adminProxy)_empCurrentUser=_empProxyPrev||null;
+  _empProxyPrev=null;
 }
 function logoutEmp(){
+  if(_empCurrentUser&&_empCurrentUser.adminProxy){closeEmpPanel();return;}
   try{firebase.auth().signOut();}catch(e){}
   _clearEmpSession();
   _empCurrentUser=null;
@@ -29029,3 +29035,18 @@ async function szDelSale(rid,storeId){
   }catch(e){toast('❌ '+(e.message||e));}
 }
 window.szDelSale=szDelSale;
+
+
+// ═════════ ➕ طلب جديد من لوحة الإدارة ═════════
+// نفس شاشة تسجيل الطلبات تبعت الموظفين، بس باسم «الإدارة» — بلا حساب موظف،
+// بلا تسجيل خروج، وبلا نقاط أو تنبيهات على حساب حدا. «رجوع» بيرجعك للطلبات.
+var _empProxyPrev=null;
+async function openAdminNewOrder(){
+  if(!_currentAdminUser){toast('للإدارة بس');return;}
+  _empProxyPrev=(_empCurrentUser&&!_empCurrentUser.adminProxy)?_empCurrentUser:null;
+  const nm=_currentAdminUser==='MAIN'?'الإدارة':'الإدارة — '+_currentAdminUser;
+  _empCurrentUser={id:'__admin__',username:'admin',displayName:nm,defaultPage:'',adminProxy:true,
+    permissions:{canAddOrders:true,canViewAll:true,canEditOrders:true}};
+  await openEmpPanel();
+}
+window.openAdminNewOrder=openAdminNewOrder;
